@@ -14,3 +14,20 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+
+## To find emulators
+flutter emulators
+flutter emulators --launch <emulator_id>
+
+## From Terminal to run the app
+flutter run
+D:\Personal\ToDo\Projects\Repos\wai_life_assistant\lib> flutter run
+
+For Environment change
+Dev --> flutter run -t lib/main_dev.dart
+Prod --> flutter run -t lib/main_prod.dart
+
+Release build:
+flutter build apk -t lib/main_prod.dart
+flutter build appbundle -t lib/main_prod.dart
