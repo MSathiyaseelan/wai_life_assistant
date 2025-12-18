@@ -31,3 +31,14 @@ class LoginScreen extends StatelessWidget {
     );
   }
 }
+
+
+// Example of how to use AuthRepository in a login function
+// try {
+//   await authRepo.login(email, password);
+// } on ApiException catch (e) {
+//   ScaffoldMessenger.of(context).showSnackBar(
+//     SnackBar(content: Text(e.message)),
+//   );
+// }
+

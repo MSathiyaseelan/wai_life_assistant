@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 import '../env/env.dart';
 import 'dio_interceptors.dart';
+import '../auth/auth_interceptor.dart';
+import '../error/api_error_mapper.dart';
+import '../error/api_exception.dart';
 
 class ApiClient {
   late final Dio dio;
@@ -15,26 +18,43 @@ class ApiClient {
       ),
     );
 
-    dio.interceptors.add(DioInterceptors(dio));
+    dio.interceptors.add(AuthInterceptor(dio));
+    dio.interceptors.add(DioInterceptors(dio)); // Logging + Retry
   }
 
   // Generic GET
-  Future<Response> get(String path, {Map<String, dynamic>? query}) {
-    return dio.get(path, queryParameters: query);
+  Future<Response> get(String path, {Map<String, dynamic>? query}) async {
+    try {
+      return await dio.get(path, queryParameters: query);
+    } on DioException catch (e) {
+      throw ApiErrorMapper.map(e);
+    }
   }
 
   // Generic POST
-  Future<Response> post(String path, {dynamic data}) {
-    return dio.post(path, data: data);
+  Future<Response> post(String path, {dynamic data}) async {
+    try {
+      return await dio.post(path, data: data);
+    } on DioException catch (e) {
+      throw ApiErrorMapper.map(e);
+    }
   }
 
   // PUT
-  Future<Response> put(String path, {dynamic data}) {
-    return dio.put(path, data: data);
+  Future<Response> put(String path, {dynamic data}) async {
+    try {
+      return await dio.put(path, data: data);
+    } on DioException catch (e) {
+      throw ApiErrorMapper.map(e);
+    }
   }
 
   // DELETE
-  Future<Response> delete(String path) {
-    return dio.delete(path);
+  Future<Response> delete(String path) async {
+    try {
+      return await dio.delete(path);
+    } on DioException catch (e) {
+      throw ApiErrorMapper.map(e);
+    }
   }
 }
