@@ -1,18 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_routes.dart';
+import 'app_bootstrap.dart';
+import 'core/env/environment_config.dart';
+import 'core/env/app_environment.dart';
 
-void main() => runApp(const LifeAssistanceApp());
+void main() {
+  const env = String.fromEnvironment('ENV', defaultValue: 'dev');
+
+  bootstrapApp(env);
+}
 
 class LifeAssistanceApp extends StatelessWidget {
-  const LifeAssistanceApp({super.key});
+  final EnvironmentConfig config;
+  const LifeAssistanceApp({super.key, required this.config});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       // Root widget
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: config.environment != AppEnvironment.prod,
+      title: config.appName,
       theme: AppTheme.lightTheme,
       initialRoute: AppRoutes.splash,
       routes: AppRoutes.routes,

@@ -31,3 +31,61 @@ Prod --> flutter run -t lib/main_prod.dart
 Release build:
 flutter build apk -t lib/main_prod.dart
 flutter build appbundle -t lib/main_prod.dart
+
+## API Usage Example
+final apiUrl = '${envConfig.baseUrl}/auth/login';
+
+## Logging
+Button Click
+onTap: () {
+  AppLogger.d("Health feature tapped");
+}
+
+API Logging Example
+try {
+  AppLogger.i("Calling login API");
+  // API call
+} catch (e, s) {
+  AppLogger.e(
+    "Login failed",
+    error: e,
+    stackTrace: s,
+  );
+}
+
+
+Network Logging (Optional but Powerful)
+If using Dio, add interceptor:
+dio.interceptors.add(
+  InterceptorsWrapper(
+    onRequest: (options, handler) {
+      AppLogger.d("REQUEST → ${options.method} ${options.path}");
+      handler.next(options);
+    },
+    onResponse: (response, handler) {
+      AppLogger.i("RESPONSE → ${response.statusCode}");
+      handler.next(response);
+    },
+    onError: (e, handler) {
+      AppLogger.e(
+        "API ERROR",
+        error: e,
+        stackTrace: e.stackTrace,
+      );
+      handler.next(e);
+    },
+  ),
+);
+
+
+## Dio
+Example: Calling API from UI
+final authRepo = AuthRepository();
+
+onPressed: () async {
+  try {
+    await authRepo.login(email, password);
+  } catch (e) {
+    // show snackbar / dialog
+  }
+};
