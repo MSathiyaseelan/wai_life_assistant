@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../routes/app_routes.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/theme/app_spacing.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -7,23 +9,42 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Login")),
+      appBar: AppBar(title: Text('Login', style: AppTextStyles.headingMedium)),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(decoration: InputDecoration(labelText: 'Email')),
-            const SizedBox(height: 12),
+            Text('Welcome Back', style: AppTextStyles.headingLarge),
+
+            const SizedBox(height: AppSpacing.sm),
+
+            Text(
+              'Please login to continue',
+              style: AppTextStyles.bodySecondary,
+            ),
+
+            const SizedBox(height: AppSpacing.lg),
+
+            // Email
+            TextField(decoration: const InputDecoration(labelText: 'Email')),
+
+            const SizedBox(height: AppSpacing.md),
+
+            // Password
             TextField(
-              decoration: InputDecoration(labelText: 'Password'),
+              decoration: const InputDecoration(labelText: 'Password'),
               obscureText: true,
             ),
-            const SizedBox(height: 24),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            // Login Button
             ElevatedButton(
               onPressed: () {
                 Navigator.pushReplacementNamed(context, AppRoutes.bottomNav);
               },
-              child: const Text("Login"),
+              child: const Text('Login'),
             ),
           ],
         ),

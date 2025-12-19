@@ -3,7 +3,6 @@ import '../env/env.dart';
 import 'dio_interceptors.dart';
 import '../auth/auth_interceptor.dart';
 import '../error/api_error_mapper.dart';
-import '../error/api_exception.dart';
 
 class ApiClient {
   late final Dio dio;
