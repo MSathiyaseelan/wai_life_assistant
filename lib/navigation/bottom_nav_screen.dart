@@ -10,6 +10,8 @@ import 'package:wai_life_assistant/core/theme/app_text.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_chip_bar.dart';
 import 'package:wai_life_assistant/shared/widgets/chip_bar.dart';
+import 'featuresbottomsheet.dart';
+import '../features/wallet/featurelistdata.dart';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -105,7 +107,11 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
       return ChipBar(
         labels: const ['Meal', 'Groceries', 'Features'],
         onChipPressed: (label) {
-          debugPrint('Clicked: $label');
+          if (label == 'Features') {
+            showFeaturesBottomSheet(context, featuresByTab[2] ?? []);
+          } else {
+            debugPrint('Clicked: $label');
+          }
         },
       );
 
@@ -115,7 +121,11 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
       return ChipBar(
         labels: const ['Remainders', 'ToDo', 'Features'],
         onChipPressed: (label) {
-          debugPrint('Clicked: $label');
+          if (label == 'Features') {
+            showFeaturesBottomSheet(context, featuresByTab[3] ?? []);
+          } else {
+            debugPrint('Clicked: $label');
+          }
         },
       );
 
@@ -129,7 +139,11 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
       return ChipBar(
         labels: const ['Vehicle', 'Dresses', 'Gadgets', 'Features'],
         onChipPressed: (label) {
-          debugPrint('Clicked: $label');
+          if (label == 'Features') {
+            showFeaturesBottomSheet(context, featuresByTab[4] ?? []);
+          } else {
+            debugPrint('Clicked: $label');
+          }
         },
       );
 

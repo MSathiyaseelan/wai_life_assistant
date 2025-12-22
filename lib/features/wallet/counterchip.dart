@@ -18,7 +18,7 @@ class CounterChip extends StatelessWidget {
     final borderRadius = BorderRadius.circular(8);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4), // 👈 adjust value
+      padding: const EdgeInsets.only(top: 5),
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(
@@ -33,7 +33,10 @@ class CounterChip extends StatelessWidget {
               customBorder: RoundedRectangleBorder(borderRadius: borderRadius),
               onTap: onDecrement,
               child: const Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
                 child: Icon(Icons.remove, size: 18),
               ),
             ),

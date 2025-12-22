@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import '../wallet/counterchip.dart'; // adjust path if needed
+import '../wallet/counterchip.dart';
+// import '../wallet/transactionbottomsheet.dart';
+import '../../navigation/featuresbottomsheet.dart';
+import '../wallet/featurelistdata.dart';
 
 class WalletChipBar extends StatelessWidget {
   const WalletChipBar({super.key});
@@ -17,7 +20,10 @@ class WalletChipBar extends StatelessWidget {
           children: [
             CounterChip(
               label: 'UPI',
-              onIncrement: () => debugPrint('UPI +'),
+              onIncrement: () => {
+                //openTransactionBottomSheet(context),
+                debugPrint('UPI +'),
+              },
               onDecrement: () => debugPrint('UPI -'),
             ),
 
@@ -32,7 +38,8 @@ class WalletChipBar extends StatelessWidget {
               elevation: 0,
               pressElevation: 0,
               onPressed: () {
-                debugPrint('Features pressed');
+                showFeaturesBottomSheet(context, featuresByTab[1] ?? []);
+                debugPrint('Clicked: Features');
               },
             ),
           ],
