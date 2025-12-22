@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import '../data/models/wallet/featurelist.dart';
+import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 
 void showFeaturesBottomSheet(BuildContext context, List<FeatureItem> features) {
   final width = MediaQuery.of(context).size.width;
 
   double maxWidth;
-  if (width >= 1200) {
-    maxWidth = 700; // desktop
-  } else if (width >= 600) {
-    maxWidth = 500; // tablet
+  if (width >= AppSpacing.maxDesktopMaxWidth) {
+    maxWidth = AppSpacing.desktopMaxWidth; // desktop
+  } else if (width >= AppSpacing.maxTabletMaxWidth) {
+    maxWidth = AppSpacing.tabletMaxWidth; // tablet
   } else {
     maxWidth = width; // mobile
   }
@@ -20,7 +21,6 @@ void showFeaturesBottomSheet(BuildContext context, List<FeatureItem> features) {
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
 
-    // 🔥 THIS IS THE KEY
     constraints: BoxConstraints(maxWidth: maxWidth),
 
     builder: (ctx) {
@@ -41,13 +41,10 @@ void showFeaturesBottomSheet(BuildContext context, List<FeatureItem> features) {
               'Features',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+
             SizedBox(height: 12),
 
-            // ListTile(title: Text('Feature 1')),
-            // ListTile(title: Text('Feature 2')),
-            // ListTile(title: Text('Feature 3')),
-
-            // 🔥 Dynamic ListTiles
+            // Dynamic ListTiles
             ...features.map(
               (item) => ListTile(
                 leading: Icon(item.icon),

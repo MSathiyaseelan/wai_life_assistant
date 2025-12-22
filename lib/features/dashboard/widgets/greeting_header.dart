@@ -19,10 +19,7 @@ class GreetingHeader extends StatelessWidget {
           ],
         ),
         const Spacer(),
-        const CircleAvatar(
-          radius: 22,
-          backgroundImage: AssetImage('assets/images/avatar.png'),
-        ),
+        const CircleAvatar(radius: 22, backgroundImage: AssetImage('')),
       ],
     );
   }
