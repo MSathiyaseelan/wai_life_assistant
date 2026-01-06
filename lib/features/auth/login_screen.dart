@@ -9,20 +9,17 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Login', style: AppTextStyles.headingMedium)),
+      appBar: AppBar(title: Text('Login', style: AppTextStyles.subtitle)),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Welcome Back', style: AppTextStyles.headingLarge),
+            Text('Welcome Back', style: AppTextStyles.title),
 
             const SizedBox(height: AppSpacing.sm),
 
-            Text(
-              'Please login to continue',
-              style: AppTextStyles.bodySecondary,
-            ),
+            Text('Please login to continue', style: AppTextStyles.body),
 
             const SizedBox(height: AppSpacing.lg),
 

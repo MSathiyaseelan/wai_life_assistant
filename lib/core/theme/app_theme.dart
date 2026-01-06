@@ -11,10 +11,10 @@ class AppTheme {
     useMaterial3: true,
 
     textTheme: TextTheme(
-      headlineLarge: AppTextStyles.headingLarge,
-      headlineMedium: AppTextStyles.headingMedium,
-      bodyMedium: AppTextStyles.body,
-      bodySmall: AppTextStyles.bodySecondary,
+      headlineLarge: AppTextStyles.title,
+      headlineMedium: AppTextStyles.subtitle,
+      bodyMedium: AppTextStyles.label,
+      bodySmall: AppTextStyles.body,
     ),
 
     appBarTheme: const AppBarTheme(

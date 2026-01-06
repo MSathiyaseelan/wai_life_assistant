@@ -37,9 +37,7 @@ class _SplashScreenState extends State<SplashScreen> {
               // App Name
               Text(
                 'WAI Life Assistance',
-                style: AppTextStyles.headingLarge.copyWith(
-                  color: AppColors.primary,
-                ),
+                style: AppTextStyles.title.copyWith(color: AppColors.primary),
                 textAlign: TextAlign.center,
               ),
 
@@ -48,7 +46,7 @@ class _SplashScreenState extends State<SplashScreen> {
               // Tagline
               Text(
                 'Your personal life companion',
-                style: AppTextStyles.bodySecondary,
+                style: AppTextStyles.body,
                 textAlign: TextAlign.center,
               ),
             ],

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class AppSpacing {
   AppSpacing._();
 
@@ -11,6 +13,34 @@ class AppSpacing {
   static const double desktopMaxWidth = 700;
   static const double tabletMaxWidth = 500;
   static const double maxTabletMaxWidth = 600;
+
+  //Wallet
+  static const screenPadding = EdgeInsets.all(16);
+  static const gapSS = 6.0;
+  static const gapS = 8.0;
+  static const gapMM = 12.0;
+  static const gapM = 16.0;
+  static const gapL = 24.0;
+
+  //summary card padding
+  static const EdgeInsets summaryCardPadding = EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 12,
+  );
+
+  static const chipPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 8);
+
+  static const chipIconPadding = EdgeInsets.symmetric(
+    horizontal: 8,
+    vertical: 10,
+  );
+
+  static const walletChipBarPadding = EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 8,
+  );
+
+  static const walletChipSpacing = 8.0;
 }
 
 //Usage

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import '../wallet/counterchip.dart';
-// import '../wallet/transactionbottomsheet.dart';
 import '../../navigation/featuresbottomsheet.dart';
 import '../wallet/featurelistdata.dart';
+import 'package:wai_life_assistant/core/theme/app_text.dart';
 
 class WalletChipBar extends StatelessWidget {
   const WalletChipBar({super.key});
@@ -12,29 +13,29 @@ class WalletChipBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: AppSpacing.walletChipBarPadding,
         color: Theme.of(context).scaffoldBackgroundColor,
         child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppSpacing.walletChipSpacing,
+          runSpacing: AppSpacing.walletChipSpacing,
           children: [
             CounterChip(
-              label: 'UPI',
-              onIncrement: () => {
-                //openTransactionBottomSheet(context),
-                debugPrint('UPI +'),
-              },
+              label: AppText.walletChipUpi,
+              onIncrement: () => {debugPrint('UPI +')},
               onDecrement: () => debugPrint('UPI -'),
             ),
 
             CounterChip(
-              label: 'Cash',
+              label: AppText.walletChipCash,
               onIncrement: () => debugPrint('Cash +'),
               onDecrement: () => debugPrint('Cash -'),
             ),
 
             ActionChip(
-              label: const Text('Features'),
+              label: Text(
+                AppText.walletChipFeatures,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
               elevation: 0,
               pressElevation: 0,
               onPressed: () {

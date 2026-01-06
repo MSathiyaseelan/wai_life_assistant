@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/theme/app_radius.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
+import 'package:wai_life_assistant/core/theme/app_icon_sizes.dart';
 
 class CounterChip extends StatelessWidget {
   final String label;
@@ -15,7 +17,7 @@ class CounterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(8);
+    final borderRadius = AppRadius.small; //BorderRadius.circular(8);
 
     return Padding(
       padding: const EdgeInsets.only(top: 5),
@@ -33,17 +35,17 @@ class CounterChip extends StatelessWidget {
               customBorder: RoundedRectangleBorder(borderRadius: borderRadius),
               onTap: onDecrement,
               child: const Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
-                child: Icon(Icons.remove, size: 18),
+                padding: AppSpacing.chipIconPadding,
+                child: Icon(Icons.remove, size: AppIconSizes.small),
               ),
             ),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Text(label),
+              padding: AppSpacing.chipPadding,
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
             ),
 
             // ➕ icon
@@ -51,8 +53,8 @@ class CounterChip extends StatelessWidget {
               customBorder: RoundedRectangleBorder(borderRadius: borderRadius),
               onTap: onIncrement,
               child: const Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Icon(Icons.add, size: 18),
+                padding: AppSpacing.chipPadding,
+                child: Icon(Icons.add, size: AppIconSizes.small),
               ),
             ),
           ],
