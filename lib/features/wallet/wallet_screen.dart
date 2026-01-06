@@ -4,6 +4,8 @@ import 'package:wai_life_assistant/shared/calendar/customcalendar.dart';
 import 'package:wai_life_assistant/features/wallet/walletsummarycard.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/core/theme/app_text.dart';
+import 'package:wai_life_assistant/core/widgets/screen_padding.dart';
+import 'wallet_header.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -11,31 +13,17 @@ class WalletScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          AppText.walletTitle,
-          style: Theme.of(context).textTheme.headlineLarge,
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: AppSpacing.screenPadding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(flex: 2, child: UsersList()),
-                  const SizedBox(width: AppSpacing.gapS),
-                  Expanded(flex: 3, child: DayNavigator()),
-                ],
-              ),
+      appBar: AppBar(title: const Text(AppText.walletTitle)),
+      body: ScreenPadding(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const WalletHeader(),
 
-              const SizedBox(height: AppSpacing.gapL),
+            const SizedBox(height: AppSpacing.gapL),
 
-              Row(children: const [Expanded(child: WalletSummaryCard())]),
-            ],
-          ),
+            Row(children: const [Expanded(child: WalletSummaryCard())]),
+          ],
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/theme/app_text.dart';
 
 class PantryScreen extends StatelessWidget {
   const PantryScreen({super.key});
@@ -6,7 +7,7 @@ class PantryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Pantry")),
+      appBar: AppBar(title: const Text(AppText.pantryTitle)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

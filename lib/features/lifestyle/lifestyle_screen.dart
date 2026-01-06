@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/theme/app_text.dart';
 
 class LifeStyleScreen extends StatelessWidget {
   const LifeStyleScreen({super.key});
@@ -6,7 +7,7 @@ class LifeStyleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("LifeStyle")),
+      appBar: AppBar(title: const Text(AppText.lifeStyleTitle)),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: 5,

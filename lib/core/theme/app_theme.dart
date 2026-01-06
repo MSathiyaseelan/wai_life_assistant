@@ -4,6 +4,8 @@ import 'app_text_styles.dart';
 import 'app_radius.dart';
 
 class AppTheme {
+  AppTheme._();
+
   static ThemeData lightTheme = ThemeData(
     // primaryColor: AppColors.primary,
     scaffoldBackgroundColor: AppColors.background,
@@ -18,6 +20,8 @@ class AppTheme {
     ),
 
     appBarTheme: const AppBarTheme(
+      centerTitle: false,
+      titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
       elevation: 0,
