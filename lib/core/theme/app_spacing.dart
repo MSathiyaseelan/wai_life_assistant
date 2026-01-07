@@ -15,9 +15,10 @@ class AppSpacing {
   static const double maxTabletMaxWidth = 600;
 
   //Wallet
-  static const screenPadding = EdgeInsets.all(16);
-  static const gapSS = 6.0;
-  static const gapS = 8.0;
+  static const screenPadding = EdgeInsets.all(2);
+  static const gapS = 2.0;
+  static const gapSS = 4.0;
+  static const gapSSS = 8.0;
   static const gapMM = 12.0;
   static const gapM = 16.0;
   static const gapL = 24.0;
