@@ -1,5 +1,5 @@
 class AppSizes {
   AppSizes._();
 
-  static const walletSummaryCardHeight = 120.0;
+  static const walletSummaryCardHeight = 100.0;
 }

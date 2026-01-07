@@ -2,31 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/core/theme/app_text.dart';
 import 'package:wai_life_assistant/core/theme/app_sizes.dart';
-import 'package:wai_life_assistant/core/theme/app_radius.dart';
+import 'package:wai_life_assistant/shared/app_card.dart';
 
 class WalletSummaryCard extends StatelessWidget {
   const WalletSummaryCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    //final textTheme = Theme.of(context).textTheme;
-
-    return Container(
+    return AppCard(
       height: AppSizes.walletSummaryCardHeight,
-      padding: AppSpacing.summaryCardPadding,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: AppRadius.walletSummaryRadius,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
       child: Row(
-        children: [
+        children: const [
           Expanded(
             child: _WalletColumn(
               title: AppText.walletSummaryOnlineTitle,
@@ -34,7 +20,7 @@ class WalletSummaryCard extends StatelessWidget {
               inAmount: "₹ 7,500",
             ),
           ),
-          const VerticalDivider(thickness: 1, width: 24),
+          VerticalDivider(thickness: 1, width: 24),
           Expanded(
             child: _WalletColumn(
               title: AppText.walletSummaryCashTitle,
@@ -67,13 +53,14 @@ class _WalletColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(title, style: textTheme.headlineMedium),
+        Text(title, style: textTheme.bodyLarge),
 
         const SizedBox(height: AppSpacing.gapMM),
 
         Row(
           children: [
-            Text(AppText.outValue, style: textTheme.bodyLarge),
+            Text(AppText.outValue, style: textTheme.labelMedium),
+            const SizedBox(width: AppSpacing.gapSS),
             Expanded(
               child: Text(
                 outAmount,
@@ -88,7 +75,8 @@ class _WalletColumn extends StatelessWidget {
 
         Row(
           children: [
-            Text(AppText.inValue, style: textTheme.bodyLarge),
+            Text(AppText.inValue, style: textTheme.labelMedium),
+            const SizedBox(width: AppSpacing.gapSS),
             Expanded(
               child: Text(
                 inAmount,
