@@ -15,7 +15,7 @@ class WalletSummaryCard extends StatelessWidget {
         children: const [
           Expanded(
             child: _WalletColumn(
-              title: AppText.walletSummaryOnlineTitle,
+              title: AppText.walletSummaryCashTitle,
               outAmount: "₹ 5,000",
               inAmount: "₹ 7,500",
             ),
@@ -23,7 +23,7 @@ class WalletSummaryCard extends StatelessWidget {
           VerticalDivider(thickness: 1, width: 24),
           Expanded(
             child: _WalletColumn(
-              title: AppText.walletSummaryCashTitle,
+              title: AppText.walletSummaryOnlineTitle,
               outAmount: "₹ 2,000",
               inAmount: "₹ 3,200",
             ),

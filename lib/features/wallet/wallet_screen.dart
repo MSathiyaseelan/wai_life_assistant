@@ -4,7 +4,7 @@ import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/core/theme/app_text.dart';
 import 'package:wai_life_assistant/core/widgets/screen_padding.dart';
 import 'wallet_header.dart';
-import 'settings_bottomsheet.dart';
+import 'bottomsheet/settings_bottomsheet.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});

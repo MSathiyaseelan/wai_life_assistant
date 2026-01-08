@@ -5,13 +5,11 @@ import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/planit/planit_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/shared/responsive_layout.dart';
-//import 'package:wai_life_assistant/features/wallet/counterchip.dart';
 import 'package:wai_life_assistant/core/theme/app_text.dart';
-import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_chip_bar.dart';
 import 'package:wai_life_assistant/shared/widgets/chip_bar.dart';
-import 'featuresbottomsheet.dart';
 import '../features/wallet/featurelistdata.dart';
+import '../features/wallet/bottomsheet/wallet_features_bottomsheet.dart';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -108,7 +106,10 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
         labels: const ['Meal', 'Groceries', 'Features'],
         onChipPressed: (label) {
           if (label == 'Features') {
-            showFeaturesBottomSheet(context, featuresByTab[2] ?? []);
+            showFeaturesBottomSheet(
+              context: context,
+              features: featuresByTab[2] ?? [],
+            );
           } else {
             debugPrint('Clicked: $label');
           }
@@ -122,7 +123,10 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
         labels: const ['Remainders', 'ToDo', 'Features'],
         onChipPressed: (label) {
           if (label == 'Features') {
-            showFeaturesBottomSheet(context, featuresByTab[3] ?? []);
+            showFeaturesBottomSheet(
+              context: context,
+              features: featuresByTab[3] ?? [],
+            );
           } else {
             debugPrint('Clicked: $label');
           }
@@ -140,7 +144,10 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
         labels: const ['Vehicle', 'Dresses', 'Gadgets', 'Features'],
         onChipPressed: (label) {
           if (label == 'Features') {
-            showFeaturesBottomSheet(context, featuresByTab[4] ?? []);
+            showFeaturesBottomSheet(
+              context: context,
+              features: featuresByTab[4] ?? [],
+            );
           } else {
             debugPrint('Clicked: $label');
           }
@@ -180,32 +187,32 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
 // }
 
 //Button Bar
-Widget _buttonBar() {
-  return SafeArea(
-    top: false,
-    child: Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () {},
-              child: const Text("Cancel"),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(onPressed: () {}, child: const Text("Save")),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+// Widget _buttonBar() {
+//   return SafeArea(
+//     top: false,
+//     child: Container(
+//       padding: const EdgeInsets.all(AppSpacing.md),
+//       decoration: const BoxDecoration(
+//         color: Colors.white,
+//         boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
+//       ),
+//       child: Row(
+//         children: [
+//           Expanded(
+//             child: OutlinedButton(
+//               onPressed: () {},
+//               child: const Text("Cancel"),
+//             ),
+//           ),
+//           const SizedBox(width: 12),
+//           Expanded(
+//             child: ElevatedButton(onPressed: () {}, child: const Text("Save")),
+//           ),
+//         ],
+//       ),
+//     ),
+//   );
+// }
 
 // Widget _walletChipBar(BuildContext context) {
 //   return SafeArea(

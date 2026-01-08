@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import '../wallet/counterchip.dart';
-import '../../navigation/featuresbottomsheet.dart';
 import '../wallet/featurelistdata.dart';
 import 'package:wai_life_assistant/core/theme/app_text.dart';
+import 'package:wai_life_assistant/data/enum/wallet_enums.dart';
+import 'bottomsheet/wallet_transaction_bottom_sheet.dart';
+import 'bottomsheet/wallet_features_bottomsheet.dart';
 
 class WalletChipBar extends StatelessWidget {
   const WalletChipBar({super.key});
@@ -21,14 +23,42 @@ class WalletChipBar extends StatelessWidget {
           children: [
             CounterChip(
               label: AppText.walletChipUpi,
-              onIncrement: () => {debugPrint('UPI +')},
-              onDecrement: () => debugPrint('UPI -'),
+              onIncrement: () => {
+                //debugPrint('UPI +')
+                showWalletTransactionBottomSheet(
+                  context: context,
+                  walletType: WalletType.upi,
+                  action: WalletAction.increment,
+                ),
+              },
+              onDecrement: () => {
+                //debugPrint('UPI -')
+                showWalletTransactionBottomSheet(
+                  context: context,
+                  walletType: WalletType.upi,
+                  action: WalletAction.decrement,
+                ),
+              },
             ),
 
             CounterChip(
               label: AppText.walletChipCash,
-              onIncrement: () => debugPrint('Cash +'),
-              onDecrement: () => debugPrint('Cash -'),
+              onIncrement: () => {
+                //debugPrint('Cash +'),
+                showWalletTransactionBottomSheet(
+                  context: context,
+                  walletType: WalletType.cash,
+                  action: WalletAction.increment,
+                ),
+              },
+              onDecrement: () => {
+                debugPrint('Cash -'),
+                showWalletTransactionBottomSheet(
+                  context: context,
+                  walletType: WalletType.cash,
+                  action: WalletAction.decrement,
+                ),
+              },
             ),
 
             ActionChip(
@@ -39,7 +69,10 @@ class WalletChipBar extends StatelessWidget {
               elevation: 0,
               pressElevation: 0,
               onPressed: () {
-                showFeaturesBottomSheet(context, featuresByTab[1] ?? []);
+                showFeaturesBottomSheet(
+                  context: context,
+                  features: featuresByTab[1] ?? [],
+                );
                 debugPrint('Clicked: Features');
               },
             ),

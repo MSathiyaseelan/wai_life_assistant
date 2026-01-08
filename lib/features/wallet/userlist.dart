@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:wai_life_assistant/core/theme/app_spacing.dart';
-import 'userlist_bottomsheet_content.dart';
+import 'bottomsheet/userlist_bottomsheet_content.dart';
 import 'package:wai_life_assistant/shared/bottom_sheets/app_bottom_sheet.dart';
-import 'package:wai_life_assistant/shared/bottom_sheets/arrowpicker.dart';
+import 'package:wai_life_assistant/features/wallet/bottomsheet/arrowpicker.dart';
 
 class UsersList extends StatefulWidget {
   const UsersList({super.key});
