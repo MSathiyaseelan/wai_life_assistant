@@ -18,6 +18,7 @@ class AppSpacing {
   static const screenPadding = EdgeInsets.all(2);
   static const gapS = 2.0;
   static const gapSS = 4.0;
+  static const gapSM = 6.0;
   static const gapSSS = 8.0;
   static const gapMM = 12.0;
   static const gapM = 16.0;

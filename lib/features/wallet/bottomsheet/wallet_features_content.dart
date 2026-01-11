@@ -10,6 +10,7 @@ class FeaturesBottomSheetContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -24,8 +25,15 @@ class FeaturesBottomSheetContent extends StatelessWidget {
             leading: Icon(item.icon),
             title: Text(item.title, style: textTheme.bodyLarge),
             onTap: () {
-              Navigator.pop(context);
+              Navigator.pop(context); //Close bottom sheet
               debugPrint('Clicked: ${item.title}');
+
+              //Navigate to new page
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                rootNavigator.push(
+                  MaterialPageRoute(builder: item.pageBuilder),
+                );
+              });
             },
           ),
         ),
