@@ -30,7 +30,9 @@ environment:
 dependencies:
   http: ^1.1.0
   dio: ^5.4.3
-  flutter_secure_storage: ^9.0.0
+  flutter_secure_storage: ^10.0.0
+  speech_to_text: ^7.0.0-beta.2
+  permission_handler: ^11.0.1
   flutter:
     sdk: flutter
 
