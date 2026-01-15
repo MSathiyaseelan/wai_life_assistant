@@ -11,7 +11,7 @@ class BorrowPage extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Borrow')),
+      appBar: AppBar(title: Text(title)),
       body: BorrowListView(), // your content
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'borrow_add_fab',

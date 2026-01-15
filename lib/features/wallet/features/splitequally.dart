@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:wai_life_assistant/features/wallet/bottomsheet/lend/lend_bottomsheet.dart';
+import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_bottomsheet.dart';
 
-class LendPage extends StatelessWidget {
+class SplitEquallyPage extends StatelessWidget {
   final String title;
-  const LendPage({super.key, required this.title});
+  const SplitEquallyPage({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -12,52 +12,52 @@ class LendPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: LendListView(), // your content
+      body: SplitEquallyListView(), // your content
       floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'lend_add_fab',
+        heroTag: 'split_add_fab',
         icon: const Icon(Icons.add),
-        label: const Text('Add Lend'),
+        label: const Text('New Split'),
         onPressed: () {
-          showAddLendBottomSheet(context: context);
+          showNewSplitBottomSheet(context: context);
         },
       ),
     );
   }
 }
 
-class LendListView extends StatelessWidget {
-  const LendListView({super.key});
+class SplitEquallyListView extends StatelessWidget {
+  const SplitEquallyListView({super.key});
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
     // Sample data (later replace with DB / API)
-    final lends = [
-      LendItem(
-        person: 'Anita',
-        amount: 8000,
-        returnDate: DateTime.now().add(const Duration(days: 20)),
+    final borrows = [
+      BorrowItem(
+        person: 'Ravi',
+        amount: 5000,
+        returnDate: DateTime.now().add(const Duration(days: 15)),
       ),
-      LendItem(
-        person: 'Meena',
-        amount: 15000,
-        returnDate: DateTime.now().add(const Duration(days: 40)),
+      BorrowItem(
+        person: 'Suresh',
+        amount: 12000,
+        returnDate: DateTime.now().add(const Duration(days: 30)),
       ),
     ];
 
-    if (lends.isEmpty) {
+    if (borrows.isEmpty) {
       return Center(
-        child: Text('No lend records yet', style: textTheme.bodyLarge),
+        child: Text('No borrow records yet', style: textTheme.bodyLarge),
       );
     }
 
     return ListView.separated(
       padding: const EdgeInsets.all(10),
-      itemCount: lends.length,
+      itemCount: borrows.length,
       separatorBuilder: (_, _) => const SizedBox(height: 5),
       itemBuilder: (context, index) {
-        final item = lends[index];
+        final item = borrows[index];
 
         return Card(
           elevation: 1,
@@ -91,12 +91,12 @@ class LendListView extends StatelessWidget {
   }
 }
 
-class LendItem {
+class BorrowItem {
   final String person;
   final double amount;
   final DateTime returnDate;
 
-  LendItem({
+  BorrowItem({
     required this.person,
     required this.amount,
     required this.returnDate,

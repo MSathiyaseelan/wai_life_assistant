@@ -33,6 +33,7 @@ dependencies:
   flutter_secure_storage: ^10.0.0
   speech_to_text: ^7.0.0-beta.2
   permission_handler: ^11.0.1
+  image_picker: ^1.0.7
   flutter:
     sdk: flutter
 

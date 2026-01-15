@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/wallet/featurelist.dart';
 import 'features/lend.dart';
 import 'features/borrow.dart';
+import 'features/splitequally.dart';
 
 final Map<int, List<FeatureItem>> featuresByTab = {
   1: [
@@ -25,7 +26,7 @@ final Map<int, List<FeatureItem>> featuresByTab = {
       title: 'Split Equally',
       icon: Icons.equalizer,
       pageBuilder: (_) =>
-          const LendPage(title: 'Split Equally'), //SplitEquallyPage(),
+          const SplitEquallyPage(title: 'Split Equally'), //SplitEquallyPage(),
     ),
     FeatureItem(
       title: 'Gift Tracker',
