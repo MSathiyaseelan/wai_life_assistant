@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_bottomsheet.dart';
+import 'package:wai_life_assistant/core/theme/app_spacing.dart';
+import 'package:wai_life_assistant/core/theme/app_radius.dart';
+import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_groupdetails.dart';
 
 class SplitEquallyPage extends StatelessWidget {
   final String title;
@@ -31,74 +34,205 @@ class SplitEquallyListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
 
-    // Sample data (later replace with DB / API)
-    final borrows = [
-      BorrowItem(
-        person: 'Ravi',
-        amount: 5000,
-        returnDate: DateTime.now().add(const Duration(days: 15)),
+    /// Sample data (replace later with DB/API)
+    final groups = [
+      SplitGroup(
+        name: 'Goa Trip',
+        type: 'Friends',
+        members: ['Ravi', 'Suresh', 'Ajay'],
+        youOwe: 1200,
+        youGet: 0,
       ),
-      BorrowItem(
-        person: 'Suresh',
-        amount: 12000,
-        returnDate: DateTime.now().add(const Duration(days: 30)),
+      SplitGroup(
+        name: 'Office Lunch',
+        type: 'Office',
+        members: ['Meena', 'Karthik', 'Priya', 'John'],
+        youOwe: 0,
+        youGet: 850,
+      ),
+      SplitGroup(
+        name: 'Room Rent',
+        type: 'Family',
+        members: ['Dad', 'Mom'],
+        youOwe: 0,
+        youGet: 0,
       ),
     ];
 
-    if (borrows.isEmpty) {
+    if (groups.isEmpty) {
       return Center(
-        child: Text('No borrow records yet', style: textTheme.bodyLarge),
+        child: Text('No groups created yet', style: textTheme.bodyLarge),
       );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(10),
-      itemCount: borrows.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 5),
+      padding: const EdgeInsets.all(AppSpacing.dblscreenPadding),
+      itemCount: groups.length,
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.gapSM),
       itemBuilder: (context, index) {
-        final item = borrows[index];
+        final group = groups[index];
 
         return Card(
           elevation: 1,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.card),
           ),
           child: ListTile(
-            leading: const Icon(Icons.person_outline),
-            title: Text(item.person, style: textTheme.titleMedium),
-            subtitle: Text(
-              'Return by ${_formatDate(item.returnDate)}',
-              style: textTheme.bodyMedium,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.listTileHorizontalPadding,
+              vertical: AppSpacing.listTileVerticalPadding,
             ),
-            trailing: Text(
-              '₹ ${item.amount.toStringAsFixed(0)}',
-              style: textTheme.titleMedium?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-              ),
+
+            leading: _GroupAvatar(group: group),
+
+            title: Text(group.name, style: textTheme.titleMedium),
+
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${group.type} • ${group.members.length} members',
+                  style: textTheme.bodySmall,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                _BalanceText(group: group),
+              ],
             ),
+
+            trailing: _MembersPreview(
+              members: group.members,
+              colorScheme: colors,
+            ),
+
             onTap: () {
-              // Later: open details page / edit bottom sheet
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SplitGroupDetailPage(group: group),
+                ),
+              );
             },
           ),
         );
       },
     );
   }
+}
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+class _BalanceText extends StatelessWidget {
+  final SplitGroup group;
+
+  const _BalanceText({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    if (group.youOwe > 0) {
+      return Text(
+        'You owe ₹${group.youOwe.toStringAsFixed(0)}',
+        style: textTheme.bodyMedium?.copyWith(
+          color: colors.error,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    if (group.youGet > 0) {
+      return Text(
+        'You get ₹${group.youGet.toStringAsFixed(0)}',
+        style: textTheme.bodyMedium?.copyWith(
+          color: Colors.green,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    return Text(
+      'Settled up',
+      style: textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant),
+    );
   }
 }
 
-class BorrowItem {
-  final String person;
-  final double amount;
-  final DateTime returnDate;
+class _GroupAvatar extends StatelessWidget {
+  final SplitGroup group;
 
-  BorrowItem({
-    required this.person,
-    required this.amount,
-    required this.returnDate,
+  const _GroupAvatar({required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return CircleAvatar(
+      radius: 24,
+      backgroundColor: colors.surfaceContainerHighest,
+      child: Icon(Icons.group, color: colors.onSurfaceVariant),
+    );
+  }
+}
+
+class _MembersPreview extends StatelessWidget {
+  final List<String> members;
+  final ColorScheme colorScheme;
+
+  const _MembersPreview({required this.members, required this.colorScheme});
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = members.take(3).toList();
+    final remaining = members.length - visible.length;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...visible.map(
+          (name) => Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: CircleAvatar(
+              radius: 14,
+              backgroundColor: colorScheme.primary.withOpacity(0.12),
+              child: Text(
+                name[0].toUpperCase(),
+                style: TextStyle(fontSize: 12, color: colorScheme.primary),
+              ),
+            ),
+          ),
+        ),
+        if (remaining > 0)
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: colorScheme.surfaceContainerHighest,
+            child: Text(
+              '+$remaining',
+              style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class SplitGroup {
+  final String name;
+  final String type;
+  final List<String> members;
+  final double youOwe;
+  final double youGet;
+  final String? imagePath;
+
+  SplitGroup({
+    required this.name,
+    required this.type,
+    required this.members,
+    required this.youOwe,
+    required this.youGet,
+    this.imagePath,
   });
 }

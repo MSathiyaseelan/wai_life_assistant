@@ -14,6 +14,9 @@ class AppSpacing {
   static const double tabletMaxWidth = 500;
   static const double maxTabletMaxWidth = 600;
 
+  //Screen
+  static const double dblscreenPadding = 10;
+
   //Wallet
   static const screenPadding = EdgeInsets.all(2);
   static const gapS = 2.0;
@@ -23,6 +26,9 @@ class AppSpacing {
   static const gapMM = 12.0;
   static const gapM = 16.0;
   static const gapL = 24.0;
+
+  static const double listTileVerticalPadding = 10;
+  static const double listTileHorizontalPadding = 12;
 
   //summary card padding
   static const EdgeInsets summaryCardPadding = EdgeInsets.symmetric(

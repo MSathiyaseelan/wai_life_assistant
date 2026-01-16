@@ -12,4 +12,8 @@ class AppRadius {
   static const large = BorderRadius.all(Radius.circular(16));
 
   static const walletSummaryRadius = BorderRadius.all(Radius.circular(12));
+
+  static const double card = 12;
+  static const double avatarSM = 14;
+  static const double avatarMD = 24;
 }
