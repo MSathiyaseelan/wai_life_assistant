@@ -3,6 +3,7 @@ import '../../data/models/wallet/featurelist.dart';
 import 'features/lend.dart';
 import 'features/borrow.dart';
 import 'features/splitequally.dart';
+import 'features/gifttracker.dart';
 
 final Map<int, List<FeatureItem>> featuresByTab = {
   1: [
@@ -32,7 +33,7 @@ final Map<int, List<FeatureItem>> featuresByTab = {
       title: 'Gift Tracker',
       icon: Icons.card_giftcard,
       pageBuilder: (_) =>
-          const LendPage(title: 'Gift Tracker'), //GiftTrackerPage(),
+          const GiftTrackerPage(title: 'Gift Tracker'), //GiftTrackerPage(),
     ),
     FeatureItem(
       title: 'Subscriptions',

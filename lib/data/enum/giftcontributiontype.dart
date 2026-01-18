@@ -1,0 +1,1 @@
+enum ContributionType { self, group }
