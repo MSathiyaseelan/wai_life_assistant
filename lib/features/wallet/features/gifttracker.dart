@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/gifttracker/myfunctions.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/gifttracker/gifted.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/gifttracker/upcomingfunctions.dart';
+import 'package:wai_life_assistant/features/wallet/bottomsheet/gifttracker/poll.dart';
 
 class GiftTrackerPage extends StatelessWidget {
   final String title;
@@ -72,8 +73,7 @@ class _GiftOptionsSheet extends StatelessWidget {
           _OptionTile(
             icon: Icons.poll,
             title: 'Polls',
-            onTap: () =>
-                _open(context, const MyFunctionsPage()), //GiftPollsPage()),
+            onTap: () => _open(context, const PollsPage()), //GiftPollsPage()),
           ),
 
           const SizedBox(height: 8),
