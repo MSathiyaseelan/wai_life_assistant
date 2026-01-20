@@ -218,6 +218,7 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
   void _pickGroupImage() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (_) {
         return SafeArea(
           child: Column(

@@ -101,20 +101,20 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
       return WalletChipBar();
 
     case 2: // Pantry
-      //return _chipBar(['Meal', 'Groceries', 'Features'], context);
-      return ChipBar(
-        labels: const ['Meal', 'Groceries', 'Features'],
-        onChipPressed: (label) {
-          if (label == 'Features') {
-            showFeaturesBottomSheet(
-              context: context,
-              features: featuresByTab[2] ?? [],
-            );
-          } else {
-            debugPrint('Clicked: $label');
-          }
-        },
-      );
+      return null;
+    // return ChipBar(
+    //   labels: const ['Meal', 'Groceries', 'Features'],
+    //   onChipPressed: (label) {
+    //     if (label == 'Features') {
+    //       showFeaturesBottomSheet(
+    //         context: context,
+    //         features: featuresByTab[2] ?? [],
+    //       );
+    //     } else {
+    //       debugPrint('Clicked: $label');
+    //     }
+    //   },
+    // );
 
     case 3: // PlanIt
       // return _chipBar(['Remainders', 'ToDo', 'Features'], context);

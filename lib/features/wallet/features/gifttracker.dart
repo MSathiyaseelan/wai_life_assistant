@@ -32,6 +32,7 @@ class GiftTrackerPage extends StatelessWidget {
 void _showGiftOptionsBottomSheet(BuildContext context) {
   showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
