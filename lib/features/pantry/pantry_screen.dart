@@ -43,13 +43,15 @@ class _PantryScreenState extends State<PantryScreen> {
             },
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           Text(
             'Upcoming Food Planner',
             style: textTheme.titleMedium,
             textAlign: TextAlign.left,
           ),
+
+          const SizedBox(height: 10),
 
           /// 2️⃣ Weekly planner (compact)
           //Expanded(child: WeeklyMealPlanner(selectedDate: _selectedDate)),
@@ -233,10 +235,28 @@ class _WeeklyMealPlanner extends StatelessWidget {
   }
 }
 
-class _TodayMealDetail extends StatelessWidget {
+class _TodayMealDetail extends StatefulWidget {
   final DateTime date;
 
   const _TodayMealDetail({required this.date});
+
+  @override
+  State<_TodayMealDetail> createState() => _TodayMealDetailState();
+}
+
+class _TodayMealDetailState extends State<_TodayMealDetail> {
+  late Map<String, String> meals;
+
+  @override
+  void initState() {
+    super.initState();
+    meals = {
+      'Breakfast': 'Idli & Chutney',
+      'Lunch': 'Sambar Rice',
+      'Snacks': 'Tea & Fruits',
+      'Dinner': 'Chapati & Kurma',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -251,19 +271,75 @@ class _TodayMealDetail extends StatelessWidget {
           child: Text('Today\'s Meals', style: textTheme.titleMedium),
         ),
 
-        // 📜 Scrollable content
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: const [
-              _MealSection(title: 'Breakfast', value: 'Idli & Chutney'),
-              _MealSection(title: 'Lunch', value: 'Sambar Rice'),
-              _MealSection(title: 'Snacks', value: 'Tea & Fruits'),
-              _MealSection(title: 'Dinner', value: 'Chapati & Kurma'),
-            ],
+            padding: const EdgeInsets.all(4),
+            children: meals.entries.map((entry) {
+              return GestureDetector(
+                onTap: () => _editMeal(entry.key, entry.value),
+                child: _MealSection(title: entry.key, value: entry.value),
+              );
+            }).toList(),
           ),
         ),
       ],
+    );
+  }
+
+  void _editMeal(String mealType, String currentValue) {
+    final controller = TextEditingController(text: currentValue);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Edit $mealType',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: 'Enter meal details',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      meals[mealType] = controller.text;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -286,40 +362,3 @@ class _MealSection extends StatelessWidget {
     );
   }
 }
-
-// class PantryScreen extends StatelessWidget {
-//   const PantryScreen({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: const Text(AppText.pantryTitle)),
-//       body: Padding(
-//         padding: const EdgeInsets.all(16),
-//         child: Column(
-//           children: [
-//             const CircleAvatar(radius: 40, child: Icon(Icons.person, size: 40)),
-//             const SizedBox(height: 12),
-//             const Text(
-//               "Sathiya",
-//               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-//             ),
-//             const SizedBox(height: 24),
-//             _profileItem(Icons.settings, "Settings"),
-//             _profileItem(Icons.lock, "Privacy"),
-//             _profileItem(Icons.help, "Help & Support"),
-//             _profileItem(Icons.logout, "Logout"),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-
-//   Widget _profileItem(IconData icon, String title) {
-//     return ListTile(
-//       leading: Icon(icon),
-//       title: Text(title),
-//       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-//     );
-//   }
-// }

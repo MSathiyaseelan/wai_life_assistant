@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'mealplannerdetailpage.dart';
+import 'package:wai_life_assistant/data/models/pandry/daymealplan.dart';
 
 class WeeklyMealPlanner extends StatefulWidget {
   final DateTime selectedDate;
@@ -15,6 +17,14 @@ class _WeeklyMealPlannerState extends State<WeeklyMealPlanner> {
 
   //late final Map<DateTime, GlobalKey> _dayKeys;
   late Map<DateTime, GlobalKey> _dayKeys;
+
+  final Map<DateTime, DayMealPlan> _mealPlans = {
+    DateTime(2026, 1, 20): DayMealPlan(
+      breakfast: 'Idli',
+      lunch: 'Rice & Curry',
+    ),
+    DateTime(2026, 1, 22): DayMealPlan(dinner: 'Chapati'),
+  };
 
   @override
   void initState() {
@@ -75,10 +85,12 @@ class _WeeklyMealPlannerState extends State<WeeklyMealPlanner> {
         itemBuilder: (context, index) {
           final day = days[index];
           final isSelected = _isSameDay(day, widget.selectedDate);
+          final normalizedDay = _normalize(day);
+          final mealPlan = _mealPlans[normalizedDay];
 
           final mealCard = Container(
             key: _dayKeys[_normalize(day)],
-            width: 200, // 🔑 card width
+            width: 200,
             margin: const EdgeInsets.only(right: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -94,28 +106,30 @@ class _WeeklyMealPlannerState extends State<WeeklyMealPlanner> {
                 ),
               ],
             ),
-            child: _MealDayCard(day: day, isSelected: isSelected),
+            child: GestureDetector(
+              onTap: () {
+                // later you will open edit/details page here
+              },
+              child: _MealDayCard(
+                day: day,
+                isSelected: isSelected,
+                mealPlan: mealPlan,
+              ),
+            ),
           );
-          // if (index == 0) {
-          //       return Column(
-          //         crossAxisAlignment: CrossAxisAlignment.start,
-          //         children: [
-          //           Padding(
-          //             padding: const EdgeInsets.symmetric(
-          //               horizontal: 16,
-          //               vertical: 4,
-          //             ),
-          //             child: Text(
-          //               'Upcoming Meals',
-          //               style: Theme.of(context).textTheme.titleSmall,
-          //             ),
-          //           ),
-          //           mealCard,
-          //         ],
-          //       );
-          //     }
 
-          return mealCard;
+          return InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MealPlannerDetailPage(date: day),
+                ),
+              );
+            },
+            child: mealCard,
+          );
         },
       ),
     );
@@ -136,16 +150,25 @@ class _WeeklyMealPlannerState extends State<WeeklyMealPlanner> {
 class _MealDayCard extends StatelessWidget {
   final DateTime day;
   final bool isSelected;
+  final DayMealPlan? mealPlan;
 
-  const _MealDayCard({required this.day, required this.isSelected});
+  const _MealDayCard({
+    required this.day,
+    required this.isSelected,
+    this.mealPlan,
+  });
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+
+    final isEmpty = mealPlan == null || mealPlan!.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        /// Date
         Text(
           DateFormat('EEEE, dd MMM').format(day),
           style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -153,10 +176,35 @@ class _MealDayCard extends StatelessWidget {
 
         const SizedBox(height: 8),
 
-        _MealRow('Breakfast', 'Idli'),
-        _MealRow('Lunch', 'Rice & Curry'),
-        _MealRow('Dinner', 'Chapati'),
-        _MealRow('Snacks', 'Fruits'),
+        /// Empty state
+        if (isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No meals planned yet',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tap to add meals',
+                  style: textTheme.bodySmall?.copyWith(color: colors.primary),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          if (mealPlan!.breakfast != null)
+            _MealRow('Breakfast', mealPlan!.breakfast!),
+          if (mealPlan!.lunch != null) _MealRow('Lunch', mealPlan!.lunch!),
+          if (mealPlan!.dinner != null) _MealRow('Dinner', mealPlan!.dinner!),
+          if (mealPlan!.snacks != null) _MealRow('Snacks', mealPlan!.snacks!),
+        ],
       ],
     );
   }
