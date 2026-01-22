@@ -7,6 +7,9 @@ enum GroceryCategory {
   snacks,
   spices,
   grains,
+  pulses,
+  essentials,
+  protein,
   others,
 }
 
@@ -29,6 +32,12 @@ extension GroceryCategoryX on GroceryCategory {
         return 'Staples';
       case GroceryCategory.snacks:
         return 'Snacks';
+      case GroceryCategory.pulses:
+        return 'Pulses';
+      case GroceryCategory.essentials:
+        return 'Essentials';
+      case GroceryCategory.protein:
+        return 'Protein';
       case GroceryCategory.others:
         return 'Others';
     }

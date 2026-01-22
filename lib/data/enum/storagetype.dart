@@ -1,1 +1,1 @@
-enum StorageType { fridge, freezer, pantry }
+enum StorageType { fridge, freezer, pantry, counter }
