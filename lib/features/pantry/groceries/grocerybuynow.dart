@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/pandry/groceryitem.dart';
 import 'grocerybuynowdetailsheet.dart';
+import 'grocerycontroller.dart';
 
 class GroceryBuyNow extends StatelessWidget {
   final List<GroceryItem> items;
@@ -35,7 +36,10 @@ class GroceryBuyNow extends StatelessWidget {
                   appBarHeight -
                   topPadding,
             ),
-            builder: (_) => BuyNowDetailsSheet(items: buyNowItems),
+            builder: (_) => BuyNowDetailsSheet(
+              items: buyNowItems,
+              controller: GroceryController(),
+            ),
           );
         },
       ),
