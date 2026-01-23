@@ -10,6 +10,7 @@ import 'package:wai_life_assistant/features/wallet/wallet_chip_bar.dart';
 import 'package:wai_life_assistant/shared/widgets/chip_bar.dart';
 import '../features/wallet/featurelistdata.dart';
 import '../features/wallet/bottomsheet/wallet_features_bottomsheet.dart';
+import 'package:wai_life_assistant/features/planit/ToDo/todoPage.dart';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -117,21 +118,24 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
     // );
 
     case 3: // PlanIt
-      // return _chipBar(['Remainders', 'ToDo', 'Features'], context);
-      //return _buttonBar();
-      return ChipBar(
-        labels: const ['Reminders', 'ToDo', 'Features'],
-        onChipPressed: (label) {
-          if (label == 'Features') {
-            showFeaturesBottomSheet(
-              context: context,
-              features: featuresByTab[3] ?? [],
-            );
-          } else {
-            debugPrint('Clicked: $label');
-          }
-        },
-      );
+      return null;
+    // return ChipBar(
+    //   labels: const ['Reminders', 'ToDo', 'Features'],
+    //   onChipPressed: (label) {
+    //     if (label == 'Features') {
+    //       showFeaturesBottomSheet(
+    //         context: context,
+    //         features: featuresByTab[3] ?? [],
+    //       );
+    //     } else if (label == 'ToDo') {
+    //       Navigator.of(
+    //         context,
+    //       ).push(MaterialPageRoute(builder: (_) => const TodoPage()));
+    //     } else {
+    //       debugPrint('Clicked: $label');
+    //     }
+    //   },
+    // );
 
     case 4: // LifeStyle
       // return _chipBar([
