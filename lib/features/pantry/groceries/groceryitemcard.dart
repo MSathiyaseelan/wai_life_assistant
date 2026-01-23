@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../data/models/pandry/groceryitem.dart';
+import '../../../data/models/pantry/groceryitem.dart';
 
 class GroceryItemCard extends StatelessWidget {
   final GroceryItem item;

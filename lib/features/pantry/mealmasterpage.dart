@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/features/pantry/mealdishcard.dart';
-import 'package:wai_life_assistant/data/models/pandry/mealdish.dart';
+import 'package:wai_life_assistant/data/models/pantry/mealdish.dart';
 import 'package:wai_life_assistant/features/pantry/bottomsheet/showadddishbottomsheet.dart';
 
 class MealMasterPage extends StatefulWidget {

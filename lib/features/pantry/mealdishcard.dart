@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:wai_life_assistant/data/models/pandry/mealdish.dart';
+import 'package:wai_life_assistant/data/models/pantry/mealdish.dart';
 
 class MealDishCard extends StatelessWidget {
   final MealDish dish;

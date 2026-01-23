@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'mealplannerdetailpage.dart';
-import 'package:wai_life_assistant/data/models/pandry/daymealplan.dart';
+import 'package:wai_life_assistant/data/models/pantry/daymealplan.dart';
 
 class WeeklyMealPlanner extends StatefulWidget {
   final DateTime selectedDate;

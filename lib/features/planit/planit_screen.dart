@@ -10,7 +10,7 @@ class PlanItScreen extends StatelessWidget {
       appBar: AppBar(title: const Text(AppText.planItTitle)),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: 5,
+        itemCount: 15,
         itemBuilder: (_, index) {
           return Card(
             margin: const EdgeInsets.only(bottom: 12),

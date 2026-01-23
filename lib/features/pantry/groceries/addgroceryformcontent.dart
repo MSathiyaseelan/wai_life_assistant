@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../data/models/pandry/groceryitem.dart';
+import '../../../data/models/pantry/groceryitem.dart';
 import '../../../data/enum/grocerycategory.dart';
 import '../../../data/enum/storagetype.dart';
 

@@ -120,7 +120,7 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
       // return _chipBar(['Remainders', 'ToDo', 'Features'], context);
       //return _buttonBar();
       return ChipBar(
-        labels: const ['Remainders', 'ToDo', 'Features'],
+        labels: const ['Reminders', 'ToDo', 'Features'],
         onChipPressed: (label) {
           if (label == 'Features') {
             showFeaturesBottomSheet(
