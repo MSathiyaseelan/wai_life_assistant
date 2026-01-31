@@ -99,7 +99,8 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
     case 1: // Wallet
       //return _chipBar(['Cash', 'UPI', 'Features'], context);
       //return _walletChipBar(context);
-      return WalletChipBar();
+      //return WalletChipBar();
+      return null;
 
     case 2: // Pantry
       return null;

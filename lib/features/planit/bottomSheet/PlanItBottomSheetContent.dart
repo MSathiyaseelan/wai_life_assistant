@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/features/pantry/mealmasterpage.dart';
-import 'package:wai_life_assistant/features/pantry/groceries/groceriespage.dart';
+import 'package:wai_life_assistant/features/planit/ToDo/todoPage.dart';
 
 class PlanItBottomSheetContent extends StatelessWidget {
   const PlanItBottomSheetContent();
@@ -38,8 +38,7 @@ class PlanItBottomSheetContent extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    const GroceriesPage(), // Your groceries page widget
+                builder: (_) => const TodoPage(), // Your groceries page widget
               ),
             );
           },

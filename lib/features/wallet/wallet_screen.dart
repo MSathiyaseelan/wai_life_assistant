@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/theme/app_text.dart';
 import 'package:wai_life_assistant/core/widgets/screen_padding.dart';
 import 'wallet_header.dart';
 import 'bottomsheet/settings_bottomsheet.dart';
+import 'FloatingRail/walletFloatingRail.dart';
 
 class WalletScreen extends StatelessWidget {
   const WalletScreen({super.key});
@@ -23,17 +24,20 @@ class WalletScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ScreenPadding(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const WalletHeader(),
-
-            const SizedBox(height: AppSpacing.gapS),
-
-            Row(children: const [Expanded(child: WalletSummaryCard())]),
-          ],
-        ),
+      body: Stack(
+        children: [
+          ScreenPadding(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const WalletHeader(),
+                const SizedBox(height: AppSpacing.gapS),
+                Row(children: const [Expanded(child: WalletSummaryCard())]),
+              ],
+            ),
+          ),
+          const WalletFloatingRail(),
+        ],
       ),
     );
   }

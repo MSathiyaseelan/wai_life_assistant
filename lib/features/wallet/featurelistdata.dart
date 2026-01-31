@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../data/models/wallet/featurelist.dart';
 import 'features/lend.dart';
 import 'features/borrow.dart';
-import 'features/splitequally.dart';
+import 'package:wai_life_assistant/features/wallet/features/splitequally.dart';
 import 'features/gifttracker.dart';
 
 final Map<int, List<FeatureItem>> featuresByTab = {
