@@ -5,6 +5,8 @@ import 'package:wai_life_assistant/features/planit/Reminder/showBillReminderShee
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/features/planit/categoryGridSheet.dart';
 import 'package:wai_life_assistant/features/planit/Reminder/reminderListPage.dart';
+import 'package:wai_life_assistant/features/planit/ToDo/todoPage.dart';
+import 'package:wai_life_assistant/features/planit/specialDay/specialDaysPage.dart';
 
 class PlanItScreen extends StatefulWidget {
   const PlanItScreen({super.key});
@@ -102,8 +104,25 @@ class _QuickActionChips extends StatelessWidget {
               MaterialPageRoute(builder: (context) => const ReminderListPage()),
             ),
           ),
-          _chip(context, 'ToDo', Icons.insert_emoticon, () {}),
-          _chip(context, 'Birthday/Wedding Day', Icons.insert_emoticon, () {}),
+          _chip(
+            context,
+            'ToDo',
+            Icons.check_circle_outline,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const TodoPage()),
+            ),
+          ),
+          //_chip(context, 'ToDo', Icons.insert_emoticon, () {}),
+          _chip(
+            context,
+            'Birthday/Wedding Day',
+            Icons.insert_emoticon,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SpecialDaysPage()),
+            ),
+          ),
           _chip(context, 'To-Buy List', Icons.shopping_cart, () {}),
           _chip(
             context,

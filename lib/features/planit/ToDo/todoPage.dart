@@ -5,8 +5,24 @@ import 'addTodoSheet.dart';
 import 'package:wai_life_assistant/data/models/planit/todoitem.dart';
 import 'package:provider/provider.dart';
 
-class TodoPage extends StatelessWidget {
+class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
+
+  @override
+  State<TodoPage> createState() => _TodoPageState();
+}
+
+class _TodoPageState extends State<TodoPage> {
+  void _openAddTodoSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => const AddTodoSheet(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +75,16 @@ class _TodoTile extends StatelessWidget {
   }
 }
 
-void _openAddTodoSheet(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (_) => const AddTodoSheet(),
-  );
-}
+// void _openAddTodoSheet(BuildContext context) {
+//   showModalBottomSheet(
+//     context: context,
+//     isScrollControlled: true,
+//     shape: const RoundedRectangleBorder(
+//       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+//     ),
+//     builder: (_) => const AddTodoSheet(),
+//   );
+// }
 
 class _EmptyTodo extends StatelessWidget {
   const _EmptyTodo();
