@@ -139,25 +139,20 @@ Widget? _bottomActionsForIndex(int index, BuildContext context) {
     // );
 
     case 4: // LifeStyle
-      // return _chipBar([
-      //   'Vehicle',
-      //   'Dresses',
-      //   'Gadgets',
-      //   'Features',
-      // ], context); // No bottom actions
-      return ChipBar(
-        labels: const ['Vehicle', 'Dresses', 'Gadgets', 'Features'],
-        onChipPressed: (label) {
-          if (label == 'Features') {
-            showFeaturesBottomSheet(
-              context: context,
-              features: featuresByTab[4] ?? [],
-            );
-          } else {
-            debugPrint('Clicked: $label');
-          }
-        },
-      );
+      return null;
+    // return ChipBar(
+    //   labels: const ['Vehicle', 'Dresses', 'Gadgets', 'Features'],
+    //   onChipPressed: (label) {
+    //     if (label == 'Features') {
+    //       showFeaturesBottomSheet(
+    //         context: context,
+    //         features: featuresByTab[4] ?? [],
+    //       );
+    //     } else {
+    //       debugPrint('Clicked: $label');
+    //     }
+    //   },
+    // );
 
     default:
       return null;

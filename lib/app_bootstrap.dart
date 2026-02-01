@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'features/planit/ToDo/todoController.dart';
 import 'features/pantry/groceries/grocerycontroller.dart';
 import 'features/planit/specialDay/specialDaysController.dart';
+import 'features/lifestyle/lifestyleController.dart';
 
 void bootstrapApp(String env) {
   envConfig = EnvironmentConfig.fromEnv(env);
@@ -16,6 +17,7 @@ void bootstrapApp(String env) {
         ChangeNotifierProvider(create: (_) => TodoController()),
         ChangeNotifierProvider(create: (_) => GroceryController()),
         ChangeNotifierProvider(create: (_) => SpecialDaysController()),
+        ChangeNotifierProvider(create: (_) => LifestyleController()),
         // add more controllers when needed
       ],
       child: LifeAssistanceApp(config: envConfig),
