@@ -63,7 +63,7 @@ class LifeStyleScreen extends StatelessWidget {
           // 📦 Content
           Expanded(
             child: controller.filteredItems.isEmpty
-                ? const _EmptyLifestyle()
+                ? _EmptyLifestyle(category: controller.selectedCategory)
                 : ListView.separated(
                     padding: const EdgeInsets.all(16),
                     itemCount: controller.filteredItems.length,
@@ -82,17 +82,23 @@ class LifeStyleScreen extends StatelessWidget {
 }
 
 class _EmptyLifestyle extends StatelessWidget {
-  const _EmptyLifestyle();
+  final LifestyleCategory category;
+  const _EmptyLifestyle({required this.category});
 
   @override
   Widget build(BuildContext context) {
+    final label = _categoryLabel(category);
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.category_outlined, size: 48, color: Colors.grey),
-          SizedBox(height: 8),
-          Text('No items added yet'),
+        children: [
+          const Icon(Icons.category_outlined, size: 48, color: Colors.grey),
+          const SizedBox(height: 8),
+          Text(
+            'No $label added yet.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ],
       ),
     );

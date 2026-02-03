@@ -22,6 +22,15 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
   DateTime? _purchaseDate;
 
   @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _brandCtrl.dispose();
+    _priceCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final controller = context.read<LifestyleController>();
 
@@ -34,89 +43,29 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
       ),
       child: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔝 Header
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Add ${_label(widget.category)}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
+            _Header(title: 'Add ${_label(widget.category)}'),
+
+            const SizedBox(height: 16),
+
+            // 🧠 Category-specific fields
+            _buildCategoryFields(),
 
             const SizedBox(height: 12),
 
-            // 🏷 Name
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'Eg: Honda Activa / iPhone / Saree',
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // 🏭 Brand
-            TextField(
-              controller: _brandCtrl,
-              decoration: const InputDecoration(labelText: 'Brand'),
-            ),
-
-            const SizedBox(height: 12),
-
-            // 💰 Price
-            TextField(
-              controller: _priceCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Price (optional)'),
-            ),
-
-            const SizedBox(height: 12),
-
-            // 📅 Purchase Date
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today),
-              title: Text(
-                _purchaseDate == null
-                    ? 'Select purchase date'
-                    : 'Purchased on ${_purchaseDate!.toLocal().toString().split(' ')[0]}',
-              ),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null) {
-                  setState(() => _purchaseDate = picked);
-                }
-              },
-            ),
-
-            const SizedBox(height: 12),
-
-            // 📝 Notes
-            TextField(
-              controller: _notesCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Notes'),
+            _CommonFields(
+              nameCtrl: _nameCtrl,
+              brandCtrl: _brandCtrl,
+              priceCtrl: _priceCtrl,
+              notesCtrl: _notesCtrl,
+              purchaseDate: _purchaseDate,
+              onPickDate: (date) => setState(() => _purchaseDate = date),
             ),
 
             const SizedBox(height: 20),
 
-            // ✅ Save
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -147,6 +96,212 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  /// 🔁 Switch UI by category
+  Widget _buildCategoryFields() {
+    switch (widget.category) {
+      case LifestyleCategory.vehicle:
+        return const _VehicleExtraFields();
+
+      case LifestyleCategory.dresses:
+        return const _DressExtraFields();
+
+      case LifestyleCategory.gadgets:
+        return const _GadgetExtraFields();
+
+      case LifestyleCategory.appliances:
+        return const _ApplianceExtraFields();
+
+      case LifestyleCategory.collections:
+        return const SizedBox.shrink();
+    }
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String title;
+
+  const _Header({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ],
+    );
+  }
+}
+
+class _VehicleExtraFields extends StatelessWidget {
+  const _VehicleExtraFields();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        TextField(
+          decoration: InputDecoration(
+            labelText: 'Vehicle Number',
+            hintText: 'TN 01 AB 1234',
+          ),
+        ),
+        SizedBox(height: 12),
+        TextField(
+          decoration: InputDecoration(
+            labelText: 'Fuel Type',
+            hintText: 'Petrol / Diesel / EV',
+          ),
+        ),
+        SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class _DressExtraFields extends StatelessWidget {
+  const _DressExtraFields();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        TextField(
+          decoration: InputDecoration(
+            labelText: 'Size',
+            hintText: 'S / M / L / XL',
+          ),
+        ),
+        SizedBox(height: 12),
+        TextField(
+          decoration: InputDecoration(
+            labelText: 'Occasion',
+            hintText: 'Wedding / Casual',
+          ),
+        ),
+        SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class _GadgetExtraFields extends StatelessWidget {
+  const _GadgetExtraFields();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        TextField(
+          decoration: InputDecoration(
+            labelText: 'Model',
+            hintText: 'iPhone 14 / Galaxy S23',
+          ),
+        ),
+        SizedBox(height: 12),
+        TextField(
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Warranty (years)'),
+        ),
+
+        SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class _ApplianceExtraFields extends StatelessWidget {
+  const _ApplianceExtraFields();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: const [
+        TextField(
+          decoration: InputDecoration(
+            labelText: 'Room',
+            hintText: 'Kitchen / Bedroom',
+          ),
+        ),
+        SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+class _CommonFields extends StatelessWidget {
+  final TextEditingController nameCtrl;
+  final TextEditingController brandCtrl;
+  final TextEditingController priceCtrl;
+  final TextEditingController notesCtrl;
+  final DateTime? purchaseDate;
+  final ValueChanged<DateTime> onPickDate;
+
+  const _CommonFields({
+    required this.nameCtrl,
+    required this.brandCtrl,
+    required this.priceCtrl,
+    required this.notesCtrl,
+    required this.purchaseDate,
+    required this.onPickDate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: nameCtrl,
+          decoration: const InputDecoration(labelText: 'Name'),
+        ),
+        const SizedBox(height: 12),
+
+        TextField(
+          controller: brandCtrl,
+          decoration: const InputDecoration(labelText: 'Brand'),
+        ),
+        const SizedBox(height: 12),
+
+        TextField(
+          controller: priceCtrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Price (optional)'),
+        ),
+        const SizedBox(height: 12),
+
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.calendar_today),
+          title: Text(
+            purchaseDate == null
+                ? 'Select purchase date'
+                : 'Purchased on ${purchaseDate!.toLocal().toString().split(' ')[0]}',
+          ),
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime.now(),
+              firstDate: DateTime(2000),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) onPickDate(picked);
+          },
+        ),
+
+        TextField(
+          controller: notesCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Notes'),
+        ),
+      ],
     );
   }
 }
