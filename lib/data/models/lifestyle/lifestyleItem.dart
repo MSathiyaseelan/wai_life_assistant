@@ -4,20 +4,29 @@ class LifestyleItem {
   final String id;
   final String name;
   final LifestyleCategory category;
+
   final String? brand;
-  final DateTime? purchaseDate;
   final double? price;
+  final DateTime? purchaseDate;
   final String? notes;
-  final String? imageUrl;
+
+  // 🚗 Vehicle-only fields
+  final String? vehicleType;
+  final String? vehicleNumber;
+  final String? owner;
+  final String? model;
 
   LifestyleItem({
     required this.id,
     required this.name,
     required this.category,
     this.brand,
-    this.purchaseDate,
     this.price,
+    this.purchaseDate,
     this.notes,
-    this.imageUrl,
+    this.vehicleType,
+    this.vehicleNumber,
+    this.owner,
+    this.model,
   });
 }

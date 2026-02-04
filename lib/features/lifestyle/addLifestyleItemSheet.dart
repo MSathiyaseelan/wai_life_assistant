@@ -19,6 +19,19 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
   final _priceCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
+  // 🔹 Vehicle controllers
+  final _vehicleNameCtrl = TextEditingController();
+  final _vehicleNumberCtrl = TextEditingController();
+  final _vehicleBrandCtrl = TextEditingController();
+  final _vehicleModelCtrl = TextEditingController();
+
+  // 🔹 Dropdown values
+  String? _vehicleType;
+  String _vehicleOwner = 'Self';
+
+  // 🔹 Vehicle purchase date
+  DateTime? _vehiclePurchaseDate;
+
   DateTime? _purchaseDate;
 
   @override
@@ -27,6 +40,10 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
     _brandCtrl.dispose();
     _priceCtrl.dispose();
     _notesCtrl.dispose();
+    _vehicleNameCtrl.dispose();
+    _vehicleNumberCtrl.dispose();
+    _vehicleBrandCtrl.dispose();
+    _vehicleModelCtrl.dispose();
     super.dispose();
   }
 
@@ -53,17 +70,16 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
             // 🧠 Category-specific fields
             _buildCategoryFields(),
 
-            const SizedBox(height: 12),
+            // const SizedBox(height: 12),
 
-            _CommonFields(
-              nameCtrl: _nameCtrl,
-              brandCtrl: _brandCtrl,
-              priceCtrl: _priceCtrl,
-              notesCtrl: _notesCtrl,
-              purchaseDate: _purchaseDate,
-              onPickDate: (date) => setState(() => _purchaseDate = date),
-            ),
-
+            // _CommonFields(
+            //   nameCtrl: _nameCtrl,
+            //   brandCtrl: _brandCtrl,
+            //   priceCtrl: _priceCtrl,
+            //   notesCtrl: _notesCtrl,
+            //   purchaseDate: _purchaseDate,
+            //   onPickDate: (date) => setState(() => _purchaseDate = date),
+            // ),
             const SizedBox(height: 20),
 
             SizedBox(
@@ -71,21 +87,34 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
               child: ElevatedButton(
                 child: const Text('Save'),
                 onPressed: () {
-                  if (_nameCtrl.text.trim().isEmpty) return;
+                  final controller = context.read<LifestyleController>();
+
+                  if (_vehicleNameCtrl.text.trim().isEmpty ||
+                      _vehicleType == null ||
+                      _vehicleNumberCtrl.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please fill required vehicle details'),
+                      ),
+                    );
+                    return;
+                  }
 
                   controller.addItem(
                     LifestyleItem(
                       id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: _nameCtrl.text.trim(),
-                      brand: _brandCtrl.text.trim().isEmpty
+                      category: LifestyleCategory.vehicle,
+                      name: _vehicleNameCtrl.text.trim(),
+                      vehicleType: _vehicleType,
+                      vehicleNumber: _vehicleNumberCtrl.text.trim(),
+                      owner: _vehicleOwner,
+                      brand: _vehicleBrandCtrl.text.trim().isEmpty
                           ? null
-                          : _brandCtrl.text.trim(),
-                      category: widget.category,
-                      price: _priceCtrl.text.isEmpty
+                          : _vehicleBrandCtrl.text.trim(),
+                      model: _vehicleModelCtrl.text.trim().isEmpty
                           ? null
-                          : double.tryParse(_priceCtrl.text),
-                      purchaseDate: _purchaseDate,
-                      notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
+                          : _vehicleModelCtrl.text.trim(),
+                      purchaseDate: _vehiclePurchaseDate,
                     ),
                   );
 
@@ -103,7 +132,19 @@ class _AddLifestyleItemSheetState extends State<AddLifestyleItemSheet> {
   Widget _buildCategoryFields() {
     switch (widget.category) {
       case LifestyleCategory.vehicle:
-        return const _VehicleExtraFields();
+        //return const _VehicleExtraFields();
+        return _VehicleExtraFields(
+          vehicleNameCtrl: _vehicleNameCtrl,
+          vehicleNumberCtrl: _vehicleNumberCtrl,
+          brandCtrl: _vehicleBrandCtrl,
+          modelCtrl: _vehicleModelCtrl,
+          vehicleType: _vehicleType,
+          owner: _vehicleOwner,
+          purchaseDate: _vehiclePurchaseDate,
+          onVehicleTypeChanged: (v) => setState(() => _vehicleType = v),
+          onOwnerChanged: (v) => setState(() => _vehicleOwner = v),
+          onPickDate: (date) => setState(() => _vehiclePurchaseDate = date),
+        );
 
       case LifestyleCategory.dresses:
         return const _DressExtraFields();
@@ -142,26 +183,127 @@ class _Header extends StatelessWidget {
 }
 
 class _VehicleExtraFields extends StatelessWidget {
-  const _VehicleExtraFields();
+  final TextEditingController vehicleNameCtrl;
+  final TextEditingController vehicleNumberCtrl;
+  final TextEditingController brandCtrl;
+  final TextEditingController modelCtrl;
+
+  final String? vehicleType;
+  final String owner;
+  final DateTime? purchaseDate;
+
+  final ValueChanged<String?> onVehicleTypeChanged;
+  final ValueChanged<String> onOwnerChanged;
+  final ValueChanged<DateTime> onPickDate;
+
+  const _VehicleExtraFields({
+    required this.vehicleNameCtrl,
+    required this.vehicleNumberCtrl,
+    required this.brandCtrl,
+    required this.modelCtrl,
+    required this.vehicleType,
+    required this.owner,
+    required this.purchaseDate,
+    required this.onVehicleTypeChanged,
+    required this.onOwnerChanged,
+    required this.onPickDate,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: const [
+      children: [
+        /// 🚗 Vehicle Name
         TextField(
-          decoration: InputDecoration(
+          controller: vehicleNameCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Vehicle Name',
+            hintText: 'My Car / Dad Bike',
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        /// 🚘 Vehicle Type
+        DropdownButtonFormField<String>(
+          value: vehicleType,
+          decoration: const InputDecoration(labelText: 'Vehicle Type'),
+          items: const [
+            DropdownMenuItem(value: 'Car', child: Text('Car')),
+            DropdownMenuItem(value: 'Bike', child: Text('Bike')),
+            DropdownMenuItem(value: 'Scooter', child: Text('Scooter')),
+            DropdownMenuItem(value: 'Truck', child: Text('Truck')),
+            DropdownMenuItem(value: 'Other', child: Text('Other')),
+          ],
+          onChanged: onVehicleTypeChanged,
+        ),
+        const SizedBox(height: 12),
+
+        /// 🔢 Vehicle Number
+        TextField(
+          controller: vehicleNumberCtrl,
+          decoration: const InputDecoration(
             labelText: 'Vehicle Number',
             hintText: 'TN 01 AB 1234',
           ),
+          textCapitalization: TextCapitalization.characters,
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
+
+        /// 👤 Owner
+        DropdownButtonFormField<String>(
+          value: owner,
+          decoration: const InputDecoration(labelText: 'Owner'),
+          items: const [
+            DropdownMenuItem(value: 'Self', child: Text('Self')),
+            DropdownMenuItem(value: 'Family', child: Text('Family Member')),
+          ],
+          onChanged: (v) {
+            if (v != null) onOwnerChanged(v);
+          },
+        ),
+        const SizedBox(height: 12),
+
+        /// 🏷 Brand
         TextField(
-          decoration: InputDecoration(
-            labelText: 'Fuel Type',
-            hintText: 'Petrol / Diesel / EV',
+          controller: brandCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Brand',
+            hintText: 'Honda / Hyundai / Tata',
           ),
         ),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
+
+        /// 📘 Model
+        TextField(
+          controller: modelCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Model',
+            hintText: 'City / i20 / Activa',
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        /// 📅 Purchase Date
+        TextField(
+          readOnly: true,
+          decoration: InputDecoration(
+            labelText: 'Purchase Date',
+            hintText: purchaseDate == null
+                ? 'Select date'
+                : '${purchaseDate!.day}/${purchaseDate!.month}/${purchaseDate!.year}',
+            suffixIcon: const Icon(Icons.calendar_today),
+          ),
+          onTap: () async {
+            final date = await showDatePicker(
+              context: context,
+              initialDate: purchaseDate ?? DateTime.now(),
+              firstDate: DateTime(1990),
+              lastDate: DateTime.now(),
+            );
+
+            if (date != null) onPickDate(date);
+          },
+        ),
       ],
     );
   }
