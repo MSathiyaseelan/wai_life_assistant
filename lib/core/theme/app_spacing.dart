@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 class AppSpacing {
   AppSpacing._();
 
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 16;
-  static const double lg = 24;
-  static const double xl = 32;
+  // Micro spacing (rare)
+  static const xxs = 2.0;
+
+  // Standard spacing
+  static const xs = 4.0;
+  static const sm = 8.0;
+  static const md = 12.0;
+  static const lg = 16.0;
+  static const xl = 24.0;
+  static const xxl = 32.0;
+  static const xxxl = 48.0;
 
   static const double maxDesktopMaxWidth = 1200;
   static const double desktopMaxWidth = 700;
@@ -53,3 +59,14 @@ class AppSpacing {
 
 //Usage
 //SizedBox(height: AppSpacing.md);
+
+// | Spacing     | Use case                |
+// | ----------- | ----------------------- |
+// | `xxs (2)`   | Icon ↔ text micro gap   |
+// | `xs (4)`    | Tight vertical stacking |
+// | `sm (8)`    | Icon ↔ text, list items |
+// | `md (12)`   | Inside cards            |
+// | `lg (16)`   | Section separation      |
+// | `xl (24)`   | Big blocks / forms      |
+// | `xxl (32)`  | Empty states            |
+// | `xxxl (48)` | Hero sections           |
