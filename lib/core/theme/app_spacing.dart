@@ -4,6 +4,7 @@ class AppSpacing {
   AppSpacing._();
 
   // Micro spacing (rare)
+  static const dividerSpace = 1.0;
   static const xxs = 2.0;
 
   // Standard spacing
@@ -13,7 +14,8 @@ class AppSpacing {
   static const lg = 16.0;
   static const xl = 24.0;
   static const xxl = 32.0;
-  static const xxxl = 48.0;
+  static const xxxl = 40.0;
+  static const xxxXl = 48.0;
 
   static const double maxDesktopMaxWidth = 1200;
   static const double desktopMaxWidth = 700;
@@ -25,12 +27,14 @@ class AppSpacing {
 
   //Wallet
   static const screenPadding = EdgeInsets.all(2);
+  static const wallatPadding = EdgeInsets.all(AppSpacing.gapML);
   static const gapS = 2.0;
   static const gapSS = 4.0;
   static const gapSM = 6.0;
   static const gapSSS = 8.0;
   static const gapMM = 12.0;
   static const gapM = 16.0;
+  static const gapML = 20.0;
   static const gapL = 24.0;
 
   static const double listTileVerticalPadding = 10;
@@ -52,6 +56,11 @@ class AppSpacing {
   static const walletChipBarPadding = EdgeInsets.symmetric(
     horizontal: 12,
     vertical: 8,
+  );
+
+  static const walletAmountRow = EdgeInsets.symmetric(
+    horizontal: 6,
+    vertical: 2,
   );
 
   static const walletChipSpacing = 8.0;

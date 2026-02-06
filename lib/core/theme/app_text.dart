@@ -13,7 +13,7 @@ class AppText {
   static const String walletSummaryOnlineTitle = 'Online';
   static const String walletSummaryCashTitle = 'Cash';
   static const String outValue = 'Out : ';
-  static const String inValue = 'In  : ';
+  static const String inValue = 'In    : ';
   static const walletChipUpi = 'UPI';
   static const walletChipCash = 'Cash';
   static const walletChipFeatures = 'Features';

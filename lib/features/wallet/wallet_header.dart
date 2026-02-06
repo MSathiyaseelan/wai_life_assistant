@@ -10,9 +10,9 @@ class WalletHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: const [
-        Expanded(flex: 2, child: UsersList()),
-        SizedBox(width: AppSpacing.gapS),
-        Expanded(flex: 3, child: DayNavigator()),
+        //Expanded(flex: 2, child: UsersList()),
+        //SizedBox(width: AppSpacing.gapS),
+        //Expanded(flex: 3, child: DayNavigator()),
       ],
     );
   }

@@ -10,11 +10,11 @@ class GreetingHeader extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            Text("Good Morning 👋", style: TextStyle(fontSize: 14)),
+            Text("Hi Sathiya 👋", style: TextStyle(fontSize: 22)),
             SizedBox(height: 4),
             Text(
-              "Sathiya",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              "Welcome back again.",
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
           ],
         ),

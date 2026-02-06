@@ -30,8 +30,8 @@ class WalletScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const WalletHeader(),
-                const SizedBox(height: AppSpacing.gapS),
+                //const WalletHeader(),
+                //const SizedBox(height: AppSpacing.xxs),
                 Row(children: const [Expanded(child: WalletSummaryCard())]),
               ],
             ),

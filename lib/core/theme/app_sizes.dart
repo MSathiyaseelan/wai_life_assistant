@@ -1,7 +1,7 @@
 class AppSizes {
   AppSizes._();
 
-  static const walletSummaryCardHeight = 100.0;
+  static const walletSummaryCardHeight = 110.0;
 
   // Base spacing unit
   static const base = 8.0;

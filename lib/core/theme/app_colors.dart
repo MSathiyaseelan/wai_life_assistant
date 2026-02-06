@@ -34,4 +34,8 @@ class AppColors {
   //Disabled / Muted
   static const disabled = Color(0xFFD1D5DB);
   static const disabledText = Color(0xFF9CA3AF);
+
+  //Wallat Screen specific
+  static const amountRowIn = Color(0xFF16A34A);
+  static const amountRowOut = Color(0xFFF59E0B);
 }

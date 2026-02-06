@@ -15,6 +15,7 @@ class AppIconSizes {
 
   // Small helper icons (info, hint, inline)
   static const small = 16.0;
+  static const medium = 18.0;
 
   // Large feature icons (empty states, headers)
   static const large = 32.0;
