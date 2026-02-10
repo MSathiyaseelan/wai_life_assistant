@@ -1,31 +1,70 @@
 import 'package:flutter/material.dart';
 
 class CashFields extends StatelessWidget {
-  const CashFields();
+  final TextEditingController amountController;
+  final TextEditingController purposeController;
+  final TextEditingController notesController;
+  final String? selectedCategory;
+  final ValueChanged<String?> onCategoryChanged;
+
+  const CashFields({
+    super.key,
+    required this.amountController,
+    required this.purposeController,
+    required this.notesController,
+    required this.selectedCategory,
+    required this.onCategoryChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: const [
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Amount
         TextField(
+          controller: amountController,
           keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+          decoration: const InputDecoration(
+            labelText: 'Amount',
+            prefixText: '₹ ',
+          ),
         ),
-        SizedBox(height: 12),
-        // DropdownButtonFormField<String>(
-        //   decoration: InputDecoration(labelText: 'Cash Source'),
-        //   items: [
-        //     DropdownMenuItem(value: 'counter', child: Text('Counter')),
-        //     DropdownMenuItem(value: 'hand', child: Text('In Hand')),
-        //   ],
-        //   onChanged: null,
-        // ),
+
+        const SizedBox(height: 12),
+
+        // Purpose
         TextField(
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: 'Price', prefixText: '₹ '),
+          controller: purposeController,
+          decoration: const InputDecoration(
+            labelText: 'Purpose',
+            hintText: 'Tea, Taxi, Dinner...',
+          ),
         ),
-        SizedBox(height: 12),
-        TextField(decoration: InputDecoration(labelText: 'Notes (optional)')),
+
+        const SizedBox(height: 12),
+
+        // Category
+        DropdownButtonFormField<String>(
+          value: selectedCategory,
+          decoration: const InputDecoration(labelText: 'Category'),
+          items: const [
+            DropdownMenuItem(value: 'Food', child: Text('Food')),
+            DropdownMenuItem(value: 'Transport', child: Text('Transport')),
+            DropdownMenuItem(value: 'Shopping', child: Text('Shopping')),
+            DropdownMenuItem(value: 'Bills', child: Text('Bills')),
+            DropdownMenuItem(value: 'Other', child: Text('Other')),
+          ],
+          onChanged: onCategoryChanged,
+        ),
+
+        const SizedBox(height: 12),
+
+        // Notes
+        TextField(
+          controller: notesController,
+          decoration: const InputDecoration(labelText: 'Notes (optional)'),
+        ),
       ],
     );
   }

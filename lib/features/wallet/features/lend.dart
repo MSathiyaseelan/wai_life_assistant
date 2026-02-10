@@ -7,20 +7,25 @@ class LendPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: LendListView(), // your content
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'lend_add_fab',
-        icon: const Icon(Icons.add),
-        label: const Text('Add Lend'),
-        onPressed: () {
-          showAddLendBottomSheet(context: context);
-        },
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          IconButton(
+            tooltip: 'Add Lend',
+            icon: Icon(
+              Icons.add,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withOpacity(0.6), // subtle grey
+            ),
+            onPressed: () {
+              showAddLendBottomSheet(context: context);
+            },
+          ),
+        ],
       ),
+      body: const LendListView(),
     );
   }
 }

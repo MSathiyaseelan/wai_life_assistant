@@ -10,20 +10,25 @@ class SplitEquallyPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: SplitEquallyListView(), // your content
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'split_add_fab',
-        icon: const Icon(Icons.add),
-        label: const Text('New Split'),
-        onPressed: () {
-          showNewSplitBottomSheet(context: context);
-        },
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          IconButton(
+            tooltip: 'New Split',
+            icon: Icon(
+              Icons.add,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withOpacity(0.6), // subtle grey
+            ),
+            onPressed: () {
+              showNewSplitBottomSheet(context: context);
+            },
+          ),
+        ],
       ),
+      body: const SplitEquallyListView(),
     );
   }
 }

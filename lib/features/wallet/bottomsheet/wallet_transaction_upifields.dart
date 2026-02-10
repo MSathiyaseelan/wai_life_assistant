@@ -1,20 +1,80 @@
 import 'package:flutter/material.dart';
 
 class UpiFields extends StatelessWidget {
-  const UpiFields();
+  final TextEditingController amountController;
+  final TextEditingController purposeController;
+  final TextEditingController notesController;
+  //final TextEditingController upiRefController;
+
+  final String? selectedCategory;
+  final ValueChanged<String?> onCategoryChanged;
+
+  const UpiFields({
+    super.key,
+    required this.amountController,
+    required this.purposeController,
+    required this.notesController,
+    //required this.upiRefController,
+    required this.selectedCategory,
+    required this.onCategoryChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: const [
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Amount
         TextField(
+          controller: amountController,
           keyboardType: TextInputType.number,
-          decoration: InputDecoration(labelText: 'Amount', prefixText: '₹ '),
+          decoration: const InputDecoration(
+            labelText: 'Amount',
+            prefixText: '₹ ',
+          ),
         ),
-        SizedBox(height: 10),
-        TextField(decoration: InputDecoration(labelText: 'UPI Reference ID')),
-        SizedBox(height: 10),
-        TextField(decoration: InputDecoration(labelText: 'Notes (optional)')),
+
+        const SizedBox(height: 12),
+
+        // Purpose
+        TextField(
+          controller: purposeController,
+          decoration: const InputDecoration(
+            labelText: 'Purpose',
+            hintText: 'Tea, Taxi, Dinner...',
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Category
+        DropdownButtonFormField<String>(
+          value: selectedCategory,
+          decoration: const InputDecoration(labelText: 'Category'),
+          items: const [
+            DropdownMenuItem(value: 'Food', child: Text('Food')),
+            DropdownMenuItem(value: 'Transport', child: Text('Transport')),
+            DropdownMenuItem(value: 'Shopping', child: Text('Shopping')),
+            DropdownMenuItem(value: 'Bills', child: Text('Bills')),
+            DropdownMenuItem(value: 'Other', child: Text('Other')),
+          ],
+          onChanged: onCategoryChanged,
+        ),
+
+        // const SizedBox(height: 12),
+
+        // // UPI Reference ID
+        // TextField(
+        //   controller: upiRefController,
+        //   decoration: const InputDecoration(labelText: 'UPI Reference ID'),
+        // ),
+        const SizedBox(height: 12),
+
+        // Notes
+        TextField(
+          controller: notesController,
+          decoration: const InputDecoration(labelText: 'Notes (optional)'),
+        ),
       ],
     );
   }

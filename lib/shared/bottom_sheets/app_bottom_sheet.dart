@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 
-void showAppBottomSheet({
+Future<T?> showAppBottomSheet<T>({
   required BuildContext context,
   required Widget child,
 }) {
@@ -16,7 +16,7 @@ void showAppBottomSheet({
     maxWidth = width;
   }
 
-  showModalBottomSheet(
+  return showModalBottomSheet<T>(
     context: context,
     useRootNavigator: true,
     barrierColor: Colors.transparent,

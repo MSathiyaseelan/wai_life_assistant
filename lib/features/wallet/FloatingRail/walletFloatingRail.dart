@@ -18,6 +18,7 @@ class WalletFloatingRail extends StatelessWidget {
   final VoidCallback onUpiAdd;
   final VoidCallback onUpiRemove;
   final VoidCallback onMoreTap;
+  final VoidCallback onSparkTap;
 
   const WalletFloatingRail({
     super.key,
@@ -31,6 +32,7 @@ class WalletFloatingRail extends StatelessWidget {
     required this.onUpiAdd,
     required this.onUpiRemove,
     required this.onMoreTap,
+    required this.onSparkTap,
   });
 
   @override
@@ -41,6 +43,16 @@ class WalletFloatingRail extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          //----------- AI ------------
+          // Spark AI Button
+          _RailAction(
+            icon: Icons.auto_awesome_rounded,
+            label: 'AI',
+            color: Colors.deepPurple,
+            onTap: onSparkTap,
+          ),
+          const SizedBox(height: 28),
+
           // ---------- CASH ----------
           if (showCash) ...[
             _MiniRailAction(
@@ -130,11 +142,13 @@ class _RailAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Color color;
 
   const _RailAction({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.color = Colors.grey,
   });
 
   @override
@@ -146,13 +160,14 @@ class _RailAction extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          Icon(icon, size: 30, color: theme.iconTheme.color?.withOpacity(0.85)),
+          Icon(icon, size: 30, color: color),
           if (label.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               label,
               style: theme.textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w500,
+                color: color,
               ),
             ),
           ],

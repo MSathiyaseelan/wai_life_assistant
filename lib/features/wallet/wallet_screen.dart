@@ -3,14 +3,15 @@ import 'package:wai_life_assistant/features/wallet/walletsummarycard.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/core/theme/app_text.dart';
 import 'package:wai_life_assistant/core/widgets/screen_padding.dart';
-import 'wallet_header.dart';
-import 'bottomsheet/settings_bottomsheet.dart';
 import 'FloatingRail/walletFloatingRail.dart';
 import 'package:wai_life_assistant/data/enum/wallet_enums.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/wallet_transaction_bottom_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/wallet_features_bottomsheet.dart';
 import 'featurelistdata.dart';
 import 'package:flutter/services.dart';
+import 'AI/showSparkBottomSheet.dart';
+import 'package:wai_life_assistant/data/models/wallet/WalletTransaction.dart';
+import 'WalletTransactionCard.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -22,6 +23,8 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen> {
   bool showCash = false;
   bool showUpi = false;
+
+  final List<WalletTransaction> _transactions = [];
 
   void _toggleCash() {
     HapticFeedback.lightImpact();
@@ -57,8 +60,21 @@ class _WalletScreenState extends State<WalletScreen> {
           ScreenPadding(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Row(children: [Expanded(child: WalletSummaryCard())]),
+              children: [
+                const Row(children: [Expanded(child: WalletSummaryCard())]),
+
+                const SizedBox(height: AppSpacing.gapL),
+
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _transactions.length,
+                    itemBuilder: (context, index) {
+                      return WalletTransactionCard(
+                        transaction: _transactions[index],
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -80,26 +96,84 @@ class _WalletScreenState extends State<WalletScreen> {
             onCashTap: _toggleCash,
             onUpiTap: _toggleUpi,
             onCollapse: _collapseRail,
-            onCashAdd: () => showWalletTransactionBottomSheet(
-              context: context,
-              walletType: WalletType.cash,
-              action: WalletAction.increment,
-            ),
-            onCashRemove: () => showWalletTransactionBottomSheet(
-              context: context,
-              walletType: WalletType.cash,
-              action: WalletAction.decrement,
-            ),
-            onUpiAdd: () => showWalletTransactionBottomSheet(
-              context: context,
-              walletType: WalletType.upi,
-              action: WalletAction.increment,
-            ),
-            onUpiRemove: () => showWalletTransactionBottomSheet(
-              context: context,
-              walletType: WalletType.upi,
-              action: WalletAction.decrement,
-            ),
+            onSparkTap: () async {
+              final intent = await showSparkBottomSheet(context);
+
+              if (intent == null) return;
+
+              final transaction = WalletTransaction(
+                walletType: WalletType.cash, // intent.walletType, // cash / upi
+                action: WalletAction
+                    .decrement, // intent.action, // increment / decrement
+                amount: intent.amount,
+                purpose: intent.purpose.toString(),
+                category: intent.category.toString(),
+                //notes: intent.notes,
+              );
+
+              setState(() {
+                _transactions.insert(0, transaction);
+              });
+            },
+
+            //onSparkTap: () => showSparkBottomSheet(context),
+            // onCashAdd: () => showWalletTransactionBottomSheet(
+            //   context: context,
+            //   walletType: WalletType.cash,
+            //   action: WalletAction.increment,
+            // ),
+            onCashAdd: () async {
+              final result = await showWalletTransactionBottomSheet(
+                context: context,
+                walletType: WalletType.cash,
+                action: WalletAction.increment,
+              );
+
+              if (result != null) {
+                setState(() {
+                  _transactions.insert(0, result);
+                });
+              }
+            },
+            onCashRemove: () async {
+              final result = await showWalletTransactionBottomSheet(
+                context: context,
+                walletType: WalletType.cash,
+                action: WalletAction.decrement,
+              );
+
+              if (result != null) {
+                setState(() {
+                  _transactions.insert(0, result);
+                });
+              }
+            },
+            onUpiAdd: () async {
+              final result = await showWalletTransactionBottomSheet(
+                context: context,
+                walletType: WalletType.upi,
+                action: WalletAction.increment,
+              );
+
+              if (result != null) {
+                setState(() {
+                  _transactions.insert(0, result);
+                });
+              }
+            },
+            onUpiRemove: () async {
+              final result = await showWalletTransactionBottomSheet(
+                context: context,
+                walletType: WalletType.upi,
+                action: WalletAction.decrement,
+              );
+
+              if (result != null) {
+                setState(() {
+                  _transactions.insert(0, result);
+                });
+              }
+            },
             onMoreTap: () => showFeaturesBottomSheet(
               context: context,
               features: featuresByTab[1] ?? [],
@@ -110,39 +184,3 @@ class _WalletScreenState extends State<WalletScreen> {
     );
   }
 }
-
-// class WalletScreen extends StatelessWidget {
-//   const WalletScreen({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text(AppText.walletTitle),
-//         // actions: [
-//         //   IconButton(
-//         //     icon: const Icon(Icons.more_vert),
-//         //     onPressed: () {
-//         //       showSettingsBottomSheet(context);
-//         //     },
-//         //   ),
-//         // ],
-//       ),
-//       body: Stack(
-//         children: [
-//           ScreenPadding(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 //const WalletHeader(),
-//                 //const SizedBox(height: AppSpacing.xxs),
-//                 Row(children: const [Expanded(child: WalletSummaryCard())]),
-//               ],
-//             ),
-//           ),
-//           const WalletFloatingRail(),
-//         ],
-//       ),
-//     );
-//   }
-// }

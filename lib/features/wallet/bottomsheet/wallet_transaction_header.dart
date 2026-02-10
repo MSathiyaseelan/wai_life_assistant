@@ -14,10 +14,10 @@ class Header extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          action == WalletAction.increment ? 'Add Amount' : 'Remove Amount',
-          style: textTheme.titleMedium,
-        ),
+        // Text(
+        //   action == WalletAction.increment ? 'Add Amount' : 'Remove Amount',
+        //   style: textTheme.titleMedium,
+        // ),
         const SizedBox(height: 4),
         Text(
           walletType == WalletType.upi ? 'UPI Wallet' : 'Cash Wallet',

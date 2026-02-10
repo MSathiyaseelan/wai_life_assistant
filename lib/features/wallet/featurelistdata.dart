@@ -9,25 +9,26 @@ final Map<int, List<FeatureItem>> featuresByTab = {
   1: [
     // Wallet
     FeatureItem(
+      title: 'Split Equally',
+      icon: Icons.groups,
+      pageBuilder: (_) =>
+          const SplitEquallyPage(title: 'Split Equally'), //SplitEquallyPage(),
+    ),
+    FeatureItem(
       title: 'Borrow',
-      icon: Icons.add,
+      icon: Icons.call_received,
       pageBuilder: (_) => const BorrowPage(title: 'Borrow'),
     ),
     FeatureItem(
       title: 'Lend',
-      icon: Icons.add,
+      icon: Icons.call_made,
       pageBuilder: (_) => const LendPage(title: 'Lend'),
     ),
     FeatureItem(
-      title: 'Request',
-      icon: Icons.qr_code,
-      pageBuilder: (_) => const LendPage(title: 'Request'), //RequestPage(),
-    ),
-    FeatureItem(
-      title: 'Split Equally',
-      icon: Icons.equalizer,
+      title: 'Request Money',
+      icon: Icons.request_page,
       pageBuilder: (_) =>
-          const SplitEquallyPage(title: 'Split Equally'), //SplitEquallyPage(),
+          const LendPage(title: 'Request Money'), //RequestPage(),
     ),
     FeatureItem(
       title: 'Gift Tracker',
@@ -35,18 +36,18 @@ final Map<int, List<FeatureItem>> featuresByTab = {
       pageBuilder: (_) =>
           const GiftTrackerPage(title: 'Gift Tracker'), //GiftTrackerPage(),
     ),
-    FeatureItem(
-      title: 'Subscriptions',
-      icon: Icons.subscriptions,
-      pageBuilder: (_) =>
-          const LendPage(title: 'Subscriptions'), //SubscriptionsPage(),
-    ),
-    FeatureItem(
-      title: 'Set Budget',
-      icon: Icons.brunch_dining_outlined,
-      pageBuilder: (_) =>
-          const LendPage(title: 'Set Budget'), //SetBudgetPage(),
-    ),
+    // FeatureItem(
+    //   title: 'Subscriptions',
+    //   icon: Icons.subscriptions,
+    //   pageBuilder: (_) =>
+    //       const LendPage(title: 'Subscriptions'), //SubscriptionsPage(),
+    // ),
+    // FeatureItem(
+    //   title: 'Set Budget',
+    //   icon: Icons.brunch_dining_outlined,
+    //   pageBuilder: (_) =>
+    //       const LendPage(title: 'Set Budget'), //SetBudgetPage(),
+    // ),
   ],
 
   2: [

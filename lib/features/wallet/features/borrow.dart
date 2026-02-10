@@ -7,20 +7,25 @@ class BorrowPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: BorrowListView(), // your content
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'borrow_add_fab',
-        icon: const Icon(Icons.add),
-        label: const Text('Add Borrow'),
-        onPressed: () {
-          showAddBorrowBottomSheet(context: context);
-        },
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          IconButton(
+            tooltip: 'Add Borrow',
+            icon: Icon(
+              Icons.add,
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withOpacity(0.6), // grey
+            ),
+            onPressed: () {
+              showAddBorrowBottomSheet(context: context);
+            },
+          ),
+        ],
       ),
+      body: const BorrowListView(),
     );
   }
 }
