@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
-import 'package:wai_life_assistant/features/wallet/features/splitequally.dart';
+import 'package:wai_life_assistant/data/models/wallet/SplitGroup.dart';
 
 class GroupOptionsBottomSheetContent extends StatelessWidget {
   final SplitGroup group;

@@ -2,69 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_bottomsheet.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/core/theme/app_radius.dart';
+import 'package:wai_life_assistant/data/models/wallet/SplitGroup.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_groupdetails.dart';
 
-class SplitEquallyPage extends StatelessWidget {
+class SplitEquallyPage extends StatefulWidget {
   final String title;
   const SplitEquallyPage({super.key, required this.title});
+
+  @override
+  State<SplitEquallyPage> createState() => _SplitEquallyPageState();
+}
+
+class _SplitEquallyPageState extends State<SplitEquallyPage> {
+  final List<SplitGroup> _groups = [
+    SplitGroup(
+      name: 'Goa Trip',
+      type: 'Friends',
+      members: ['Ravi', 'Suresh', 'Ajay'],
+      youOwe: 1200,
+      youGet: 0,
+    ),
+    SplitGroup(
+      name: 'Office Lunch',
+      type: 'Office',
+      members: ['Meena', 'Karthik', 'Priya', 'John'],
+      youOwe: 0,
+      youGet: 850,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Text(widget.title),
         actions: [
           IconButton(
             tooltip: 'New Split',
             icon: Icon(
               Icons.add,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withOpacity(0.6), // subtle grey
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
             ),
-            onPressed: () {
-              showNewSplitBottomSheet(context: context);
+            onPressed: () async {
+              final newGroup = await showNewSplitBottomSheet(context);
+
+              if (newGroup != null) {
+                setState(() {
+                  _groups.insert(0, newGroup);
+                });
+              }
             },
           ),
         ],
       ),
-      body: const SplitEquallyListView(),
+      body: SplitEquallyListView(groups: _groups),
     );
   }
 }
 
 class SplitEquallyListView extends StatelessWidget {
-  const SplitEquallyListView({super.key});
+  final List<SplitGroup> groups;
+
+  const SplitEquallyListView({super.key, required this.groups});
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
-
-    /// Sample data (replace later with DB/API)
-    final groups = [
-      SplitGroup(
-        name: 'Goa Trip',
-        type: 'Friends',
-        members: ['Ravi', 'Suresh', 'Ajay'],
-        youOwe: 1200,
-        youGet: 0,
-      ),
-      SplitGroup(
-        name: 'Office Lunch',
-        type: 'Office',
-        members: ['Meena', 'Karthik', 'Priya', 'John'],
-        youOwe: 0,
-        youGet: 850,
-      ),
-      SplitGroup(
-        name: 'Room Rent',
-        type: 'Family',
-        members: ['Dad', 'Mom'],
-        youOwe: 0,
-        youGet: 0,
-      ),
-    ];
 
     if (groups.isEmpty) {
       return Center(
@@ -89,11 +93,8 @@ class SplitEquallyListView extends StatelessWidget {
               horizontal: AppSpacing.listTileHorizontalPadding,
               vertical: AppSpacing.listTileVerticalPadding,
             ),
-
             leading: _GroupAvatar(group: group),
-
             title: Text(group.name, style: textTheme.titleMedium),
-
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -105,12 +106,10 @@ class SplitEquallyListView extends StatelessWidget {
                 _BalanceText(group: group),
               ],
             ),
-
             trailing: _MembersPreview(
               members: group.members,
               colorScheme: colors,
             ),
-
             onTap: () {
               Navigator.push(
                 context,
@@ -222,22 +221,4 @@ class _MembersPreview extends StatelessWidget {
       ],
     );
   }
-}
-
-class SplitGroup {
-  final String name;
-  final String type;
-  final List<String> members;
-  final double youOwe;
-  final double youGet;
-  final String? imagePath;
-
-  SplitGroup({
-    required this.name,
-    required this.type,
-    required this.members,
-    required this.youOwe,
-    required this.youGet,
-    this.imagePath,
-  });
 }

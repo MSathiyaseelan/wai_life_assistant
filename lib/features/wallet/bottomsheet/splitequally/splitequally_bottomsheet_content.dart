@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:wai_life_assistant/data/models/wallet/SplitGroup.dart';
 
 class SplitEquallyFormContent extends StatefulWidget {
   const SplitEquallyFormContent({super.key});
@@ -35,96 +36,128 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
       selectedMembers.length >= 2;
 
   @override
+  void dispose() {
+    _groupNameController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final viewInsets = MediaQuery.of(context).viewInsets;
 
-    return Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// Title
-          Text('Create Group', style: textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.gapSM),
-
-          /// Group Image
-          Center(child: _buildGroupImage()),
-          const SizedBox(height: AppSpacing.gapMM),
-
-          /// Group Name
-          TextFormField(
-            controller: _groupNameController,
-            decoration: const InputDecoration(
-              labelText: 'Group Name',
-              hintText: 'Trip to Goa',
-            ),
-            validator: (v) =>
-                v == null || v.isEmpty ? 'Enter group name' : null,
-          ),
-
-          const SizedBox(height: AppSpacing.gapMM),
-
-          /// Group Type
-          Text('Group Type', style: textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.gapSM),
-          Wrap(
-            spacing: 8,
-            children: groupTypes.map((type) {
-              return ChoiceChip(
-                label: Text(type),
-                selected: selectedGroupType == type,
-                onSelected: (_) {
-                  setState(() => selectedGroupType = type);
-                },
-              );
-            }).toList(),
-          ),
-
-          const SizedBox(height: AppSpacing.gapMM),
-
-          /// Members Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 20,
+          bottom: viewInsets.bottom + 20,
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Members (${selectedMembers.length})',
-                style: textTheme.labelLarge,
+              /// Drag Indicator
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.search),
-                onPressed: _openContactPicker,
+
+              /// Title
+              Text('Create Group', style: textTheme.titleMedium),
+              const SizedBox(height: 16),
+
+              /// Group Image
+              Center(child: _buildGroupImage()),
+              const SizedBox(height: 24),
+
+              /// Group Name
+              TextFormField(
+                controller: _groupNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Group Name',
+                  hintText: 'Trip to Goa',
+                ),
+                validator: (v) =>
+                    v == null || v.isEmpty ? 'Enter group name' : null,
+                onChanged: (_) => setState(() {}),
+              ),
+
+              const SizedBox(height: 24),
+
+              /// Group Type
+              Text('Group Type', style: textTheme.labelLarge),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: groupTypes.map((type) {
+                  return ChoiceChip(
+                    label: Text(type),
+                    selected: selectedGroupType == type,
+                    onSelected: (_) {
+                      setState(() {
+                        selectedGroupType = type;
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 24),
+
+              /// Members Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Members (${selectedMembers.length})',
+                    style: textTheme.labelLarge,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: _openContactPicker,
+                  ),
+                ],
+              ),
+
+              if (selectedMembers.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _buildSelectedMembers(),
+              ],
+
+              const SizedBox(height: 32),
+
+              /// Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: isFormValid ? _submit : null,
+                      child: const Text('Create'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-
-          /// Selected Members
-          if (selectedMembers.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.gapSM),
-            _buildSelectedMembers(),
-          ],
-
-          const SizedBox(height: AppSpacing.gapL),
-
-          /// Buttons
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: isFormValid ? _submit : null,
-                  child: const Text('Create'),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -132,32 +165,18 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
   // ---------------- UI HELPERS ----------------
 
   Widget _buildGroupImage() {
+    final colors = Theme.of(context).colorScheme;
+
     return Stack(
       children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-              width: 1,
-            ),
-          ),
-          child: CircleAvatar(
-            radius: 44,
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.surfaceContainerHighest,
-            backgroundImage: groupImage != null ? FileImage(groupImage!) : null,
-            child: groupImage == null
-                ? Icon(
-                    Icons.group,
-                    size: 40,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  )
-                : null,
-          ),
+        CircleAvatar(
+          radius: 44,
+          backgroundColor: colors.surfaceContainerHighest,
+          backgroundImage: groupImage != null ? FileImage(groupImage!) : null,
+          child: groupImage == null
+              ? Icon(Icons.group, size: 40, color: colors.onSurfaceVariant)
+              : null,
         ),
-
         Positioned(
           bottom: 0,
           right: 0,
@@ -165,7 +184,7 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
             onTap: _pickGroupImage,
             child: CircleAvatar(
               radius: 14,
-              backgroundColor: Theme.of(context).colorScheme.primary,
+              backgroundColor: colors.primary,
               child: const Icon(
                 Icons.camera_alt,
                 size: 14,
@@ -218,11 +237,9 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
   void _pickGroupImage() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       builder: (_) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
             children: [
               ListTile(
                 leading: const Icon(Icons.camera_alt),
@@ -251,7 +268,7 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        imageQuality: 80, // compress
+        imageQuality: 80,
         maxWidth: 1024,
       );
 
@@ -270,15 +287,18 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
       context: context,
       isScrollControlled: true,
       builder: (_) {
-        return ContactPickerSheet(
-          alreadySelected: selectedMembers,
-          onDone: (members) {
-            setState(() {
-              selectedMembers
-                ..clear()
-                ..addAll(members);
-            });
-          },
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.85,
+          child: ContactPickerSheet(
+            alreadySelected: selectedMembers,
+            onDone: (members) {
+              setState(() {
+                selectedMembers
+                  ..clear()
+                  ..addAll(members);
+              });
+            },
+          ),
         );
       },
     );
@@ -287,14 +307,15 @@ class _SplitEquallyFormContentState extends State<SplitEquallyFormContent> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    final groupData = {
-      'groupName': _groupNameController.text,
-      'groupType': selectedGroupType,
-      'members': selectedMembers.map((e) => e.name).toList(),
-    };
+    final newGroup = SplitGroup(
+      name: _groupNameController.text.trim(),
+      type: selectedGroupType!,
+      members: selectedMembers.map((e) => e.name).toList(),
+      youOwe: 0,
+      youGet: 0,
+    );
 
-    debugPrint('Group Created: $groupData');
-    Navigator.pop(context);
+    Navigator.pop(context, newGroup);
   }
 }
 
