@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_participants.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitunequallybyparticipants.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitbypercentagebyparticipants.dart';
+import 'package:wai_life_assistant/data/models/wallet/SplitExpense.dart';
 
 class AddSpendFormContent extends StatefulWidget {
   final List<String> participants;
@@ -226,17 +227,33 @@ class _AddSpendFormContentState extends State<AddSpendFormContent> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
-    final spendData = {
-      'amount': _amountCtrl.text,
-      'description': _descCtrl.text,
-      'paidBy': _paidBy,
-      'category': _category,
-      'splitType': _splitType,
-      'bills': _bills,
-    };
+    if (_paidBy == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select who paid')));
+      return;
+    }
 
-    debugPrint('Spend Data: $spendData');
-    Navigator.pop(context);
+    final total = double.parse(_amountCtrl.text);
+    final perHead = total / widget.participants.length;
+
+    /// 🔥 Build split map
+    final Map<String, double> splitMap = {};
+
+    for (final member in widget.participants) {
+      splitMap[member] = perHead;
+    }
+
+    final expense = SplitExpense(
+      amount: total,
+      description: _descCtrl.text.isEmpty ? 'Expense' : _descCtrl.text,
+      paidBy: _paidBy!,
+      category: _category,
+      createdAt: DateTime.now(),
+      splitMap: splitMap,
+    );
+
+    Navigator.pop(context, expense);
   }
 }
 

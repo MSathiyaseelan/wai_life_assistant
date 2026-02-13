@@ -7,11 +7,11 @@ void splitEquallyGroupDetailsBottomSheet({required BuildContext context}) {
   showAppBottomSheet(context: context, child: const SplitEquallyFormContent());
 }
 
-void showAddSpendBottomSheet({
+Future<dynamic> showAddSpendBottomSheet({
   required BuildContext context,
   required List<String> participants,
 }) {
-  showAppBottomSheet(
+  return showAppBottomSheet(
     context: context,
     child: AddSpendFormContent(participants: participants),
   );
