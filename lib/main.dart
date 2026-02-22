@@ -21,7 +21,10 @@ class LifeAssistanceApp extends StatelessWidget {
       // Root widget
       debugShowCheckedModeBanner: config.environment != AppEnvironment.prod,
       title: config.appName,
-      theme: AppTheme.lightTheme,
+      //theme: AppTheme.lightTheme,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      //themeMode: _themeMode,
       initialRoute: AppRoutes.splash,
       routes: AppRoutes.routes,
     );
