@@ -3,6 +3,7 @@ import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_screen.dart';
 import 'package:wai_life_assistant/features/wallet/placeholder_screens.dart';
 import 'package:wai_life_assistant/features/pantry/pantry_screen.dart';
+import 'package:wai_life_assistant/features/planit/planit_screen.dart';
 //import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 
 class BottomNavScreen extends StatefulWidget {

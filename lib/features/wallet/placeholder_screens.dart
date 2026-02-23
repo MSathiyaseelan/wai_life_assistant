@@ -22,16 +22,16 @@ class DashboardScreen extends StatelessWidget {
 //   );
 // }
 
-class PlanItScreen extends StatelessWidget {
-  const PlanItScreen({super.key});
-  @override
-  Widget build(BuildContext context) => _PlaceholderScreen(
-    icon: '📅',
-    label: 'PlanIt',
-    desc: 'Plan your goals, budgets & events.',
-    color: const Color(0xFF4A9EFF),
-  );
-}
+// class PlanItScreen extends StatelessWidget {
+//   const PlanItScreen({super.key});
+//   @override
+//   Widget build(BuildContext context) => _PlaceholderScreen(
+//     icon: '📅',
+//     label: 'PlanIt',
+//     desc: 'Plan your goals, budgets & events.',
+//     color: const Color(0xFF4A9EFF),
+//   );
+// }
 
 class LifeStyleScreen extends StatelessWidget {
   const LifeStyleScreen({super.key});
