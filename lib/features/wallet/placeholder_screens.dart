@@ -33,16 +33,16 @@ class DashboardScreen extends StatelessWidget {
 //   );
 // }
 
-class LifeStyleScreen extends StatelessWidget {
-  const LifeStyleScreen({super.key});
-  @override
-  Widget build(BuildContext context) => _PlaceholderScreen(
-    icon: '✨',
-    label: 'LifeStyle',
-    desc: 'Track health, habits & lifestyle goals.',
-    color: const Color(0xFFFF5C7A),
-  );
-}
+// class LifeStyleScreen extends StatelessWidget {
+//   const LifeStyleScreen({super.key});
+//   @override
+//   Widget build(BuildContext context) => _PlaceholderScreen(
+//     icon: '✨',
+//     label: 'LifeStyle',
+//     desc: 'Track health, habits & lifestyle goals.',
+//     color: const Color(0xFFFF5C7A),
+//   );
+// }
 
 class _PlaceholderScreen extends StatelessWidget {
   final String icon, label, desc;
