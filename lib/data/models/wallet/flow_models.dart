@@ -121,9 +121,9 @@ extension FlowTypeExt on FlowType {
       case FlowType.split:
         return TxType.split;
       case FlowType.lend:
-        return TxType.lent;
+        return TxType.lend;
       case FlowType.borrow:
-        return TxType.borrowed;
+        return TxType.borrow;
       case FlowType.request:
         return TxType.request;
     }

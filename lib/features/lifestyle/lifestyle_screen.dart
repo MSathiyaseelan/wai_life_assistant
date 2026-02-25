@@ -12,21 +12,25 @@ import '../lifestyle/modules/my_functions/my_functions_screen.dart';
 import '../lifestyle/modules/item_locator/itemLocatorScreen.dart';
 
 class LifeStyleScreen extends StatefulWidget {
-  const LifeStyleScreen({super.key});
+  final String activeWalletId;
+  final void Function(String) onWalletChange;
+  const LifeStyleScreen({
+    super.key,
+    required this.activeWalletId,
+    required this.onWalletChange,
+  });
   @override
   State<LifeStyleScreen> createState() => _LifeStyleScreenState();
 }
 
 class _LifeStyleScreenState extends State<LifeStyleScreen> {
-  String _activeWalletId = 'personal';
-
   List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
   WalletModel get _currentWallet => _allWallets.firstWhere(
-    (w) => w.id == _activeWalletId,
+    (w) => w.id == widget.activeWalletId,
     orElse: () => personalWallet,
   );
 
-  void _switchWallet(String id) => setState(() => _activeWalletId = id);
+  void _switchWallet(String id) => widget.onWalletChange(id);
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +60,9 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         subtitle: 'Vehicles, Insurance & Service',
                         color: const Color(0xFF4A9EFF),
                         gradientEnd: const Color(0xFF2261CC),
-                        onTap: () =>
-                            _push(MyGarageScreen(walletId: _activeWalletId)),
+                        onTap: () => _push(
+                          MyGarageScreen(walletId: widget.activeWalletId),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -68,8 +73,9 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         subtitle: 'Dresses, Outfits & Wishlist',
                         color: const Color(0xFFFF5CA8),
                         gradientEnd: const Color(0xFFCC1A6A),
-                        onTap: () =>
-                            _push(MyWardrobeScreen(walletId: _activeWalletId)),
+                        onTap: () => _push(
+                          MyWardrobeScreen(walletId: widget.activeWalletId),
+                        ),
                       ),
                     ),
                   ],
@@ -85,8 +91,9 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         title: 'My Devices',
                         subtitle: 'Gadgets & warranty',
                         color: const Color(0xFF9C27B0),
-                        onTap: () =>
-                            _push(MyDevicesScreen(walletId: _activeWalletId)),
+                        onTap: () => _push(
+                          MyDevicesScreen(walletId: widget.activeWalletId),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -97,7 +104,7 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         subtitle: 'Appliances & rooms',
                         color: const Color(0xFF00C897),
                         onTap: () => _push(
-                          AroundTheHouseScreen(walletId: _activeWalletId),
+                          AroundTheHouseScreen(walletId: widget.activeWalletId),
                         ),
                       ),
                     ),
@@ -109,7 +116,7 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         subtitle: 'Safe & organised',
                         color: const Color(0xFFFFAA2C),
                         onTap: () => _push(
-                          DocumentVaultScreen(walletId: _activeWalletId),
+                          DocumentVaultScreen(walletId: widget.activeWalletId),
                         ),
                       ),
                     ),
@@ -125,14 +132,14 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                   color: const Color(0xFF6C63FF),
                   gradientEnd: const Color(0xFF4B44CC),
                   onTap: () =>
-                      _push(ItemLocatorScreen(walletId: _activeWalletId)),
+                      _push(ItemLocatorScreen(walletId: widget.activeWalletId)),
                 ),
                 const SizedBox(height: 12),
 
                 // ── Row 4: Full-width functions banner ───────────────────────
                 _FunctionsBannerTile(
                   onTap: () =>
-                      _push(MyFunctionsScreen(walletId: _activeWalletId)),
+                      _push(MyFunctionsScreen(walletId: widget.activeWalletId)),
                 ),
               ]),
             ),
@@ -205,8 +212,8 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
         GestureDetector(
           onTap: () => FamilySwitcherSheet.show(
             context,
-            currentWalletId: _activeWalletId,
-            onSelect: _switchWallet,
+            currentWalletId: widget.activeWalletId,
+            onSelect: widget.onWalletChange,
           ),
           child: Container(
             margin: const EdgeInsets.only(right: 14),
@@ -282,7 +289,7 @@ class _WideModuleTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 120,
+        height: 135,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [color, gradientEnd],
@@ -382,7 +389,7 @@ class _SquareModuleTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 110,
+        height: 125,
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(22),

@@ -5,6 +5,8 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -18,7 +20,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _walletId = 'personal'; // shared across tabs
-  String _userName = 'Arjun';
+  String _userName = 'Sathiya';
   bool _balanceHidden = false;
   String? _outfitNote; // today's selfie / outfit note
 
@@ -469,105 +471,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ── Wallet Switcher Sheet ───────────────────────────────────────────────────
   void _showWalletSwitcher(BuildContext ctx, bool isDark, Color surfBg) {
-    final all = [personalWallet, ...familyWallets];
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : AppColors.cardLight,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 36),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Switch View',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Nunito',
-              ),
-            ),
-            const SizedBox(height: 14),
-            ...all.map(
-              (w) => GestureDetector(
-                onTap: () {
-                  setState(() => _walletId = w.id);
-                  Navigator.pop(ctx);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: _walletId == w.id
-                        ? LinearGradient(colors: w.gradient)
-                        : null,
-                    color: _walletId == w.id ? null : surfBg,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(w.emoji, style: const TextStyle(fontSize: 22)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              w.name,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                                color: _walletId == w.id ? Colors.white : null,
-                              ),
-                            ),
-                            Text(
-                              w.isPersonal
-                                  ? 'Personal wallet'
-                                  : 'Family wallet',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'Nunito',
-                                color: _walletId == w.id
-                                    ? Colors.white70
-                                    : (isDark
-                                          ? AppColors.subDark
-                                          : AppColors.subLight),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_walletId == w.id)
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    final appState = AppStateScope.read(ctx);
+    FamilySwitcherSheet.show(
+      ctx,
+      currentWalletId: appState.activeWalletId,
+      isDashboard: true, // hides Add New Family button
+      onSelect: (id) {
+        appState.switchWallet(id);
+        setState(() => _walletId = id);
+      },
     );
   }
 
@@ -617,8 +529,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     if (splitRef != null) ...[
                       Text(
-                        splitRef.type.emoji,
                         //splitRef.giftType ?? '⚖️',
+                        '⚖️',
                         style: const TextStyle(fontSize: 20),
                       ),
                       const SizedBox(width: 8),
@@ -668,8 +580,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           [
                                 TxType.expense,
                                 TxType.income,
-                                TxType.lent,
-                                TxType.borrowed,
+                                TxType.lend,
+                                TxType.borrow,
                                 TxType.split,
                               ]
                               .map(
@@ -1360,7 +1272,7 @@ class _MoneyPulseCard extends StatelessWidget {
         .where((t) => t.type.isPositive)
         .fold(0.0, (s, t) => s + t.amount);
     final todayOut = todayTx
-        .where((t) => t.type == TxType.expense || t.type == TxType.lent)
+        .where((t) => t.type == TxType.expense || t.type == TxType.lend)
         .fold(0.0, (s, t) => s + t.amount);
 
     return Container(
@@ -1374,7 +1286,7 @@ class _MoneyPulseCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Top — balance
+          // ───────────────── Top — Balance ─────────────────
           Padding(
             padding: const EdgeInsets.all(18),
             child: Column(
@@ -1438,9 +1350,9 @@ class _MoneyPulseCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(
+                const Text(
                   'Total Balance',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white60,
                     fontSize: 11,
                     fontFamily: 'Nunito',
@@ -1459,7 +1371,7 @@ class _MoneyPulseCard extends StatelessWidget {
             ),
           ),
 
-          // Bottom — today's stats
+          // ───────────────── Bottom — Today's Stats ─────────────────
           Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1507,7 +1419,7 @@ class _MoneyPulseCard extends StatelessWidget {
             ),
           ),
 
-          // Today's transactions list (max 3, compact)
+          // ───────────────── Today's Transactions (max 3) ─────────────────
           if (todayTx.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
@@ -1558,7 +1470,8 @@ class _MoneyPulseCard extends StatelessWidget {
                             ),
                           ),
                           Text(
-                            '${t.type.isPositive ? '+' : '-'}${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
+                            '${t.type.isPositive ? '+' : '-'}'
+                            '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
                             style: TextStyle(
                               color: t.type.isPositive
                                   ? Colors.greenAccent
@@ -1571,7 +1484,7 @@ class _MoneyPulseCard extends StatelessWidget {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                   if (todayTx.length > 3)
                     Padding(
                       padding: const EdgeInsets.only(top: 4),

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
+//import '../../core/theme/app_theme.dart';
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 
-enum TxType { income, expense, split, lent, borrowed, request }
+enum TxType { income, expense, split, lend, borrow, request }
 
 enum PayMode { cash, online }
 
-enum WalletTab { all, splits, borrow, lent, requests }
+enum WalletTab { all, splits, borrow, lend, requests }
 
 extension TxTypeExt on TxType {
   String get label {
@@ -18,9 +19,9 @@ extension TxTypeExt on TxType {
         return 'Expense';
       case TxType.split:
         return 'Split';
-      case TxType.lent:
+      case TxType.lend:
         return 'Lent';
-      case TxType.borrowed:
+      case TxType.borrow:
         return 'Borrowed';
       case TxType.request:
         return 'Request';
@@ -35,9 +36,9 @@ extension TxTypeExt on TxType {
         return AppColors.expense;
       case TxType.split:
         return AppColors.split;
-      case TxType.lent:
+      case TxType.lend:
         return AppColors.lend;
-      case TxType.borrowed:
+      case TxType.borrow:
         return AppColors.borrow;
       case TxType.request:
         return AppColors.request;
@@ -52,9 +53,9 @@ extension TxTypeExt on TxType {
         return AppColors.expenseBg;
       case TxType.split:
         return AppColors.splitBg;
-      case TxType.lent:
+      case TxType.lend:
         return AppColors.lendBg;
-      case TxType.borrowed:
+      case TxType.borrow:
         return AppColors.borrowBg;
       case TxType.request:
         return AppColors.requestBg;
@@ -69,16 +70,16 @@ extension TxTypeExt on TxType {
         return '💸';
       case TxType.split:
         return '⚖️';
-      case TxType.lent:
+      case TxType.lend:
         return '📤';
-      case TxType.borrowed:
+      case TxType.borrow:
         return '📥';
       case TxType.request:
         return '🔔';
     }
   }
 
-  bool get isPositive => this == TxType.income || this == TxType.borrowed;
+  bool get isPositive => this == TxType.income || this == TxType.borrow;
   bool get isPending => this == TxType.request;
 }
 
@@ -91,7 +92,7 @@ extension WalletTabExt on WalletTab {
         return 'Splits';
       case WalletTab.borrow:
         return 'Borrow';
-      case WalletTab.lent:
+      case WalletTab.lend:
         return 'Lend';
       case WalletTab.requests:
         return 'Requests';
@@ -159,30 +160,141 @@ class WalletModel {
   double get balance => totalIn - totalOut;
 }
 
-class FamilyModel {
-  final String id;
-  final String name;
-  final String emoji;
-  final int colorIndex;
+// ─────────────────────────────────────────────────────────────────────────────
+// FAMILY / GROUP MEMBERS & ROLES
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const FamilyModel({
+enum MemberRole {
+  admin('👑', 'Admin'),
+  member('👤', 'Member'),
+  viewer('👁️', 'Viewer');
+
+  final String emoji, label;
+  const MemberRole(this.emoji, this.label);
+}
+
+class FamilyMember {
+  String id;
+  String name;
+  String emoji;
+  MemberRole role;
+  String? phone;
+  String? relation; // e.g. "Wife", "Son", "Colleague"
+
+  FamilyMember({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.role,
+    this.phone,
+    this.relation,
+  });
+
+  FamilyMember copyWith({
+    String? name,
+    String? emoji,
+    MemberRole? role,
+    String? phone,
+    String? relation,
+  }) => FamilyMember(
+    id: id,
+    name: name ?? this.name,
+    emoji: emoji ?? this.emoji,
+    role: role ?? this.role,
+    phone: phone ?? this.phone,
+    relation: relation ?? this.relation,
+  );
+}
+
+class FamilyModel {
+  String id;
+  String name;
+  String emoji;
+  int colorIndex;
+  List<FamilyMember> members;
+
+  FamilyModel({
     required this.id,
     required this.name,
     required this.emoji,
     required this.colorIndex,
-  });
+    List<FamilyMember>? members,
+  }) : members = members ?? [];
 }
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
 
-final mockFamilies = [
-  const FamilyModel(
+List<FamilyModel> mockFamilies = [
+  FamilyModel(
     id: 'f1',
     name: 'Singh Family',
     emoji: '👨‍👩‍👧',
     colorIndex: 0,
+    members: [
+      FamilyMember(
+        id: 'me',
+        name: 'Me (Arjun)',
+        emoji: '🧑',
+        role: MemberRole.admin,
+        relation: 'Self',
+      ),
+      FamilyMember(
+        id: 'dad',
+        name: 'Dad',
+        emoji: '👨',
+        role: MemberRole.admin,
+        relation: 'Father',
+        phone: '9876543210',
+      ),
+      FamilyMember(
+        id: 'mom',
+        name: 'Mom',
+        emoji: '👩',
+        role: MemberRole.member,
+        relation: 'Mother',
+        phone: '9876543211',
+      ),
+      FamilyMember(
+        id: 'priya',
+        name: 'Priya',
+        emoji: '👧',
+        role: MemberRole.member,
+        relation: 'Sister',
+        phone: '9876543212',
+      ),
+    ],
   ),
-  const FamilyModel(id: 'f2', name: 'Office Group', emoji: '👥', colorIndex: 1),
+  FamilyModel(
+    id: 'f2',
+    name: 'Office Group',
+    emoji: '👥',
+    colorIndex: 1,
+    members: [
+      FamilyMember(
+        id: 'me',
+        name: 'Me (Arjun)',
+        emoji: '🧑',
+        role: MemberRole.admin,
+        relation: 'Self',
+      ),
+      FamilyMember(
+        id: 'rahul',
+        name: 'Rahul',
+        emoji: '👨',
+        role: MemberRole.member,
+        relation: 'Colleague',
+        phone: '9876500001',
+      ),
+      FamilyMember(
+        id: 'sneha',
+        name: 'Sneha',
+        emoji: '👩',
+        role: MemberRole.viewer,
+        relation: 'Colleague',
+        phone: '9876500002',
+      ),
+    ],
+  ),
 ];
 
 WalletModel personalWallet = WalletModel(
@@ -286,7 +398,7 @@ final mockTransactions = [
   ),
   TxModel(
     id: '7',
-    type: TxType.lent,
+    type: TxType.lend,
     payMode: null,
     amount: 2000,
     category: 'Lent to Rahul',
@@ -297,7 +409,7 @@ final mockTransactions = [
   ),
   TxModel(
     id: '8',
-    type: TxType.borrowed,
+    type: TxType.borrow,
     payMode: null,
     amount: 500,
     category: 'Borrowed',

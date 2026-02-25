@@ -15,47 +15,54 @@ import 'package:wai_life_assistant/features/planit/modules/my_schedule/my_schedu
 import 'package:wai_life_assistant/features/planit/modules/health_vault/health_vault_screen.dart';
 
 class PlanItScreen extends StatefulWidget {
-  const PlanItScreen({super.key});
+  final String activeWalletId;
+  final void Function(String) onWalletChange;
+  const PlanItScreen({
+    super.key,
+    required this.activeWalletId,
+    required this.onWalletChange,
+  });
   @override
   State<PlanItScreen> createState() => _PlanItScreenState();
 }
 
 class _PlanItScreenState extends State<PlanItScreen> {
-  String _activeWalletId = 'personal';
-
   List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
   WalletModel get _currentWallet => _allWallets.firstWhere(
-    (w) => w.id == _activeWalletId,
+    (w) => w.id == widget.activeWalletId,
     orElse: () => personalWallet,
   );
 
-  void _switchWallet(String id) => setState(() => _activeWalletId = id);
+  void _switchWallet(String id) => widget.onWalletChange(id);
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   int get _dueReminders => mockReminders
-      .where((r) => r.walletId == _activeWalletId && !r.done)
+      .where((r) => r.walletId == widget.activeWalletId && !r.done)
       .where((r) => r.dueDate.difference(DateTime.now()).inDays <= 3)
       .length;
 
   int get _pendingTasks => mockTasks
       .where(
-        (t) => t.walletId == _activeWalletId && t.status != TaskStatus.done,
+        (t) =>
+            t.walletId == widget.activeWalletId && t.status != TaskStatus.done,
       )
       .length;
 
   int get _overdueBills => mockBills
-      .where((b) => b.walletId == _activeWalletId && b.isOverdue)
+      .where((b) => b.walletId == widget.activeWalletId && b.isOverdue)
       .length;
 
-  int get _upcomingDays =>
-      mockSpecialDays.where((d) => d.walletId == _activeWalletId).where((d) {
+  int get _upcomingDays => mockSpecialDays
+      .where((d) => d.walletId == widget.activeWalletId)
+      .where((d) {
         final thisYear = DateTime(
           DateTime.now().year,
           d.date.month,
           d.date.day,
         );
         return thisYear.difference(DateTime.now()).inDays.abs() <= 30;
-      }).length;
+      })
+      .length;
 
   @override
   Widget build(BuildContext context) {
@@ -134,8 +141,8 @@ class _PlanItScreenState extends State<PlanItScreen> {
         GestureDetector(
           onTap: () => FamilySwitcherSheet.show(
             context,
-            currentWalletId: _activeWalletId,
-            onSelect: _switchWallet,
+            currentWalletId: widget.activeWalletId,
+            onSelect: widget.onWalletChange,
           ),
           child: Container(
             margin: const EdgeInsets.only(right: 14),
@@ -267,7 +274,8 @@ class _PlanItScreenState extends State<PlanItScreen> {
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, anim, __) => m.builder(context, _activeWalletId),
+            pageBuilder: (_, anim, __) =>
+                m.builder(context, widget.activeWalletId),
             transitionsBuilder: (_, anim, __, child) => FadeTransition(
               opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
               child: SlideTransition(

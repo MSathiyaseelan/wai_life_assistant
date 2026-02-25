@@ -11,7 +11,13 @@ import 'conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 
 class WalletScreen extends StatefulWidget {
-  const WalletScreen({super.key});
+  final String activeWalletId;
+  final void Function(String) onWalletChange;
+  const WalletScreen({
+    super.key,
+    required this.activeWalletId,
+    required this.onWalletChange,
+  });
   @override
   State<WalletScreen> createState() => _WalletScreenState();
 }
@@ -19,7 +25,6 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen>
     with SingleTickerProviderStateMixin {
   // Wallet state
-  String _activeWalletId = 'personal';
   late PageController _pageCtrl;
   int _pageIdx = 0;
 
@@ -33,8 +38,6 @@ class _WalletScreenState extends State<WalletScreen>
   // Voice
   bool _isListening = false;
 
-  // Chat messages (conversation history)
-  //final List<Map<String, String>> _chatMessages = [];
   // Live transaction list (starts with mock data, grows as user adds)
   final List<TxModel> _transactions = List.from(mockTransactions);
 
@@ -42,7 +45,7 @@ class _WalletScreenState extends State<WalletScreen>
   List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
 
   WalletModel get _currentWallet => _allWallets.firstWhere(
-    (w) => w.id == _activeWalletId,
+    (w) => w.id == widget.activeWalletId,
     orElse: () => personalWallet,
   );
 
@@ -67,7 +70,7 @@ class _WalletScreenState extends State<WalletScreen>
 
   List<TxModel> get _filteredTx {
     final base = _transactions
-        .where((t) => t.walletId == _activeWalletId)
+        .where((t) => t.walletId == widget.activeWalletId)
         .where(
           (t) =>
               t.date.year == _selectedMonth.year &&
@@ -81,9 +84,9 @@ class _WalletScreenState extends State<WalletScreen>
       case WalletTab.splits:
         return base.where((t) => t.type == TxType.split).toList();
       case WalletTab.borrow:
-        return base.where((t) => t.type == TxType.borrowed).toList();
-      case WalletTab.lent:
-        return base.where((t) => t.type == TxType.lent).toList();
+        return base.where((t) => t.type == TxType.borrow).toList();
+      case WalletTab.lend:
+        return base.where((t) => t.type == TxType.lend).toList();
       case WalletTab.requests:
         return base.where((t) => t.type == TxType.request).toList();
     }
@@ -121,7 +124,7 @@ class _WalletScreenState extends State<WalletScreen>
 
   void _switchWallet(String id) {
     setState(() {
-      _activeWalletId = id;
+      widget.onWalletChange(id);
       final idx = _allWallets.indexWhere((w) => w.id == id);
       if (idx >= 0) {
         _pageIdx = idx;
@@ -148,7 +151,7 @@ class _WalletScreenState extends State<WalletScreen>
       PageRouteBuilder(
         pageBuilder: (_, anim, __) => ConversationScreen(
           flowType: flowType,
-          walletId: _activeWalletId,
+          walletId: widget.activeWalletId,
           onComplete: _onTransactionSaved,
         ),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
@@ -191,6 +194,7 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
+  // ── Text submit from chat bar (NLP stub) ────────────────────────────────────
   void _onChatSubmit(String text) {
     final lower = text.toLowerCase();
     FlowType? detected;
@@ -218,23 +222,6 @@ class _WalletScreenState extends State<WalletScreen>
     }
   }
 
-  // String _parseMockResponse(String input) {
-  //   final lower = input.toLowerCase();
-  //   if (lower.contains('spent') || lower.contains('expense'))
-  //     return '💸 Got it! How much did you spend and on what category?';
-  //   if (lower.contains('received') ||
-  //       lower.contains('income') ||
-  //       lower.contains('salary'))
-  //     return '💰 Nice! Recording income. What\'s the amount and source?';
-  //   if (lower.contains('lent') || lower.contains('lend'))
-  //     return '📤 Noted! Who did you lend to and how much?';
-  //   if (lower.contains('split'))
-  //     return '⚖️ Let\'s split it! Who\'s splitting with you?';
-  //   if (lower.contains('request'))
-  //     return '🔔 Sending request! Who and how much?';
-  //   return '🤔 I can help! Try saying "spent 500 on food" or "received 1000 salary"';
-  // }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -248,20 +235,11 @@ class _WalletScreenState extends State<WalletScreen>
           Expanded(
             child: CustomScrollView(
               slivers: [
-                // ── Swipeable Wallet Cards ──────────────────────────────────────
                 SliverToBoxAdapter(child: _buildWalletCards()),
-
-                // ── Tab Bar (sticky) ────────────────────────────────────────────
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _StickyTabDelegate(child: _buildTabBar(isDark)),
                 ),
-
-                // // ── Chat history (if any) ───────────────────────────────────────
-                // if (_chatMessages.isNotEmpty)
-                //   SliverToBoxAdapter(child: _buildChatHistory(isDark)),
-
-                // ── Transaction Feed ────────────────────────────────────────────
                 _grouped.isEmpty
                     ? SliverFillRemaining(child: _buildEmpty(isDark))
                     : SliverPadding(
@@ -280,14 +258,12 @@ class _WalletScreenState extends State<WalletScreen>
             ),
           ),
 
-          // ── Chat Input Bar (always at bottom) ──────────────────────────────
-          SafeArea(
-            top: false,
-            child: ChatInputBar(
-              onSubmit: _onChatSubmit,
-              onMicTap: () => setState(() => _isListening = !_isListening),
-              isListening: _isListening,
-            ),
+          // Chat input bar — tapping + sends opens flow selector
+          ChatInputBar(
+            onSubmit: _onChatSubmit,
+            onMicTap: () => setState(() => _isListening = !_isListening),
+            onAddTap: _openFlowSelector,
+            isListening: _isListening,
           ),
         ],
       ),
@@ -311,8 +287,8 @@ class _WalletScreenState extends State<WalletScreen>
         GestureDetector(
           onTap: () => FamilySwitcherSheet.show(
             context,
-            currentWalletId: _activeWalletId,
-            onSelect: _switchWallet,
+            currentWalletId: widget.activeWalletId,
+            onSelect: widget.onWalletChange,
           ),
           child: Container(
             margin: const EdgeInsets.only(right: 16),
@@ -354,7 +330,7 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Wallet Cards Section ────────────────────────────────────────────────────
+  // ── Wallet Cards ────────────────────────────────────────────────────────────
   Widget _buildWalletCards() {
     return Column(
       children: [
@@ -366,7 +342,7 @@ class _WalletScreenState extends State<WalletScreen>
             itemCount: _allWallets.length,
             onPageChanged: (i) => setState(() {
               _pageIdx = i;
-              _activeWalletId = _allWallets[i].id;
+              widget.onWalletChange(_allWallets[i].id);
             }),
             itemBuilder: (_, i) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -383,7 +359,6 @@ class _WalletScreenState extends State<WalletScreen>
           ),
         ),
         const SizedBox(height: 12),
-        // Dot indicators
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
@@ -421,13 +396,12 @@ class _WalletScreenState extends State<WalletScreen>
         padding: const EdgeInsets.all(4),
         child: TabBar(
           controller: _tabCtrl,
-          isScrollable: true,
+          isScrollable: false,
           indicator: BoxDecoration(
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(12),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
-          //labelPadding: const EdgeInsets.symmetric(horizontal: 8),
           dividerColor: Colors.transparent,
           labelColor: Colors.white,
           unselectedLabelColor: isDark ? Colors.white54 : Colors.black45,
@@ -442,60 +416,15 @@ class _WalletScreenState extends State<WalletScreen>
             fontFamily: 'Nunito',
           ),
           padding: EdgeInsets.zero,
-          tabs: WalletTab.values.map((t) => Tab(text: t.label)).toList(),
+          tabs: WalletTab.values
+              .map((t) => Tab(text: t.label, height: 36))
+              .toList(),
         ),
       ),
     );
   }
 
-  // ── Chat History ────────────────────────────────────────────────────────────
-  // Widget _buildChatHistory(bool isDark) {
-  //   return Padding(
-  //     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-  //     child: Column(
-  //       crossAxisAlignment: CrossAxisAlignment.start,
-  //       children: _chatMessages.map((msg) {
-  //         final isBot = msg['role'] == 'bot';
-  //         return Align(
-  //           alignment: isBot ? Alignment.centerLeft : Alignment.centerRight,
-  //           child: Container(
-  //             margin: const EdgeInsets.only(bottom: 8),
-  //             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-  //             constraints: BoxConstraints(
-  //               maxWidth: MediaQuery.of(context).size.width * 0.72,
-  //             ),
-  //             decoration: BoxDecoration(
-  //               color: isBot
-  //                   ? (isDark
-  //                         ? const Color(0xFF16213E)
-  //                         : const Color(0xFFEEEDFF))
-  //                   : AppColors.primary,
-  //               borderRadius: BorderRadius.only(
-  //                 topLeft: const Radius.circular(18),
-  //                 topRight: const Radius.circular(18),
-  //                 bottomLeft: Radius.circular(isBot ? 4 : 18),
-  //                 bottomRight: Radius.circular(isBot ? 18 : 4),
-  //               ),
-  //             ),
-  //             child: Text(
-  //               msg['text']!,
-  //               style: TextStyle(
-  //                 fontSize: 13,
-  //                 fontFamily: 'Nunito',
-  //                 fontWeight: FontWeight.w600,
-  //                 color: isBot
-  //                     ? (isDark ? Colors.white70 : AppColors.primaryDark)
-  //                     : Colors.white,
-  //               ),
-  //             ),
-  //           ),
-  //         );
-  //       }).toList(),
-  //     ),
-  //   );
-  // }
-
-  // ── Empty State ──────────────────────────────────────────────────────────────
+  // ── Empty state ─────────────────────────────────────────────────────────────
   Widget _buildEmpty(bool isDark) {
     return Center(
       child: Column(
@@ -590,7 +519,7 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Transaction Detail Sheet ────────────────────────────────────────────────
+  // ── Detail sheet ────────────────────────────────────────────────────────────
   void _showDetail(TxModel tx) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(

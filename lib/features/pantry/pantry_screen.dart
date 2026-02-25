@@ -12,7 +12,13 @@ import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_recipe_sheet.dart';
 
 class PantryScreen extends StatefulWidget {
-  const PantryScreen({super.key});
+  final String activeWalletId;
+  final void Function(String) onWalletChange;
+  const PantryScreen({
+    super.key,
+    required this.activeWalletId,
+    required this.onWalletChange,
+  });
   @override
   State<PantryScreen> createState() => _PantryScreenState();
 }
@@ -21,7 +27,6 @@ class _PantryScreenState extends State<PantryScreen>
     with SingleTickerProviderStateMixin {
   // ── State ──────────────────────────────────────────────────────────────────
   DateTime _selectedDate = DateTime.now();
-  String _activeWalletId = 'personal';
   late TabController _sectionTab; // 0=MealMap, 1=RecipeBox, 2=Basket
 
   // Live data (starts with mock)
@@ -32,7 +37,7 @@ class _PantryScreenState extends State<PantryScreen>
   // Derived
   List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
   WalletModel get _currentWallet => _allWallets.firstWhere(
-    (w) => w.id == _activeWalletId,
+    (w) => w.id == widget.activeWalletId,
     orElse: () => personalWallet,
   );
 
@@ -41,7 +46,7 @@ class _PantryScreenState extends State<PantryScreen>
     return _meals
         .where(
           (m) =>
-              m.walletId == _activeWalletId &&
+              m.walletId == widget.activeWalletId &&
               m.date.year == now.year &&
               m.date.month == now.month &&
               m.date.day == now.day,
@@ -57,15 +62,16 @@ class _PantryScreenState extends State<PantryScreen>
     return _meals
         .where(
           (m) =>
-              m.walletId == _activeWalletId &&
+              m.walletId == widget.activeWalletId &&
               m.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
               m.date.isBefore(weekEnd),
         )
         .length;
   }
 
-  int get _toBuyCount =>
-      _groceries.where((g) => g.walletId == _activeWalletId && g.toBuy).length;
+  int get _toBuyCount => _groceries
+      .where((g) => g.walletId == widget.activeWalletId && g.toBuy)
+      .length;
 
   int get _favRecipes => _recipes.where((r) => r.isFavourite).length;
 
@@ -88,7 +94,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   // ── Wallet switch ──────────────────────────────────────────────────────────
-  void _switchWallet(String id) => setState(() => _activeWalletId = id);
+  void _switchWallet(String id) => widget.onWalletChange(id);
 
   // ── Meal handlers ──────────────────────────────────────────────────────────
   void _addMeal(MealEntry m) => setState(() => _meals.add(m));
@@ -228,7 +234,7 @@ class _PantryScreenState extends State<PantryScreen>
               ),
             ),
             Text(
-              'Meal Map · Recipe Box · Basket',
+              'Recipe Box',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -247,8 +253,8 @@ class _PantryScreenState extends State<PantryScreen>
     return GestureDetector(
       onTap: () => FamilySwitcherSheet.show(
         context,
-        currentWalletId: _activeWalletId,
-        onSelect: _switchWallet,
+        currentWalletId: widget.activeWalletId,
+        onSelect: widget.onWalletChange,
       ),
       child: Container(
         margin: const EdgeInsets.only(right: 14),
@@ -359,35 +365,28 @@ class _PantryScreenState extends State<PantryScreen>
             fontFamily: 'Nunito',
           ),
           padding: EdgeInsets.zero,
-          tabs: labels
-              .map(
-                (l) => Tab(
-                  height: 36,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(l.$1, style: const TextStyle(fontSize: 14)),
-                        const SizedBox(width: 4),
-                        Text(l.$2),
-                      ],
+          tabs: labels.map((l) {
+            return Tab(
+              height: 36,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(l.$1, style: const TextStyle(fontSize: 14)),
+                          const SizedBox(width: 4),
+                          Text(l.$2),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                // (l) => Tab(
-                //   height: 36,
-                //   child: Row(
-                //     mainAxisAlignment: MainAxisAlignment.center,
-                //     children: [
-                //       Text(l.$1, style: const TextStyle(fontSize: 14)),
-                //       const SizedBox(width: 5),
-                //       Text(l.$2),
-                //     ],
-                //   ),
-                // ),
-              )
-              .toList(),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -415,13 +414,13 @@ class _PantryScreenState extends State<PantryScreen>
         // ── Today's Plate ──────────────────────────────────────────────────
         TodaysPlateSection(
           todayMeals: _todayMeals,
-          walletId: _activeWalletId,
+          walletId: widget.activeWalletId,
           isDark: isDark,
           onMealTapped: _showMealDetail,
           onAddMeal: () => AddMealSheet.show(
             context,
             date: DateTime.now(),
-            walletId: _activeWalletId,
+            walletId: widget.activeWalletId,
             onSave: _addMeal,
           ),
         ),
@@ -432,7 +431,7 @@ class _PantryScreenState extends State<PantryScreen>
         MealMapSection(
           meals: _meals,
           selectedDate: _selectedDate,
-          walletId: _activeWalletId,
+          walletId: widget.activeWalletId,
           onMealAdded: _addMeal,
           onMealTapped: _showMealDetail,
         ),
@@ -463,7 +462,7 @@ class _PantryScreenState extends State<PantryScreen>
       children: [
         ShoppingBasketSection(
           items: _groceries,
-          walletId: _activeWalletId,
+          walletId: widget.activeWalletId,
           onItemToggleBuy: _toggleBuy,
           onItemToggleStock: _toggleStock,
           onItemAdded: _addGrocery,
@@ -508,7 +507,7 @@ class _PantryScreenState extends State<PantryScreen>
         AddMealSheet.show(
           context,
           date: _selectedDate,
-          walletId: _activeWalletId,
+          walletId: widget.activeWalletId,
           onSave: _addMeal,
         );
       case 1:
@@ -666,7 +665,7 @@ class _PantryScreenState extends State<PantryScreen>
                             unit: unitCtrl.text.trim().isEmpty
                                 ? 'pcs'
                                 : unitCtrl.text.trim(),
-                            walletId: _activeWalletId,
+                            walletId: widget.activeWalletId,
                             inStock: false,
                             toBuy: true,
                           ),
