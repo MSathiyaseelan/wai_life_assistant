@@ -48,7 +48,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _idx = 1; // Start on Wallet tab
+  int _idx = 0; // Start on Wallet tab
 
   static const _tabs = [
     (icon: '🏠', label: 'Dashboard'),
