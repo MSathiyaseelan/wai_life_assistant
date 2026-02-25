@@ -433,7 +433,7 @@ class _FunctionCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               child: Row(
                 children: [
                   if (fn.venue != null)
@@ -443,13 +443,27 @@ class _FunctionCard extends StatelessWidget {
                         label: fn.venue!,
                       ),
                     ),
-                  Text(
-                    '${fn.gifts.length} gifts  •  ₹${fn.totalCash.toStringAsFixed(0)} cash',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'Nunito',
-                      color: sub,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '🎁 ${fn.gifts.length} gifts  •  ₹${fn.totalCash.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'Nunito',
+                          color: sub,
+                        ),
+                      ),
+                      if (fn.moi.isNotEmpty)
+                        Text(
+                          '💰 ${fn.moi.length} moi  •  ${fn.moiPending} pending',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'Nunito',
+                            color: _moiColor,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -481,7 +495,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -530,6 +544,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
           tabs: const [
             Tab(text: 'Info'),
             Tab(text: '🎁 Gifts'),
+            Tab(text: '💰 Moi'),
             Tab(text: '🍽️ Catering'),
             Tab(text: '🎪 Vendors'),
             Tab(text: '💬 Chat'),
@@ -700,6 +715,9 @@ class _FunctionDetailState extends State<_FunctionDetail>
               ),
             ],
           ),
+
+          // MOI
+          _MoiTab(fn: fn, isDark: isDark, onUpdate: () => setState(() {})),
 
           // CATERING
           _VendorTab(
@@ -1522,6 +1540,1048 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOI TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _moiColor = Color(0xFFFF9800);
+
+class _MoiTab extends StatefulWidget {
+  final FunctionModel fn;
+  final bool isDark;
+  final VoidCallback onUpdate;
+  const _MoiTab({
+    required this.fn,
+    required this.isDark,
+    required this.onUpdate,
+  });
+  @override
+  State<_MoiTab> createState() => _MoiTabState();
+}
+
+class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
+  late TabController _filter;
+
+  @override
+  void initState() {
+    super.initState();
+    _filter = TabController(length: 3, vsync: this);
+    _filter.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
+  List<MoiEntry> get _all => widget.fn.moi;
+  List<MoiEntry> get _newMoi =>
+      _all.where((m) => m.kind == MoiKind.newMoi).toList();
+  List<MoiEntry> get _returned =>
+      _all.where((m) => m.kind == MoiKind.returnMoi).toList();
+
+  List<MoiEntry> get _current {
+    switch (_filter.index) {
+      case 1:
+        return _newMoi;
+      case 2:
+        return _returned;
+      default:
+        return _all;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final fn = widget.fn;
+
+    // totals for current filter
+    final listToShow = _current;
+    final totalReceived = listToShow.fold(0.0, (s, m) => s + m.amount);
+    final totalReturned = listToShow
+        .where((m) => m.returned)
+        .fold(0.0, (s, m) => s + (m.returnedAmount ?? m.amount));
+    final pendingCount = listToShow.where((m) => !m.returned).length;
+
+    return Column(
+      children: [
+        // ── Summary header ──────────────────────────────────────────────────
+        Container(
+          color: cardBg,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  _MoiStat(
+                    '💰',
+                    'Received',
+                    '₹${totalReceived.toStringAsFixed(0)}',
+                    _moiColor,
+                  ),
+                  const SizedBox(width: 8),
+                  _MoiStat(
+                    '✅',
+                    'Returned',
+                    '₹${totalReturned.toStringAsFixed(0)}',
+                    AppColors.income,
+                  ),
+                  const SizedBox(width: 8),
+                  _MoiStat(
+                    '⏳',
+                    'Pending',
+                    '$pendingCount entries',
+                    AppColors.expense,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Filter tabs
+              Container(
+                decoration: BoxDecoration(
+                  color: surfBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TabBar(
+                  controller: _filter,
+                  dividerColor: Colors.transparent,
+                  indicator: BoxDecoration(
+                    color: _moiColor,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: sub,
+                  labelStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                  ),
+                  tabs: [
+                    Tab(text: 'All (${_all.length})'),
+                    Tab(text: '🆕 New (${_newMoi.length})'),
+                    Tab(text: '🔁 Return (${_returned.length})'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+
+        // ── List ─────────────────────────────────────────────────────────────
+        Expanded(
+          child: listToShow.isEmpty
+              ? const LifeEmptyState(
+                  emoji: '💰',
+                  title: 'No moi entries',
+                  subtitle: 'Tap + to record moi received at this function',
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                  itemCount: listToShow.length,
+                  itemBuilder: (_, i) => _MoiCard(
+                    entry: listToShow[i],
+                    isDark: isDark,
+                    onMarkReturned: () =>
+                        _showMarkReturned(context, listToShow[i], isDark),
+                    onDelete: () => setState(() {
+                      fn.moi.remove(listToShow[i]);
+                      widget.onUpdate();
+                    }),
+                  ),
+                ),
+        ),
+
+        // ── FAB area ─────────────────────────────────────────────────────────
+        Padding(
+          padding: EdgeInsets.only(
+            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+            right: 16,
+          ),
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: FloatingActionButton.extended(
+              heroTag: 'moi_fab',
+              onPressed: () => _showAddMoi(context, isDark, surfBg),
+              backgroundColor: _moiColor,
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: const Text(
+                'Add Moi',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Add Moi sheet ─────────────────────────────────────────────────────────
+  void _showAddMoi(BuildContext ctx, bool isDark, Color surfBg) {
+    final nameCtrl = TextEditingController();
+    final placeCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final relationCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    var kind = MoiKind.newMoi;
+
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.cardLight,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: StatefulBuilder(
+                    builder: (ctx2, ss) => Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Add Moi Entry',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Nunito',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Record moi received at this function',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'Nunito',
+                              color: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Moi kind selector
+                          const _SheetLabel(text: 'MOI TYPE'),
+                          Row(
+                            children: MoiKind.values
+                                .map(
+                                  (k) => Expanded(
+                                    child: GestureDetector(
+                                      onTap: () => ss(() => kind = k),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 150,
+                                        ),
+                                        margin: EdgeInsets.only(
+                                          right: k == MoiKind.newMoi ? 8 : 0,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: kind == k
+                                              ? k.color.withOpacity(0.15)
+                                              : surfBg,
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          border: Border.all(
+                                            color: kind == k
+                                                ? k.color
+                                                : Colors.transparent,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              k.emoji,
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              k.label,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                fontFamily: 'Nunito',
+                                                color: kind == k
+                                                    ? k.color
+                                                    : (isDark
+                                                          ? AppColors.subDark
+                                                          : AppColors.subLight),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              k == MoiKind.newMoi
+                                                  ? 'First time giving'
+                                                  : 'Returning earlier moi',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontFamily: 'Nunito',
+                                                color: kind == k
+                                                    ? k.color.withOpacity(0.7)
+                                                    : (isDark
+                                                          ? AppColors.subDark
+                                                          : AppColors.subLight),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Fields
+                          _SheetLabel(text: 'PERSON DETAILS'),
+                          LifeInput(controller: nameCtrl, hint: 'Name *'),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: LifeInput(
+                                  controller: placeCtrl,
+                                  hint: 'Place / Town',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: LifeInput(
+                                  controller: relationCtrl,
+                                  hint: 'Relation',
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          LifeInput(
+                            controller: phoneCtrl,
+                            hint: 'Phone number',
+                            inputType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: 14),
+
+                          const _SheetLabel(text: 'MOI AMOUNT'),
+                          LifeInput(
+                            controller: amountCtrl,
+                            hint: 'Amount received (₹) *',
+                            inputType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          LifeInput(
+                            controller: notesCtrl,
+                            hint: 'Notes (optional)',
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 16),
+
+                          LifeSaveButton(
+                            label: 'Save Moi Entry',
+                            color: kind.color,
+                            onTap: () {
+                              if (nameCtrl.text.trim().isEmpty) return;
+                              final amt = double.tryParse(
+                                amountCtrl.text.trim(),
+                              );
+                              if (amt == null || amt <= 0) return;
+                              setState(
+                                () => widget.fn.moi.add(
+                                  MoiEntry(
+                                    id: DateTime.now().millisecondsSinceEpoch
+                                        .toString(),
+                                    personName: nameCtrl.text.trim(),
+                                    amount: amt,
+                                    kind: kind,
+                                    place: placeCtrl.text.trim().isEmpty
+                                        ? null
+                                        : placeCtrl.text.trim(),
+                                    phone: phoneCtrl.text.trim().isEmpty
+                                        ? null
+                                        : phoneCtrl.text.trim(),
+                                    relation: relationCtrl.text.trim().isEmpty
+                                        ? null
+                                        : relationCtrl.text.trim(),
+                                    notes: notesCtrl.text.trim().isEmpty
+                                        ? null
+                                        : notesCtrl.text.trim(),
+                                  ),
+                                ),
+                              );
+                              widget.onUpdate();
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Mark as returned sheet ───────────────────────────────────────────────
+  void _showMarkReturned(BuildContext ctx, MoiEntry entry, bool isDark) {
+    final amountCtrl = TextEditingController(
+      text: entry.amount.toStringAsFixed(0),
+    );
+    DateTime returnDate = DateTime.now();
+
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.cardLight,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: StatefulBuilder(
+                    builder: (ctx2, ss) => Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('✅', style: TextStyle(fontSize: 22)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Mark Moi as Returned',
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w900,
+                                        fontFamily: 'Nunito',
+                                      ),
+                                    ),
+                                    Text(
+                                      'to ${entry.personName}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'Nunito',
+                                        color: AppColors.subDark,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Original amount chip
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _moiColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _moiColor.withOpacity(0.2),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Text(
+                                  '💰',
+                                  style: TextStyle(fontSize: 18),
+                                ),
+                                const SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Original moi received',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                        color: AppColors.subDark,
+                                      ),
+                                    ),
+                                    Text(
+                                      '₹${entry.amount.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        fontFamily: 'DM Mono',
+                                        color: _moiColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          const _SheetLabel(text: 'AMOUNT YOU ARE RETURNING'),
+                          LifeInput(
+                            controller: amountCtrl,
+                            hint: 'Return amount (₹)',
+                            inputType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          const _SheetLabel(text: 'RETURN DATE'),
+                          LifeDateTile(
+                            date: returnDate,
+                            hint: 'Select date',
+                            color: AppColors.income,
+                            onTap: () async {
+                              final d = await showDatePicker(
+                                context: ctx,
+                                initialDate: returnDate,
+                                firstDate: DateTime(2000),
+                                lastDate: DateTime.now(),
+                              );
+                              if (d != null) ss(() => returnDate = d);
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          LifeSaveButton(
+                            label: 'Mark as Returned ✓',
+                            color: AppColors.income,
+                            onTap: () {
+                              final amt = double.tryParse(
+                                amountCtrl.text.trim(),
+                              );
+                              setState(() {
+                                entry.returned = true;
+                                entry.returnedAmount = amt ?? entry.amount;
+                                entry.returnedOn = returnDate;
+                              });
+                              widget.onUpdate();
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOI CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MoiCard extends StatelessWidget {
+  final MoiEntry entry;
+  final bool isDark;
+  final VoidCallback onMarkReturned;
+  final VoidCallback onDelete;
+
+  const _MoiCard({
+    required this.entry,
+    required this.isDark,
+    required this.onMarkReturned,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final kindColor = entry.kind.color;
+
+    const months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+
+    return Dismissible(
+      key: ValueKey(entry.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false; // we handle deletion in onDelete
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: AppColors.expense.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: AppColors.expense,
+          size: 24,
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: entry.returned
+                ? AppColors.income.withOpacity(0.25)
+                : kindColor.withOpacity(0.2),
+          ),
+        ),
+        child: Column(
+          children: [
+            // ── Top row ──────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Kind indicator pill (left strip)
+                  Container(
+                    width: 4,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: kindColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Main content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Name + returned badge
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.personName,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: tc,
+                                  // strike-through when returned
+                                  decoration: entry.returned
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  decorationColor: AppColors.income,
+                                  decorationThickness: 2,
+                                ),
+                              ),
+                            ),
+                            // Kind badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: kindColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: kindColor.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    entry.kind.emoji,
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    entry.kind.label,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito',
+                                      color: kindColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+
+                        // Place · Relation
+                        Row(
+                          children: [
+                            if (entry.place != null) ...[
+                              Icon(
+                                Icons.location_on_rounded,
+                                size: 12,
+                                color: sub,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                entry.place!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                              if (entry.relation != null)
+                                Text(
+                                  ' · ',
+                                  style: TextStyle(color: sub, fontSize: 11),
+                                ),
+                            ],
+                            if (entry.relation != null)
+                              Text(
+                                entry.relation!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                          ],
+                        ),
+
+                        if (entry.phone != null) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(Icons.phone_rounded, size: 11, color: sub),
+                              const SizedBox(width: 3),
+                              Text(
+                                entry.phone!,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+
+                        if (entry.notes != null) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            entry.notes!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  // Amount column (right)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '₹${entry.amount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'DM Mono',
+                          color: entry.returned ? sub : _moiColor,
+                          decoration: entry.returned
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: AppColors.income,
+                          decorationThickness: 2,
+                        ),
+                      ),
+                      if (entry.returned && entry.returnedAmount != null)
+                        Text(
+                          '₹${entry.returnedAmount!.toStringAsFixed(0)} returned',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'DM Mono',
+                            color: AppColors.income,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Bottom action bar ─────────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: entry.returned
+                    ? AppColors.income.withOpacity(0.06)
+                    : kindColor.withOpacity(0.05),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                children: [
+                  if (entry.returned) ...[
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      size: 14,
+                      color: AppColors.income,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      entry.returnedOn != null
+                          ? 'Returned on ${entry.returnedOn!.day} '
+                                '${months[entry.returnedOn!.month]} ${entry.returnedOn!.year}'
+                          : 'Returned',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        color: AppColors.income,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ] else ...[
+                    Icon(
+                      Icons.hourglass_top_rounded,
+                      size: 13,
+                      color: kindColor.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'Pending return',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        color: kindColor.withOpacity(0.8),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (!entry.returned)
+                    GestureDetector(
+                      onTap: onMarkReturned,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.income,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_rounded,
+                              size: 13,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Mark Returned',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: () {
+                        entry.returned = false;
+                        entry.returnedAmount = null;
+                        entry.returnedOn = null;
+                        onMarkReturned(); // triggers setState in parent
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.subLight.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          'Undo',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: AppColors.subDark,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOI STAT CHIP
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MoiStat extends StatelessWidget {
+  final String emoji, label, value;
+  final Color color;
+  const _MoiStat(this.emoji, this.label, this.value, this.color);
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.18)),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'DM Mono',
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 9, fontFamily: 'Nunito', color: color),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED SMALL HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SheetLabel extends StatelessWidget {
+  final String text;
+  const _SheetLabel({required this.text});
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6, top: 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          fontFamily: 'Nunito',
+          color: isDark ? AppColors.subDark : AppColors.subLight,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }

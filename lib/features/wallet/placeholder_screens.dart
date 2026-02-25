@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
-  @override
-  Widget build(BuildContext context) => _PlaceholderScreen(
-    icon: '🏠',
-    label: 'Dashboard',
-    desc: 'Your financial overview will live here.',
-    color: const Color(0xFF6C63FF),
-  );
-}
+// class DashboardScreen extends StatelessWidget {
+//   const DashboardScreen({super.key});
+//   @override
+//   Widget build(BuildContext context) => _PlaceholderScreen(
+//     icon: '🏠',
+//     label: 'Dashboard',
+//     desc: 'Your financial overview will live here.',
+//     color: const Color(0xFF6C63FF),
+//   );
+// }
 
 // class PantryScreen extends StatelessWidget {
 //   const PantryScreen({super.key});

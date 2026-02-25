@@ -3,7 +3,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 
-enum TxType { income, expense, split, lent, borrow, request }
+enum TxType { income, expense, split, lent, borrowed, request }
 
 enum PayMode { cash, online }
 
@@ -20,7 +20,7 @@ extension TxTypeExt on TxType {
         return 'Split';
       case TxType.lent:
         return 'Lent';
-      case TxType.borrow:
+      case TxType.borrowed:
         return 'Borrowed';
       case TxType.request:
         return 'Request';
@@ -37,7 +37,7 @@ extension TxTypeExt on TxType {
         return AppColors.split;
       case TxType.lent:
         return AppColors.lend;
-      case TxType.borrow:
+      case TxType.borrowed:
         return AppColors.borrow;
       case TxType.request:
         return AppColors.request;
@@ -54,7 +54,7 @@ extension TxTypeExt on TxType {
         return AppColors.splitBg;
       case TxType.lent:
         return AppColors.lendBg;
-      case TxType.borrow:
+      case TxType.borrowed:
         return AppColors.borrowBg;
       case TxType.request:
         return AppColors.requestBg;
@@ -71,14 +71,14 @@ extension TxTypeExt on TxType {
         return '⚖️';
       case TxType.lent:
         return '📤';
-      case TxType.borrow:
+      case TxType.borrowed:
         return '📥';
       case TxType.request:
         return '🔔';
     }
   }
 
-  bool get isPositive => this == TxType.income || this == TxType.borrow;
+  bool get isPositive => this == TxType.income || this == TxType.borrowed;
   bool get isPending => this == TxType.request;
 }
 
@@ -297,7 +297,7 @@ final mockTransactions = [
   ),
   TxModel(
     id: '8',
-    type: TxType.borrow,
+    type: TxType.borrowed,
     payMode: null,
     amount: 500,
     category: 'Borrowed',

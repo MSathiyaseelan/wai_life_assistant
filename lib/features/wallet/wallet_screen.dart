@@ -81,7 +81,7 @@ class _WalletScreenState extends State<WalletScreen>
       case WalletTab.splits:
         return base.where((t) => t.type == TxType.split).toList();
       case WalletTab.borrow:
-        return base.where((t) => t.type == TxType.borrow).toList();
+        return base.where((t) => t.type == TxType.borrowed).toList();
       case WalletTab.lent:
         return base.where((t) => t.type == TxType.lent).toList();
       case WalletTab.requests:

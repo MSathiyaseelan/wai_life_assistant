@@ -123,7 +123,7 @@ extension FlowTypeExt on FlowType {
       case FlowType.lend:
         return TxType.lent;
       case FlowType.borrow:
-        return TxType.borrow;
+        return TxType.borrowed;
       case FlowType.request:
         return TxType.request;
     }

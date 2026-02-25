@@ -9,6 +9,7 @@ import '../lifestyle/modules/my_devices/my_devices_screen.dart';
 import '../lifestyle/modules/around_the_house/around_house_screen.dart';
 import '../lifestyle/modules/document_vault/document_vault_screen.dart';
 import '../lifestyle/modules/my_functions/my_functions_screen.dart';
+import '../lifestyle/modules/item_locator/itemLocatorScreen.dart';
 
 class LifeStyleScreen extends StatefulWidget {
   const LifeStyleScreen({super.key});
@@ -116,7 +117,19 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // ── Row 3: Full-width functions banner ───────────────────────
+                // ── Row 3: Item Locator wide tile ───────────────────────
+                _WideModuleTile(
+                  emoji: '📍',
+                  title: 'Item Locator',
+                  subtitle: 'Find anything, anywhere at home',
+                  color: const Color(0xFF6C63FF),
+                  gradientEnd: const Color(0xFF4B44CC),
+                  onTap: () =>
+                      _push(ItemLocatorScreen(walletId: _activeWalletId)),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Row 4: Full-width functions banner ───────────────────────
                 _FunctionsBannerTile(
                   onTap: () =>
                       _push(MyFunctionsScreen(walletId: _activeWalletId)),
@@ -269,7 +282,7 @@ class _WideModuleTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 135,
+        height: 120,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [color, gradientEnd],
@@ -369,7 +382,7 @@ class _SquareModuleTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 125,
+        height: 110,
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(22),

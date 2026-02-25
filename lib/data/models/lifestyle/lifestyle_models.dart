@@ -646,6 +646,49 @@ class ServiceQuote {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MOI (Indian traditional monetary gift / obligation system)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Whether this moi entry is a new moi (fresh gift) or a return moi
+// (returning what we received from them previously)
+enum MoiKind {
+  newMoi('🆕', 'New Moi', Color(0xFF4A9EFF)),
+  returnMoi('🔁', 'Return Moi', Color(0xFF00C897));
+
+  final String emoji, label;
+  final Color color;
+  const MoiKind(this.emoji, this.label, this.color);
+}
+
+class MoiEntry {
+  String id;
+  String personName;
+  String? place;
+  String? phone;
+  String? relation;
+  double amount; // amount given to us at this function
+  MoiKind kind; // new moi or return moi
+  bool returned; // have we returned this moi yet?
+  double? returnedAmount; // how much we returned (if returned)
+  DateTime? returnedOn; // when we returned
+  String? notes;
+
+  MoiEntry({
+    required this.id,
+    required this.personName,
+    required this.amount,
+    required this.kind,
+    this.place,
+    this.phone,
+    this.relation,
+    this.returned = false,
+    this.returnedAmount,
+    this.returnedOn,
+    this.notes,
+  });
+}
+
 class FunctionChatMessage {
   String id, senderId, text;
   DateTime at;
@@ -664,6 +707,7 @@ class FunctionModel {
   DateTime? functionDate;
   String? venue, address, notes;
   List<GiftEntry> gifts;
+  List<MoiEntry> moi;
   List<ServiceQuote> catering, decoration, returnGifts, hall, photography;
   List<ServiceQuote> otherVendors;
   List<FunctionChatMessage> chat;
@@ -679,6 +723,7 @@ class FunctionModel {
     this.address,
     this.notes,
     List<GiftEntry>? gifts,
+    List<MoiEntry>? moi,
     List<ServiceQuote>? catering,
     List<ServiceQuote>? decoration,
     List<ServiceQuote>? returnGifts,
@@ -688,6 +733,7 @@ class FunctionModel {
     List<FunctionChatMessage>? chat,
     List<String>? memberIds,
   }) : gifts = gifts ?? [],
+       moi = moi ?? [],
        catering = catering ?? [],
        decoration = decoration ?? [],
        returnGifts = returnGifts ?? [],
@@ -703,6 +749,13 @@ class FunctionModel {
   double get totalGold => gifts
       .where((g) => g.giftType == GiftType.gold)
       .fold(0, (s, g) => s + (g.goldGrams ?? 0));
+
+  // Moi totals
+  double get totalMoiReceived => moi.fold(0.0, (s, m) => s + m.amount);
+  double get totalMoiReturned => moi
+      .where((m) => m.returned)
+      .fold(0.0, (s, m) => s + (m.returnedAmount ?? m.amount));
+  int get moiPending => moi.where((m) => !m.returned).length;
 }
 
 class GiftedItem {
@@ -844,6 +897,44 @@ final List<FunctionModel> mockFunctions = [
       ),
     ],
     memberIds: ['me', 'dad', 'mom'],
+    moi: [
+      MoiEntry(
+        id: 'm1',
+        personName: 'Selvam Chettiar',
+        place: 'Coimbatore',
+        amount: 5000,
+        kind: MoiKind.newMoi,
+        relation: 'Family Friend',
+        phone: '9876543220',
+      ),
+      MoiEntry(
+        id: 'm2',
+        personName: 'Murugan & Family',
+        place: 'Madurai',
+        amount: 3000,
+        kind: MoiKind.returnMoi,
+        relation: 'Uncle',
+        returned: true,
+        returnedAmount: 3000,
+        returnedOn: DateTime(2025, 4, 10),
+      ),
+      MoiEntry(
+        id: 'm3',
+        personName: 'Annamalai Pillai',
+        place: 'Trichy',
+        amount: 10000,
+        kind: MoiKind.newMoi,
+        relation: 'Close Friend',
+      ),
+      MoiEntry(
+        id: 'm4',
+        personName: 'Veerasamy',
+        place: 'Chennai',
+        amount: 2000,
+        kind: MoiKind.returnMoi,
+        relation: 'Colleague',
+      ),
+    ],
   ),
 ];
 
@@ -876,5 +967,264 @@ final List<UpcomingFunction> mockUpcoming = [
     venue: 'Kalyanam Matrimony Hall',
     plannedGift: '₹5000 Cash or Gold',
     memberIds: ['me', 'dad', 'mom'],
+  ),
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ITEM LOCATOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum StorageType {
+  shelf('📦', 'Shelf', Color(0xFF4A9EFF)),
+  cupboard('🗄️', 'Cupboard', Color(0xFF9C27B0)),
+  box('📫', 'Box', Color(0xFFFFAA2C)),
+  almirah('🪞', 'Almirah', Color(0xFF00C897)),
+  drawer('🗂️', 'Drawer', Color(0xFFFF7043)),
+  bag('🎒', 'Bag', Color(0xFFFF5CA8)),
+  fridge('❄️', 'Fridge', Color(0xFF00D0D0)),
+  attic('🏚️', 'Attic', Color(0xFF8D6E63)),
+  locker('🔒', 'Locker', Color(0xFFFF5C7A)),
+  other('📍', 'Other', Color(0xFF8E8EA0));
+
+  final String emoji, label;
+  final Color color;
+  const StorageType(this.emoji, this.label, this.color);
+}
+
+// A named container instance — e.g. "Box 1", "Bedroom Cupboard"
+class StorageContainer {
+  String id;
+  String walletId;
+  StorageType type;
+  String name; // e.g. "Box 1", "Kitchen Shelf", "Bedroom Almirah"
+  String? location; // room or area — e.g. "Bedroom", "Store Room"
+  String? notes;
+  String? color; // optional colour label — "Blue box", "Red bag"
+  DateTime createdAt;
+
+  StorageContainer({
+    required this.id,
+    required this.walletId,
+    required this.type,
+    required this.name,
+    this.location,
+    this.notes,
+    this.color,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+}
+
+// An item stored inside a container
+class StoredItem {
+  String id;
+  String walletId;
+  String containerId;
+  String name;
+  String? description;
+  String? category; // e.g. "Documents", "Clothes", "Electronics"
+  String? emoji;
+  DateTime storedOn;
+  String? storedBy; // member id
+  String? notes;
+  bool isFragile;
+  bool isImportant;
+
+  StoredItem({
+    required this.id,
+    required this.walletId,
+    required this.containerId,
+    required this.name,
+    this.description,
+    this.category,
+    this.emoji,
+    DateTime? storedOn,
+    this.storedBy,
+    this.notes,
+    this.isFragile = false,
+    this.isImportant = false,
+  }) : storedOn = storedOn ?? DateTime.now();
+}
+
+// Mock data
+final List<StorageContainer> mockContainers = [
+  StorageContainer(
+    id: 'sc1',
+    walletId: 'personal',
+    type: StorageType.almirah,
+    name: 'Bedroom Almirah',
+    location: 'Bedroom',
+    notes: 'Left side — my clothes, right side — formal wear',
+  ),
+  StorageContainer(
+    id: 'sc2',
+    walletId: 'personal',
+    type: StorageType.box,
+    name: 'Box 1',
+    location: 'Store Room',
+    color: 'Brown',
+    notes: 'Old documents and certificates',
+  ),
+  StorageContainer(
+    id: 'sc3',
+    walletId: 'personal',
+    type: StorageType.box,
+    name: 'Box 2',
+    location: 'Store Room',
+    color: 'Blue',
+    notes: 'Kitchen extras and festival items',
+  ),
+  StorageContainer(
+    id: 'sc4',
+    walletId: 'personal',
+    type: StorageType.shelf,
+    name: 'Study Shelf',
+    location: 'Study Room',
+  ),
+  StorageContainer(
+    id: 'sc5',
+    walletId: 'personal',
+    type: StorageType.drawer,
+    name: 'Bedside Drawer',
+    location: 'Bedroom',
+  ),
+  StorageContainer(
+    id: 'sc6',
+    walletId: 'personal',
+    type: StorageType.cupboard,
+    name: 'Kitchen Cupboard',
+    location: 'Kitchen',
+  ),
+];
+
+final List<StoredItem> mockStoredItems = [
+  // Bedroom Almirah
+  StoredItem(
+    id: 'si1',
+    walletId: 'personal',
+    containerId: 'sc1',
+    name: 'Passport',
+    emoji: '📘',
+    category: 'Documents',
+    storedBy: 'me',
+    isImportant: true,
+    notes: 'In the small zippered pocket on the right side',
+  ),
+  StoredItem(
+    id: 'si2',
+    walletId: 'personal',
+    containerId: 'sc1',
+    name: 'Wedding Sherwani',
+    emoji: '👘',
+    category: 'Clothes',
+    storedBy: 'me',
+    notes: 'Wrapped in plastic cover',
+  ),
+  StoredItem(
+    id: 'si3',
+    walletId: 'personal',
+    containerId: 'sc1',
+    name: 'Gold Chain',
+    emoji: '📿',
+    category: 'Jewellery',
+    storedBy: 'mom',
+    isImportant: true,
+    isFragile: true,
+    notes: 'In the small velvet box',
+  ),
+
+  // Box 1
+  StoredItem(
+    id: 'si4',
+    walletId: 'personal',
+    containerId: 'sc2',
+    name: 'School Certificates',
+    emoji: '📜',
+    category: 'Documents',
+    storedBy: 'me',
+    isImportant: true,
+  ),
+  StoredItem(
+    id: 'si5',
+    walletId: 'personal',
+    containerId: 'sc2',
+    name: 'Old Photographs',
+    emoji: '🖼️',
+    category: 'Memories',
+    storedBy: 'mom',
+  ),
+
+  // Box 2
+  StoredItem(
+    id: 'si6',
+    walletId: 'personal',
+    containerId: 'sc3',
+    name: 'Diwali Diyas',
+    emoji: '🪔',
+    category: 'Festival',
+    storedBy: 'mom',
+    notes: 'Handle with care — clay diyas',
+  ),
+  StoredItem(
+    id: 'si7',
+    walletId: 'personal',
+    containerId: 'sc3',
+    name: 'Mixer Grinder Jar (Extra)',
+    emoji: '🫙',
+    category: 'Kitchen',
+    storedBy: 'mom',
+  ),
+
+  // Study Shelf
+  StoredItem(
+    id: 'si8',
+    walletId: 'personal',
+    containerId: 'sc4',
+    name: 'Router & Cables',
+    emoji: '📡',
+    category: 'Electronics',
+    storedBy: 'me',
+  ),
+  StoredItem(
+    id: 'si9',
+    walletId: 'personal',
+    containerId: 'sc4',
+    name: 'Tax Documents FY23',
+    emoji: '📂',
+    category: 'Documents',
+    storedBy: 'dad',
+    isImportant: true,
+  ),
+
+  // Bedside Drawer
+  StoredItem(
+    id: 'si10',
+    walletId: 'personal',
+    containerId: 'sc5',
+    name: 'Car Keys (Spare)',
+    emoji: '🔑',
+    category: 'Keys',
+    storedBy: 'me',
+    isImportant: true,
+  ),
+  StoredItem(
+    id: 'si11',
+    walletId: 'personal',
+    containerId: 'sc5',
+    name: 'Medicine (Paracetamol)',
+    emoji: '💊',
+    category: 'Medicine',
+    storedBy: 'mom',
+  ),
+
+  // Kitchen Cupboard
+  StoredItem(
+    id: 'si12',
+    walletId: 'personal',
+    containerId: 'sc6',
+    name: 'Ration Bag (Wheat)',
+    emoji: '🌾',
+    category: 'Grocery',
+    storedBy: 'mom',
+    notes: '10kg bag, half remaining',
   ),
 ];
