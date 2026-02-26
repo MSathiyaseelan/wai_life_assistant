@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:flutter/services.dart';
-import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;

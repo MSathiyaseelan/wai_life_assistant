@@ -19,26 +19,24 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String _walletId = 'personal'; // shared across tabs
   String _userName = 'Sathiya';
   bool _balanceHidden = false;
   String? _outfitNote; // today's selfie / outfit note
 
-  // derived data
-  WalletModel get _wallet => _walletId == 'personal'
+  // derived data — walletId is read from AppStateScope in build()
+  WalletModel _wallet(String wid) => wid == 'personal'
       ? personalWallet
       : familyWallets.firstWhere(
-          (w) => w.id == _walletId,
+          (w) => w.id == wid,
           orElse: () => personalWallet,
         );
 
-  List<TxModel> get _todayTx => mockTransactions
-      .where((t) => t.walletId == _walletId && _isToday(t.date))
+  List<TxModel> _todayTx(String wid) => mockTransactions
+      .where((t) => t.walletId == wid && _isToday(t.date))
       .toList();
 
-  List<MealEntry> get _todayMeals => mockMeals
-      .where((m) => m.walletId == _walletId && _isToday(m.date))
-      .toList();
+  List<MealEntry> _todayMeals(String wid) =>
+      mockMeals.where((m) => m.walletId == wid && _isToday(m.date)).toList();
 
   List<_PlanNudge> get _nudges {
     final now = DateTime.now();
@@ -185,8 +183,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // Active split transactions
-  List<TxModel> get _activeSplits => mockTransactions
-      .where((t) => t.type == TxType.split && t.walletId == _walletId)
+  List<TxModel> _activeSplits(String wid) => mockTransactions
+      .where((t) => t.type == TxType.split && t.walletId == wid)
       .toList();
 
   bool _isToday(DateTime d) {
@@ -202,6 +200,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Read walletId from global state — updates whenever any tab switches view
+    final appState = AppStateScope.of(context);
+    final _walletId = appState.activeWalletId;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -266,12 +267,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Row(
                       children: [
                         Text(
-                          _wallet.emoji,
+                          _wallet(_walletId).emoji,
                           style: const TextStyle(fontSize: 14),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _walletId == 'personal' ? 'Personal' : _wallet.name,
+                          _walletId == 'personal'
+                              ? 'Personal'
+                              : _wallet(_walletId).name,
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -328,9 +331,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 10),
                   _MoneyPulseCard(
-                    wallet: _wallet,
+                    wallet: _wallet(_walletId),
                     isDark: isDark,
-                    todayTx: _todayTx,
+                    todayTx: _todayTx(_walletId),
                     hidden: _balanceHidden,
                     onToggleHide: () =>
                         setState(() => _balanceHidden = !_balanceHidden),
@@ -339,7 +342,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 10),
 
                   // ①b  SPLIT ACTIVITY (if any active splits) ─────────────
-                  if (_activeSplits.isNotEmpty) ...[
+                  if (_activeSplits(_walletId).isNotEmpty) ...[
                     _SectionHeader(
                       emoji: '⚖️',
                       title: 'Split Activity',
@@ -348,7 +351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onAction: () {},
                     ),
                     const SizedBox(height: 8),
-                    ..._activeSplits.map(
+                    ..._activeSplits(_walletId).map(
                       (s) => _SplitNudgeCard(
                         tx: s,
                         isDark: isDark,
@@ -369,7 +372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 10),
                   _TodaysPlateCard(
-                    meals: _todayMeals,
+                    meals: _todayMeals(_walletId),
                     isDark: isDark,
                     cardBg: cardBg,
                   ),
@@ -475,11 +478,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     FamilySwitcherSheet.show(
       ctx,
       currentWalletId: appState.activeWalletId,
-      isDashboard: true, // hides Add New Family button
-      onSelect: (id) {
-        appState.switchWallet(id);
-        setState(() => _walletId = id);
-      },
+      isDashboard: true, // hides "Add New Family" button on Dashboard
+      onSelect: (id) => appState.switchWallet(id),
     );
   }
 
@@ -1286,7 +1286,7 @@ class _MoneyPulseCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // ───────────────── Top — Balance ─────────────────
+          // Top — balance
           Padding(
             padding: const EdgeInsets.all(18),
             child: Column(
@@ -1350,9 +1350,9 @@ class _MoneyPulseCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Total Balance',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white60,
                     fontSize: 11,
                     fontFamily: 'Nunito',
@@ -1371,7 +1371,7 @@ class _MoneyPulseCard extends StatelessWidget {
             ),
           ),
 
-          // ───────────────── Bottom — Today's Stats ─────────────────
+          // Bottom — today's stats
           Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1419,87 +1419,88 @@ class _MoneyPulseCard extends StatelessWidget {
             ),
           ),
 
-          // ───────────────── Today's Transactions (max 3) ─────────────────
+          // Today's transactions list (max 3, compact)
           if (todayTx.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: Column(
-                children: [
-                  ...todayTx.take(3).map((t) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            t.type.emoji,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  t.category,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Nunito',
-                                  ),
-                                ),
-                                if (t.note != null)
+            if (todayTx.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                child: Column(
+                  children: [
+                    ...todayTx.take(3).map((t) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              t.type.emoji,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                   Text(
-                                    t.note!,
+                                    t.category,
                                     style: const TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 10,
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
                                       fontFamily: 'Nunito',
                                     ),
-                                    overflow: TextOverflow.ellipsis,
                                   ),
-                              ],
+                                  if (t.note != null)
+                                    Text(
+                                      t.note!,
+                                      style: const TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${t.type.isPositive ? '+' : '-'}'
-                            '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
-                            style: TextStyle(
-                              color: t.type.isPositive
-                                  ? Colors.greenAccent
-                                  : Colors.redAccent[100],
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              fontFamily: 'DM Mono',
+                            Text(
+                              '${t.type.isPositive ? '+' : '-'}'
+                              '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
+                              style: TextStyle(
+                                color: t.type.isPositive
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent[100],
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                fontFamily: 'DM Mono',
+                              ),
                             ),
+                          ],
+                        ),
+                      );
+                    }),
+                    if (todayTx.length > 3)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '+${todayTx.length - 3} more today',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
                           ),
-                        ],
-                      ),
-                    );
-                  }),
-                  if (todayTx.length > 3)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '+${todayTx.length - 3} more today',
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
         ],
       ),
     );
