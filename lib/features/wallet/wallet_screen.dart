@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
@@ -9,6 +10,8 @@ import '../../../../core/theme/app_theme.dart';
 import 'flow_selector_sheet.dart';
 import 'conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
+import 'package:wai_life_assistant/features/wallet/AI/IntentConfirmSheet.dart';
+import 'package:wai_life_assistant/features/wallet/AI/nlp_parser.dart';
 
 class WalletScreen extends StatefulWidget {
   final String activeWalletId;
@@ -35,8 +38,10 @@ class _WalletScreenState extends State<WalletScreen>
   // Calendar
   DateTime _selectedMonth = DateTime.now();
 
-  // Voice
+  // Voice + speech simulation
   bool _isListening = false;
+  // GlobalKey lets us call setTextFromSpeech() on the bar's state
+  final _chatBarKey = GlobalKey<ChatInputBarState>();
 
   // Live transaction list (starts with mock data, grows as user adds)
   final List<TxModel> _transactions = List.from(mockTransactions);
@@ -194,31 +199,54 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Text submit from chat bar (NLP stub) ────────────────────────────────────
+  // ── Text submit — run NLP, then show confirm sheet or flow selector ──────────
   void _onChatSubmit(String text) {
-    final lower = text.toLowerCase();
-    FlowType? detected;
-    if (lower.contains('lend') || lower.contains('lent'))
-      detected = FlowType.lend;
-    else if (lower.contains('borrow'))
-      detected = FlowType.borrow;
-    else if (lower.contains('split'))
-      detected = FlowType.split;
-    else if (lower.contains('request'))
-      detected = FlowType.request;
-    else if (lower.contains('income') ||
-        lower.contains('salary') ||
-        lower.contains('received'))
-      detected = FlowType.income;
-    else if (lower.contains('spent') ||
-        lower.contains('paid') ||
-        lower.contains('expense'))
-      detected = FlowType.expense;
+    final intent = NlpParser.parse(text);
 
-    if (detected != null) {
-      _openConversation(detected);
+    if (intent.confidence >= 0.5) {
+      // Enough signal → show inline confirm sheet with pre-filled fields
+      IntentConfirmSheet.show(
+        context,
+        intent: intent,
+        walletId: widget.activeWalletId,
+        onSave: _onTransactionSaved,
+        onOpenFlow: () => _openConversation(intent.flowType),
+      );
+    } else if (intent.confidence >= 0.25) {
+      // Partial signal → open the correct flow pre-identified, user fills rest
+      _openConversation(intent.flowType);
     } else {
+      // No signal → let user pick
       _openFlowSelector();
+    }
+  }
+
+  // ── Mic tap — toggle listening, simulate STT after 3s ────────────────────
+  void _onMicTap() {
+    HapticFeedback.mediumImpact();
+    if (_isListening) {
+      // User stopped manually — clear listening state, text already in field
+      setState(() => _isListening = false);
+    } else {
+      setState(() => _isListening = true);
+      // Simulate speech recognition: after 3 seconds "transcribe" a sample
+      // In production replace this with speech_to_text plugin callback
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted || !_isListening) return;
+        setState(() => _isListening = false);
+
+        // Sample phrases that would come from a real STT engine
+        const _sttSamples = [
+          'paid 500 for lunch via cash',
+          'received 45000 salary online',
+          'lent 2000 to Rahul',
+          'spent 320 on auto travel',
+          'split 1200 dinner with Priya',
+        ];
+        final sample = (_sttSamples..shuffle()).first;
+        // Push text into the bar's text field
+        _chatBarKey.currentState?.setTextFromSpeech(sample);
+      });
     }
   }
 
@@ -260,8 +288,9 @@ class _WalletScreenState extends State<WalletScreen>
 
           // Chat input bar — tapping + sends opens flow selector
           ChatInputBar(
+            key: _chatBarKey,
             onSubmit: _onChatSubmit,
-            onMicTap: () => setState(() => _isListening = !_isListening),
+            onMicTap: _onMicTap,
             onAddTap: _openFlowSelector,
             isListening: _isListening,
           ),
