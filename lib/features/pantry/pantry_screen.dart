@@ -4,12 +4,16 @@ import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
-import 'package:wai_life_assistant/features/pantry/wigets/meal_map_section.dart';
-import 'package:wai_life_assistant/features/pantry/wigets/recipe_box_section.dart';
-import 'package:wai_life_assistant/features/pantry/wigets/shopping_basket_section.dart';
-import 'package:wai_life_assistant/features/pantry/wigets/week_calendar_strip.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/meal_map_section.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/recipe_box_section.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/shopping_basket_section.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/week_calendar_strip.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_recipe_sheet.dart';
+import 'package:wai_life_assistant/features/pantry/flows/pantry_nlp_parser.dart';
+import 'package:wai_life_assistant/features/pantry/flows/pantry_flow_selector.dart';
+import 'package:wai_life_assistant/features/pantry/flows/PantryIntentConfirmSheet.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -28,6 +32,10 @@ class _PantryScreenState extends State<PantryScreen>
   // ── State ──────────────────────────────────────────────────────────────────
   DateTime _selectedDate = DateTime.now();
   late TabController _sectionTab; // 0=MealMap, 1=RecipeBox, 2=Basket
+
+  // Chat bar — mic + NLP
+  bool _isListening = false;
+  final _chatBarKey = GlobalKey<ChatInputBarState>();
 
   // Live data (starts with mock)
   final List<MealEntry> _meals = List.from(mockMeals);
@@ -96,6 +104,131 @@ class _PantryScreenState extends State<PantryScreen>
   // ── Wallet switch ──────────────────────────────────────────────────────────
   void _switchWallet(String id) => widget.onWalletChange(id);
 
+  // ── Mic toggle — simulates STT, fills bar with transcribed text ────────────
+  void _onMicTap() {
+    HapticFeedback.mediumImpact();
+    if (_isListening) {
+      setState(() => _isListening = false);
+    } else {
+      setState(() => _isListening = true);
+      // Simulate STT — replace with speech_to_text plugin callback in production
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted || !_isListening) return;
+        setState(() => _isListening = false);
+        // Sample phrases that STT would return, context-aware per active tab
+        final samples = switch (_sectionTab.index) {
+          0 => [
+            'had idli sambar for breakfast today',
+            'paneer butter masala for dinner',
+            'add dal rice lunch tomorrow',
+            'masala chai evening snack',
+          ],
+          1 => [
+            'save butter chicken recipe',
+            'add pasta recipe',
+            'recipe for rasam',
+          ],
+          _ => [
+            'add milk 2 litre',
+            'buy onions 1 kg',
+            'need 3 eggs',
+            'add tomatoes vegetables',
+            'get bread 1 packet',
+          ],
+        };
+        final sample = (samples..shuffle()).first;
+        _chatBarKey.currentState?.setTextFromSpeech(sample);
+      });
+    }
+  }
+
+  // ── NLP submit — parse text, show confirm sheet or fall back to form ────────
+  void _onChatSubmit(String text) {
+    final intent = PantryNlpParser.parse(text);
+    if (intent.confidence >= 0.4) {
+      // Auto-switch to the matching tab
+      final targetTab = switch (intent.kind) {
+        PantryIntentKind.meal => 0,
+        PantryIntentKind.recipe => 1,
+        PantryIntentKind.basket => 2,
+      };
+      if (_sectionTab.index != targetTab) _sectionTab.animateTo(targetTab);
+
+      PantryIntentConfirmSheet.show(
+        context,
+        intent: intent,
+        walletId: widget.activeWalletId,
+        onSaveMeal: (m) {
+          _addMeal(m);
+          _showSavedSnack('Meal logged! 🗺️', AppColors.income);
+        },
+        onSaveRecipe: (r) {
+          _addRecipe(r);
+          _showSavedSnack('Recipe saved! 📖', AppColors.lend);
+        },
+        onSaveBasket: (g) {
+          _addGrocery(g);
+          _showSavedSnack('Added to basket! 🧺', AppColors.expense);
+        },
+        onOpenMealForm: () => AddMealSheet.show(
+          context,
+          date: _selectedDate,
+          walletId: widget.activeWalletId,
+          onSave: _addMeal,
+        ),
+        onOpenRecipeForm: () =>
+            AddRecipeSheet.show(context, onSave: _addRecipe),
+        onOpenBasketForm: () => _showAddGrocerySheet(context),
+      );
+    } else {
+      // Low confidence — open the contextual form for the active tab
+      _onFabTap(_sectionTab.index);
+    }
+  }
+
+  void _showSavedSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: const TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ── Open flow selector (+ button) ─────────────────────────────────────────
+  void _openFlowSelector() {
+    PantryFlowSelector.show(
+      context,
+      onMeal: () {
+        _sectionTab.animateTo(0);
+        AddMealSheet.show(
+          context,
+          date: _selectedDate,
+          walletId: widget.activeWalletId,
+          onSave: _addMeal,
+        );
+      },
+      onRecipe: () {
+        _sectionTab.animateTo(1);
+        AddRecipeSheet.show(context, onSave: _addRecipe);
+      },
+      onBasket: () {
+        _sectionTab.animateTo(2);
+        _showAddGrocerySheet(context);
+      },
+    );
+  }
+
   // ── Meal handlers ──────────────────────────────────────────────────────────
   void _addMeal(MealEntry m) => setState(() => _meals.add(m));
   void _showMealDetail(MealEntry m) {
@@ -140,6 +273,15 @@ class _PantryScreenState extends State<PantryScreen>
 
     return Scaffold(
       backgroundColor: bg,
+      resizeToAvoidBottomInset: true,
+      // ── Chat input bar at bottom — replaces FAB as primary entry point ──────
+      bottomNavigationBar: ChatInputBar(
+        key: _chatBarKey,
+        onSubmit: _onChatSubmit,
+        onMicTap: _onMicTap,
+        onAddTap: _openFlowSelector,
+        isListening: _isListening,
+      ),
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [
           // ── Sliver AppBar ────────────────────────────────────────────────
@@ -182,9 +324,9 @@ class _PantryScreenState extends State<PantryScreen>
           ),
 
           // ── Stats row ────────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: _buildStatsRow(isDark, cardBg, subColor, textColor),
-          ),
+          // SliverToBoxAdapter(
+          //   child: _buildStatsRow(isDark, cardBg, subColor, textColor),
+          // ),
 
           // ── Section tab bar (pinned) ─────────────────────────────────────
           SliverPersistentHeader(
@@ -210,8 +352,9 @@ class _PantryScreenState extends State<PantryScreen>
         ),
       ),
 
-      // ── FAB ───────────────────────────────────────────────────────────────
-      floatingActionButton: _buildFAB(isDark),
+      // ── Context-aware mini FAB (form shortcut per active tab) ─────────────
+      //floatingActionButton: _buildFAB(isDark),
+      //floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -234,7 +377,7 @@ class _PantryScreenState extends State<PantryScreen>
               ),
             ),
             Text(
-              'Recipe Box',
+              '· Recipe Box ·',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -411,21 +554,21 @@ class _PantryScreenState extends State<PantryScreen>
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        // ── Today's Plate ──────────────────────────────────────────────────
-        TodaysPlateSection(
-          todayMeals: _todayMeals,
-          walletId: widget.activeWalletId,
-          isDark: isDark,
-          onMealTapped: _showMealDetail,
-          onAddMeal: () => AddMealSheet.show(
-            context,
-            date: DateTime.now(),
-            walletId: widget.activeWalletId,
-            onSave: _addMeal,
-          ),
-        ),
+        // // ── Today's Plate ──────────────────────────────────────────────────
+        // TodaysPlateSection(
+        //   todayMeals: _todayMeals,
+        //   walletId: widget.activeWalletId,
+        //   isDark: isDark,
+        //   onMealTapped: _showMealDetail,
+        //   onAddMeal: () => AddMealSheet.show(
+        //     context,
+        //     date: DateTime.now(),
+        //     walletId: widget.activeWalletId,
+        //     onSave: _addMeal,
+        //   ),
+        // ),
 
-        _SectionDivider(isDark: isDark),
+        // _SectionDivider(isDark: isDark),
 
         // ── Meal Map (weekly horizontal scroll) ────────────────────────────
         MealMapSection(
@@ -436,7 +579,7 @@ class _PantryScreenState extends State<PantryScreen>
           onMealTapped: _showMealDetail,
         ),
 
-        const SizedBox(height: 100), // FAB clearance
+        const SizedBox(height: 24), // FAB clearance
       ],
     );
   }
@@ -451,7 +594,7 @@ class _PantryScreenState extends State<PantryScreen>
           onToggleFavourite: _toggleFav,
           onRecipeAdded: _addRecipe,
         ),
-        const SizedBox(height: 100),
+        const SizedBox(height: 24),
       ],
     );
   }
@@ -468,35 +611,25 @@ class _PantryScreenState extends State<PantryScreen>
           onItemAdded: _addGrocery,
           onItemDeleted: _deleteGrocery,
         ),
-        const SizedBox(height: 100),
+        const SizedBox(height: 24),
       ],
     );
   }
 
-  // ── FAB (context-aware) ───────────────────────────────────────────────────
+  // ── Context FAB — small shortcut for current tab's form ──────────────────
   Widget _buildFAB(bool isDark) {
     final tab = _sectionTab.index;
-    final (label, icon, color) = switch (tab) {
-      0 => ('Add Meal', Icons.restaurant_menu_rounded, AppColors.income),
-      1 => ('Add Recipe', Icons.menu_book_rounded, AppColors.lend),
-      _ => ('Add Item', Icons.add_shopping_cart_rounded, AppColors.expense),
+    final (icon, color) = switch (tab) {
+      0 => (Icons.restaurant_menu_rounded, AppColors.income),
+      1 => (Icons.menu_book_rounded, AppColors.lend),
+      _ => (Icons.add_shopping_cart_rounded, AppColors.expense),
     };
-
-    return FloatingActionButton.extended(
+    return FloatingActionButton.small(
       onPressed: () => _onFabTap(tab),
       backgroundColor: color,
       foregroundColor: Colors.white,
-      elevation: 6,
-      extendedPadding: const EdgeInsets.symmetric(horizontal: 20),
-      icon: Icon(icon, size: 20),
-      label: Text(
-        label,
-        style: const TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 14,
-          fontFamily: 'Nunito',
-        ),
-      ),
+      elevation: 4,
+      child: Icon(icon, size: 20),
     );
   }
 
