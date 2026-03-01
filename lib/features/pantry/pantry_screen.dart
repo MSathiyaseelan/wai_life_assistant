@@ -239,6 +239,22 @@ class _PantryScreenState extends State<PantryScreen>
       child: _MealDetailSheet(
         meal: m,
         isDark: isDark,
+        onEdit: () {
+          Navigator.pop(context);
+          AddMealSheet.show(
+            context,
+            date: m.date,
+            walletId: m.walletId,
+            onSave: _addMeal, // unused in edit mode
+            existing: m,
+            onUpdate: (updated) {
+              setState(() {
+                final idx = _meals.indexWhere((e) => e.id == updated.id);
+                if (idx >= 0) _meals[idx] = updated;
+              });
+            },
+          );
+        },
         onDelete: () {
           setState(() => _meals.remove(m));
           Navigator.pop(context);
@@ -251,7 +267,42 @@ class _PantryScreenState extends State<PantryScreen>
   void _addRecipe(RecipeModel r) => setState(() => _recipes.add(r));
   void _toggleFav(RecipeModel r) =>
       setState(() => r.isFavourite = !r.isFavourite);
-  void _showRecipeDetail(RecipeModel r) => RecipeDetailSheet.show(context, r);
+  void _showRecipeDetail(RecipeModel r) => RecipeDetailSheet.show(
+    context,
+    r,
+    onLogMeal: (meal) {
+      // Resolve correct walletId
+      final entry = MealEntry(
+        id: meal.id,
+        name: meal.name,
+        mealTime: meal.mealTime,
+        date: meal.date,
+        walletId: widget.activeWalletId,
+        recipeId: meal.recipeId,
+        emoji: meal.emoji,
+      );
+      _addMeal(entry);
+      _sectionTab.animateTo(0);
+      _showSavedSnack(
+        '${r.emoji} ${r.name} logged as ${meal.mealTime.label}! 🗺️',
+        AppColors.income,
+      );
+    },
+    onAddToBasket: (item) {
+      _addGrocery(
+        GroceryItem(
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          quantity: item.quantity,
+          unit: item.unit,
+          walletId: widget.activeWalletId,
+          toBuy: true,
+          inStock: false,
+        ),
+      );
+    },
+  );
 
   // ── Grocery handlers ───────────────────────────────────────────────────────
   void _toggleBuy(GroceryItem i) => setState(() => i.toBuy = !i.toBuy);
@@ -551,26 +602,35 @@ class _PantryScreenState extends State<PantryScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildMealMapTab(bool isDark) {
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final now = DateTime.now();
+
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        // // ── Today's Plate ──────────────────────────────────────────────────
-        // TodaysPlateSection(
-        //   todayMeals: _todayMeals,
-        //   walletId: widget.activeWalletId,
-        //   isDark: isDark,
-        //   onMealTapped: _showMealDetail,
-        //   onAddMeal: () => AddMealSheet.show(
-        //     context,
-        //     date: DateTime.now(),
-        //     walletId: widget.activeWalletId,
-        //     onSave: _addMeal,
-        //   ),
-        // ),
+        // ── TODAY card — always first, regardless of selected week ────────
+        _TodayMealCard(
+          meals: _todayMeals,
+          isDark: isDark,
+          cardBg: cardBg,
+          surfBg: surfBg,
+          tc: tc,
+          sub: sub,
+          onMealTapped: _showMealDetail,
+          onAddMeal: () => AddMealSheet.show(
+            context,
+            date: now,
+            walletId: widget.activeWalletId,
+            onSave: _addMeal,
+          ),
+        ),
 
-        // _SectionDivider(isDark: isDark),
+        _SectionDivider(isDark: isDark),
 
-        // ── Meal Map (weekly horizontal scroll) ────────────────────────────
+        // ── Weekly Meal Map — driven by _selectedDate (calendar nav) ──────
         MealMapSection(
           meals: _meals,
           selectedDate: _selectedDate,
@@ -579,7 +639,7 @@ class _PantryScreenState extends State<PantryScreen>
           onMealTapped: _showMealDetail,
         ),
 
-        const SizedBox(height: 24), // FAB clearance
+        const SizedBox(height: 24),
       ],
     );
   }
@@ -600,18 +660,36 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Widget _buildBasketTab(bool isDark) {
-    return ListView(
-      padding: EdgeInsets.zero,
+    // Items expiring within 3 days
+    final now = DateTime.now();
+    final expiring =
+        _groceries
+            .where(
+              (g) =>
+                  g.walletId == widget.activeWalletId &&
+                  g.expiryDate != null &&
+                  g.expiryDate!.difference(now).inDays <= 3 &&
+                  g.expiryDate!.isAfter(now.subtract(const Duration(days: 1))),
+            )
+            .toList()
+          ..sort((a, b) => a.expiryDate!.compareTo(b.expiryDate!));
+
+    // Use Column not ListView — ShoppingBasketSection manages its own scrolling
+    // via internal ListView inside a fixed/expanded area. A wrapping ListView
+    // creates a scroll conflict that causes content to stick.
+    return Column(
       children: [
-        ShoppingBasketSection(
-          items: _groceries,
-          walletId: widget.activeWalletId,
-          onItemToggleBuy: _toggleBuy,
-          onItemToggleStock: _toggleStock,
-          onItemAdded: _addGrocery,
-          onItemDeleted: _deleteGrocery,
+        if (expiring.isNotEmpty) _ExpiryBanner(items: expiring, isDark: isDark),
+        Expanded(
+          child: ShoppingBasketSection(
+            items: _groceries,
+            walletId: widget.activeWalletId,
+            onItemToggleBuy: _toggleBuy,
+            onItemToggleStock: _toggleStock,
+            onItemAdded: _addGrocery,
+            onItemDeleted: _deleteGrocery,
+          ),
         ),
-        const SizedBox(height: 24),
       ],
     );
   }
@@ -921,11 +999,13 @@ class _PantryScreenState extends State<PantryScreen>
 class _MealDetailSheet extends StatelessWidget {
   final MealEntry meal;
   final bool isDark;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _MealDetailSheet({
     required this.meal,
     required this.isDark,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -1027,7 +1107,7 @@ class _MealDetailSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text(
                     'Edit',
@@ -1068,6 +1148,214 @@ class _MealDetailSheet extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TODAY MEAL CARD — always shown as first item in Meal Map tab
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TodayMealCard extends StatelessWidget {
+  final List<MealEntry> meals;
+  final bool isDark;
+  final Color cardBg, surfBg, tc, sub;
+  final void Function(MealEntry) onMealTapped;
+  final VoidCallback onAddMeal;
+
+  const _TodayMealCard({
+    required this.meals,
+    required this.isDark,
+    required this.cardBg,
+    required this.surfBg,
+    required this.tc,
+    required this.sub,
+    required this.onMealTapped,
+    required this.onAddMeal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final dayName = weekdays[now.weekday - 1];
+    final dateStr = '$dayName, ${months[now.month - 1]} ${now.day}';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1B3A2D), const Color(0xFF0F2419)]
+              : [const Color(0xFFE8F8F0), const Color(0xFFD0F0E0)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.income.withOpacity(isDark ? 0.3 : 0.25),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.income,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'TODAY',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                      color: Colors.white,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  dateStr,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: AppColors.income,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onAddMeal,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColors.income,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Meal slots ────────────────────────────────────────────────────
+          if (meals.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Row(
+                children: [
+                  Text('🍽️', style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  Text(
+                    "Nothing logged yet — tap + to add today's meals",
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      color: AppColors.income.withOpacity(0.75),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: meals
+                    .map(
+                      (m) => GestureDetector(
+                        onTap: () => onMealTapped(m),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: m.mealTime.color.withOpacity(
+                              isDark ? 0.18 : 0.12,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: m.mealTime.color.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                m.emoji,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                              const SizedBox(width: 6),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    m.name,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito',
+                                      color: tc,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${m.mealTime.emoji} ${m.mealTime.label}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'Nunito',
+                                      color: m.mealTime.color,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
         ],
       ),
     );
@@ -1151,6 +1439,131 @@ class _SectionDivider extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EXPIRY BANNER — shown at top of Basket tab when items expire within 3 days
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ExpiryBanner extends StatelessWidget {
+  final List<GroceryItem> items;
+  final bool isDark;
+
+  const _ExpiryBanner({required this.items, required this.isDark});
+
+  String _expiryLabel(GroceryItem item) {
+    final days = item.expiryDate!.difference(DateTime.now()).inDays;
+    if (days <= 0) return 'expires today';
+    if (days == 1) return 'expires tomorrow';
+    return 'expires in $days days';
+  }
+
+  Color _urgencyColor(GroceryItem item) {
+    final days = item.expiryDate!.difference(DateTime.now()).inDays;
+    if (days <= 0) return AppColors.expense;
+    if (days == 1) return const Color(0xFFFF7043);
+    return const Color(0xFFFFAA2C);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF7043).withOpacity(isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFFF7043).withOpacity(0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Text('⚠️', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              const Text(
+                'Expiring Soon',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                  color: Color(0xFFFF7043),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${items.length} item${items.length > 1 ? 's' : ''}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                  color: Color(0xFFFF7043),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Item list
+          ...items.map((item) {
+            final urgency = _urgencyColor(item);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Text(
+                    item.category.emoji,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: isDark
+                                ? AppColors.textDark
+                                : AppColors.textLight,
+                          ),
+                        ),
+                        Text(
+                          '${item.quantity.toStringAsFixed(item.quantity == item.quantity.roundToDouble() ? 0 : 1)} ${item.unit} · ${_expiryLabel(item)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            color: urgency,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: urgency,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SLIVER DELEGATE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1172,368 +1585,3 @@ class _PinnedDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _PinnedDelegate o) =>
       o.child != child || o.minH != minH || o.maxH != maxH;
 }
-
-// import 'package:flutter/material.dart';
-// import 'package:intl/intl.dart';
-// import 'weeklymealplanner.dart';
-// import 'package:wai_life_assistant/core/theme/app_text.dart';
-// import 'bottomsheet/showpantrybottomsheet.dart';
-
-// class PantryScreen extends StatefulWidget {
-//   const PantryScreen({super.key});
-
-//   @override
-//   State<PantryScreen> createState() => _PantryScreenState();
-// }
-
-// class _PantryScreenState extends State<PantryScreen> {
-//   DateTime _selectedDate = DateTime.now();
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final textTheme = Theme.of(context).textTheme;
-
-//     return Scaffold(
-//       appBar: AppBar(
-//         title: const Text(AppText.pantryTitle),
-//         actions: [
-//           IconButton(
-//             icon: const Icon(Icons.more_vert),
-//             onPressed: () {
-//               showPantryBottomSheet(context);
-//             },
-//           ),
-//         ],
-//       ),
-
-//       //resizeToAvoidBottomInset: true,
-//       body: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           /// 1️⃣ Calendar
-//           _WeeklyCalendar(
-//             selectedDate: _selectedDate,
-//             onDateSelected: (d) {
-//               setState(() => _selectedDate = d);
-//             },
-//           ),
-
-//           const SizedBox(height: 10),
-
-//           Text(
-//             'Upcoming Food Planner',
-//             style: textTheme.titleMedium,
-//             textAlign: TextAlign.left,
-//           ),
-
-//           const SizedBox(height: 10),
-
-//           /// 2️⃣ Weekly planner (compact)
-//           //Expanded(child: WeeklyMealPlanner(selectedDate: _selectedDate)),
-//           SizedBox(
-//             height: 160,
-//             child: WeeklyMealPlanner(selectedDate: _selectedDate),
-//           ),
-
-//           //const Divider(),
-
-//           /// 3️⃣ Today's detail
-//           //Expanded(child: _TodayMealDetail(date: _selectedDate)),
-//           Expanded(
-//             child: AnimatedPadding(
-//               duration: const Duration(milliseconds: 250),
-//               curve: Curves.easeOut,
-//               padding: EdgeInsets.only(
-//                 bottom:
-//                     MediaQuery.of(context).viewInsets.bottom +
-//                     MediaQuery.of(context).padding.bottom,
-//               ),
-//               child: _TodayMealDetail(date: _selectedDate),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-// class _WeeklyCalendar extends StatelessWidget {
-//   final DateTime selectedDate;
-//   final ValueChanged<DateTime> onDateSelected;
-
-//   const _WeeklyCalendar({
-//     required this.selectedDate,
-//     required this.onDateSelected,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final weekStart = _startOfWeek(selectedDate);
-//     final days = List.generate(7, (i) => weekStart.add(Duration(days: i)));
-
-//     return Row(
-//       children: [
-//         /// ⬅ Previous week
-//         IconButton(
-//           icon: const Icon(Icons.chevron_left),
-//           onPressed: () {
-//             onDateSelected(selectedDate.subtract(const Duration(days: 7)));
-//           },
-//         ),
-
-//         /// Days (FIXED)
-//         Expanded(
-//           child: Row(
-//             children: days.map((day) {
-//               final isSelected = _isSameDay(day, selectedDate);
-
-//               return Expanded(
-//                 child: GestureDetector(
-//                   onTap: () => onDateSelected(day),
-//                   child: Container(
-//                     margin: const EdgeInsets.symmetric(horizontal: 2),
-//                     padding: const EdgeInsets.symmetric(vertical: 6),
-//                     decoration: BoxDecoration(
-//                       color: isSelected
-//                           ? Theme.of(context).colorScheme.primary
-//                           : Colors.transparent,
-//                       borderRadius: BorderRadius.circular(10),
-//                     ),
-//                     child: Column(
-//                       mainAxisSize: MainAxisSize.min,
-//                       children: [
-//                         /// Day name
-//                         Text(
-//                           DateFormat('EEE').format(day),
-//                           maxLines: 1,
-//                           overflow: TextOverflow.ellipsis,
-//                           style: TextStyle(
-//                             fontSize: 11,
-//                             color: isSelected
-//                                 ? Colors.white
-//                                 : Theme.of(
-//                                     context,
-//                                   ).colorScheme.onSurfaceVariant,
-//                           ),
-//                         ),
-
-//                         const SizedBox(height: 4),
-
-//                         /// Date
-//                         Text(
-//                           day.day.toString(),
-//                           style: TextStyle(
-//                             fontSize: 13,
-//                             fontWeight: FontWeight.w600,
-//                             color: isSelected
-//                                 ? Colors.white
-//                                 : Theme.of(context).colorScheme.onSurface,
-//                           ),
-//                         ),
-//                       ],
-//                     ),
-//                   ),
-//                 ),
-//               );
-//             }).toList(),
-//           ),
-//         ),
-
-//         /// ➡ Next week
-//         IconButton(
-//           icon: const Icon(Icons.chevron_right),
-//           onPressed: () {
-//             onDateSelected(selectedDate.add(const Duration(days: 7)));
-//           },
-//         ),
-//       ],
-//     );
-//   }
-
-//   DateTime _startOfWeek(DateTime date) {
-//     return date.subtract(Duration(days: date.weekday - 1));
-//   }
-
-//   bool _isSameDay(DateTime a, DateTime b) {
-//     return a.year == b.year && a.month == b.month && a.day == b.day;
-//   }
-// }
-
-// class _WeeklyMealPlanner extends StatelessWidget {
-//   final DateTime selectedDate;
-//   final ValueChanged<DateTime> onDayTap;
-
-//   const _WeeklyMealPlanner({
-//     required this.selectedDate,
-//     required this.onDayTap,
-//   });
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return ListView.separated(
-//       padding: const EdgeInsets.all(12),
-//       scrollDirection: Axis.horizontal,
-//       itemCount: 7,
-//       separatorBuilder: (_, __) => const SizedBox(width: 8),
-//       itemBuilder: (context, index) {
-//         final day = DateTime.now().add(Duration(days: index));
-
-//         return GestureDetector(
-//           onTap: () => onDayTap(day),
-//           child: Container(
-//             width: 130,
-//             padding: const EdgeInsets.all(12),
-//             decoration: BoxDecoration(
-//               borderRadius: BorderRadius.circular(16),
-//               color: day.day == selectedDate.day
-//                   ? Theme.of(context).colorScheme.primaryContainer
-//                   : Theme.of(context).colorScheme.surface,
-//               boxShadow: const [
-//                 BoxShadow(blurRadius: 4, color: Colors.black12),
-//               ],
-//             ),
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: const [
-//                 Text('Mon', style: TextStyle(fontWeight: FontWeight.bold)),
-//                 SizedBox(height: 6),
-//                 Text('B: Idli'),
-//                 Text('L: Rice'),
-//                 Text('D: Chapati'),
-//                 Text('S: Fruits'),
-//               ],
-//             ),
-//           ),
-//         );
-//       },
-//     );
-//   }
-// }
-
-// class _TodayMealDetail extends StatefulWidget {
-//   final DateTime date;
-
-//   const _TodayMealDetail({required this.date});
-
-//   @override
-//   State<_TodayMealDetail> createState() => _TodayMealDetailState();
-// }
-
-// class _TodayMealDetailState extends State<_TodayMealDetail> {
-//   late Map<String, String> meals;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     meals = {
-//       'Breakfast': 'Idli & Chutney',
-//       'Lunch': 'Sambar Rice',
-//       'Snacks': 'Tea & Fruits',
-//       'Dinner': 'Chapati & Kurma',
-//     };
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final textTheme = Theme.of(context).textTheme;
-
-//     return Column(
-//       crossAxisAlignment: CrossAxisAlignment.start,
-//       children: [
-//         // 🔒 Sticky header
-//         Padding(
-//           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-//           child: Text('Today\'s Meals', style: textTheme.titleMedium),
-//         ),
-
-//         Expanded(
-//           child: ListView(
-//             padding: const EdgeInsets.all(4),
-//             children: meals.entries.map((entry) {
-//               return GestureDetector(
-//                 onTap: () => _editMeal(entry.key, entry.value),
-//                 child: _MealSection(title: entry.key, value: entry.value),
-//               );
-//             }).toList(),
-//           ),
-//         ),
-//       ],
-//     );
-//   }
-
-//   void _editMeal(String mealType, String currentValue) {
-//     final controller = TextEditingController(text: currentValue);
-
-//     showModalBottomSheet(
-//       context: context,
-//       isScrollControlled: true,
-//       shape: const RoundedRectangleBorder(
-//         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-//       ),
-//       builder: (_) {
-//         return Padding(
-//           padding: EdgeInsets.fromLTRB(
-//             16,
-//             16,
-//             16,
-//             MediaQuery.of(context).viewInsets.bottom + 16,
-//           ),
-//           child: Column(
-//             mainAxisSize: MainAxisSize.min,
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               Text(
-//                 'Edit $mealType',
-//                 style: Theme.of(context).textTheme.titleMedium,
-//               ),
-
-//               const SizedBox(height: 12),
-
-//               TextField(
-//                 controller: controller,
-//                 decoration: const InputDecoration(
-//                   hintText: 'Enter meal details',
-//                   border: OutlineInputBorder(),
-//                 ),
-//               ),
-
-//               const SizedBox(height: 16),
-
-//               SizedBox(
-//                 width: double.infinity,
-//                 child: ElevatedButton(
-//                   onPressed: () {
-//                     setState(() {
-//                       meals[mealType] = controller.text;
-//                     });
-//                     Navigator.pop(context);
-//                   },
-//                   child: const Text('Save'),
-//                 ),
-//               ),
-//             ],
-//           ),
-//         );
-//       },
-//     );
-//   }
-// }
-
-// class _MealSection extends StatelessWidget {
-//   final String title;
-//   final String value;
-
-//   const _MealSection({required this.title, required this.value});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Card(
-//       margin: const EdgeInsets.only(bottom: 12),
-//       child: ListTile(
-//         title: Text(title),
-//         subtitle: Text(value),
-//         trailing: const Icon(Icons.edit),
-//       ),
-//     );
-//   }
-// }

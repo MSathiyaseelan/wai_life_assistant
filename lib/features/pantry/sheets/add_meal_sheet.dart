@@ -6,12 +6,17 @@ class AddMealSheet extends StatefulWidget {
   final DateTime date;
   final String walletId;
   final void Function(MealEntry) onSave;
+  // Edit mode — provide existing meal + onUpdate
+  final MealEntry? existing;
+  final void Function(MealEntry)? onUpdate;
 
   const AddMealSheet({
     super.key,
     required this.date,
     required this.walletId,
     required this.onSave,
+    this.existing,
+    this.onUpdate,
   });
 
   static Future<void> show(
@@ -19,13 +24,20 @@ class AddMealSheet extends StatefulWidget {
     required DateTime date,
     required String walletId,
     required void Function(MealEntry) onSave,
+    MealEntry? existing,
+    void Function(MealEntry)? onUpdate,
   }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          AddMealSheet(date: date, walletId: walletId, onSave: onSave),
+      builder: (_) => AddMealSheet(
+        date: date,
+        walletId: walletId,
+        onSave: onSave,
+        existing: existing,
+        onUpdate: onUpdate,
+      ),
     );
   }
 
@@ -37,6 +49,8 @@ class _AddMealSheetState extends State<AddMealSheet> {
   final _nameCtrl = TextEditingController();
   MealTime _mealTime = MealTime.lunch;
   String _emoji = '🍽️';
+
+  bool get _isEdit => widget.existing != null;
 
   final _emojis = [
     '🍽️',
@@ -76,6 +90,16 @@ class _AddMealSheetState extends State<AddMealSheet> {
   static const _weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.existing != null) {
+      _nameCtrl.text = widget.existing!.name;
+      _mealTime = widget.existing!.mealTime;
+      _emoji = widget.existing!.emoji;
+    }
+  }
+
+  @override
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
@@ -95,16 +119,27 @@ class _AddMealSheetState extends State<AddMealSheet> {
   void _save() {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
-    widget.onSave(
-      MealEntry(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: name,
-        mealTime: _mealTime,
-        date: widget.date,
-        walletId: widget.walletId,
-        emoji: _emoji,
-      ),
-    );
+    if (_isEdit) {
+      // Edit mode — preserve id, walletId, date, recipeId
+      widget.onUpdate!(
+        widget.existing!.copyWith(
+          name: name,
+          mealTime: _mealTime,
+          emoji: _emoji,
+        ),
+      );
+    } else {
+      widget.onSave(
+        MealEntry(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: name,
+          mealTime: _mealTime,
+          date: widget.date,
+          walletId: widget.walletId,
+          emoji: _emoji,
+        ),
+      );
+    }
     Navigator.pop(context);
   }
 
@@ -147,9 +182,9 @@ class _AddMealSheetState extends State<AddMealSheet> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Add Meal',
-                      style: TextStyle(
+                    Text(
+                      _isEdit ? 'Edit Meal' : 'Add Meal',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
                         fontFamily: 'Nunito',
@@ -282,7 +317,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
                   ),
                 ),
                 child: Text(
-                  'Save ${_mealTime.label} Meal →',
+                  _isEdit ? 'Update Meal →' : 'Save ${_mealTime.label} Meal →',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 15,

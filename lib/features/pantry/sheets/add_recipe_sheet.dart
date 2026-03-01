@@ -383,14 +383,31 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
 
 class RecipeDetailSheet extends StatelessWidget {
   final RecipeModel recipe;
-  const RecipeDetailSheet({super.key, required this.recipe});
+  final void Function(MealEntry)? onLogMeal;
+  final void Function(GroceryItem)? onAddToBasket;
 
-  static Future<void> show(BuildContext context, RecipeModel recipe) {
+  const RecipeDetailSheet({
+    super.key,
+    required this.recipe,
+    this.onLogMeal,
+    this.onAddToBasket,
+  });
+
+  static Future<void> show(
+    BuildContext context,
+    RecipeModel recipe, {
+    void Function(MealEntry)? onLogMeal,
+    void Function(GroceryItem)? onAddToBasket,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => RecipeDetailSheet(recipe: recipe),
+      builder: (_) => RecipeDetailSheet(
+        recipe: recipe,
+        onLogMeal: onLogMeal,
+        onAddToBasket: onAddToBasket,
+      ),
     );
   }
 
@@ -634,6 +651,15 @@ class RecipeDetailSheet extends StatelessWidget {
                       ),
                     ),
                   ],
+                  const SizedBox(height: 20),
+
+                  // ── Action buttons ───────────────────────────────────────────
+                  _RecipeActions(
+                    recipe: recipe,
+                    onLogMeal: onLogMeal,
+                    onAddToBasket: onAddToBasket,
+                  ),
+
                   const SizedBox(height: 24),
                 ],
               ),
@@ -641,6 +667,251 @@ class RecipeDetailSheet extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Recipe action buttons ─────────────────────────────────────────────────────
+
+class _RecipeActions extends StatefulWidget {
+  final RecipeModel recipe;
+  final void Function(MealEntry)? onLogMeal;
+  final void Function(GroceryItem)? onAddToBasket;
+
+  const _RecipeActions({
+    required this.recipe,
+    this.onLogMeal,
+    this.onAddToBasket,
+  });
+
+  @override
+  State<_RecipeActions> createState() => _RecipeActionsState();
+}
+
+class _RecipeActionsState extends State<_RecipeActions> {
+  MealTime _selectedTime = MealTime.lunch;
+  bool _basketAdded = false;
+
+  void _logMeal() {
+    if (widget.onLogMeal == null) return;
+    widget.onLogMeal!(
+      MealEntry(
+        id: 'meal_${DateTime.now().millisecondsSinceEpoch}',
+        name: widget.recipe.name,
+        mealTime: _selectedTime,
+        date: DateTime.now(),
+        walletId: 'personal',
+        recipeId: widget.recipe.id,
+        emoji: widget.recipe.emoji,
+      ),
+    );
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${widget.recipe.emoji} ${widget.recipe.name} logged as ${_selectedTime.label}!',
+          style: const TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: AppColors.income,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _addAllToBasket() {
+    if (widget.onAddToBasket == null) return;
+    for (final ing in widget.recipe.ingredients) {
+      // Parse "Chicken 500g" → name="Chicken", qty=500, unit="g"
+      final parts = ing.trim().split(RegExp(r'\s+'));
+      final name = parts.first;
+      double qty = 1;
+      String unit = 'pcs';
+      if (parts.length > 1) {
+        final raw = parts.sublist(1).join(' ');
+        final m = RegExp(r'([\d.]+)\s*(\w+)?').firstMatch(raw);
+        if (m != null) {
+          qty = double.tryParse(m.group(1) ?? '1') ?? 1;
+          unit = m.group(2) ?? 'pcs';
+        }
+      }
+      widget.onAddToBasket!(
+        GroceryItem(
+          id: 'g_${widget.recipe.id}_${ing.hashCode}',
+          name: name,
+          category: GroceryCategory.other,
+          quantity: qty,
+          unit: unit,
+          walletId: 'personal',
+          toBuy: true,
+          inStock: false,
+        ),
+      );
+    }
+    setState(() => _basketAdded = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${widget.recipe.ingredients.length} ingredients added to basket 🧺',
+          style: const TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        backgroundColor: AppColors.expense,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Log as Meal ──────────────────────────────────────────────────────
+        if (widget.onLogMeal != null) ...[
+          const _SectionTitle(title: '🗺️  Log as Meal'),
+          const SizedBox(height: 10),
+
+          // Meal time selector
+          Row(
+            children: MealTime.values.map((mt) {
+              final sel = mt == _selectedTime;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedTime = mt),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: sel ? mt.color : mt.color.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(mt.emoji, style: const TextStyle(fontSize: 16)),
+                        const SizedBox(height: 2),
+                        Text(
+                          mt.label,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: sel ? Colors.white : mt.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _logMeal,
+              icon: const Icon(Icons.restaurant_menu_rounded, size: 18),
+              label: Text(
+                'Log as ${_selectedTime.label} Today →',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _selectedTime.color,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                shadowColor: _selectedTime.color.withOpacity(0.4),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Add ingredients to basket ────────────────────────────────────────
+        if (widget.onAddToBasket != null &&
+            widget.recipe.ingredients.isNotEmpty) ...[
+          const _SectionTitle(title: '🧺  Add to Basket'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${widget.recipe.ingredients.length} ingredients will be added to your shopping list',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Nunito',
+                    color: sub,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _basketAdded ? null : _addAllToBasket,
+                    icon: Icon(
+                      _basketAdded
+                          ? Icons.check_circle_rounded
+                          : Icons.add_shopping_cart_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      _basketAdded
+                          ? 'Added to Basket ✓'
+                          : 'Add All Ingredients →',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                        fontFamily: 'Nunito',
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _basketAdded
+                          ? AppColors.income
+                          : AppColors.expense,
+                      foregroundColor: Colors.white,
+                      elevation: _basketAdded ? 0 : 3,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

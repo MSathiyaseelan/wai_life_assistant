@@ -182,9 +182,8 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
         ),
         const SizedBox(height: 12),
 
-        // Tab content
-        SizedBox(
-          height: 280,
+        // Tab content — Expanded fills all remaining space so inner ListView scrolls freely
+        Expanded(
           child: TabBarView(
             controller: _tabCtrl,
             children: [

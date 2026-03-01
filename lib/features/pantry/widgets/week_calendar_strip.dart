@@ -63,12 +63,18 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
 
   void _prevWeek() {
     HapticFeedback.lightImpact();
-    setState(() => _weekStart = _weekStart.subtract(const Duration(days: 7)));
+    final newStart = _weekStart.subtract(const Duration(days: 7));
+    setState(() => _weekStart = newStart);
+    // Notify parent so selectedDate (and MealMapSection) update for the new week
+    widget.onDateSelected(newStart);
   }
 
   void _nextWeek() {
     HapticFeedback.lightImpact();
-    setState(() => _weekStart = _weekStart.add(const Duration(days: 7)));
+    final newStart = _weekStart.add(const Duration(days: 7));
+    setState(() => _weekStart = newStart);
+    // Notify parent so selectedDate (and MealMapSection) update for the new week
+    widget.onDateSelected(newStart);
   }
 
   String get _headerLabel {
