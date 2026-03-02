@@ -176,7 +176,6 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       context: ctx,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      useSafeArea: true,
       builder: (_) => _TaskSheetHost(
         isDark: isDark,
         surfBg: surfBg,
@@ -225,7 +224,6 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       context: ctx,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      useSafeArea: true,
       builder: (_) => _TaskSheetHost(
         isDark: isDark,
         surfBg: surfBg,
@@ -259,56 +257,66 @@ class _TaskSheetHost extends StatelessWidget {
   @override
   Widget build(BuildContext hostCtx) {
     final isEdit = existing != null;
-    return Container(
-      height: MediaQuery.of(hostCtx).size.height * 0.92,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.cardDark : AppColors.cardLight,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 4),
-            decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(2),
+    final mq = MediaQuery.of(hostCtx);
+    // With isScrollControlled:true, Flutter injects viewInsets.bottom into the
+    // modal's MediaQuery so this correctly tracks the keyboard height live.
+    final kb = mq.viewInsets.bottom;
+
+    return Padding(
+      // This padding pushes the whole sheet up above the keyboard
+      padding: EdgeInsets.only(bottom: kb),
+      child: Container(
+        constraints: BoxConstraints(maxHeight: mq.size.height * 0.92),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.cardDark : AppColors.cardLight,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          Expanded(
-            child: _AddTaskSheet(
-              isDark: isDark,
-              surfBg: surfBg,
-              walletId: walletId,
-              existing: existing,
-              onSave: (t) {
-                Navigator.pop(hostCtx);
-                onSave(t);
-                ScaffoldMessenger.of(hostCtx).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      isEdit
-                          ? '${t.emoji} "${t.title}" updated!'
-                          : '${t.emoji} "${t.title}" saved!',
-                      style: const TextStyle(
-                        fontFamily: 'Nunito',
-                        fontWeight: FontWeight.w700,
+            Flexible(
+              child: _AddTaskSheet(
+                isDark: isDark,
+                surfBg: surfBg,
+                walletId: walletId,
+                existing: existing,
+                onSave: (t) {
+                  Navigator.pop(hostCtx);
+                  onSave(t);
+                  ScaffoldMessenger.of(hostCtx).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isEdit
+                            ? '${t.emoji} "${t.title}" updated!'
+                            : '${t.emoji} "${t.title}" saved!',
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
+                      backgroundColor: AppColors.income,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      margin: const EdgeInsets.all(16),
+                      duration: const Duration(seconds: 2),
                     ),
-                    backgroundColor: AppColors.income,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    margin: const EdgeInsets.all(16),
-                    duration: const Duration(seconds: 2),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -623,7 +631,7 @@ class _TaskCard extends StatelessWidget {
 // TASK DETAIL SHEET
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TaskDetailSheet extends StatelessWidget {
+class _TaskDetailSheet extends StatefulWidget {
   final TaskModel task;
   final bool isDark;
   final Color surfBg;
@@ -643,9 +651,25 @@ class _TaskDetailSheet extends StatelessWidget {
   });
 
   @override
+  State<_TaskDetailSheet> createState() => _TaskDetailSheetState();
+}
+
+class _TaskDetailSheetState extends State<_TaskDetailSheet> {
+  // Local mirror of subtask done-states so tapping rebuilds instantly
+  late final List<bool> _done;
+
+  @override
+  void initState() {
+    super.initState();
+    _done = widget.task.subtasks.map((s) => s.done).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+    final task = widget.task;
+    final doneCount = _done.where((d) => d).length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
@@ -722,54 +746,114 @@ class _TaskDetailSheet extends StatelessWidget {
                 ),
             ],
           ),
+
+          // Subtasks
           if (task.subtasks.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Text(
-              'Subtasks',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Nunito',
-                color: tc,
-              ),
+            Row(
+              children: [
+                Text(
+                  'Subtasks',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                    color: tc,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$doneCount/${task.subtasks.length}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                    color: sub,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
-            ...task.subtasks.map(
-              (st) => GestureDetector(
-                onTap: () => onToggleSubtask(st),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+            ...List.generate(task.subtasks.length, (i) {
+              final st = task.subtasks[i];
+              final done = _done[i];
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _done[i] = !done);
+                  widget.onToggleSubtask(st); // also mutates the model
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: done
+                        ? AppColors.income.withOpacity(0.07)
+                        : (widget.isDark
+                              ? AppColors.surfDark
+                              : const Color(0xFFEDEEF5)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: done
+                          ? AppColors.income.withOpacity(0.3)
+                          : Colors.transparent,
+                    ),
+                  ),
                   child: Row(
                     children: [
-                      Icon(
-                        st.done
-                            ? Icons.check_circle_rounded
-                            : Icons.radio_button_unchecked_rounded,
-                        color: st.done ? AppColors.income : sub,
-                        size: 20,
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          done
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          key: ValueKey(done),
+                          color: done ? AppColors.income : sub,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 10),
-                      Text(
-                        st.title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: 'Nunito',
-                          color: st.done ? sub : tc,
-                          decoration: st.done
-                              ? TextDecoration.lineThrough
-                              : null,
+                      Expanded(
+                        child: Text(
+                          st.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'Nunito',
+                            color: done ? sub : tc,
+                            decoration: done
+                                ? TextDecoration.lineThrough
+                                : null,
+                            decorationColor: sub,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
+              );
+            }),
+            const SizedBox(height: 4),
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: task.subtasks.isEmpty
+                    ? 0
+                    : doneCount / task.subtasks.length,
+                backgroundColor: AppColors.income.withOpacity(0.12),
+                color: AppColors.income,
+                minHeight: 5,
               ),
             ),
           ],
+
           const SizedBox(height: 20),
           // Edit button
           GestureDetector(
-            onTap: onEdit,
+            onTap: widget.onEdit,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 13),
@@ -808,7 +892,7 @@ class _TaskDetailSheet extends StatelessWidget {
                       child: Padding(
                         padding: EdgeInsets.only(left: s.index > 0 ? 8 : 0),
                         child: GestureDetector(
-                          onTap: () => onStatusChange(s),
+                          onTap: () => widget.onStatusChange(s),
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 11),
                             decoration: BoxDecoration(
@@ -835,7 +919,7 @@ class _TaskDetailSheet extends StatelessWidget {
                   ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: onDelete,
+                onTap: widget.onDelete,
                 child: Container(
                   width: 46,
                   height: 46,
