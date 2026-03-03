@@ -464,7 +464,8 @@ class _TripDetailScreenState extends State<_TripDetailScreen>
             msgCtrl: _msgCtrl,
             onSend: _sendMessage,
             onVote: (vote, optIdx) => setState(() {
-              vote.votes[optIdx] = (vote.votes[optIdx] ?? 0) + 1;
+              vote.votes[optIdx.toString()] =
+                  (vote.votes[optIdx.toString()] ?? 0) + 1;
             }),
           ),
         ],

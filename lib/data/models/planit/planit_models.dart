@@ -107,8 +107,8 @@ enum SpecialDayType {
   birthday,
   anniversary,
   festival,
-  holiday,
   govtHoliday,
+  holiday,
   custom,
 }
 
@@ -121,10 +121,10 @@ extension SpecialDayTypeExt on SpecialDayType {
         return 'Anniversary';
       case SpecialDayType.festival:
         return 'Festival';
+      case SpecialDayType.govtHoliday:
+        return 'Govt Holiday';
       case SpecialDayType.holiday:
         return 'Holiday';
-      case SpecialDayType.govtHoliday:
-        return 'Government Holiday';
       case SpecialDayType.custom:
         return 'Custom';
     }
@@ -138,10 +138,10 @@ extension SpecialDayTypeExt on SpecialDayType {
         return '💍';
       case SpecialDayType.festival:
         return '🎉';
-      case SpecialDayType.holiday:
-        return '🌟';
       case SpecialDayType.govtHoliday:
         return '🏛️';
+      case SpecialDayType.holiday:
+        return '🌟';
       case SpecialDayType.custom:
         return '📅';
     }
@@ -155,10 +155,10 @@ extension SpecialDayTypeExt on SpecialDayType {
         return const Color(0xFFFFAA2C);
       case SpecialDayType.festival:
         return const Color(0xFF6C63FF);
+      case SpecialDayType.govtHoliday:
+        return const Color(0xFF1A8FE3);
       case SpecialDayType.holiday:
         return const Color(0xFF00C897);
-      case SpecialDayType.govtHoliday:
-        return const Color(0xFF4A9EFF);
       case SpecialDayType.custom:
         return const Color(0xFF4A9EFF);
     }
@@ -497,7 +497,7 @@ List<ReminderModel> mockReminders = [
   ),
   ReminderModel(
     id: 'r2',
-    title: 'Arjuns dental check-up',
+    title: 'Arjun\'s dental check-up',
     emoji: '🦷',
     dueDate: _t.add(const Duration(days: 5)),
     dueTime: const TimeOfDay(hour: 11, minute: 30),
@@ -520,7 +520,7 @@ List<ReminderModel> mockReminders = [
   ),
   ReminderModel(
     id: 'r4',
-    title: 'Moms medicine refill',
+    title: 'Mom\'s medicine refill',
     emoji: '💊',
     dueDate: _t.add(const Duration(days: 3)),
     dueTime: const TimeOfDay(hour: 18, minute: 0),
@@ -869,6 +869,33 @@ class BillModel {
   bool get isOverdue => !paid && dueDate.isBefore(DateTime.now());
   bool get isDueSoon =>
       !paid && !isOverdue && dueDate.difference(DateTime.now()).inDays <= 5;
+
+  BillModel copyWith({
+    String? name,
+    BillCategory? category,
+    double? amount,
+    DateTime? dueDate,
+    RepeatMode? repeat,
+    bool? paid,
+    String? provider,
+    String? accountNumber,
+    String? note,
+    String? walletId,
+    List<BillPayment>? history,
+  }) => BillModel(
+    id: id,
+    name: name ?? this.name,
+    category: category ?? this.category,
+    amount: amount ?? this.amount,
+    dueDate: dueDate ?? this.dueDate,
+    repeat: repeat ?? this.repeat,
+    paid: paid ?? this.paid,
+    provider: provider ?? this.provider,
+    accountNumber: accountNumber ?? this.accountNumber,
+    note: note ?? this.note,
+    walletId: walletId ?? this.walletId,
+    history: history ?? List.from(this.history),
+  );
 }
 
 class BillPayment {
@@ -1018,7 +1045,7 @@ class TripVote {
   final String id;
   final String question;
   final List<String> options;
-  final Map<int, int> votes; // optionIndex → count
+  final Map<String, int> votes; // optionIndex → count
   TripVote({
     required this.id,
     required this.question,
@@ -1064,7 +1091,7 @@ List<TripModel> mockTrips = [
         id: 'tv1',
         question: 'Which hotel?',
         options: ['Ocean View Resort', 'Budget Hostel', 'Airbnb Villa'],
-        votes: {0: 2, 1: 0, 2: 1},
+        votes: {'0': 2, '1': 0, '2': 1},
       ),
     ],
   ),
