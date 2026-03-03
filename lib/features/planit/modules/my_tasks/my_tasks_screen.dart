@@ -8,7 +8,18 @@ import 'dart:io';
 
 class MyTasksScreen extends StatefulWidget {
   final String walletId;
-  const MyTasksScreen({super.key, required this.walletId});
+  final String walletName;
+  final String walletEmoji;
+  final List<PlanMember> members;
+  final List<TaskModel> tasks;
+  const MyTasksScreen({
+    super.key,
+    required this.walletId,
+    this.walletName = 'Personal',
+    this.walletEmoji = '👤',
+    this.members = const [],
+    required this.tasks,
+  });
   @override
   State<MyTasksScreen> createState() => _MyTasksScreenState();
 }
@@ -16,17 +27,19 @@ class MyTasksScreen extends StatefulWidget {
 class _MyTasksScreenState extends State<MyTasksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  final List<TaskModel> _tasks = List.from(mockTasks);
+  // Uses widget.tasks — shared state from PlanItScreen
   String? _filterProject;
 
   List<TaskModel> get _filtered {
-    var list = _tasks.where((t) => t.walletId == widget.walletId).toList();
+    var list = widget.tasks
+        .where((t) => t.walletId == widget.walletId)
+        .toList();
     if (_filterProject != null)
       list = list.where((t) => t.project == _filterProject).toList();
     return list;
   }
 
-  List<String> get _projects => _tasks
+  List<String> get _projects => widget.tasks
       .where((t) => t.project != null)
       .map((t) => t.project!)
       .toSet()
@@ -49,11 +62,11 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   }
 
   // ── Mutators ──────────────────────────────────────────────────────────────
-  void _add(TaskModel t) => setState(() => _tasks.add(t));
-  void _delete(TaskModel t) => setState(() => _tasks.remove(t));
+  void _add(TaskModel t) => setState(() => widget.tasks.add(t));
+  void _delete(TaskModel t) => setState(() => widget.tasks.remove(t));
   void _update(TaskModel updated) => setState(() {
-    final i = _tasks.indexWhere((t) => t.id == updated.id);
-    if (i >= 0) _tasks[i] = updated;
+    final i = widget.tasks.indexWhere((t) => t.id == updated.id);
+    if (i >= 0) widget.tasks[i] = updated;
   });
   void _updateStatus(TaskModel t, TaskStatus s) => setState(() => t.status = s);
   void _toggleSubtask(SubTask st) => setState(() => st.done = !st.done);
@@ -90,6 +103,37 @@ class _MyTasksScreenState extends State<MyTasksScreen>
             ),
           ],
         ),
+        actions: [
+          if (widget.walletName != 'Personal')
+            Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.walletEmoji,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    widget.walletName,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,
@@ -180,6 +224,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
         isDark: isDark,
         surfBg: surfBg,
         walletId: widget.walletId,
+        members: widget.members,
         onSave: (t) => _add(t),
       ),
     );
@@ -228,6 +273,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
         isDark: isDark,
         surfBg: surfBg,
         walletId: widget.walletId,
+        members: widget.members,
         existing: existing,
         onSave: (t) => _update(t),
       ),
@@ -243,6 +289,7 @@ class _TaskSheetHost extends StatelessWidget {
   final bool isDark;
   final Color surfBg;
   final String walletId;
+  final List<PlanMember> members;
   final TaskModel? existing;
   final void Function(TaskModel) onSave;
 
@@ -250,6 +297,7 @@ class _TaskSheetHost extends StatelessWidget {
     required this.isDark,
     required this.surfBg,
     required this.walletId,
+    this.members = const [],
     this.existing,
     required this.onSave,
   });
@@ -288,6 +336,7 @@ class _TaskSheetHost extends StatelessWidget {
                 isDark: isDark,
                 surfBg: surfBg,
                 walletId: walletId,
+                members: members,
                 existing: existing,
                 onSave: (t) {
                   Navigator.pop(hostCtx);
@@ -954,6 +1003,7 @@ class _AddTaskSheet extends StatefulWidget {
   final bool isDark;
   final Color surfBg;
   final String walletId;
+  final List<PlanMember> members;
   final TaskModel? existing;
   final void Function(TaskModel) onSave;
 
@@ -961,6 +1011,7 @@ class _AddTaskSheet extends StatefulWidget {
     required this.isDark,
     required this.surfBg,
     required this.walletId,
+    this.members = const [],
     this.existing,
     required this.onSave,
   });
@@ -1262,6 +1313,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
             titleCtrl: _titleCtrl,
             descCtrl: _descCtrl,
             projCtrl: _projCtrl,
+            members: widget.members,
             emoji: _emoji,
             priority: _priority,
             assignedTo: _assignedTo,
@@ -1752,6 +1804,7 @@ class _TaskExamples extends StatelessWidget {
 class _TaskManualForm extends StatelessWidget {
   final bool isDark;
   final Color surfBg;
+  final List<PlanMember> members;
   final TextEditingController titleCtrl, descCtrl, projCtrl, stCtrl;
   final String emoji, assignedTo;
   final Priority priority;
@@ -1768,6 +1821,7 @@ class _TaskManualForm extends StatelessWidget {
   const _TaskManualForm({
     required this.isDark,
     required this.surfBg,
+    this.members = const [],
     required this.titleCtrl,
     required this.descCtrl,
     required this.projCtrl,
@@ -1795,7 +1849,7 @@ class _TaskManualForm extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Emoji
+        /// Emoji Picker
         SizedBox(
           height: 44,
           child: ListView(
@@ -1828,9 +1882,10 @@ class _TaskManualForm extends StatelessWidget {
                 .toList(),
           ),
         ),
+
         const SizedBox(height: 12),
 
-        // Title with validation
+        /// Title
         Container(
           decoration: BoxDecoration(
             color: surfBg,
@@ -1872,6 +1927,7 @@ class _TaskManualForm extends StatelessWidget {
             ],
           ),
         ),
+
         const SizedBox(height: 8),
         PlanInputField(
           controller: descCtrl,
@@ -1882,7 +1938,7 @@ class _TaskManualForm extends StatelessWidget {
         PlanInputField(controller: projCtrl, hint: 'Project (optional)'),
         const SizedBox(height: 16),
 
-        // Priority
+        /// Priority
         const SheetLabel(text: 'PRIORITY'),
         Row(
           children: Priority.values
@@ -1921,9 +1977,10 @@ class _TaskManualForm extends StatelessWidget {
               )
               .toList(),
         ),
+
         const SizedBox(height: 16),
 
-        // Due date + Assign
+        /// Due Date + Assign
         Row(
           children: [
             Expanded(
@@ -1975,10 +2032,11 @@ class _TaskManualForm extends StatelessWidget {
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: mockMembers
+                  children: (members.isNotEmpty ? members : mockMembers)
                       .take(5)
-                      .map(
-                        (m) => GestureDetector(
+                      .map((m_) {
+                        final m = m_ as PlanMember;
+                        return GestureDetector(
                           onTap: () => onAssignedChanged(m.id),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
@@ -2002,18 +2060,20 @@ class _TaskManualForm extends StatelessWidget {
                               style: const TextStyle(fontSize: 20),
                             ),
                           ),
-                        ),
-                      )
+                        );
+                      })
                       .toList(),
                 ),
               ),
             ),
           ],
         ),
+
         const SizedBox(height: 16),
 
-        // Subtasks
+        /// Subtasks
         const SheetLabel(text: 'SUBTASKS'),
+
         Row(
           children: [
             Expanded(
@@ -2042,7 +2102,9 @@ class _TaskManualForm extends StatelessWidget {
                     ),
                   ),
                   onSubmitted: (v) {
-                    if (v.trim().isNotEmpty) onAddSubtask(v.trim());
+                    if (v.trim().isNotEmpty) {
+                      onAddSubtask(v.trim());
+                    }
                   },
                 ),
               ),
@@ -2050,8 +2112,9 @@ class _TaskManualForm extends StatelessWidget {
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () {
-                if (stCtrl.text.trim().isNotEmpty)
+                if (stCtrl.text.trim().isNotEmpty) {
                   onAddSubtask(stCtrl.text.trim());
+                }
               },
               child: Container(
                 width: 40,
@@ -2070,6 +2133,7 @@ class _TaskManualForm extends StatelessWidget {
             ),
           ],
         ),
+
         if (subtasks.isNotEmpty) ...[
           const SizedBox(height: 8),
           ...subtasks.map(

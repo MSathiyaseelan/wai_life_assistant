@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import '../../widgets/plan_widgets.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/services.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REGION PRESET DATA
@@ -252,7 +254,18 @@ const _regionPresets = <_RegionPreset>[
 
 class SpecialDaysScreen extends StatefulWidget {
   final String walletId;
-  const SpecialDaysScreen({super.key, required this.walletId});
+  final String walletName;
+  final String walletEmoji;
+  final List<PlanMember> members;
+  final List<SpecialDayModel> days;
+  const SpecialDaysScreen({
+    super.key,
+    required this.walletId,
+    this.walletName = 'Personal',
+    this.walletEmoji = '👤',
+    this.members = const [],
+    required this.days,
+  });
   @override
   State<SpecialDaysScreen> createState() => _SpecialDaysScreenState();
 }
@@ -260,11 +273,11 @@ class SpecialDaysScreen extends StatefulWidget {
 class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  final List<SpecialDayModel> _days = List.from(mockSpecialDays);
+  // Uses widget.days — shared state from PlanItScreen
   SpecialDayType? _filterType;
 
   List<SpecialDayModel> get _mine =>
-      _days.where((d) => d.walletId == widget.walletId).toList();
+      widget.days.where((d) => d.walletId == widget.walletId).toList();
 
   List<SpecialDayModel> get _filtered {
     var list = _mine;
@@ -314,11 +327,11 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     super.dispose();
   }
 
-  void _add(SpecialDayModel d) => setState(() => _days.add(d));
-  void _delete(SpecialDayModel d) => setState(() => _days.remove(d));
+  void _add(SpecialDayModel d) => setState(() => widget.days.add(d));
+  void _delete(SpecialDayModel d) => setState(() => widget.days.remove(d));
   void _update(SpecialDayModel updated) => setState(() {
-    final i = _days.indexWhere((d) => d.id == updated.id);
-    if (i >= 0) _days[i] = updated;
+    final i = widget.days.indexWhere((d) => d.id == updated.id);
+    if (i >= 0) widget.days[i] = updated;
   });
 
   @override
@@ -353,6 +366,37 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
             ),
           ],
         ),
+        actions: [
+          if (widget.walletName != 'Personal')
+            Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.walletEmoji,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    widget.walletName,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,

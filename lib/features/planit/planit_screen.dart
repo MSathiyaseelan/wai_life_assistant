@@ -33,6 +33,32 @@ class _PlanItScreenState extends State<PlanItScreen> {
     orElse: () => personalWallet,
   );
 
+  // ── Lifted state — persists across navigation ─────────────────────────────
+  final List<ReminderModel> _reminders = List.from(mockReminders);
+  final List<TaskModel> _tasksList = List.from(mockTasks);
+  final List<SpecialDayModel> _days = List.from(mockSpecialDays);
+  final List<WishModel> _wishes = List.from(mockWishes);
+  final List<BillModel> _bills = List.from(mockBills);
+
+  // ── Family members for current wallet — converted to PlanMember ─────────────
+  List<PlanMember> get _members {
+    if (_currentWallet.isPersonal) return [];
+    final family = mockFamilies.firstWhere(
+      (f) => f.id == _currentWallet.id,
+      orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
+    );
+    return family.members
+        .map(
+          (m) => PlanMember(
+            id: m.id,
+            name: m.name,
+            emoji: m.emoji,
+            phone: m.phone,
+          ),
+        )
+        .toList();
+  }
+
   void _switchWallet(String id) => widget.onWalletChange(id);
 
   // ── Derived stats ─────────────────────────────────────────────────────────
@@ -405,7 +431,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
       subtitle: 'Reminders & snooze',
       color: AppColors.expense,
       badge: _dueReminders,
-      builder: (ctx, wid) => AlertMeScreen(walletId: wid),
+      builder: (ctx, wid) => AlertMeScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        reminders: _reminders,
+      ),
     ),
     _ModuleInfo(
       emoji: '✅',
@@ -413,7 +445,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
       subtitle: 'To-Do & projects',
       color: AppColors.split,
       badge: _pendingTasks,
-      builder: (ctx, wid) => MyTasksScreen(walletId: wid),
+      builder: (ctx, wid) => MyTasksScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        tasks: _tasksList,
+      ),
     ),
     _ModuleInfo(
       emoji: '🎂',
@@ -421,7 +459,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
       subtitle: 'Birthdays & events',
       color: AppColors.primary,
       badge: _upcomingDays,
-      builder: (ctx, wid) => SpecialDaysScreen(walletId: wid),
+      builder: (ctx, wid) => SpecialDaysScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        days: _days,
+      ),
     ),
     _ModuleInfo(
       emoji: '🎁',
@@ -429,7 +473,12 @@ class _PlanItScreenState extends State<PlanItScreen> {
       subtitle: 'Save & track goals',
       color: AppColors.lend,
       badge: null,
-      builder: (ctx, wid) => WishListScreen(walletId: wid),
+      builder: (ctx, wid) => WishListScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        wishes: _wishes,
+      ),
     ),
     _ModuleInfo(
       emoji: '🧾',
@@ -437,7 +486,12 @@ class _PlanItScreenState extends State<PlanItScreen> {
       subtitle: 'Never miss a bill',
       color: AppColors.borrow,
       badge: _overdueBills,
-      builder: (ctx, wid) => BillWatchScreen(walletId: wid),
+      builder: (ctx, wid) => BillWatchScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        bills: _bills,
+      ),
     ),
     _ModuleInfo(
       emoji: '✈️',

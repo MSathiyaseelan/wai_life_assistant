@@ -1,13 +1,29 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import '../../widgets/plan_widgets.dart';
 import 'dart:convert';
 import 'dart:io';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SCREEN
+// ─────────────────────────────────────────────────────────────────────────────
+
 class BillWatchScreen extends StatefulWidget {
   final String walletId;
-  const BillWatchScreen({super.key, required this.walletId});
+  final String walletName;
+  final String walletEmoji;
+  final List<PlanMember> members;
+  final List<BillModel> bills;
+  const BillWatchScreen({
+    super.key,
+    required this.walletId,
+    this.walletName = 'Personal',
+    this.walletEmoji = '👤',
+    this.members = const [],
+    required this.bills,
+  });
   @override
   State<BillWatchScreen> createState() => _BillWatchScreenState();
 }
@@ -15,11 +31,11 @@ class BillWatchScreen extends StatefulWidget {
 class _BillWatchScreenState extends State<BillWatchScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  final List<BillModel> _bills = List.from(mockBills);
+  // Uses widget.bills — shared state from PlanItScreen
   BillCategory? _filterCat;
 
   List<BillModel> get _mine =>
-      _bills.where((b) => b.walletId == widget.walletId).toList()
+      widget.bills.where((b) => b.walletId == widget.walletId).toList()
         ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
   List<BillModel> get _filtered {
@@ -46,14 +62,14 @@ class _BillWatchScreenState extends State<BillWatchScreen>
     super.dispose();
   }
 
-  void _add(BillModel b) => setState(() => _bills.add(b));
+  void _add(BillModel b) => setState(() => widget.bills.add(b));
 
   void _delete(BillModel b) =>
-      setState(() => _bills.removeWhere((x) => x.id == b.id));
+      setState(() => widget.bills.removeWhere((x) => x.id == b.id));
 
   void _replace(BillModel updated) {
-    final i = _bills.indexWhere((b) => b.id == updated.id);
-    if (i >= 0) _bills[i] = updated;
+    final i = widget.bills.indexWhere((b) => b.id == updated.id);
+    if (i >= 0) widget.bills[i] = updated;
   }
 
   void _update(BillModel u) => setState(() => _replace(u));
@@ -68,7 +84,7 @@ class _BillWatchScreenState extends State<BillWatchScreen>
     String? nextId;
     BillModel? nextBill;
     if (b.repeat != RepeatMode.none) {
-      final exists = _bills.any(
+      final exists = widget.bills.any(
         (x) => x.name == b.name && !x.paid && x.id != b.id,
       );
       if (!exists) {
@@ -83,7 +99,7 @@ class _BillWatchScreenState extends State<BillWatchScreen>
     setState(() {
       _replace(paid);
       if (nextBill != null) {
-        _bills.add(
+        widget.bills.add(
           BillModel(
             id: nextId!,
             name: nextBill.name,
@@ -123,7 +139,8 @@ class _BillWatchScreenState extends State<BillWatchScreen>
             sm.clearSnackBars();
             setState(() {
               _replace(b); // restore original unpaid bill
-              if (nextId != null) _bills.removeWhere((x) => x.id == nextId);
+              if (nextId != null)
+                widget.bills.removeWhere((x) => x.id == nextId);
             });
           },
         ),
@@ -221,6 +238,37 @@ class _BillWatchScreenState extends State<BillWatchScreen>
             ),
           ],
         ),
+        actions: [
+          if (widget.walletName != 'Personal')
+            Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.walletEmoji,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    widget.walletName,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,

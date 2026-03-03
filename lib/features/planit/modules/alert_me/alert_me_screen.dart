@@ -8,7 +8,18 @@ import 'dart:io';
 
 class AlertMeScreen extends StatefulWidget {
   final String walletId;
-  const AlertMeScreen({super.key, required this.walletId});
+  final String walletName;
+  final String walletEmoji;
+  final List<PlanMember> members;
+  final List<ReminderModel> reminders;
+  const AlertMeScreen({
+    super.key,
+    required this.walletId,
+    this.walletName = 'Personal',
+    this.walletEmoji = '👤',
+    this.members = const [],
+    required this.reminders,
+  });
   @override
   State<AlertMeScreen> createState() => _AlertMeScreenState();
 }
@@ -17,14 +28,17 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   // LOCAL copy — changes don't affect global mock
-  final List<ReminderModel> _reminders = List.from(mockReminders);
+  // Uses widget.reminders — shared state from PlanItScreen
 
   List<ReminderModel> get _active =>
-      _reminders.where((r) => r.walletId == widget.walletId && !r.done).toList()
+      widget.reminders
+          .where((r) => r.walletId == widget.walletId && !r.done)
+          .toList()
         ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
-  List<ReminderModel> get _done =>
-      _reminders.where((r) => r.walletId == widget.walletId && r.done).toList();
+  List<ReminderModel> get _done => widget.reminders
+      .where((r) => r.walletId == widget.walletId && r.done)
+      .toList();
 
   @override
   void initState() {
@@ -40,11 +54,11 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   }
 
   // ── Mutators ──────────────────────────────────────────────────────────────
-  void _add(ReminderModel r) => setState(() => _reminders.add(r));
-  void _delete(ReminderModel r) => setState(() => _reminders.remove(r));
+  void _add(ReminderModel r) => setState(() => widget.reminders.add(r));
+  void _delete(ReminderModel r) => setState(() => widget.reminders.remove(r));
   void _update(ReminderModel updated) => setState(() {
-    final i = _reminders.indexWhere((r) => r.id == updated.id);
-    if (i >= 0) _reminders[i] = updated;
+    final i = widget.reminders.indexWhere((r) => r.id == updated.id);
+    if (i >= 0) widget.reminders[i] = updated;
   });
   void _markDone(ReminderModel r) => setState(() => r.done = true);
   void _snooze(ReminderModel r) => setState(() {
@@ -84,6 +98,37 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             ),
           ],
         ),
+        actions: [
+          if (widget.walletName != 'Personal')
+            Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.walletEmoji,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    widget.walletName,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,
@@ -154,6 +199,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         isDark: isDark,
         surfBg: surfBg,
         walletId: widget.walletId,
+        members: widget.members,
         onSave: (r) {
           // _add does setState — AlertMeScreen is still mounted, sheet is separate route
           _add(r);
@@ -209,6 +255,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         isDark: isDark,
         surfBg: surfBg,
         walletId: widget.walletId,
+        members: widget.members,
         existing: existing,
         onSave: (r) => _update(r),
       ),
@@ -701,6 +748,7 @@ class _AddReminderSheetHost extends StatelessWidget {
   final bool isDark;
   final Color surfBg;
   final String walletId;
+  final List<PlanMember> members;
   final ReminderModel? existing; // null = add mode, non-null = edit mode
   final void Function(ReminderModel) onSave;
 
@@ -708,6 +756,7 @@ class _AddReminderSheetHost extends StatelessWidget {
     required this.isDark,
     required this.surfBg,
     required this.walletId,
+    this.members = const [],
     this.existing,
     required this.onSave,
   });
@@ -737,6 +786,7 @@ class _AddReminderSheetHost extends StatelessWidget {
               isDark: isDark,
               surfBg: surfBg,
               walletId: walletId,
+              members: members,
               existing: existing,
               onSave: (r) {
                 Navigator.pop(hostCtx);
@@ -778,6 +828,7 @@ class _AddReminderSheet extends StatefulWidget {
   final bool isDark;
   final Color surfBg;
   final String walletId;
+  final List<PlanMember> members;
   final ReminderModel? existing; // null = add, non-null = edit
   final void Function(ReminderModel) onSave;
 
@@ -785,6 +836,7 @@ class _AddReminderSheet extends StatefulWidget {
     required this.isDark,
     required this.surfBg,
     required this.walletId,
+    this.members = const [],
     this.existing,
     required this.onSave,
   });
@@ -1074,6 +1126,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
           _ManualForm(
             isDark: widget.isDark,
             surfBg: widget.surfBg,
+            members: widget.members,
             titleCtrl: _titleCtrl,
             noteCtrl: _noteCtrl,
             emoji: _emoji,
@@ -1585,6 +1638,7 @@ class _ExamplesSection extends StatelessWidget {
 class _ManualForm extends StatelessWidget {
   final bool isDark;
   final Color surfBg;
+  final List<PlanMember> members;
   final TextEditingController titleCtrl, noteCtrl;
   final String emoji, assignedTo;
   final DateTime date;
@@ -1603,6 +1657,7 @@ class _ManualForm extends StatelessWidget {
   const _ManualForm({
     required this.isDark,
     required this.surfBg,
+    this.members = const [],
     required this.titleCtrl,
     required this.noteCtrl,
     required this.emoji,
@@ -1852,7 +1907,7 @@ class _ManualForm extends StatelessWidget {
           height: 52,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            children: mockMembers
+            children: (members.isNotEmpty ? members : mockMembers)
                 .map(
                   (m) => Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -2171,6 +2226,7 @@ class _NlpParser {
 
     // ── Assigned member ──────────────────────────────────────────────────
     String assignedTo = 'me';
+    // member detection uses mockMembers as fallback
     for (final m in mockMembers) {
       if (m.id != 'me' && lower.contains(m.name.toLowerCase())) {
         assignedTo = m.id;
