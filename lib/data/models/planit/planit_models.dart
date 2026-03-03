@@ -103,7 +103,14 @@ extension TaskStatusExt on TaskStatus {
   }
 }
 
-enum SpecialDayType { birthday, anniversary, festival, holiday, custom }
+enum SpecialDayType {
+  birthday,
+  anniversary,
+  festival,
+  holiday,
+  govtHoliday,
+  custom,
+}
 
 extension SpecialDayTypeExt on SpecialDayType {
   String get label {
@@ -116,6 +123,8 @@ extension SpecialDayTypeExt on SpecialDayType {
         return 'Festival';
       case SpecialDayType.holiday:
         return 'Holiday';
+      case SpecialDayType.govtHoliday:
+        return 'Government Holiday';
       case SpecialDayType.custom:
         return 'Custom';
     }
@@ -131,6 +140,8 @@ extension SpecialDayTypeExt on SpecialDayType {
         return '🎉';
       case SpecialDayType.holiday:
         return '🌟';
+      case SpecialDayType.govtHoliday:
+        return '🏛️';
       case SpecialDayType.custom:
         return '📅';
     }
@@ -146,6 +157,8 @@ extension SpecialDayTypeExt on SpecialDayType {
         return const Color(0xFF6C63FF);
       case SpecialDayType.holiday:
         return const Color(0xFF00C897);
+      case SpecialDayType.govtHoliday:
+        return const Color(0xFF4A9EFF);
       case SpecialDayType.custom:
         return const Color(0xFF4A9EFF);
     }
@@ -643,6 +656,7 @@ class SpecialDayModel {
 }
 
 List<SpecialDayModel> mockSpecialDays = [
+  // ── Upcoming ──
   SpecialDayModel(
     id: 'sd1',
     title: "Priya's Birthday",
@@ -683,6 +697,46 @@ List<SpecialDayModel> mockSpecialDays = [
     members: ['dad'],
     walletId: 'f1',
     alertDaysBefore: 5,
+  ),
+  // ── Past (before March 3) ──
+  SpecialDayModel(
+    id: 'sd5',
+    title: "Republic Day",
+    emoji: '🇮🇳',
+    type: SpecialDayType.govtHoliday,
+    date: DateTime(DateTime.now().year, 1, 26),
+    walletId: 'personal',
+    alertDaysBefore: 1,
+  ),
+  SpecialDayModel(
+    id: 'sd6',
+    title: "Mum's Birthday",
+    emoji: '🎂',
+    type: SpecialDayType.birthday,
+    date: DateTime(DateTime.now().year, 2, 14),
+    members: ['mom'],
+    walletId: 'personal',
+    alertDaysBefore: 7,
+    note: 'Get flowers!',
+  ),
+  SpecialDayModel(
+    id: 'sd7',
+    title: "Holi",
+    emoji: '🎨',
+    type: SpecialDayType.festival,
+    date: DateTime(DateTime.now().year, 2, 26),
+    members: ['me', 'arjun', 'priya'],
+    walletId: 'f1',
+    alertDaysBefore: 3,
+  ),
+  SpecialDayModel(
+    id: 'sd8',
+    title: "Work Anniversary",
+    emoji: '💼',
+    type: SpecialDayType.anniversary,
+    date: DateTime(DateTime.now().year, 1, 10),
+    walletId: 'personal',
+    alertDaysBefore: 1,
   ),
 ];
 
