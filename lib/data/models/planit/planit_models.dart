@@ -744,6 +744,13 @@ List<SpecialDayModel> mockSpecialDays = [
 // d. WISH LIST
 // ─────────────────────────────────────────────────────────────────────────────
 
+class SavingsEntry {
+  final double amount;
+  final DateTime date;
+  final String? note;
+  SavingsEntry({required this.amount, required this.date, this.note});
+}
+
 class WishModel {
   final String id;
   String title;
@@ -757,6 +764,7 @@ class WishModel {
   bool purchased;
   DateTime? targetDate;
   String walletId;
+  List<SavingsEntry> savingsHistory;
 
   WishModel({
     required this.id,
@@ -771,7 +779,8 @@ class WishModel {
     this.note,
     this.purchased = false,
     this.targetDate,
-  });
+    List<SavingsEntry>? savingsHistory,
+  }) : savingsHistory = savingsHistory ?? [];
 
   double get progress => (targetPrice != null && targetPrice! > 0)
       ? (savedAmount / targetPrice!).clamp(0, 1)
