@@ -976,55 +976,140 @@ List<BillModel> mockBills = [
 // ─────────────────────────────────────────────────────────────────────────────
 // f. TRAVEL BOARD
 // ─────────────────────────────────────────────────────────────────────────────
+// f. TRAVEL BOARD
+// ─────────────────────────────────────────────────────────────────────────────
 
-class TripModel {
-  final String id;
-  String title;
-  String emoji;
-  String destination;
-  DateTime? startDate;
-  DateTime? endDate;
-  TravelMode travelMode;
-  double? budget;
-  double spent;
-  List<String> memberIds;
-  List<TripTask> tasks;
-  List<TripMessage> messages;
-  List<TripVote> votes;
+enum TripStatus { planning, confirmed, ongoing, completed, cancelled }
+
+extension TripStatusExt on TripStatus {
+  String get label {
+    switch (this) {
+      case TripStatus.planning:
+        return 'Planning';
+      case TripStatus.confirmed:
+        return 'Confirmed';
+      case TripStatus.ongoing:
+        return 'Ongoing';
+      case TripStatus.completed:
+        return 'Completed';
+      case TripStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case TripStatus.planning:
+        return '📝';
+      case TripStatus.confirmed:
+        return '✅';
+      case TripStatus.ongoing:
+        return '🚀';
+      case TripStatus.completed:
+        return '🏁';
+      case TripStatus.cancelled:
+        return '❌';
+    }
+  }
+}
+
+enum TaskCategory {
+  booking,
+  packing,
+  document,
+  activity,
+  food,
+  transport,
+  accommodation,
+  other,
+}
+
+extension TaskCategoryExt on TaskCategory {
+  String get label {
+    switch (this) {
+      case TaskCategory.booking:
+        return 'Booking';
+      case TaskCategory.packing:
+        return 'Packing';
+      case TaskCategory.document:
+        return 'Documents';
+      case TaskCategory.activity:
+        return 'Activity';
+      case TaskCategory.food:
+        return 'Food';
+      case TaskCategory.transport:
+        return 'Transport';
+      case TaskCategory.accommodation:
+        return 'Stay';
+      case TaskCategory.other:
+        return 'Other';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case TaskCategory.booking:
+        return '🎫';
+      case TaskCategory.packing:
+        return '🧳';
+      case TaskCategory.document:
+        return '📄';
+      case TaskCategory.activity:
+        return '🎯';
+      case TaskCategory.food:
+        return '🍽️';
+      case TaskCategory.transport:
+        return '🚌';
+      case TaskCategory.accommodation:
+        return '🏨';
+      case TaskCategory.other:
+        return '📌';
+    }
+  }
+}
+
+class TripDestination {
+  String name;
   String? notes;
-  String walletId;
-  bool finalized;
-
-  TripModel({
-    required this.id,
-    required this.title,
-    required this.emoji,
-    required this.destination,
-    required this.travelMode,
-    required this.walletId,
-    this.startDate,
-    this.endDate,
-    this.budget,
-    this.spent = 0,
-    this.memberIds = const [],
-    this.tasks = const [],
-    this.messages = const [],
-    this.votes = const [],
-    this.notes,
-    this.finalized = false,
-  });
+  int orderIndex;
+  TripDestination({required this.name, this.notes, required this.orderIndex});
 }
 
 class TripTask {
   final String id;
   String title;
-  String assignedTo;
+  String assignedTo; // member id
+  String addedBy; // member id
+  TaskCategory category;
+  double? cost;
+  String? notes;
   bool done;
+  DateTime? dueDate;
   TripTask({
     required this.id,
     required this.title,
     required this.assignedTo,
+    required this.addedBy,
+    this.category = TaskCategory.other,
+    this.cost,
+    this.notes,
     this.done = false,
+    this.dueDate,
+  });
+}
+
+class TripExpense {
+  final String id;
+  final String paidBy; // member id
+  final String description;
+  final double amount;
+  final DateTime at;
+  TripExpense({
+    required this.id,
+    required this.paidBy,
+    required this.description,
+    required this.amount,
+    required this.at,
   });
 }
 
@@ -1045,13 +1130,65 @@ class TripVote {
   final String id;
   final String question;
   final List<String> options;
-  final Map<String, int> votes; // optionIndex → count
+  Map<String, int> tally; // optionIndex → count (mutable for voting)
   TripVote({
     required this.id,
     required this.question,
     required this.options,
-    this.votes = const {},
+    Map<String, int>? tally,
+  }) : tally = tally ?? {};
+}
+
+class TripModel {
+  final String id;
+  String title;
+  String emoji;
+  List<TripDestination> destinations; // multi-destination support
+  DateTime? startDate;
+  DateTime? endDate;
+  TravelMode travelMode;
+  double? budget;
+  List<String> memberIds;
+  List<TripTask> tasks;
+  List<TripExpense> expenses;
+  List<TripMessage> messages;
+  List<TripVote> votes;
+  String? notes;
+  String walletId;
+  TripStatus status;
+  String createdBy;
+
+  TripModel({
+    required this.id,
+    required this.title,
+    required this.emoji,
+    required this.destinations,
+    required this.travelMode,
+    required this.walletId,
+    required this.createdBy,
+    this.startDate,
+    this.endDate,
+    this.budget,
+    this.memberIds = const [],
+    this.tasks = const [],
+    this.expenses = const [],
+    this.messages = const [],
+    this.votes = const [],
+    this.notes,
+    this.status = TripStatus.planning,
   });
+
+  double get totalSpent => expenses.fold(0, (s, e) => s + e.amount);
+
+  // Primary destination label (first one or comma-joined)
+  String get destinationLabel => destinations.isEmpty
+      ? '—'
+      : destinations.length == 1
+      ? destinations.first.name
+      : destinations.map((d) => d.name).join(' → ');
+
+  int get tasksDone => tasks.where((t) => t.done).length;
+  int get tasksTotal => tasks.length;
 }
 
 List<TripModel> mockTrips = [
@@ -1059,31 +1196,100 @@ List<TripModel> mockTrips = [
     id: 'tr1',
     title: 'Goa Beach Holiday',
     emoji: '🏖️',
-    destination: 'Goa, India',
+    destinations: [
+      TripDestination(
+        name: 'Goa, India',
+        orderIndex: 0,
+        notes: 'North Goa beaches, Baga & Calangute',
+      ),
+      TripDestination(
+        name: 'Mumbai, India',
+        orderIndex: 1,
+        notes: 'Stopover — visit Marine Drive',
+      ),
+    ],
     startDate: _t.add(const Duration(days: 45)),
     endDate: _t.add(const Duration(days: 51)),
     travelMode: TravelMode.flight,
     budget: 80000,
-    spent: 22000,
     memberIds: ['me', 'priya', 'arjun'],
     walletId: 'f1',
+    createdBy: 'me',
+    status: TripStatus.confirmed,
     tasks: [
-      TripTask(id: 'tt1', title: 'Book flights', assignedTo: 'me'),
-      TripTask(id: 'tt2', title: 'Hotel booking', assignedTo: 'priya'),
-      TripTask(id: 'tt3', title: 'Pack bags', assignedTo: 'arjun', done: true),
+      TripTask(
+        id: 'tt1',
+        title: 'Book flights',
+        assignedTo: 'me',
+        addedBy: 'me',
+        category: TaskCategory.booking,
+      ),
+      TripTask(
+        id: 'tt2',
+        title: 'Hotel booking at North Goa',
+        assignedTo: 'priya',
+        addedBy: 'priya',
+        category: TaskCategory.accommodation,
+        cost: 12000,
+      ),
+      TripTask(
+        id: 'tt3',
+        title: 'Pack beach gear & sunscreen',
+        assignedTo: 'arjun',
+        addedBy: 'me',
+        category: TaskCategory.packing,
+        done: true,
+      ),
+      TripTask(
+        id: 'tt4',
+        title: 'Apply travel insurance',
+        assignedTo: 'me',
+        addedBy: 'me',
+        category: TaskCategory.document,
+      ),
+      TripTask(
+        id: 'tt5',
+        title: 'Book water sports activity',
+        assignedTo: 'priya',
+        addedBy: 'priya',
+        category: TaskCategory.activity,
+        cost: 3000,
+      ),
+    ],
+    expenses: [
+      TripExpense(
+        id: 'te1',
+        paidBy: 'me',
+        description: 'Flight tickets × 3',
+        amount: 22000,
+        at: _t.subtract(const Duration(days: 5)),
+      ),
+      TripExpense(
+        id: 'te2',
+        paidBy: 'priya',
+        description: 'Hotel advance',
+        amount: 8000,
+        at: _t.subtract(const Duration(days: 3)),
+      ),
     ],
     messages: [
       TripMessage(
         id: 'tm1',
         senderId: 'priya',
-        text: 'I found a great resort deal!',
+        text: 'I found a great resort deal! Rs. 4000/night for ocean view 🌊',
         at: _t.subtract(const Duration(hours: 2)),
       ),
       TripMessage(
         id: 'tm2',
         senderId: 'me',
-        text: 'Share the link!',
+        text: 'Looks amazing! Let\'s book it',
         at: _t.subtract(const Duration(hours: 1)),
+      ),
+      TripMessage(
+        id: 'tm3',
+        senderId: 'arjun',
+        text: 'Count me in! Already packed my bags 😂',
+        at: _t.subtract(const Duration(minutes: 30)),
       ),
     ],
     votes: [
@@ -1091,7 +1297,7 @@ List<TripModel> mockTrips = [
         id: 'tv1',
         question: 'Which hotel?',
         options: ['Ocean View Resort', 'Budget Hostel', 'Airbnb Villa'],
-        votes: {'0': 2, '1': 0, '2': 1},
+        tally: {'0': 2, '1': 0, '2': 1},
       ),
     ],
   ),
@@ -1099,14 +1305,24 @@ List<TripModel> mockTrips = [
     id: 'tr2',
     title: 'Ooty Weekend Getaway',
     emoji: '🌿',
-    destination: 'Ooty, Tamil Nadu',
+    destinations: [TripDestination(name: 'Ooty, Tamil Nadu', orderIndex: 0)],
     startDate: _t.add(const Duration(days: 12)),
     endDate: _t.add(const Duration(days: 14)),
     travelMode: TravelMode.car,
     budget: 15000,
-    spent: 5000,
-    memberIds: ['me', 'priya', 'rahul', 'sneha'],
+    memberIds: ['me', 'priya'],
     walletId: 'personal',
+    createdBy: 'me',
+    status: TripStatus.planning,
+    expenses: [
+      TripExpense(
+        id: 'te3',
+        paidBy: 'me',
+        description: 'Fuel fill-up',
+        amount: 3500,
+        at: _t.subtract(const Duration(days: 1)),
+      ),
+    ],
   ),
 ];
 

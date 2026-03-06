@@ -33,14 +33,17 @@ class _PlanItScreenState extends State<PlanItScreen> {
     orElse: () => personalWallet,
   );
 
+  void _switchWallet(String id) => widget.onWalletChange(id);
+
   // ── Lifted state — persists across navigation ─────────────────────────────
   final List<ReminderModel> _reminders = List.from(mockReminders);
   final List<TaskModel> _tasksList = List.from(mockTasks);
   final List<SpecialDayModel> _days = List.from(mockSpecialDays);
   final List<WishModel> _wishes = List.from(mockWishes);
   final List<BillModel> _bills = List.from(mockBills);
+  final List<TripModel> _trips = List.from(mockTrips);
 
-  // ── Family members for current wallet — converted to PlanMember ─────────────
+  // ── Family members for current wallet — converted to PlanMember ───────────
   List<PlanMember> get _members {
     if (_currentWallet.isPersonal) return [];
     final family = mockFamilies.firstWhere(
@@ -59,22 +62,20 @@ class _PlanItScreenState extends State<PlanItScreen> {
         .toList();
   }
 
-  void _switchWallet(String id) => widget.onWalletChange(id);
-
   // ── Derived stats ─────────────────────────────────────────────────────────
-  int get _dueReminders => mockReminders
+  int get _dueReminders => _reminders
       .where((r) => r.walletId == widget.activeWalletId && !r.done)
       .where((r) => r.dueDate.difference(DateTime.now()).inDays <= 3)
       .length;
 
-  int get _pendingTasks => mockTasks
+  int get _pendingTasks => _tasksList
       .where(
         (t) =>
             t.walletId == widget.activeWalletId && t.status != TaskStatus.done,
       )
       .length;
 
-  int get _overdueBills => mockBills
+  int get _overdueBills => _bills
       .where((b) => b.walletId == widget.activeWalletId && b.isOverdue)
       .length;
 
@@ -499,7 +500,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
       subtitle: 'Trip planner & chat',
       color: const Color(0xFF4A9EFF),
       badge: null,
-      builder: (ctx, wid) => TravelBoardScreen(walletId: wid),
+      builder: (ctx, wid) => TravelBoardScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        trips: _trips,
+      ),
     ),
     _ModuleInfo(
       emoji: '🎉',
