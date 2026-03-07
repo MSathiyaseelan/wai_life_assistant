@@ -756,16 +756,19 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
             vehicle: v,
             isDark: isDark,
             onUpdate: () => setState(() {}),
+            onEdit: (p) => _showEditInsurance(context, isDark, p),
           ),
           _ServiceTab(
             vehicle: v,
             isDark: isDark,
             onUpdate: () => setState(() {}),
+            onEdit: (s) => _showEditService(context, isDark, s),
           ),
           _RepairTab(
             vehicle: v,
             isDark: isDark,
             onUpdate: () => setState(() {}),
+            onEdit: (r) => _showEditRepair(context, isDark, r),
           ),
         ],
       ),
@@ -1221,7 +1224,6 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
 
   // ── Add service record ────────────────────────────────────────────────────
   void _showAddService(BuildContext ctx, bool isDark) {
-    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final svcCtrl = TextEditingController();
     final garageCtrl = TextEditingController();
     final costCtrl = TextEditingController();
@@ -1421,6 +1423,371 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
                       ),
                     ),
                   );
+                  widget.onUpdate();
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Edit insurance policy ─────────────────────────────────────────────────
+  void _showEditInsurance(BuildContext ctx, bool isDark, VehicleInsurance p) {
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final provCtrl = TextEditingController(text: p.provider);
+    final policyCtrl = TextEditingController(
+      text: p.policyNo == '-' ? '' : p.policyNo,
+    );
+    final premCtrl = TextEditingController(
+      text: p.premium > 0 ? p.premium.toStringAsFixed(0) : '',
+    );
+    var policyType = p.type;
+    DateTime startDate = p.startDate;
+    DateTime expiryDate = p.expiryDate;
+    final types = ['Comprehensive', 'Third Party', 'Zero Dep', 'OD Only'];
+
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Insurance Policy',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              const LifeLabel(text: 'POLICY TYPE'),
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: types
+                      .map(
+                        (t) => GestureDetector(
+                          onTap: () => ss(() => policyType = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: policyType == t
+                                  ? AppColors.income.withOpacity(0.12)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: policyType == t
+                                    ? AppColors.income
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Text(
+                              t,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Nunito',
+                                color: policyType == t
+                                    ? AppColors.income
+                                    : (isDark
+                                          ? AppColors.subDark
+                                          : AppColors.subLight),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              LifeInput(controller: provCtrl, hint: 'Insurance provider *'),
+              const SizedBox(height: 8),
+              LifeInput(controller: policyCtrl, hint: 'Policy number'),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: premCtrl,
+                hint: 'Annual premium (₹)',
+                inputType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: LifeDateTile(
+                      date: startDate,
+                      hint: 'Start date',
+                      color: AppColors.income,
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: startDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) ss(() => startDate = d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LifeDateTile(
+                      date: expiryDate,
+                      hint: 'Expiry date',
+                      color: AppColors.expense,
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: expiryDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) ss(() => expiryDate = d);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: AppColors.income,
+                onTap: () {
+                  if (provCtrl.text.trim().isEmpty) return;
+                  setState(() {
+                    p.provider = provCtrl.text.trim();
+                    p.policyNo = policyCtrl.text.trim().isEmpty
+                        ? '-'
+                        : policyCtrl.text.trim();
+                    p.type = policyType;
+                    p.startDate = startDate;
+                    p.expiryDate = expiryDate;
+                    p.premium = double.tryParse(premCtrl.text.trim()) ?? 0;
+                  });
+                  widget.onUpdate();
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Edit service record ───────────────────────────────────────────────────
+  void _showEditService(BuildContext ctx, bool isDark, VehicleService s) {
+    final svcCtrl = TextEditingController(text: s.serviceName);
+    final garageCtrl = TextEditingController(
+      text: s.garage == 'Unspecified' ? '' : s.garage,
+    );
+    final costCtrl = TextEditingController(
+      text: s.cost != null ? s.cost!.toStringAsFixed(0) : '',
+    );
+    final notesCtrl = TextEditingController(text: s.notes ?? '');
+    DateTime serviceDate = s.serviceDate;
+    DateTime? nextDue = s.nextDue;
+
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Service Record',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              LifeInput(
+                controller: svcCtrl,
+                hint: 'Service name *',
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: garageCtrl,
+                hint: 'Garage / Service center',
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: costCtrl,
+                hint: 'Cost (₹)',
+                inputType: TextInputType.number,
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: notesCtrl,
+                hint: 'Notes / work done',
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: LifeDateTile(
+                      date: serviceDate,
+                      hint: 'Service date',
+                      color: _garageColor,
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: serviceDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime.now(),
+                        );
+                        if (d != null) ss(() => serviceDate = d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LifeDateTile(
+                      date: nextDue,
+                      hint: 'Next due (optional)',
+                      color: AppColors.lend,
+                      onTap: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: nextDue ??
+                              DateTime.now().add(const Duration(days: 180)),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) ss(() => nextDue = d);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: _garageColor,
+                onTap: () {
+                  if (svcCtrl.text.trim().isEmpty) return;
+                  setState(() {
+                    s.serviceName = svcCtrl.text.trim();
+                    s.garage = garageCtrl.text.trim().isEmpty
+                        ? 'Unspecified'
+                        : garageCtrl.text.trim();
+                    s.serviceDate = serviceDate;
+                    s.cost = double.tryParse(costCtrl.text.trim());
+                    s.notes = notesCtrl.text.trim().isEmpty
+                        ? null
+                        : notesCtrl.text.trim();
+                    s.nextDue = nextDue;
+                  });
+                  widget.onUpdate();
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Edit repair task ──────────────────────────────────────────────────────
+  void _showEditRepair(BuildContext ctx, bool isDark, RepairTask r) {
+    final titleCtrl = TextEditingController(text: r.title);
+    final notesCtrl = TextEditingController(text: r.notes ?? '');
+    final costCtrl = TextEditingController(
+      text: r.estimatedCost != null ? r.estimatedCost!.toStringAsFixed(0) : '',
+    );
+    DateTime? plannedDate = r.plannedDate;
+
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Repair Task',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              LifeInput(
+                controller: titleCtrl,
+                hint: 'What needs to be done? *',
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: notesCtrl,
+                hint: 'Notes / description',
+                maxLines: 2,
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: costCtrl,
+                hint: 'Estimated cost (₹)',
+                inputType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+
+              LifeDateTile(
+                date: plannedDate,
+                hint: 'Planned date (optional)',
+                color: AppColors.lend,
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: plannedDate ??
+                        DateTime.now().add(const Duration(days: 7)),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (d != null) ss(() => plannedDate = d);
+                },
+              ),
+
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: AppColors.lend,
+                onTap: () {
+                  if (titleCtrl.text.trim().isEmpty) return;
+                  setState(() {
+                    r.title = titleCtrl.text.trim();
+                    r.notes = notesCtrl.text.trim().isEmpty
+                        ? null
+                        : notesCtrl.text.trim();
+                    r.estimatedCost = double.tryParse(costCtrl.text.trim());
+                    r.plannedDate = plannedDate;
+                  });
                   widget.onUpdate();
                   Navigator.pop(ctx);
                 },
@@ -1715,10 +2082,12 @@ class _InsuranceTab extends StatefulWidget {
   final VehicleModel vehicle;
   final bool isDark;
   final VoidCallback onUpdate;
+  final Function(VehicleInsurance) onEdit;
   const _InsuranceTab({
     required this.vehicle,
     required this.isDark,
     required this.onUpdate,
+    required this.onEdit,
   });
   @override
   State<_InsuranceTab> createState() => _InsuranceTabState();
@@ -1837,6 +2206,15 @@ class _InsuranceTabState extends State<_InsuranceTab> {
                         ),
                       ),
                       LifeBadge(text: statusText, color: statusColor),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => widget.onEdit(p),
+                        child: Icon(
+                          Icons.edit_rounded,
+                          size: 16,
+                          color: sub,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -2006,10 +2384,12 @@ class _ServiceTab extends StatefulWidget {
   final VehicleModel vehicle;
   final bool isDark;
   final VoidCallback onUpdate;
+  final Function(VehicleService) onEdit;
   const _ServiceTab({
     required this.vehicle,
     required this.isDark,
     required this.onUpdate,
+    required this.onEdit,
   });
   @override
   State<_ServiceTab> createState() => _ServiceTabState();
@@ -2190,16 +2570,26 @@ class _ServiceTabState extends State<_ServiceTab> {
                     ],
                   ),
                 ),
-                if (s.cost != null)
-                  Text(
-                    '₹${s.cost!.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'DM Mono',
-                      color: _garageColor,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (s.cost != null)
+                      Text(
+                        '₹${s.cost!.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'DM Mono',
+                          color: _garageColor,
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () => widget.onEdit(s),
+                      child: Icon(Icons.edit_rounded, size: 14, color: sub),
                     ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -2236,10 +2626,12 @@ class _RepairTab extends StatefulWidget {
   final VehicleModel vehicle;
   final bool isDark;
   final VoidCallback onUpdate;
+  final Function(RepairTask) onEdit;
   const _RepairTab({
     required this.vehicle,
     required this.isDark,
     required this.onUpdate,
+    required this.onEdit,
   });
   @override
   State<_RepairTab> createState() => _RepairTabState();
@@ -2397,15 +2789,25 @@ class _RepairTabState extends State<_RepairTab> {
                   ],
                 ),
               ),
-              if (r.estimatedCost != null)
-                Text(
-                  '~₹${r.estimatedCost!.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'DM Mono',
-                    color: sub,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (r.estimatedCost != null)
+                    Text(
+                      '~₹${r.estimatedCost!.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'DM Mono',
+                        color: sub,
+                      ),
+                    ),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () => widget.onEdit(r),
+                    child: Icon(Icons.edit_rounded, size: 14, color: sub),
                   ),
-                ),
+                ],
+              ),
             ],
           ),
         ),
