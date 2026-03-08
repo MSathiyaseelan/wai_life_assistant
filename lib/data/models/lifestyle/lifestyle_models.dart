@@ -664,6 +664,7 @@ enum MoiKind {
 class MoiEntry {
   String id;
   String personName;
+  String? familyName;
   String? place;
   String? phone;
   String? relation;
@@ -679,6 +680,7 @@ class MoiEntry {
     required this.personName,
     required this.amount,
     required this.kind,
+    this.familyName,
     this.place,
     this.phone,
     this.relation,

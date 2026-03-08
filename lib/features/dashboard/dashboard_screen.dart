@@ -478,7 +478,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     FamilySwitcherSheet.show(
       ctx,
       currentWalletId: appState.activeWalletId,
-      isDashboard: true, // hides "Add New Family" button on Dashboard
       onSelect: (id) => appState.switchWallet(id),
     );
   }
@@ -501,8 +500,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: ctx,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: isDark ? AppColors.cardDark : AppColors.cardLight,

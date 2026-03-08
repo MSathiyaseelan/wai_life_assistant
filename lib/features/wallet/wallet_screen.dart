@@ -712,12 +712,12 @@ class _WalletScreenState extends State<WalletScreen>
           unselectedLabelColor: isDark ? Colors.white54 : Colors.black45,
           labelStyle: const TextStyle(
             fontWeight: FontWeight.w800,
-            fontSize: 12,
+            fontSize: 11,
             fontFamily: 'Nunito',
           ),
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 12,
+            fontSize: 11,
             fontFamily: 'Nunito',
           ),
           padding: EdgeInsets.zero,

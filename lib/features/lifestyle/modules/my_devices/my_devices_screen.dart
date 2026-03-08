@@ -112,13 +112,30 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
                       child: _DeviceCard(
                         device: _filtered[i],
                         isDark: isDark,
-                        onTap: () => showLifeSheet(
-                          context,
-                          child: _DeviceDetail(
-                            device: _filtered[i],
-                            isDark: isDark,
-                          ),
-                        ),
+                        onTap: () {
+                          final device = _filtered[i];
+                          showLifeSheet(
+                            context,
+                            child: _DeviceDetail(
+                              device: device,
+                              isDark: isDark,
+                              onEdit: () {
+                                Navigator.pop(context);
+                                _showEditDevice(
+                                  context,
+                                  isDark,
+                                  surfBg,
+                                  device,
+                                );
+                              },
+                              onDelete: () => setState(
+                                () => _devices.removeWhere(
+                                  (d) => d.id == device.id,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -135,6 +152,9 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
     final serialCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
     final warrantyCtrl = TextEditingController();
+    final purchaseDateCtrl = TextEditingController();
+    final imeiCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
     var cat = DeviceCategory.phone;
     showLifeSheet(
       ctx,
@@ -239,10 +259,30 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              LifeInput(
-                controller: warrantyCtrl,
-                hint: 'Warranty till (YYYY-MM-DD)',
+              Row(
+                children: [
+                  Expanded(
+                    child: LifeInput(
+                      controller: warrantyCtrl,
+                      hint: 'Warranty till (YYYY-MM-DD)',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LifeInput(
+                      controller: purchaseDateCtrl,
+                      hint: 'Purchase date (YYYY-MM-DD)',
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
+              if (cat == DeviceCategory.phone)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: LifeInput(controller: imeiCtrl, hint: 'IMEI'),
+                ),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
               LifeSaveButton(
                 label: 'Add Device',
                 color: cat.color,
@@ -271,13 +311,213 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
                         warrantyExpiry: warrantyCtrl.text.trim().isEmpty
                             ? null
                             : warrantyCtrl.text.trim(),
+                        purchaseDate: purchaseDateCtrl.text.trim().isEmpty
+                            ? null
+                            : purchaseDateCtrl.text.trim(),
+                        imei: imeiCtrl.text.trim().isEmpty
+                            ? null
+                            : imeiCtrl.text.trim(),
+                        notes: notesCtrl.text.trim().isEmpty
+                            ? null
+                            : notesCtrl.text.trim(),
                       ),
                     ),
                   );
                   Navigator.pop(ctx);
                 },
               ),
-              //),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditDevice(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    DeviceModel device,
+  ) {
+    final nameCtrl = TextEditingController(text: device.name);
+    final brandCtrl = TextEditingController(text: device.brand ?? '');
+    final modelCtrl = TextEditingController(text: device.modelNo ?? '');
+    final serialCtrl = TextEditingController(text: device.serialNo ?? '');
+    final priceCtrl = TextEditingController(text: device.purchasePrice ?? '');
+    final warrantyCtrl = TextEditingController(
+      text: device.warrantyExpiry ?? '',
+    );
+    final purchaseDateCtrl = TextEditingController(
+      text: device.purchaseDate ?? '',
+    );
+    final imeiCtrl = TextEditingController(text: device.imei ?? '');
+    final notesCtrl = TextEditingController(text: device.notes ?? '');
+    var cat = device.category;
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Device',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const LifeLabel(text: 'CATEGORY'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: DeviceCategory.values
+                      .map(
+                        (c) => GestureDetector(
+                          onTap: () => ss(() => cat = c),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cat == c
+                                  ? c.color.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: cat == c
+                                    ? c.color
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  c.emoji,
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  c.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: cat == c
+                                        ? c.color
+                                        : (isDark
+                                              ? AppColors.subDark
+                                              : AppColors.subLight),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: nameCtrl, hint: 'Device name *'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: LifeInput(controller: brandCtrl, hint: 'Brand'),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LifeInput(controller: modelCtrl, hint: 'Model No.'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: LifeInput(
+                      controller: serialCtrl,
+                      hint: 'Serial No.',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LifeInput(
+                      controller: priceCtrl,
+                      hint: 'Purchase Price',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: LifeInput(
+                      controller: warrantyCtrl,
+                      hint: 'Warranty till (YYYY-MM-DD)',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: LifeInput(
+                      controller: purchaseDateCtrl,
+                      hint: 'Purchase date (YYYY-MM-DD)',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (cat == DeviceCategory.phone)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: LifeInput(controller: imeiCtrl, hint: 'IMEI'),
+                ),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: cat.color,
+                onTap: () {
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  setState(() {
+                    device.name = nameCtrl.text.trim();
+                    device.category = cat;
+                    device.brand = brandCtrl.text.trim().isEmpty
+                        ? null
+                        : brandCtrl.text.trim();
+                    device.modelNo = modelCtrl.text.trim().isEmpty
+                        ? null
+                        : modelCtrl.text.trim();
+                    device.serialNo = serialCtrl.text.trim().isEmpty
+                        ? null
+                        : serialCtrl.text.trim();
+                    device.purchasePrice = priceCtrl.text.trim().isEmpty
+                        ? null
+                        : priceCtrl.text.trim();
+                    device.warrantyExpiry = warrantyCtrl.text.trim().isEmpty
+                        ? null
+                        : warrantyCtrl.text.trim();
+                    device.purchaseDate = purchaseDateCtrl.text.trim().isEmpty
+                        ? null
+                        : purchaseDateCtrl.text.trim();
+                    device.imei = imeiCtrl.text.trim().isEmpty
+                        ? null
+                        : imeiCtrl.text.trim();
+                    device.notes = notesCtrl.text.trim().isEmpty
+                        ? null
+                        : notesCtrl.text.trim();
+                  });
+                  Navigator.pop(ctx);
+                },
+              ),
             ],
           ),
         ),
@@ -403,12 +643,16 @@ class _DeviceCard extends StatelessWidget {
                       LifeBadge(text: device.category.label, color: color),
                       const SizedBox(width: 6),
                       LifeBadge(
-                        text: device.isUnderWarranty
-                            ? '✓ Warranty'
-                            : 'No warranty',
-                        color: device.isUnderWarranty
-                            ? AppColors.income
-                            : AppColors.subLight,
+                        text: _warrantyExpiringSoon(device.warrantyExpiry)
+                            ? '⚠ Expiring Soon'
+                            : (device.isUnderWarranty
+                                  ? '✓ Warranty'
+                                  : 'No warranty'),
+                        color: _warrantyExpiringSoon(device.warrantyExpiry)
+                            ? AppColors.expense
+                            : (device.isUnderWarranty
+                                  ? AppColors.income
+                                  : AppColors.subLight),
                       ),
                     ],
                   ),
@@ -435,12 +679,20 @@ class _DeviceCard extends StatelessWidget {
 class _DeviceDetail extends StatelessWidget {
   final DeviceModel device;
   final bool isDark;
-  const _DeviceDetail({required this.device, required this.isDark});
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _DeviceDetail({
+    required this.device,
+    required this.isDark,
+    required this.onEdit,
+    required this.onDelete,
+  });
   @override
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final color = device.category.color;
+    final expiringSoon = _warrantyExpiringSoon(device.warrantyExpiry);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(
@@ -480,8 +732,94 @@ class _DeviceDetail extends StatelessWidget {
                   ],
                 ),
               ),
+              IconButton(
+                icon: Icon(Icons.edit_rounded, color: color, size: 20),
+                onPressed: onEdit,
+                tooltip: 'Edit',
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppColors.expense,
+                  size: 20,
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text(
+                        'Delete Device?',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      content: Text(
+                        'Remove "${device.name}" from your devices?',
+                        style: const TextStyle(fontFamily: 'Nunito'),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(fontFamily: 'Nunito'),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          child: Text(
+                            'Delete',
+                            style: TextStyle(
+                              color: AppColors.expense,
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                tooltip: 'Delete',
+              ),
             ],
           ),
+          if (expiringSoon)
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.expense.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.expense.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.expense,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Warranty expiring soon — ${device.warrantyExpiry}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.expense,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 16),
           ...[
             if (device.brand != null)
@@ -502,6 +840,8 @@ class _DeviceDetail extends StatelessWidget {
                 'Warranty Till',
                 device.warrantyExpiry!,
               ),
+            if (device.notes != null)
+              (Icons.notes_rounded, 'Notes', device.notes!),
           ].map(
             (r) => LifeInfoRow(
               icon: r.$1,
@@ -516,5 +856,22 @@ class _DeviceDetail extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+bool _warrantyExpiringSoon(String? exp) {
+  if (exp == null) return false;
+  final parts = exp.split('-');
+  if (parts.length != 3) return false;
+  try {
+    final date = DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+    final diff = date.difference(DateTime.now()).inDays;
+    return diff >= 0 && diff <= 30;
+  } catch (_) {
+    return false;
   }
 }

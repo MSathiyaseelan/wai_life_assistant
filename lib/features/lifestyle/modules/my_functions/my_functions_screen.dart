@@ -129,7 +129,12 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 ),
 
           // GIFTS RECEIVED
-          _GiftsReceivedTab(functions: _myFuncs, isDark: isDark),
+          _GiftsReceivedTab(
+            functions: _myFuncs,
+            isDark: isDark,
+            onEditGift: (g, fn) =>
+                _showEditGiftReceived(context, isDark, surfBg, g, fn),
+          ),
 
           // GIFTED tab
           _myGifted.isEmpty
@@ -143,7 +148,16 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   itemCount: _myGifted.length,
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _GiftedCard(item: _myGifted[i], isDark: isDark),
+                    child: _GiftedCard(
+                      item: _myGifted[i],
+                      isDark: isDark,
+                      onEdit: () => _showEditGifted(
+                        context,
+                        isDark,
+                        surfBg,
+                        _myGifted[i],
+                      ),
+                    ),
                   ),
                 ),
 
@@ -333,7 +347,303 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   Navigator.pop(ctx);
                 },
               ),
-              //),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditGiftReceived(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    GiftEntry gift,
+    FunctionModel fn,
+  ) {
+    final nameCtrl = TextEditingController(text: gift.guestName);
+    final placeCtrl = TextEditingController(text: gift.guestPlace ?? '');
+    final relationCtrl = TextEditingController(text: gift.relation ?? '');
+    final notesCtrl = TextEditingController(text: gift.notes ?? '');
+    final amtCtrl = TextEditingController(
+      text: gift.cashAmount?.toStringAsFixed(0) ??
+          gift.goldGrams?.toStringAsFixed(1) ??
+          gift.silverGrams?.toStringAsFixed(1) ??
+          gift.itemDescription ??
+          gift.giftCardValue ??
+          '',
+    );
+    var giftType = gift.giftType;
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Edit Gift — ${fn.title}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const LifeLabel(text: 'GIFT TYPE'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: GiftType.values
+                      .map(
+                        (t) => GestureDetector(
+                          onTap: () => ss(() => giftType = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: giftType == t
+                                  ? _funcColor.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: giftType == t ? _funcColor : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  t.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: giftType == t
+                                        ? _funcColor
+                                        : (isDark ? AppColors.subDark : AppColors.subLight),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: nameCtrl, hint: 'Guest name *'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  const SizedBox(width: 8),
+                  Expanded(child: LifeInput(controller: relationCtrl, hint: 'Relation')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: amtCtrl,
+                hint: giftType == GiftType.cash ? 'Cash amount (₹)' : 'Value / description',
+                inputType: (giftType == GiftType.cash ||
+                        giftType == GiftType.gold ||
+                        giftType == GiftType.silver)
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: _funcColor,
+                onTap: () {
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  final num = double.tryParse(amtCtrl.text.trim());
+                  setState(() {
+                    gift.guestName = nameCtrl.text.trim();
+                    gift.giftType = giftType;
+                    gift.guestPlace = placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim();
+                    gift.relation = relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim();
+                    gift.cashAmount = giftType == GiftType.cash ? num : null;
+                    gift.goldGrams = giftType == GiftType.gold ? num : null;
+                    gift.silverGrams = giftType == GiftType.silver ? num : null;
+                    gift.itemDescription = (giftType != GiftType.cash &&
+                            giftType != GiftType.gold &&
+                            giftType != GiftType.silver)
+                        ? amtCtrl.text.trim().isEmpty ? null : amtCtrl.text.trim()
+                        : null;
+                    gift.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                  });
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditGifted(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    GiftedItem item,
+  ) {
+    final toNameCtrl = TextEditingController(text: item.toName);
+    final titleCtrl = TextEditingController(text: item.functionTitle);
+    final placeCtrl = TextEditingController(text: item.toPlace ?? '');
+    final relationCtrl = TextEditingController(text: item.relation ?? '');
+    final notesCtrl = TextEditingController(text: item.notes ?? '');
+    final amtCtrl = TextEditingController(
+      text: item.cashAmount?.toStringAsFixed(0) ??
+          item.goldGrams?.toStringAsFixed(1) ??
+          item.silverGrams?.toStringAsFixed(1) ??
+          item.itemDescription ??
+          item.giftCardValue ??
+          '',
+    );
+    var giftType = item.giftType;
+    var funcType = item.functionType;
+    DateTime? funcDate = item.functionDate;
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Gifted Item',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const LifeLabel(text: 'GIFT TYPE'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: GiftType.values
+                      .map(
+                        (t) => GestureDetector(
+                          onTap: () => ss(() => giftType = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: giftType == t
+                                  ? AppColors.income.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: giftType == t ? AppColors.income : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  t.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: giftType == t
+                                        ? AppColors.income
+                                        : (isDark ? AppColors.subDark : AppColors.subLight),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: toNameCtrl, hint: 'Given to *'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: LifeInput(controller: titleCtrl, hint: 'Function name')),
+                  const SizedBox(width: 8),
+                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: relationCtrl, hint: 'Relation'),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: amtCtrl,
+                hint: giftType == GiftType.cash ? 'Cash amount (₹)' : 'Value / description',
+                inputType: (giftType == GiftType.cash ||
+                        giftType == GiftType.gold ||
+                        giftType == GiftType.silver)
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              LifeDateTile(
+                date: funcDate,
+                hint: 'Function date',
+                color: AppColors.income,
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: funcDate ?? DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (d != null) ss(() => funcDate = d);
+                },
+              ),
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: AppColors.income,
+                onTap: () {
+                  if (toNameCtrl.text.trim().isEmpty) return;
+                  final num = double.tryParse(amtCtrl.text.trim());
+                  setState(() {
+                    item.toName = toNameCtrl.text.trim();
+                    item.functionTitle = titleCtrl.text.trim();
+                    item.giftType = giftType;
+                    item.functionType = funcType;
+                    item.functionDate = funcDate;
+                    item.toPlace = placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim();
+                    item.relation = relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim();
+                    item.cashAmount = giftType == GiftType.cash ? num : null;
+                    item.goldGrams = giftType == GiftType.gold ? num : null;
+                    item.silverGrams = giftType == GiftType.silver ? num : null;
+                    item.itemDescription = (giftType != GiftType.cash &&
+                            giftType != GiftType.gold &&
+                            giftType != GiftType.silver)
+                        ? amtCtrl.text.trim().isEmpty ? null : amtCtrl.text.trim()
+                        : null;
+                    item.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                  });
+                  Navigator.pop(ctx);
+                },
+              ),
             ],
           ),
         ),
@@ -528,6 +838,13 @@ class _FunctionDetailState extends State<_FunctionDetail>
             fontFamily: 'Nunito',
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_rounded),
+            onPressed: () => _showEditFunction(context, isDark, surfBg),
+            tooltip: 'Edit Function',
+          ),
+        ],
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,
@@ -601,23 +918,25 @@ class _FunctionDetailState extends State<_FunctionDetail>
                 ),
                 const SizedBox(height: 14),
                 if (fn.whoFunction.isNotEmpty)
-                  LifeInfoRow(
+                  _FuncDetailRow(
                     icon: Icons.person_rounded,
                     label: 'Who: ${fn.whoFunction}',
                   ),
                 if (fn.functionDate != null)
-                  LifeInfoRow(
+                  _FuncDetailRow(
                     icon: Icons.calendar_today_rounded,
                     label:
                         'Date: ${fn.functionDate!.day}/${fn.functionDate!.month}/${fn.functionDate!.year}',
                   ),
                 if (fn.venue != null)
-                  LifeInfoRow(
+                  _FuncDetailRow(
                     icon: Icons.location_on_rounded,
                     label: 'Venue: ${fn.venue!}',
                   ),
                 if (fn.address != null)
-                  LifeInfoRow(icon: Icons.map_rounded, label: fn.address!),
+                  _FuncDetailRow(icon: Icons.map_rounded, label: fn.address!),
+                if (fn.notes != null)
+                  _FuncDetailRow(icon: Icons.notes_rounded, label: fn.notes!),
                 const SizedBox(height: 16),
                 // Summary stats
                 Row(
@@ -689,6 +1008,40 @@ class _FunctionDetailState extends State<_FunctionDetail>
                             color: AppColors.lend,
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () =>
+                              _showAddGift(context, isDark, surfBg, fn),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _funcColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.add_rounded,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Add Gift',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -699,7 +1052,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                     ? const LifeEmptyState(
                         emoji: '🎁',
                         title: 'No gifts recorded',
-                        subtitle: 'Record gifts received at this function',
+                        subtitle: 'Tap Add Gift to record',
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -709,6 +1062,12 @@ class _FunctionDetailState extends State<_FunctionDetail>
                           child: _GiftEntryCard(
                             gift: fn.gifts[i],
                             isDark: isDark,
+                            onEdit: () => _showEditGift(
+                              context,
+                              isDark,
+                              surfBg,
+                              fn.gifts[i],
+                            ),
                           ),
                         ),
                       ),
@@ -757,6 +1116,414 @@ class _FunctionDetailState extends State<_FunctionDetail>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditFunction(BuildContext ctx, bool isDark, Color surfBg) {
+    final fn = widget.fn;
+    final titleCtrl = TextEditingController(text: fn.title);
+    final whoCtrl = TextEditingController(text: fn.whoFunction);
+    final venueCtrl = TextEditingController(text: fn.venue ?? '');
+    final notesCtrl = TextEditingController(text: fn.notes ?? '');
+    DateTime? date = fn.functionDate;
+    var type = fn.type;
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Function',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const LifeLabel(text: 'FUNCTION TYPE'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: FunctionType.values
+                      .map(
+                        (t) => GestureDetector(
+                          onTap: () => ss(() => type = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: type == t
+                                  ? _funcColor.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: type == t
+                                    ? _funcColor
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  t.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: type == t
+                                        ? _funcColor
+                                        : (isDark ? AppColors.subDark : AppColors.subLight),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: titleCtrl, hint: 'Function title *'),
+              const SizedBox(height: 8),
+              LifeInput(controller: whoCtrl, hint: 'Whose function?'),
+              const SizedBox(height: 8),
+              LifeInput(controller: venueCtrl, hint: 'Venue / Location'),
+              const SizedBox(height: 8),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              const SizedBox(height: 8),
+              LifeDateTile(
+                date: date,
+                hint: 'Function date',
+                color: _funcColor,
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: date ?? DateTime.now(),
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                  );
+                  if (d != null) ss(() => date = d);
+                },
+              ),
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: _funcColor,
+                onTap: () {
+                  if (titleCtrl.text.trim().isEmpty) return;
+                  setState(() {
+                    fn.type = type;
+                    fn.title = titleCtrl.text.trim();
+                    fn.whoFunction = whoCtrl.text.trim();
+                    fn.functionDate = date;
+                    fn.venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
+                    fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                  });
+                  widget.onUpdate();
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddGift(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    FunctionModel fn,
+  ) {
+    final nameCtrl = TextEditingController();
+    final placeCtrl = TextEditingController();
+    final relationCtrl = TextEditingController();
+    final amtCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    var giftType = GiftType.cash;
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Add Gift',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const LifeLabel(text: 'GIFT TYPE'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: GiftType.values
+                      .map(
+                        (t) => GestureDetector(
+                          onTap: () => ss(() => giftType = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: giftType == t
+                                  ? _funcColor.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: giftType == t ? _funcColor : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  t.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: giftType == t
+                                        ? _funcColor
+                                        : (isDark ? AppColors.subDark : AppColors.subLight),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: nameCtrl, hint: 'Guest name *'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  const SizedBox(width: 8),
+                  Expanded(child: LifeInput(controller: relationCtrl, hint: 'Relation')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: amtCtrl,
+                hint: giftType == GiftType.cash
+                    ? 'Cash amount (₹) *'
+                    : giftType == GiftType.gold
+                    ? 'Gold grams *'
+                    : giftType == GiftType.silver
+                    ? 'Silver grams *'
+                    : 'Description / value',
+                inputType: (giftType == GiftType.cash ||
+                        giftType == GiftType.gold ||
+                        giftType == GiftType.silver)
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              LifeSaveButton(
+                label: 'Add Gift',
+                color: _funcColor,
+                onTap: () {
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  final num = double.tryParse(amtCtrl.text.trim());
+                  setState(
+                    () => fn.gifts.add(
+                      GiftEntry(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        guestName: nameCtrl.text.trim(),
+                        giftType: giftType,
+                        guestPlace: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
+                        relation: relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim(),
+                        cashAmount: giftType == GiftType.cash ? num : null,
+                        goldGrams: giftType == GiftType.gold ? num : null,
+                        silverGrams: giftType == GiftType.silver ? num : null,
+                        itemDescription: (giftType != GiftType.cash &&
+                                giftType != GiftType.gold &&
+                                giftType != GiftType.silver)
+                            ? amtCtrl.text.trim().isEmpty ? null : amtCtrl.text.trim()
+                            : null,
+                        notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                      ),
+                    ),
+                  );
+                  widget.onUpdate();
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditGift(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    GiftEntry gift,
+  ) {
+    final nameCtrl = TextEditingController(text: gift.guestName);
+    final placeCtrl = TextEditingController(text: gift.guestPlace ?? '');
+    final relationCtrl = TextEditingController(text: gift.relation ?? '');
+    final notesCtrl = TextEditingController(text: gift.notes ?? '');
+    final amtCtrl = TextEditingController(
+      text: gift.cashAmount?.toStringAsFixed(0) ??
+          gift.goldGrams?.toStringAsFixed(1) ??
+          gift.silverGrams?.toStringAsFixed(1) ??
+          gift.itemDescription ??
+          gift.giftCardValue ??
+          '',
+    );
+    var giftType = gift.giftType;
+    showLifeSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (ctx2, ss) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Edit Gift',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              const LifeLabel(text: 'GIFT TYPE'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: GiftType.values
+                      .map(
+                        (t) => GestureDetector(
+                          onTap: () => ss(() => giftType = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: giftType == t
+                                  ? _funcColor.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: giftType == t ? _funcColor : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  t.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: giftType == t
+                                        ? _funcColor
+                                        : (isDark ? AppColors.subDark : AppColors.subLight),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: nameCtrl, hint: 'Guest name *'),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  const SizedBox(width: 8),
+                  Expanded(child: LifeInput(controller: relationCtrl, hint: 'Relation')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              LifeInput(
+                controller: amtCtrl,
+                hint: giftType == GiftType.cash
+                    ? 'Cash amount (₹)'
+                    : giftType == GiftType.gold
+                    ? 'Gold grams'
+                    : giftType == GiftType.silver
+                    ? 'Silver grams'
+                    : 'Description / value',
+                inputType: (giftType == GiftType.cash ||
+                        giftType == GiftType.gold ||
+                        giftType == GiftType.silver)
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+              ),
+              const SizedBox(height: 8),
+              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              LifeSaveButton(
+                label: 'Save Changes',
+                color: _funcColor,
+                onTap: () {
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  final num = double.tryParse(amtCtrl.text.trim());
+                  setState(() {
+                    gift.guestName = nameCtrl.text.trim();
+                    gift.giftType = giftType;
+                    gift.guestPlace = placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim();
+                    gift.relation = relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim();
+                    gift.cashAmount = giftType == GiftType.cash ? num : null;
+                    gift.goldGrams = giftType == GiftType.gold ? num : null;
+                    gift.silverGrams = giftType == GiftType.silver ? num : null;
+                    gift.itemDescription = (giftType != GiftType.cash &&
+                            giftType != GiftType.gold &&
+                            giftType != GiftType.silver)
+                        ? amtCtrl.text.trim().isEmpty ? null : amtCtrl.text.trim()
+                        : null;
+                    gift.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                  });
+                  widget.onUpdate();
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -880,7 +1647,8 @@ class _FuncStat extends StatelessWidget {
 class _GiftEntryCard extends StatelessWidget {
   final GiftEntry gift;
   final bool isDark;
-  const _GiftEntryCard({required this.gift, required this.isDark});
+  final VoidCallback? onEdit;
+  const _GiftEntryCard({required this.gift, required this.isDark, this.onEdit});
   @override
   Widget build(BuildContext context) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -944,16 +1712,30 @@ class _GiftEntryCard extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            gift.summary,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'DM Mono',
-              color: gift.giftType == GiftType.cash
-                  ? AppColors.income
-                  : AppColors.lend,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                gift.summary,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'DM Mono',
+                  color: gift.giftType == GiftType.cash
+                      ? AppColors.income
+                      : AppColors.lend,
+                ),
+              ),
+              if (onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Icon(
+                    Icons.edit_rounded,
+                    size: 15,
+                    color: _funcColor.withValues(alpha: 0.6),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -1090,7 +1872,12 @@ class _AllVendorsTab extends StatelessWidget {
 class _GiftsReceivedTab extends StatelessWidget {
   final List<FunctionModel> functions;
   final bool isDark;
-  const _GiftsReceivedTab({required this.functions, required this.isDark});
+  final void Function(GiftEntry, FunctionModel) onEditGift;
+  const _GiftsReceivedTab({
+    required this.functions,
+    required this.isDark,
+    required this.onEditGift,
+  });
   @override
   Widget build(BuildContext context) {
     final allGifts = functions
@@ -1155,7 +1942,16 @@ class _GiftsReceivedTab extends StatelessWidget {
                           ),
                         ),
                       ),
-                    _GiftEntryCard(gift: g, isDark: isDark),
+                    _GiftEntryCard(
+                      gift: g,
+                      isDark: isDark,
+                      onEdit: () {
+                        final fn = functions.firstWhere(
+                          (f) => f.gifts.contains(g),
+                        );
+                        onEditGift(g, fn);
+                      },
+                    ),
                   ],
                 ),
               );
@@ -1171,7 +1967,8 @@ class _GiftsReceivedTab extends StatelessWidget {
 class _GiftedCard extends StatelessWidget {
   final GiftedItem item;
   final bool isDark;
-  const _GiftedCard({required this.item, required this.isDark});
+  final VoidCallback? onEdit;
+  const _GiftedCard({required this.item, required this.isDark, this.onEdit});
   @override
   Widget build(BuildContext context) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -1235,14 +2032,28 @@ class _GiftedCard extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            item.giftSummary,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'DM Mono',
-              color: AppColors.income,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                item.giftSummary,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'DM Mono',
+                  color: AppColors.income,
+                ),
+              ),
+              if (onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Icon(
+                    Icons.edit_rounded,
+                    size: 15,
+                    color: AppColors.income.withValues(alpha: 0.6),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -1566,6 +2377,8 @@ class _MoiTab extends StatefulWidget {
 
 class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
   late TabController _filter;
+  final _searchCtrl = TextEditingController();
+  String _search = '';
 
   @override
   void initState() {
@@ -1577,6 +2390,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _filter.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -1587,14 +2401,28 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
       _all.where((m) => m.kind == MoiKind.returnMoi).toList();
 
   List<MoiEntry> get _current {
+    List<MoiEntry> base;
     switch (_filter.index) {
       case 1:
-        return _newMoi;
+        base = _newMoi;
+        break;
       case 2:
-        return _returned;
+        base = _returned;
+        break;
       default:
-        return _all;
+        base = _all;
     }
+    if (_search.isEmpty) return base;
+    final q = _search.toLowerCase();
+    return base
+        .where(
+          (m) =>
+              m.personName.toLowerCase().contains(q) ||
+              (m.familyName?.toLowerCase().contains(q) ?? false) ||
+              (m.place?.toLowerCase().contains(q) ?? false) ||
+              (m.relation?.toLowerCase().contains(q) ?? false),
+        )
+        .toList();
   }
 
   @override
@@ -1677,6 +2505,48 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                 ),
               ),
               const SizedBox(height: 10),
+              // Search bar
+              Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: surfBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _search = v.trim()),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'Nunito',
+                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name, place, relation...',
+                    hintStyle: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      size: 18,
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                    ),
+                    suffixIcon: _search.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 16),
+                            onPressed: () => setState(() {
+                              _search = '';
+                              _searchCtrl.clear();
+                            }),
+                          )
+                        : null,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
             ],
           ),
         ),
@@ -1684,10 +2554,10 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
         // ── List ─────────────────────────────────────────────────────────────
         Expanded(
           child: listToShow.isEmpty
-              ? const LifeEmptyState(
+              ? LifeEmptyState(
                   emoji: '💰',
-                  title: 'No moi entries',
-                  subtitle: 'Tap + to record moi received at this function',
+                  title: _search.isNotEmpty ? 'No results for "$_search"' : 'No moi entries',
+                  subtitle: _search.isNotEmpty ? 'Try a different search' : 'Tap + to record moi received at this function',
                 )
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -1736,6 +2606,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
   // ── Add Moi sheet ─────────────────────────────────────────────────────────
   void _showAddMoi(BuildContext ctx, bool isDark, Color surfBg) {
     final nameCtrl = TextEditingController();
+    final familyNameCtrl = TextEditingController();
     final placeCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final relationCtrl = TextEditingController();
@@ -1879,6 +2750,11 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           _SheetLabel(text: 'PERSON DETAILS'),
                           LifeInput(controller: nameCtrl, hint: 'Name *'),
                           const SizedBox(height: 8),
+                          LifeInput(
+                            controller: familyNameCtrl,
+                            hint: 'Family name / Surname',
+                          ),
+                          const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
@@ -1935,6 +2811,9 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                                     id: DateTime.now().millisecondsSinceEpoch
                                         .toString(),
                                     personName: nameCtrl.text.trim(),
+                                    familyName: familyNameCtrl.text.trim().isEmpty
+                                        ? null
+                                        : familyNameCtrl.text.trim(),
                                     amount: amt,
                                     kind: kind,
                                     place: placeCtrl.text.trim().isEmpty
@@ -2239,20 +3118,33 @@ class _MoiCard extends StatelessWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                entry.personName,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  fontFamily: 'Nunito',
-                                  color: tc,
-                                  // strike-through when returned
-                                  decoration: entry.returned
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  decorationColor: AppColors.income,
-                                  decorationThickness: 2,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    entry.personName,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito',
+                                      color: tc,
+                                      decoration: entry.returned
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: AppColors.income,
+                                      decorationThickness: 2,
+                                    ),
+                                  ),
+                                  if (entry.familyName != null)
+                                    Text(
+                                      entry.familyName!,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             // Kind badge
@@ -2582,6 +3474,41 @@ class _SheetLabel extends StatelessWidget {
           color: isDark ? AppColors.subDark : AppColors.subLight,
           letterSpacing: 0.8,
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INFO TAB DETAIL ROW (larger font than LifeInfoRow)
+// ─────────────────────────────────────────────────────────────────────────────
+class _FuncDetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _FuncDetailRow({required this.icon, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: _funcColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: tc,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
