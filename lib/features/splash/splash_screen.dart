@@ -4,6 +4,7 @@ import '../../core/logging/app_logger.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/auth/token_storage.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,12 +17,19 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    AppLogger.i("SplashScreen  initialized");
-    // Simulate some initialization work
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
-    });
+    AppLogger.i("SplashScreen initialized");
+    _init();
+  }
+
+  Future<void> _init() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    final loggedIn = await TokenStorage().isLoggedIn();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+      context,
+      loggedIn ? AppRoutes.bottomNav : AppRoutes.login,
+    );
   }
 
   @override
