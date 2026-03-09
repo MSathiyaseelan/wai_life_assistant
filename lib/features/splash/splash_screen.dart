@@ -4,7 +4,7 @@ import '../../core/logging/app_logger.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/auth/token_storage.dart';
+import '../../features/auth/auth_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,8 +24,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _init() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    final loggedIn = await TokenStorage().isLoggedIn();
-    if (!mounted) return;
+    final loggedIn = AuthService.instance.isLoggedIn;
     Navigator.pushReplacementNamed(
       context,
       loggedIn ? AppRoutes.bottomNav : AppRoutes.login,

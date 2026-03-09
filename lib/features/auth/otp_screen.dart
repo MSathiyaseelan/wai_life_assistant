@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+// import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable with OTP
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/auth/token_storage.dart';
+// import 'auth_service.dart'; // TODO: Re-enable with OTP
 
 class OtpScreen extends StatefulWidget {
   final String phone;
@@ -84,12 +85,21 @@ class _OtpScreenState extends State<OtpScreen> {
       _loading = true;
       _error = null;
     });
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-
-    // Mock: any 6-digit OTP is valid
-    await TokenStorage().savePhone(widget.phone);
-    if (!mounted) return;
+    // TODO: Re-enable when OTP validation is active
+    // try {
+    //   await AuthService.instance.verifyOtp(widget.phone, _otp);
+    //   if (!mounted) return;
+    // } on AuthException catch (e) {
+    //   if (!mounted) return;
+    //   setState(() => _error = e.message);
+    //   return;
+    // } catch (_) {
+    //   if (!mounted) return;
+    //   setState(() => _error = 'Invalid OTP. Please try again.');
+    //   return;
+    // } finally {
+    //   if (mounted) setState(() => _loading = false);
+    // }
     setState(() => _loading = false);
     Navigator.pushReplacementNamed(context, AppRoutes.bottomNav);
   }

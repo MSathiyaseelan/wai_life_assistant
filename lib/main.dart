@@ -5,10 +5,9 @@ import 'app_bootstrap.dart';
 import 'core/env/environment_config.dart';
 import 'core/env/app_environment.dart';
 
-void main() {
+void main() async {
   const env = String.fromEnvironment('ENV', defaultValue: 'dev');
-
-  bootstrapApp(env);
+  await bootstrapApp(env);
 }
 
 class LifeAssistanceApp extends StatelessWidget {

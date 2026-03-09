@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/env/environment_config.dart';
+import 'core/supabase/supabase_config.dart';
 import 'main.dart';
 import 'core/env/env.dart';
 import 'package:provider/provider.dart';
@@ -8,8 +10,15 @@ import 'features/pantry/groceries/grocerycontroller.dart';
 import 'features/planit/specialDay/specialDaysController.dart';
 import 'features/lifestyle/lifestyleController.dart';
 
-void bootstrapApp(String env) {
+Future<void> bootstrapApp(String env) async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   envConfig = EnvironmentConfig.fromEnv(env);
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
 
   runApp(
     MultiProvider(
