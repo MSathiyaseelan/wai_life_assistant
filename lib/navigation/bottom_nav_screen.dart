@@ -52,6 +52,12 @@ class _AppShellState extends State<AppShell> {
   int _idx = 0;
   final _appState = AppStateNotifier();
 
+  @override
+  void initState() {
+    super.initState();
+    _appState.init();
+  }
+
   static const _tabs = [
     (icon: '🏠', label: 'Dashboard'),
     (icon: '💰', label: 'Wallet'),

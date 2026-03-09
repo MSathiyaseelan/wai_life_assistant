@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/features/auth/auth_service.dart';
+import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;
   final void Function(String walletId) onSelect;
   final bool isDashboard;
+  final AppStateNotifier appState;
 
   const FamilySwitcherSheet({
     super.key,
     required this.currentWalletId,
     required this.onSelect,
+    required this.appState,
     this.isDashboard = false,
   });
 
@@ -21,6 +26,8 @@ class FamilySwitcherSheet extends StatefulWidget {
     required void Function(String) onSelect,
     bool isDashboard = false,
   }) {
+    // Capture appState BEFORE entering the modal (context is inside AppStateScope here)
+    final appState = AppStateScope.of(context);
     return showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -28,6 +35,7 @@ class FamilySwitcherSheet extends StatefulWidget {
       builder: (_) => FamilySwitcherSheet(
         currentWalletId: currentWalletId,
         onSelect: onSelect,
+        appState: appState,
         isDashboard: isDashboard,
       ),
     );
@@ -45,7 +53,13 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final all = [personalWallet, ...familyWallets];
+    final all = widget.appState.wallets;
+    final personal = all.firstWhere(
+      (w) => w.isPersonal,
+      orElse: () => personalWallet,
+    );
+    final familyList = all.where((w) => !w.isPersonal).toList();
+    final familiesList = widget.appState.families;
 
     return Container(
       decoration: BoxDecoration(
@@ -95,23 +109,23 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _WalletTile(
-                    wallet: personalWallet,
+                    wallet: personal,
                     family: null,
-                    isSelected: widget.currentWalletId == 'personal',
+                    isSelected: widget.currentWalletId == personal.id,
                     isDark: isDark,
                     surfBg: surfBg,
                     tc: tc,
                     sub: sub,
                     onTap: () {
-                      widget.onSelect('personal');
+                      widget.onSelect(personal.id);
                       Navigator.pop(context);
                     },
                     onEdit: null,
                   ),
                   const SizedBox(height: 8),
-                  ...familyWallets.asMap().entries.map((entry) {
+                  ...familyList.asMap().entries.map((entry) {
                     final w = entry.value;
-                    final family = mockFamilies.firstWhere(
+                    final family = familiesList.firstWhere(
                       (f) => f.id == w.id,
                       orElse: () => FamilyModel(
                         id: w.id,
@@ -136,7 +150,8 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                         },
                         onEdit: () async {
                           Navigator.pop(context);
-                          await _showEditFamily(context, family, w, isDark);
+                          await _showEditFamily(
+                              context, family, w, isDark, widget.appState);
                           setState(() {});
                         },
                       ),
@@ -147,7 +162,8 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                     GestureDetector(
                       onTap: () async {
                         Navigator.pop(context);
-                        final newId = await _showAddFamily(context, isDark);
+                        final newId =
+                            await _showAddFamily(context, isDark, widget.appState);
                         if (newId != null) widget.onSelect(newId);
                       },
                       child: Container(
@@ -361,12 +377,17 @@ class _MemberAvatarStack extends StatelessWidget {
   }
 }
 
-Future<String?> _showAddFamily(BuildContext context, bool isDark) {
+Future<String?> _showAddFamily(
+  BuildContext context,
+  bool isDark,
+  AppStateNotifier appState,
+) {
   return showModalBottomSheet<String>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _FamilyFormSheet(isDark: isDark, existing: null),
+    builder: (_) =>
+        _FamilyFormSheet(isDark: isDark, existing: null, appState: appState),
   );
 }
 
@@ -375,13 +396,18 @@ Future<void> _showEditFamily(
   FamilyModel family,
   WalletModel wallet,
   bool isDark,
+  AppStateNotifier appState,
 ) {
   return showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) =>
-        _FamilyFormSheet(isDark: isDark, existing: family, wallet: wallet),
+    builder: (_) => _FamilyFormSheet(
+      isDark: isDark,
+      existing: family,
+      wallet: wallet,
+      appState: appState,
+    ),
   );
 }
 
@@ -389,9 +415,11 @@ class _FamilyFormSheet extends StatefulWidget {
   final bool isDark;
   final FamilyModel? existing;
   final WalletModel? wallet;
+  final AppStateNotifier appState;
   const _FamilyFormSheet({
     required this.isDark,
     required this.existing,
+    required this.appState,
     this.wallet,
   });
   @override
@@ -656,7 +684,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        onPressed: _save,
+                        onPressed: _saving ? null : _save,
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -664,7 +692,16 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: Text(
+                        child: _saving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
                           _isEdit ? 'Save Changes' : 'Create Group',
                           style: const TextStyle(
                             fontSize: 15,
@@ -685,45 +722,49 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     );
   }
 
-  void _save() {
+  bool _saving = false;
+
+  Future<void> _save() async {
     if (_nameCtrl.text.trim().isEmpty) return;
     HapticFeedback.lightImpact();
-    if (_isEdit) {
-      widget.existing!.name = _nameCtrl.text.trim();
-      widget.existing!.emoji = _selectedEmoji;
-      widget.existing!.members
-        ..clear()
-        ..addAll(_members);
-      final idx = familyWallets.indexWhere((w) => w.id == widget.existing!.id);
-      if (idx >= 0) {
-        final old = familyWallets[idx];
-        familyWallets[idx] = WalletModel(
-          id: old.id,
-          name: _nameCtrl.text.trim(),
-          emoji: _selectedEmoji,
-          isPersonal: false,
-          cashIn: old.cashIn,
-          cashOut: old.cashOut,
-          onlineIn: old.onlineIn,
-          onlineOut: old.onlineOut,
-          gradient: old.gradient,
-        );
-      }
-      Navigator.pop(context);
-    } else {
-      final newId = 'f${DateTime.now().millisecondsSinceEpoch}';
-      final ci = familyWallets.length % AppColors.familyGradients.length;
-      mockFamilies.add(
-        FamilyModel(
+    setState(() => _saving = true);
+
+    if (!AuthService.instance.isLoggedIn) {
+      // Bypass mode: mutate mock globals
+      if (_isEdit) {
+        widget.existing!.name = _nameCtrl.text.trim();
+        widget.existing!.emoji = _selectedEmoji;
+        widget.existing!.members
+          ..clear()
+          ..addAll(_members);
+        final idx = familyWallets.indexWhere((w) => w.id == widget.existing!.id);
+        if (idx >= 0) {
+          final old = familyWallets[idx];
+          familyWallets[idx] = WalletModel(
+            id: old.id,
+            name: _nameCtrl.text.trim(),
+            emoji: _selectedEmoji,
+            isPersonal: false,
+            cashIn: old.cashIn,
+            cashOut: old.cashOut,
+            onlineIn: old.onlineIn,
+            onlineOut: old.onlineOut,
+            gradient: old.gradient,
+          );
+        }
+        await widget.appState.reload();
+        if (mounted) Navigator.pop(context);
+      } else {
+        final newId = 'f${DateTime.now().millisecondsSinceEpoch}';
+        final ci = familyWallets.length % AppColors.familyGradients.length;
+        mockFamilies.add(FamilyModel(
           id: newId,
           name: _nameCtrl.text.trim(),
           emoji: _selectedEmoji,
           colorIndex: ci,
           members: List.from(_members),
-        ),
-      );
-      familyWallets.add(
-        WalletModel(
+        ));
+        familyWallets.add(WalletModel(
           id: newId,
           name: _nameCtrl.text.trim(),
           emoji: _selectedEmoji,
@@ -733,9 +774,44 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           onlineIn: 0,
           onlineOut: 0,
           gradient: AppColors.familyGradients[ci],
-        ),
-      );
-      Navigator.pop(context, newId);
+        ));
+        await widget.appState.reload();
+        if (mounted) Navigator.pop(context, newId);
+      }
+      return;
+    }
+
+    // Supabase mode
+    try {
+      if (_isEdit) {
+        await ProfileService.instance.updateFamily(
+          familyId: widget.existing!.id,
+          name: _nameCtrl.text.trim(),
+          emoji: _selectedEmoji,
+          colorIndex: widget.existing!.colorIndex,
+        );
+        if (mounted) {
+          widget.appState.reload();
+          Navigator.pop(context);
+        }
+      } else {
+        final result = await ProfileService.instance.createFamily(
+          name: _nameCtrl.text.trim(),
+          emoji: _selectedEmoji,
+          colorIndex: 0,
+        );
+        if (mounted) {
+          await widget.appState.reload();
+          Navigator.pop(context, result['family_id'] as String?);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -757,11 +833,32 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
-              familyWallets.removeWhere((w) => w.id == widget.existing!.id);
+            onPressed: () async {
               Navigator.pop(ctx);
-              Navigator.pop(context);
+              if (!AuthService.instance.isLoggedIn) {
+                // Bypass mode: mutate mock globals
+                mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
+                familyWallets.removeWhere((w) => w.id == widget.existing!.id);
+                if (mounted) Navigator.pop(context);
+                return;
+              }
+              try {
+                await ProfileService.instance
+                    .deleteFamily(widget.existing!.id);
+                if (mounted) {
+                  widget.appState.reload();
+                  Navigator.pop(context);
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             child: const Text(
               'Remove',

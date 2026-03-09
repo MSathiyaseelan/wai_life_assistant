@@ -15,6 +15,9 @@ import 'conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/features/wallet/AI/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/AI/nlp_parser.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/features/auth/auth_service.dart';
+import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 
 class WalletScreen extends StatefulWidget {
   final String activeWalletId;
@@ -45,18 +48,19 @@ class _WalletScreenState extends State<WalletScreen>
   bool _isListening = false;
   final _chatBarKey = GlobalKey<ChatInputBarState>();
 
-  // Live transaction list
-  final List<TxModel> _transactions = List.from(mockTransactions);
+  // Live transaction list (loaded async)
+  List<TxModel> _transactions = [];
+  bool _txLoading = true;
 
   // Split groups
   late List<SplitGroup> _splitGroups;
 
-  // All wallets list
-  List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
+  // Wallets list (from AppStateScope)
+  List<WalletModel> _allWallets = [];
 
   WalletModel get _currentWallet => _allWallets.firstWhere(
     (w) => w.id == widget.activeWalletId,
-    orElse: () => personalWallet,
+    orElse: () => _allWallets.isNotEmpty ? _allWallets.first : personalWallet,
   );
 
   @override
@@ -70,6 +74,60 @@ class _WalletScreenState extends State<WalletScreen>
       }
     });
     _pageCtrl = PageController(viewportFraction: 0.82);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newWallets = AppStateScope.of(context).wallets;
+    if (newWallets != _allWallets) {
+      _allWallets = newWallets;
+    }
+    // Initial transaction load
+    if (_txLoading) _loadTransactions();
+  }
+
+  @override
+  void didUpdateWidget(WalletScreen old) {
+    super.didUpdateWidget(old);
+    if (old.activeWalletId != widget.activeWalletId) {
+      _loadTransactions();
+    }
+  }
+
+  Future<void> _loadTransactions() async {
+    setState(() => _txLoading = true);
+    try {
+      if (!AuthService.instance.isLoggedIn || widget.activeWalletId.isEmpty) {
+        // Bypass mode: filter mock transactions for this wallet
+        if (mounted) {
+          setState(() {
+            _transactions = mockTransactions
+                .where((t) => t.walletId == widget.activeWalletId)
+                .toList();
+            _txLoading = false;
+          });
+        }
+        return;
+      }
+      final rows = await WalletService.instance
+          .fetchTransactions(widget.activeWalletId);
+      if (mounted) {
+        setState(() {
+          _transactions = rows.map(TxModel.fromRow).toList();
+          _txLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _transactions = mockTransactions
+              .where((t) => t.walletId == widget.activeWalletId)
+              .toList();
+          _txLoading = false;
+        });
+      }
+    }
   }
 
   @override

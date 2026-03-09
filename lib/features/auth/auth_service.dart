@@ -25,6 +25,11 @@ class AuthService {
     await _client.auth.signOut();
   }
 
+  /// Sign in anonymously (dev bypass — requires Anonymous auth enabled in Supabase dashboard).
+  Future<void> signInAnonymously() async {
+    await _client.auth.signInAnonymously();
+  }
+
   /// Returns true if a valid session exists.
   bool get isLoggedIn => _client.auth.currentSession != null;
 

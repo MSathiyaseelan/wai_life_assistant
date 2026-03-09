@@ -130,6 +130,33 @@ class TxModel {
     this.status,
     this.dueDate,
   });
+
+  factory TxModel.fromRow(Map<String, dynamic> row) {
+    return TxModel(
+      id: row['id'] as String,
+      type: TxType.values.firstWhere(
+        (t) => t.name == row['type'],
+        orElse: () => TxType.expense,
+      ),
+      payMode: row['pay_mode'] != null
+          ? PayMode.values.firstWhere(
+              (p) => p.name == row['pay_mode'],
+              orElse: () => PayMode.cash,
+            )
+          : null,
+      amount: (row['amount'] as num).toDouble(),
+      category: row['category'] as String? ?? '',
+      date: DateTime.tryParse(row['date'] as String? ?? '') ?? DateTime.now(),
+      walletId: row['wallet_id'] as String,
+      note: row['note'] as String?,
+      person: row['person'] as String?,
+      persons: row['persons'] != null
+          ? List<String>.from(row['persons'] as List)
+          : null,
+      status: row['status'] as String?,
+      dueDate: row['due_date'] as String?,
+    );
+  }
 }
 
 class WalletModel {

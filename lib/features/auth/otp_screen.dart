@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 // import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable with OTP
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-// import 'auth_service.dart'; // TODO: Re-enable with OTP
+import 'auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phone;
@@ -100,8 +100,20 @@ class _OtpScreenState extends State<OtpScreen> {
     // } finally {
     //   if (mounted) setState(() => _loading = false);
     // }
+    // Attempt anonymous Supabase session so writes work in bypass mode.
+    // Requires "Anonymous sign-ins" enabled in Supabase Dashboard → Auth → Providers.
+    try {
+      await AuthService.instance.signInAnonymously();
+    } catch (_) {
+      // No anonymous auth configured — continue in mock-only mode.
+    }
+    if (!mounted) return;
     setState(() => _loading = false);
-    Navigator.pushReplacementNamed(context, AppRoutes.bottomNav);
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.bottomNav,
+      (route) => false,
+    );
   }
 
   Future<void> _resend() async {
