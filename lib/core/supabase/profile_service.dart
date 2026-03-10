@@ -185,26 +185,23 @@ class ProfileService {
 
   // ── Member CRUD ───────────────────────────────────────────────────────────
 
-  /// Add a member to a family.
-  Future<Map<String, dynamic>> addMember({
+  /// Add a member to a family via RPC (SECURITY DEFINER bypasses RLS).
+  Future<void> addMember({
     required String familyId,
     required String name,
     required String emoji,
     String role = 'member',
     String? relation,
     String? phone,
-    String? userId,
   }) async {
-    final row = await _db.from('family_members').insert({
-      'family_id': familyId,
-      'user_id':   userId,
-      'name':      name,
-      'emoji':     emoji,
-      'role':      role,
-      'relation':  relation,
-      'phone':     phone,
-    }).select().single();
-    return row;
+    await _db.rpc('add_family_member', params: {
+      'p_family_id': familyId,
+      'p_name':      name,
+      'p_emoji':     emoji,
+      'p_role':      role,
+      'p_relation':  relation,
+      'p_phone':     phone,
+    });
   }
 
   /// Update a member's editable fields.
