@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 // import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable with OTP
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/supabase/profile_service.dart';
 import 'auth_service.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -102,13 +103,30 @@ class _OtpScreenState extends State<OtpScreen> {
     // }
     // Attempt anonymous Supabase session so writes work in bypass mode.
     // Requires "Anonymous sign-ins" enabled in Supabase Dashboard → Auth → Providers.
+    bool anonOk = false;
     try {
-      await AuthService.instance.signInAnonymously();
-    } catch (_) {
-      // No anonymous auth configured — continue in mock-only mode.
+      // If already has a persisted session, don't sign in again — just re-bootstrap.
+      if (!AuthService.instance.isLoggedIn) {
+        await AuthService.instance.signInAnonymously();
+      }
+      // bootstrapNewUser is idempotent (ON CONFLICT DO UPDATE), safe to call every time.
+      await ProfileService.instance.bootstrapNewUser();
+      anonOk = true;
+    } catch (e) {
+      debugPrint('[OTP bypass] Supabase setup failed: $e');
     }
     if (!mounted) return;
     setState(() => _loading = false);
+    if (!anonOk) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Mock mode — Supabase setup failed, data will not be saved'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      await Future.delayed(const Duration(seconds: 4));
+      if (!mounted) return;
+    }
     Navigator.pushNamedAndRemoveUntil(
       context,
       AppRoutes.bottomNav,

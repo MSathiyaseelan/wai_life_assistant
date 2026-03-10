@@ -110,8 +110,9 @@ class _WalletScreenState extends State<WalletScreen>
         }
         return;
       }
-      final rows = await WalletService.instance
-          .fetchTransactions(widget.activeWalletId);
+      final rows = await WalletService.instance.fetchTransactions(
+        widget.activeWalletId,
+      );
       if (mounted) {
         setState(() {
           _transactions = rows.map(TxModel.fromRow).toList();

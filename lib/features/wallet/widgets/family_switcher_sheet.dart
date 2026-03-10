@@ -802,7 +802,8 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         );
         if (mounted) {
           await widget.appState.reload();
-          Navigator.pop(context, result['family_id'] as String?);
+          // onSelect expects a wallet ID, not a family ID
+          Navigator.pop(context, result['wallet_id'] as String?);
         }
       }
     } catch (e) {
