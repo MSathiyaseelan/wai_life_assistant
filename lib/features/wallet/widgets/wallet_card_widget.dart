@@ -6,11 +6,21 @@ class WalletCardWidget extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
 
+  /// When provided, overrides the wallet's all-time breakdown with period stats.
+  final double? periodCashIn;
+  final double? periodCashOut;
+  final double? periodOnlineIn;
+  final double? periodOnlineOut;
+
   const WalletCardWidget({
     super.key,
     required this.wallet,
     required this.isActive,
     required this.onTap,
+    this.periodCashIn,
+    this.periodCashOut,
+    this.periodOnlineIn,
+    this.periodOnlineOut,
   });
 
   String _fmt(double v) {
@@ -125,8 +135,8 @@ class WalletCardWidget extends StatelessWidget {
                     child: _ModeColumn(
                       icon: '💵',
                       label: 'Cash',
-                      inAmt: wallet.cashIn,
-                      outAmt: wallet.cashOut,
+                      inAmt: periodCashIn ?? wallet.cashIn,
+                      outAmt: periodCashOut ?? wallet.cashOut,
                       fmtFn: _fmt,
                     ),
                   ),
@@ -135,8 +145,8 @@ class WalletCardWidget extends StatelessWidget {
                     child: _ModeColumn(
                       icon: '📱',
                       label: 'Online',
-                      inAmt: wallet.onlineIn,
-                      outAmt: wallet.onlineOut,
+                      inAmt: periodOnlineIn ?? wallet.onlineIn,
+                      outAmt: periodOnlineOut ?? wallet.onlineOut,
                       fmtFn: _fmt,
                     ),
                   ),

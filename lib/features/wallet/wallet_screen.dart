@@ -42,7 +42,7 @@ class _WalletScreenState extends State<WalletScreen>
   late TabController _tabCtrl;
 
   // Calendar
-  DateTime _selectedMonth = DateTime.now();
+  MonthRange _selectedRange = MonthRange.thisMonth();
 
   // Voice + speech simulation
   bool _isListening = false;
@@ -141,11 +141,7 @@ class _WalletScreenState extends State<WalletScreen>
   List<TxModel> get _filteredTx {
     final base = _transactions
         .where((t) => t.walletId == widget.activeWalletId)
-        .where(
-          (t) =>
-              t.date.year == _selectedMonth.year &&
-              t.date.month == _selectedMonth.month,
-        )
+        .where((t) => _selectedRange.contains(t.date))
         .toList();
 
     switch (_activeTab) {
@@ -191,6 +187,27 @@ class _WalletScreenState extends State<WalletScreen>
     'Nov',
     'Dec',
   ][m];
+
+  // Compute period-filtered breakdown from local transactions for a wallet
+  ({double cashIn, double cashOut, double onlineIn, double onlineOut})
+      _periodStats(String walletId) {
+    final txs = _transactions
+        .where((t) => t.walletId == walletId && _selectedRange.contains(t.date))
+        .toList();
+    double cashIn = 0, cashOut = 0, onlineIn = 0, onlineOut = 0;
+    for (final t in txs) {
+      final isIn  = t.type == TxType.income || t.type == TxType.borrow;
+      final isOut = t.type == TxType.expense || t.type == TxType.lend || t.type == TxType.split;
+      if (t.payMode == PayMode.cash) {
+        if (isIn)  cashIn  += t.amount;
+        if (isOut) cashOut += t.amount;
+      } else if (t.payMode == PayMode.online) {
+        if (isIn)  onlineIn  += t.amount;
+        if (isOut) onlineOut += t.amount;
+      }
+    }
+    return (cashIn: cashIn, cashOut: cashOut, onlineIn: onlineIn, onlineOut: onlineOut);
+  }
 
   void _switchWallet(String id) {
     setState(() {
@@ -452,11 +469,7 @@ class _WalletScreenState extends State<WalletScreen>
   Widget _buildTxBody(WalletTab tab, bool isDark) {
     final base = _transactions
         .where((t) => t.walletId == widget.activeWalletId)
-        .where(
-          (t) =>
-              t.date.year == _selectedMonth.year &&
-              t.date.month == _selectedMonth.month,
-        )
+        .where((t) => _selectedRange.contains(t.date))
         .toList();
 
     final filtered = switch (tab) {
@@ -687,13 +700,13 @@ class _WalletScreenState extends State<WalletScreen>
   AppBar _buildAppBar(bool isDark, Color textColor) {
     return AppBar(
       title: MonthYearPicker(
-        selected: _selectedMonth,
+        selected: _selectedRange,
         onTap: () async {
           final picked = await MonthYearPicker.showPicker(
             context,
-            _selectedMonth,
+            _selectedRange,
           );
-          if (picked != null) setState(() => _selectedMonth = picked);
+          if (picked != null) setState(() => _selectedRange = picked);
         },
       ),
       actions: [
@@ -759,15 +772,22 @@ class _WalletScreenState extends State<WalletScreen>
             }),
             itemBuilder: (_, i) => Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: WalletCardWidget(
-                wallet: _allWallets[i],
-                isActive: i == _pageIdx,
-                onTap: () => _pageCtrl.animateToPage(
-                  i,
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeOutBack,
-                ),
-              ),
+              child: Builder(builder: (_) {
+                final ps = _periodStats(_allWallets[i].id);
+                return WalletCardWidget(
+                  wallet: _allWallets[i],
+                  isActive: i == _pageIdx,
+                  periodCashIn: ps.cashIn,
+                  periodCashOut: ps.cashOut,
+                  periodOnlineIn: ps.onlineIn,
+                  periodOnlineOut: ps.onlineOut,
+                  onTap: () => _pageCtrl.animateToPage(
+                    i,
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeOutBack,
+                  ),
+                );
+              }),
             ),
           ),
         ),

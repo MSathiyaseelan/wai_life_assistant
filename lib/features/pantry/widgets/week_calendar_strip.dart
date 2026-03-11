@@ -110,11 +110,14 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
                     onTap: () async {
                       final picked = await MonthYearPicker.showPicker(
                         context,
-                        widget.selectedDate,
+                        MonthRange.single(
+                          widget.selectedDate.year,
+                          widget.selectedDate.month,
+                        ),
                       );
                       if (picked != null) {
-                        setState(() => _weekStart = _mondayOf(picked));
-                        widget.onDateSelected(picked);
+                        setState(() => _weekStart = _mondayOf(picked.start));
+                        widget.onDateSelected(picked.start);
                       }
                     },
                     child: Row(
