@@ -91,6 +91,7 @@ extension FlowTypeExt on FlowType {
         return [
           FlowStep.amount,
           FlowStep.person,
+          FlowStep.paymode,
           FlowStep.dueDate,
           FlowStep.confirm,
         ];
@@ -98,6 +99,7 @@ extension FlowTypeExt on FlowType {
         return [
           FlowStep.amount,
           FlowStep.person,
+          FlowStep.paymode,
           FlowStep.dueDate,
           FlowStep.confirm,
         ];

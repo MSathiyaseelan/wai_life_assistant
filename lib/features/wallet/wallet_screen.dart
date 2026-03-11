@@ -236,7 +236,56 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _onTransactionSaved(TxModel tx) {
+    // Optimistically show in list immediately
     setState(() => _transactions.insert(0, tx));
+    _showTxSnackBar(tx);
+    _persistTransaction(tx); // fire-and-forget
+  }
+
+  Future<void> _persistTransaction(TxModel tx) async {
+    if (!AuthService.instance.isLoggedIn) {
+      // Bypass mode: keep in local list only
+      mockTransactions.insert(0, tx);
+      return;
+    }
+    try {
+      final row = await WalletService.instance.addTransaction(
+        walletId: tx.walletId,
+        type:     tx.type.name,
+        amount:   tx.amount,
+        category: tx.category,
+        payMode:  tx.payMode?.name,
+        note:     tx.note,
+        person:   tx.person,
+        persons:  tx.persons,
+        dueDate:  tx.dueDate,
+        date:     tx.date,
+      );
+      if (!mounted) return;
+      // Replace local placeholder id with real DB row
+      final saved = TxModel.fromRow(row);
+      setState(() {
+        final idx = _transactions.indexWhere((t) => t.id == tx.id);
+        if (idx >= 0) _transactions[idx] = saved;
+      });
+      // Reload wallet so the card reflects updated balance
+      await AppStateScope.of(context).reload();
+    } catch (e) {
+      debugPrint('[WalletScreen] addTransaction failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Save failed: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showTxSnackBar(TxModel tx) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
