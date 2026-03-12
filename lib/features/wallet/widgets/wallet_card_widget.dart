@@ -43,7 +43,7 @@ class WalletCardWidget extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: wallet.gradient,
           ),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: isActive
               ? [
                   BoxShadow(
@@ -60,74 +60,28 @@ class WalletCardWidget extends StatelessWidget {
                   ),
                 ],
         ),
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(wallet.emoji, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
-                    Text(
-                      wallet.name,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Nunito',
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    wallet.isPersonal ? 'Personal' : 'Family',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
             // ── Balance ───────────────────────────────────────────────────
             Text(
               '₹${_fmt(wallet.balance)}',
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 32,
+                fontSize: 28,
                 fontWeight: FontWeight.w900,
                 fontFamily: 'Nunito',
                 letterSpacing: -1,
               ),
             ),
-            // const Text(
-            //   'Net Balance · This Month',
-            //   style: TextStyle(color: Colors.white54, fontSize: 11),
-            // ),
-            // const SizedBox(height: 16),
-
+            const SizedBox(height: 6),
             // ── Cash vs Online breakdown ──────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
@@ -140,7 +94,7 @@ class WalletCardWidget extends StatelessWidget {
                       fmtFn: _fmt,
                     ),
                   ),
-                  Container(width: 1, height: 48, color: Colors.white24),
+                  Container(width: 1, height: 36, color: Colors.white24),
                   Expanded(
                     child: _ModeColumn(
                       icon: '📱',
@@ -185,7 +139,7 @@ class _ModeColumn extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [

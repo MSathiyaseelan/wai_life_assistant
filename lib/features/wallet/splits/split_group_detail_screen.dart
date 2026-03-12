@@ -1040,14 +1040,14 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
 
         // Total spend card
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Color(0xFF4A9EFF), Color(0xFF0066CC)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1055,23 +1055,23 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               const Text(
                 'Total Group Spend',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontFamily: 'Nunito',
                   color: Colors.white70,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 '₹${_group.totalSpend.toStringAsFixed(0)}',
                 style: const TextStyle(
-                  fontSize: 34,
+                  fontSize: 28,
                   fontWeight: FontWeight.w900,
                   fontFamily: 'DM Mono',
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   _InfoChip(
@@ -1093,7 +1093,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
 
         // Members header
         Text(

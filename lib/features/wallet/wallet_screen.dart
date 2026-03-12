@@ -33,12 +33,8 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen>
     with SingleTickerProviderStateMixin {
-  // Wallet state
-  late PageController _pageCtrl;
-  int _pageIdx = 0;
-
   // Filter tab
-  WalletTab _activeTab = WalletTab.all;
+  WalletTab _activeTab = WalletTab.personal;
   late TabController _tabCtrl;
 
   // Calendar
@@ -71,10 +67,11 @@ class _WalletScreenState extends State<WalletScreen>
     _tabCtrl = TabController(length: WalletTab.values.length, vsync: this);
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
-        setState(() => _activeTab = WalletTab.values[_tabCtrl.index]);
+        final tab = WalletTab.values[_tabCtrl.index];
+        setState(() => _activeTab = tab);
+        _autoSwitchWalletForTab(tab);
       }
     });
-    _pageCtrl = PageController(viewportFraction: 0.82);
   }
 
   @override
@@ -231,7 +228,6 @@ class _WalletScreenState extends State<WalletScreen>
   @override
   void dispose() {
     _tabCtrl.dispose();
-    _pageCtrl.dispose();
     super.dispose();
   }
 
@@ -242,16 +238,11 @@ class _WalletScreenState extends State<WalletScreen>
         .toList();
 
     switch (_activeTab) {
-      case WalletTab.all:
+      case WalletTab.personal:
+      case WalletTab.family:
         return base;
       case WalletTab.splits:
         return base.where((t) => t.type == TxType.split).toList();
-      case WalletTab.borrow:
-        return base.where((t) => t.type == TxType.borrow).toList();
-      case WalletTab.lend:
-        return base.where((t) => t.type == TxType.lend).toList();
-      case WalletTab.requests:
-        return base.where((t) => t.type == TxType.request).toList();
     }
   }
 
@@ -307,18 +298,21 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _switchWallet(String id) {
-    setState(() {
-      widget.onWalletChange(id);
-      final idx = _allWallets.indexWhere((w) => w.id == id);
-      if (idx >= 0) {
-        _pageIdx = idx;
-        _pageCtrl.animateToPage(
-          idx,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeOutBack,
-        );
-      }
-    });
+    setState(() => widget.onWalletChange(id));
+  }
+
+  void _autoSwitchWalletForTab(WalletTab tab) {
+    final WalletModel? target;
+    switch (tab) {
+      case WalletTab.personal:
+      case WalletTab.splits:
+        target = _allWallets.where((w) => w.isPersonal).firstOrNull;
+      case WalletTab.family:
+        target = _allWallets.where((w) => !w.isPersonal).firstOrNull;
+    }
+    if (target != null && target.id != widget.activeWalletId) {
+      widget.onWalletChange(target.id);
+    }
   }
 
   void _openFlowSelector() {
@@ -589,22 +583,19 @@ class _WalletScreenState extends State<WalletScreen>
           Expanded(
             child: NestedScrollView(
               headerSliverBuilder: (_, __) => [
-                // Wallet cards scroll away with the page
-                SliverToBoxAdapter(child: _buildWalletCards()),
-                // Tab bar sticks at the top once cards are scrolled off
+                // Tab bar sticks at the top
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _StickyTabDelegate(child: _buildTabBar(isDark)),
                 ),
               ],
-              // TabBarView inside the scrollable body → swipe left/right works,
-              // AND scrolling up collapses the wallet cards above
               body: TabBarView(
                 controller: _tabCtrl,
-                children: WalletTab.values.map((tab) {
-                  if (tab == WalletTab.splits) return _buildSplitsBody(isDark);
-                  return _buildTxBody(tab, isDark);
-                }).toList(),
+                children: [
+                  _buildPersonalBody(isDark),
+                  _buildFamilyBody(isDark),
+                  _buildSplitsBody(isDark),
+                ],
               ),
             ),
           ),
@@ -623,24 +614,33 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Transaction body (All / Borrow / Lend / Requests) ─────────────────────
-  Widget _buildTxBody(WalletTab tab, bool isDark) {
+  // ── Personal tab body ──────────────────────────────────────────────────────
+  Widget _buildPersonalBody(bool isDark) {
+    final wallets = _allWallets.where((w) => w.isPersonal).toList();
+    final ids = wallets.map((w) => w.id).toSet();
+    return _buildWalletTabBody(wallets: wallets, walletIds: ids, isDark: isDark);
+  }
+
+  // ── Family tab body ────────────────────────────────────────────────────────
+  Widget _buildFamilyBody(bool isDark) {
+    final wallets = _allWallets.where((w) => !w.isPersonal).toList();
+    final ids = wallets.map((w) => w.id).toSet();
+    return _buildWalletTabBody(wallets: wallets, walletIds: ids, isDark: isDark);
+  }
+
+  // ── Shared wallet-tab body (card + transactions) ───────────────────────────
+  Widget _buildWalletTabBody({
+    required List<WalletModel> wallets,
+    required Set<String> walletIds,
+    required bool isDark,
+  }) {
     final base = _transactions
-        .where((t) => t.walletId == widget.activeWalletId)
+        .where((t) => walletIds.contains(t.walletId))
         .where((t) => _selectedRange.contains(t.date))
         .toList();
 
-    final filtered = switch (tab) {
-      WalletTab.all => base,
-      WalletTab.splits => base.where((t) => t.type == TxType.split).toList(),
-      WalletTab.borrow => base.where((t) => t.type == TxType.borrow).toList(),
-      WalletTab.lend => base.where((t) => t.type == TxType.lend).toList(),
-      WalletTab.requests =>
-        base.where((t) => t.type == TxType.request).toList(),
-    };
-
     final grouped = <String, List<TxModel>>{};
-    for (final tx in filtered) {
+    for (final tx in base) {
       final diff = DateTime.now().difference(tx.date).inDays;
       final label = diff == 0
           ? 'Today'
@@ -650,24 +650,76 @@ class _WalletScreenState extends State<WalletScreen>
       grouped.putIfAbsent(label, () => []).add(tx);
     }
 
-    if (grouped.isEmpty) {
-      return CustomScrollView(
-        slivers: [SliverFillRemaining(child: _buildEmpty(isDark))],
-      );
-    }
-
     final entries = grouped.entries.toList();
     return CustomScrollView(
       slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (_, i) => _buildGroup(entries[i], isDark),
-              childCount: entries.length,
+        // Wallet card(s) at the top of the tab
+        if (wallets.isNotEmpty)
+          SliverToBoxAdapter(
+            child: _buildInlineWalletCards(wallets, isDark),
+          ),
+        // Transactions list or empty state
+        if (entries.isEmpty)
+          SliverFillRemaining(child: _buildEmpty(isDark))
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _buildGroup(entries[i], isDark),
+                childCount: entries.length,
+              ),
             ),
           ),
-        ),
+      ],
+    );
+  }
+
+  // ── Inline wallet card(s) inside a tab ─────────────────────────────────────
+  Widget _buildInlineWalletCards(List<WalletModel> wallets, bool isDark) {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        if (wallets.length == 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Builder(builder: (_) {
+              final ps = _periodStats(wallets[0].id);
+              return WalletCardWidget(
+                wallet: wallets[0],
+                isActive: true,
+                periodCashIn: ps.cashIn,
+                periodCashOut: ps.cashOut,
+                periodOnlineIn: ps.onlineIn,
+                periodOnlineOut: ps.onlineOut,
+                onTap: () {},
+              );
+            }),
+          )
+        else
+          SizedBox(
+            height: 220,
+            child: PageView.builder(
+              controller: PageController(viewportFraction: 0.88),
+              itemCount: wallets.length,
+              itemBuilder: (_, i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Builder(builder: (_) {
+                  final ps = _periodStats(wallets[i].id);
+                  return WalletCardWidget(
+                    wallet: wallets[i],
+                    isActive: true,
+                    periodCashIn: ps.cashIn,
+                    periodCashOut: ps.cashOut,
+                    periodOnlineIn: ps.onlineIn,
+                    periodOnlineOut: ps.onlineOut,
+                    onTap: () {},
+                  );
+                }),
+              ),
+            ),
+          ),
+        const SizedBox(height: 8),
       ],
     );
   }
@@ -912,65 +964,6 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Wallet Cards ────────────────────────────────────────────────────────────
-  Widget _buildWalletCards() {
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 230,
-          child: PageView.builder(
-            controller: _pageCtrl,
-            itemCount: _allWallets.length,
-            onPageChanged: (i) => setState(() {
-              _pageIdx = i;
-              widget.onWalletChange(_allWallets[i].id);
-            }),
-            itemBuilder: (_, i) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Builder(builder: (_) {
-                final ps = _periodStats(_allWallets[i].id);
-                return WalletCardWidget(
-                  wallet: _allWallets[i],
-                  isActive: i == _pageIdx,
-                  periodCashIn: ps.cashIn,
-                  periodCashOut: ps.cashOut,
-                  periodOnlineIn: ps.onlineIn,
-                  periodOnlineOut: ps.onlineOut,
-                  onTap: () => _pageCtrl.animateToPage(
-                    i,
-                    duration: const Duration(milliseconds: 350),
-                    curve: Curves.easeOutBack,
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            _allWallets.length,
-            (i) => AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: i == _pageIdx ? 22 : 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: i == _pageIdx
-                    ? AppColors.primary
-                    : Colors.grey.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
   // ── Tab Bar ─────────────────────────────────────────────────────────────────
   Widget _buildTabBar(bool isDark) {
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
@@ -1086,8 +1079,8 @@ class _WalletScreenState extends State<WalletScreen>
               Expanded(
                 child: Divider(
                   color: isDark
-                      ? Colors.white.withOpacity(0.07)
-                      : Colors.black.withOpacity(0.07),
+                      ? Colors.white.withValues(alpha: 0.07)
+                      : Colors.black.withValues(alpha: 0.07),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1166,7 +1159,7 @@ class _TxDetailSheet extends StatelessWidget {
             height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.3),
+              color: Colors.grey.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -1348,7 +1341,7 @@ class _TxEditSheetState extends State<_TxEditSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1388,7 +1381,7 @@ class _TxEditSheetState extends State<_TxEditSheet> {
                           vertical: 7,
                         ),
                         decoration: BoxDecoration(
-                          color: sel ? t.color.withOpacity(0.12) : surfBg,
+                          color: sel ? t.color.withValues(alpha: 0.12) : surfBg,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: sel ? t.color : Colors.transparent,
@@ -1435,7 +1428,7 @@ class _TxEditSheetState extends State<_TxEditSheet> {
                   prefixText: '₹ ',
                   prefixStyle: TextStyle(
                     fontSize: 18,
-                    color: _type.color.withOpacity(0.6),
+                    color: _type.color.withValues(alpha: 0.6),
                     fontFamily: 'DM Mono',
                   ),
                   filled: true,
@@ -1485,7 +1478,7 @@ class _TxEditSheetState extends State<_TxEditSheet> {
                             vertical: 9,
                           ),
                           decoration: BoxDecoration(
-                            color: sel ? col.withOpacity(0.1) : surfBg,
+                            color: sel ? col.withValues(alpha: 0.1) : surfBg,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: sel ? col : Colors.transparent,
@@ -1644,10 +1637,10 @@ class _CreateGroupBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.split.withOpacity(0.08),
+          color: AppColors.split.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: AppColors.split.withOpacity(0.3),
+            color: AppColors.split.withValues(alpha: 0.3),
             width: 1.5,
             strokeAlign: BorderSide.strokeAlignInside,
           ),
@@ -1753,7 +1746,7 @@ class _SplitGroupCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.15 : 0.06),
+              color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.06),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -1770,7 +1763,7 @@ class _SplitGroupCard extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: AppColors.split.withOpacity(0.1),
+                    color: AppColors.split.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
@@ -1884,7 +1877,7 @@ class _SplitGroupCard extends StatelessWidget {
                               height: 28,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: AppColors.split.withOpacity(0.12),
+                                color: AppColors.split.withValues(alpha: 0.12),
                                 border: Border.all(color: cardBg, width: 1.5),
                               ),
                               alignment: Alignment.center,
@@ -1969,7 +1962,7 @@ class _SplitGroupCard extends StatelessWidget {
                                       .where((t) => t.isFullySettled)
                                       .length /
                                   group.transactions.length,
-                        backgroundColor: AppColors.expense.withOpacity(0.15),
+                        backgroundColor: AppColors.expense.withValues(alpha: 0.15),
                         valueColor: const AlwaysStoppedAnimation(
                           AppColors.income,
                         ),
@@ -2005,9 +1998,9 @@ class _StatPill extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
@@ -2026,7 +2019,7 @@ class _StatPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 9,
               fontFamily: 'Nunito',
-              color: color.withOpacity(0.8),
+              color: color.withValues(alpha: 0.8),
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -2050,7 +2043,7 @@ class _SummaryChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.15),
+      color: Colors.white.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(8),
     ),
     child: Row(

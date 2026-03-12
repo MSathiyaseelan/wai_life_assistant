@@ -8,7 +8,7 @@ enum TxType { income, expense, split, lend, borrow, request }
 
 enum PayMode { cash, online }
 
-enum WalletTab { all, splits, borrow, lend, requests }
+enum WalletTab { personal, family, splits }
 
 extension TxTypeExt on TxType {
   String get label {
@@ -86,16 +86,12 @@ extension TxTypeExt on TxType {
 extension WalletTabExt on WalletTab {
   String get label {
     switch (this) {
-      case WalletTab.all:
-        return 'All';
+      case WalletTab.personal:
+        return 'Personal';
+      case WalletTab.family:
+        return 'Family';
       case WalletTab.splits:
         return 'Splits';
-      case WalletTab.borrow:
-        return 'Borrow';
-      case WalletTab.lend:
-        return 'Lend';
-      case WalletTab.requests:
-        return 'Requests';
     }
   }
 }
