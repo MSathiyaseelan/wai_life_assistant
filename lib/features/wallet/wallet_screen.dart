@@ -618,14 +618,386 @@ class _WalletScreenState extends State<WalletScreen>
   Widget _buildPersonalBody(bool isDark) {
     final wallets = _allWallets.where((w) => w.isPersonal).toList();
     final ids = wallets.map((w) => w.id).toSet();
-    return _buildWalletTabBody(wallets: wallets, walletIds: ids, isDark: isDark);
+    return _buildWalletTabBody(
+      wallets: wallets,
+      walletIds: ids,
+      isDark: isDark,
+      extraHeader: _buildContactStrip(ids, isDark),
+    );
+  }
+
+  // ── Contact strip (lend/borrow summary) ───────────────────────────────────
+  Widget _buildContactStrip(Set<String> walletIds, bool isDark) {
+    final txs = _transactions
+        .where((t) => walletIds.contains(t.walletId))
+        .where((t) => _selectedRange.contains(t.date))
+        .where((t) => t.type == TxType.lend || t.type == TxType.borrow)
+        .toList();
+
+    if (txs.isEmpty) return const SizedBox.shrink();
+
+    // Net per person + per-person tx list
+    final Map<String, double> personNet = {};
+    final Map<String, List<TxModel>> personTxs = {};
+    for (final tx in txs) {
+      final name = tx.person ?? 'Unknown';
+      final delta = tx.type == TxType.lend ? tx.amount : -tx.amount;
+      personNet[name] = (personNet[name] ?? 0) + delta;
+      (personTxs[name] ??= []).add(tx);
+    }
+
+    final toReceive =
+        personNet.values.where((v) => v > 0).fold(0.0, (s, v) => s + v);
+    final toGive =
+        personNet.values.where((v) => v < 0).fold(0.0, (s, v) => s + v.abs());
+
+    final contacts = personNet.entries.toList()
+      ..sort((a, b) => b.value.abs().compareTo(a.value.abs()));
+
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: GestureDetector(
+        onTap: () => _showContactsSheet(contacts, personTxs, isDark),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Amounts column
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.expense,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'To give  ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: sub,
+                            fontFamily: 'Nunito',
+                          ),
+                        ),
+                        Text(
+                          '₹${toGive.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: AppColors.expense,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.income,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'To receive  ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: sub,
+                            fontFamily: 'Nunito',
+                          ),
+                        ),
+                        Text(
+                          '₹${toReceive.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: AppColors.income,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Avatars
+              Row(
+                children: [
+                  ...contacts.take(4).map((e) {
+                    final initials = e.key.isNotEmpty
+                        ? e.key[0].toUpperCase()
+                        : '?';
+                    final isOwed = e.value > 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: isOwed
+                            ? AppColors.income.withValues(alpha: 0.15)
+                            : AppColors.expense.withValues(alpha: 0.15),
+                        child: Text(
+                          initials,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: isOwed
+                                ? AppColors.income
+                                : AppColors.expense,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  if (contacts.length > 4)
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: sub.withValues(alpha: 0.12),
+                      child: Text(
+                        '+${contacts.length - 4}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                          color: sub,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: sub,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showContactsSheet(
+    List<MapEntry<String, double>> contacts,
+    Map<String, List<TxModel>> personTxs,
+    bool isDark,
+  ) {
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.4,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scroll) => Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: sub.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+                child: Row(
+                  children: [
+                    Text(
+                      'Lend & Borrow',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: surfBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${contacts.length} contacts',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: sub,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  controller: scroll,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  itemCount: contacts.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (ctx, i) {
+                    final entry = contacts[i];
+                    final isOwed = entry.value > 0;
+                    final amt = entry.value.abs();
+                    final initials = entry.key.isNotEmpty
+                        ? entry.key[0].toUpperCase()
+                        : '?';
+                    final txList = personTxs[entry.key] ?? [];
+                    final hasMultiple = txList.length > 1;
+                    return GestureDetector(
+                      onTap: hasMultiple
+                          ? () => Navigator.push(
+                                ctx,
+                                MaterialPageRoute(
+                                  builder: (_) => _ContactTxPage(
+                                    name: entry.key,
+                                    netAmount: entry.value,
+                                    transactions: txList,
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              )
+                          : null,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor: isOwed
+                                  ? AppColors.income.withValues(alpha: 0.15)
+                                  : AppColors.expense.withValues(alpha: 0.15),
+                              child: Text(
+                                initials,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: isOwed
+                                      ? AppColors.income
+                                      : AppColors.expense,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    entry.key,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito',
+                                      color: tc,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    isOwed ? 'Owes you' : 'You owe',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '₹${amt.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                fontFamily: 'DM Mono',
+                                color: isOwed
+                                    ? AppColors.income
+                                    : AppColors.expense,
+                              ),
+                            ),
+                            if (hasMultiple) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: sub,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── Family tab body ────────────────────────────────────────────────────────
   Widget _buildFamilyBody(bool isDark) {
     final wallets = _allWallets.where((w) => !w.isPersonal).toList();
     final ids = wallets.map((w) => w.id).toSet();
-    return _buildWalletTabBody(wallets: wallets, walletIds: ids, isDark: isDark);
+    return _buildWalletTabBody(
+      wallets: wallets,
+      walletIds: ids,
+      isDark: isDark,
+      extraHeader: _buildContactStrip(ids, isDark),
+    );
   }
 
   // ── Shared wallet-tab body (card + transactions) ───────────────────────────
@@ -633,6 +1005,7 @@ class _WalletScreenState extends State<WalletScreen>
     required List<WalletModel> wallets,
     required Set<String> walletIds,
     required bool isDark,
+    Widget? extraHeader,
   }) {
     final base = _transactions
         .where((t) => walletIds.contains(t.walletId))
@@ -658,6 +1031,8 @@ class _WalletScreenState extends State<WalletScreen>
           SliverToBoxAdapter(
             child: _buildInlineWalletCards(wallets, isDark),
           ),
+        if (extraHeader != null)
+          SliverToBoxAdapter(child: extraHeader),
         // Transactions list or empty state
         if (entries.isEmpty)
           SliverFillRemaining(child: _buildEmpty(isDark))
@@ -2063,6 +2438,225 @@ class _SummaryChip extends StatelessWidget {
       ],
     ),
   );
+}
+
+// ── Contact Transaction Detail Page ─────────────────────────────────────────
+class _ContactTxPage extends StatelessWidget {
+  final String name;
+  final double netAmount; // positive = they owe me, negative = I owe them
+  final List<TxModel> transactions;
+  final bool isDark;
+
+  const _ContactTxPage({
+    required this.name,
+    required this.netAmount,
+    required this.transactions,
+    required this.isDark,
+  });
+
+  String _fmt(double v) {
+    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 10000) return '${(v / 1000).toStringAsFixed(1)}K';
+    return v.toStringAsFixed(0);
+  }
+
+  String _dateLabel(DateTime d) {
+    final now = DateTime.now();
+    final diff = now.difference(d).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    const months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${d.day} ${months[d.month]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final scaffoldBg = isDark ? AppColors.bgDark : AppColors.bgLight;
+
+    final isOwed = netAmount > 0;
+    final netColor = isOwed ? AppColors.income : AppColors.expense;
+    final sorted = [...transactions]..sort((a, b) => b.date.compareTo(a.date));
+
+    return Scaffold(
+      backgroundColor: scaffoldBg,
+      appBar: AppBar(
+        backgroundColor: cardBg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: netColor.withValues(alpha: 0.15),
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                  color: netColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              name,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito',
+                color: tc,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          // Net summary banner
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: netColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: netColor.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  isOwed ? 'Net: Owes you' : 'Net: You owe',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'Nunito',
+                    color: sub,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '₹${_fmt(netAmount.abs())}',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'DM Mono',
+                    color: netColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Transaction list
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              itemCount: sorted.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final tx = sorted[i];
+                final isLend = tx.type == TxType.lend;
+                final txColor = isLend ? AppColors.expense : AppColors.income;
+                final txLabel = isLend ? 'Lent' : 'Borrowed';
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: surfBg,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: txColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          isLend ? '📤' : '📥',
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tx.note ?? tx.category,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Nunito',
+                                color: tc,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _dateLabel(tx.date),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: sub,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '₹${_fmt(tx.amount)}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'DM Mono',
+                              color: txColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: txColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              txLabel,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: txColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Sticky Tab Delegate ─────────────────────────────────────────────────────

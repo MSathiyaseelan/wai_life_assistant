@@ -23,6 +23,15 @@ class WalletCardWidget extends StatelessWidget {
     this.periodOnlineOut,
   });
 
+  double get _periodBalance {
+    if (periodCashIn != null) {
+      final totalIn = (periodCashIn ?? 0) + (periodOnlineIn ?? 0);
+      final totalOut = (periodCashOut ?? 0) + (periodOnlineOut ?? 0);
+      return totalIn - totalOut;
+    }
+    return wallet.balance;
+  }
+
   String _fmt(double v) {
     if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 10000) return '${(v / 1000).toStringAsFixed(1)}K';
@@ -66,7 +75,7 @@ class WalletCardWidget extends StatelessWidget {
           children: [
             // ── Balance ───────────────────────────────────────────────────
             Text(
-              '₹${_fmt(wallet.balance)}',
+              '₹${_fmt(_periodBalance)}',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 28,
