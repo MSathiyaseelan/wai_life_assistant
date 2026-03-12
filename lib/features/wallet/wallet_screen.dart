@@ -693,20 +693,24 @@ class _WalletScreenState extends State<WalletScreen>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'To give  ',
+                          'To give ',
                           style: TextStyle(
                             fontSize: 11,
                             color: sub,
                             fontFamily: 'Nunito',
                           ),
                         ),
-                        Text(
-                          '₹${toGive.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: AppColors.expense,
+                        Flexible(
+                          child: Text(
+                            '₹${toGive.toStringAsFixed(0)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: AppColors.expense,
+                            ),
                           ),
                         ),
                       ],
@@ -724,20 +728,24 @@ class _WalletScreenState extends State<WalletScreen>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          'To receive  ',
+                          'To receive ',
                           style: TextStyle(
                             fontSize: 11,
                             color: sub,
                             fontFamily: 'Nunito',
                           ),
                         ),
-                        Text(
-                          '₹${toReceive.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: AppColors.income,
+                        Flexible(
+                          child: Text(
+                            '₹${toReceive.toStringAsFixed(0)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: AppColors.income,
+                            ),
                           ),
                         ),
                       ],
@@ -745,56 +753,54 @@ class _WalletScreenState extends State<WalletScreen>
                   ],
                 ),
               ),
-              // Avatars
+              // Avatars + chevron (fixed right section, max 3 avatars)
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ...contacts.take(4).map((e) {
-                    final initials = e.key.isNotEmpty
-                        ? e.key[0].toUpperCase()
-                        : '?';
+                  ...contacts.take(3).map((e) {
+                    final initials =
+                        e.key.isNotEmpty ? e.key[0].toUpperCase() : '?';
                     final isOwed = e.value > 0;
                     return Padding(
                       padding: const EdgeInsets.only(right: 4),
                       child: CircleAvatar(
-                        radius: 16,
+                        radius: 14,
                         backgroundColor: isOwed
                             ? AppColors.income.withValues(alpha: 0.15)
                             : AppColors.expense.withValues(alpha: 0.15),
                         child: Text(
                           initials,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
                             fontFamily: 'Nunito',
-                            color: isOwed
-                                ? AppColors.income
-                                : AppColors.expense,
+                            color:
+                                isOwed ? AppColors.income : AppColors.expense,
                           ),
                         ),
                       ),
                     );
                   }),
-                  if (contacts.length > 4)
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: sub.withValues(alpha: 0.12),
-                      child: Text(
-                        '+${contacts.length - 4}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                          color: sub,
+                  if (contacts.length > 3)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: sub.withValues(alpha: 0.12),
+                        child: Text(
+                          '+${contacts.length - 3}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
                         ),
                       ),
                     ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_right_rounded, color: sub, size: 18),
                 ],
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: sub,
-                size: 20,
               ),
             ],
           ),
@@ -936,6 +942,8 @@ class _WalletScreenState extends State<WalletScreen>
                                 children: [
                                   Text(
                                     entry.key,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w800,
@@ -957,8 +965,10 @@ class _WalletScreenState extends State<WalletScreen>
                             ),
                             Text(
                               '₹${amt.toStringAsFixed(0)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w900,
                                 fontFamily: 'DM Mono',
                                 color: isOwed
@@ -2510,13 +2520,17 @@ class _ContactTxPage extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              name,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Nunito',
-                color: tc,
+            Flexible(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                  color: tc,
+                ),
               ),
             ),
           ],

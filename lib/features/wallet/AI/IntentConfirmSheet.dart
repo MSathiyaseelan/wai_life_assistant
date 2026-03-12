@@ -147,8 +147,13 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       type: _flowType.txType,
       payMode: _payMode,
       amount: amount,
-      category:
-          _category ?? (_flowType == FlowType.income ? 'Income' : 'Expense'),
+      category: _category ?? switch (_flowType) {
+        FlowType.income  => 'Income',
+        FlowType.lend    => 'Lend',
+        FlowType.borrow  => 'Borrow',
+        FlowType.request => 'Request',
+        _                => 'Expense',
+      },
       note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       walletId: widget.walletId,
       date: now,

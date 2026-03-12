@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 
@@ -546,105 +547,232 @@ class PersonStep extends StatefulWidget {
 
 class _PersonStepState extends State<PersonStep> {
   final Set<String> _selected = {};
+  final _searchCtrl = TextEditingController();
+
+  List<String> _allNames = [];
+  List<String> _filtered = [];
+  bool _loading = true;
+  bool _denied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+    _searchCtrl.addListener(_onSearch);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadContacts() async {
+    try {
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) {
+        setState(() { _loading = false; _denied = true; });
+        return;
+      }
+      final contacts =
+          await FlutterContacts.getContacts(withProperties: false);
+      final names = contacts
+          .map((c) => c.displayName.trim())
+          .where((n) => n.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      setState(() {
+        _allNames = names;
+        _filtered = names;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() { _loading = false; _denied = true; });
+    }
+  }
+
+  void _onSearch() {
+    final q = _searchCtrl.text.toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? _allNames
+          : _allNames.where((n) => n.toLowerCase().contains(q)).toList();
+    });
+  }
+
+  void _tap(String name) {
+    HapticFeedback.selectionClick();
+    if (!widget.multiSelect) {
+      widget.onSelectSingle(name);
+      return;
+    }
+    setState(() {
+      if (_selected.contains(name)) {
+        _selected.remove(name);
+      } else {
+        _selected.add(name);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    if (_loading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Center(
+          child: CircularProgressIndicator(color: widget.color, strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_denied) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            Text(
+              'Contacts permission denied.\nPlease allow access in Settings.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _loadContacts,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: contactNames.map((name) {
-              final isSel = _selected.contains(name);
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  if (!widget.multiSelect) {
-                    widget.onSelectSingle(name);
-                    return;
-                  }
-                  setState(() {
-                    if (isSel)
-                      _selected.remove(name);
-                    else
-                      _selected.add(name);
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
+          // Search bar
+          TextField(
+            controller: _searchCtrl,
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: 'Nunito',
+              color: isDark ? AppColors.textDark : AppColors.textLight,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Search contacts…',
+              hintStyle: TextStyle(fontSize: 13, color: sub),
+              prefixIcon: Icon(Icons.search_rounded, size: 18, color: sub),
+              filled: true,
+              fillColor: isDark ? AppColors.surfDark : AppColors.bgLight,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Contact chips
+          if (_filtered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text(
+                  'No contacts found',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'Nunito',
+                    color: sub,
                   ),
-                  decoration: BoxDecoration(
-                    color: isSel
-                        ? widget.color.withOpacity(0.15)
-                        : (isDark ? AppColors.surfDark : AppColors.bgLight),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: isSel ? widget.color : Colors.transparent,
-                      width: 1.5,
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _filtered.map((name) {
+                final isSel = _selected.contains(name);
+                return GestureDetector(
+                  onTap: () => _tap(name),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.07),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
+                    decoration: BoxDecoration(
+                      color: isSel
+                          ? widget.color.withValues(alpha: 0.15)
+                          : (isDark ? AppColors.surfDark : AppColors.bgLight),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isSel ? widget.color : Colors.transparent,
+                        width: 1.5,
                       ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Avatar
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: isSel
-                              ? widget.color.withOpacity(0.25)
-                              : (isDark ? AppColors.cardDark : Colors.white),
-                          shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.07),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          name[0],
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? widget.color.withValues(alpha: 0.25)
+                                : (isDark
+                                    ? AppColors.cardDark
+                                    : Colors.white),
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            name[0].toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              color: isSel
+                                  ? widget.color
+                                  : (isDark
+                                      ? AppColors.subDark
+                                      : AppColors.subLight),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          name,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
                             color: isSel
                                 ? widget.color
                                 : (isDark
-                                      ? AppColors.subDark
-                                      : AppColors.subLight),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Nunito',
-                          color: isSel
-                              ? widget.color
-                              : (isDark
                                     ? AppColors.textDark
                                     : AppColors.textLight),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
+                );
+              }).toList(),
+            ),
 
           // Multi-select confirm
           if (widget.multiSelect && _selected.isNotEmpty) ...[

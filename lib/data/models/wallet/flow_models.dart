@@ -228,8 +228,13 @@ class FlowData {
     if (paymode == 'Cash') pm = PayMode.cash;
     if (paymode == 'Online') pm = PayMode.online;
 
-    final cat =
-        category ?? (flowType == FlowType.income ? 'Income' : 'Expense');
+    final cat = category ?? switch (flowType) {
+      FlowType.income  => 'Income',
+      FlowType.lend    => 'Lend',
+      FlowType.borrow  => 'Borrow',
+      FlowType.request => 'Request',
+      _                => 'Expense',
+    };
 
     return TxModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
