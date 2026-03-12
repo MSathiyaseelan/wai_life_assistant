@@ -54,6 +54,7 @@ class _WalletScreenState extends State<WalletScreen>
 
   // Split groups
   late List<SplitGroup> _splitGroups;
+  bool _sgLoading = true;
 
   // Wallets list (from AppStateScope)
   List<WalletModel> _allWallets = [];
@@ -66,7 +67,7 @@ class _WalletScreenState extends State<WalletScreen>
   @override
   void initState() {
     super.initState();
-    _splitGroups = List.from(mockSplitGroups);
+    _splitGroups = [];
     _tabCtrl = TabController(length: WalletTab.values.length, vsync: this);
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
@@ -85,6 +86,7 @@ class _WalletScreenState extends State<WalletScreen>
     }
     // Initial transaction load
     if (_txLoading) _loadTransactions();
+    if (_sgLoading) _loadSplitGroups();
   }
 
   @override
@@ -92,6 +94,7 @@ class _WalletScreenState extends State<WalletScreen>
     super.didUpdateWidget(old);
     if (old.activeWalletId != widget.activeWalletId) {
       _loadTransactions();
+      _loadSplitGroups();
     }
   }
 
@@ -128,6 +131,100 @@ class _WalletScreenState extends State<WalletScreen>
           _txLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadSplitGroups() async {
+    setState(() => _sgLoading = true);
+    try {
+      if (!AuthService.instance.isLoggedIn || widget.activeWalletId.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _splitGroups = List.from(mockSplitGroups);
+            _sgLoading = false;
+          });
+        }
+        return;
+      }
+      final rows = await WalletService.instance.fetchSplitGroups(widget.activeWalletId);
+      if (mounted) {
+        setState(() {
+          _splitGroups = rows.map(_splitGroupFromRow).toList();
+          _sgLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[WalletScreen] fetchSplitGroups failed: $e');
+      if (mounted) {
+        setState(() {
+          _splitGroups = List.from(mockSplitGroups);
+          _sgLoading = false;
+        });
+      }
+    }
+  }
+
+  SplitGroup _splitGroupFromRow(Map<String, dynamic> row) {
+    final rawParticipants = (row['split_participants'] as List? ?? []);
+    final participants = rawParticipants.map((p) => SplitParticipant(
+      id: p['id'] as String,
+      name: p['name'] as String,
+      emoji: p['emoji'] as String? ?? '👤',
+      phone: p['phone'] as String?,
+      isMe: p['is_me'] as bool? ?? false,
+    )).toList();
+
+    final rawTxs = (row['split_group_transactions'] as List? ?? []);
+    final transactions = rawTxs.map((t) {
+      final rawShares = (t['split_shares'] as List? ?? []);
+      final shares = rawShares.map((s) => SplitShare(
+        participantId: s['participant_id'] as String,
+        amount: (s['amount'] as num).toDouble(),
+        percentage: s['percentage'] != null ? (s['percentage'] as num).toDouble() : null,
+        status: _parseSettleStatus(s['status'] as String? ?? 'pending'),
+      )).toList();
+      return SplitGroupTx(
+        id: t['id'] as String,
+        groupId: t['group_id'] as String,
+        addedById: t['added_by_id'] as String,
+        title: t['title'] as String,
+        totalAmount: (t['total_amount'] as num).toDouble(),
+        splitType: _parseSplitType(t['split_type'] as String? ?? 'equal'),
+        shares: shares,
+        date: DateTime.parse(t['date'] as String),
+        note: t['note'] as String?,
+      );
+    }).toList();
+
+    return SplitGroup(
+      id: row['id'] as String,
+      name: row['name'] as String,
+      emoji: row['emoji'] as String? ?? '🤝',
+      walletId: row['wallet_id'] as String,
+      participants: participants,
+      transactions: transactions,
+      createdAt: row['created_at'] != null
+          ? DateTime.parse(row['created_at'] as String)
+          : null,
+    );
+  }
+
+  SplitType _parseSplitType(String s) {
+    switch (s) {
+      case 'unequal':   return SplitType.unequal;
+      case 'percentage': return SplitType.percentage;
+      case 'custom':    return SplitType.custom;
+      default:          return SplitType.equal;
+    }
+  }
+
+  SettleStatus _parseSettleStatus(String s) {
+    switch (s) {
+      case 'proofSubmitted':      return SettleStatus.proofSubmitted;
+      case 'settled':             return SettleStatus.settled;
+      case 'extensionRequested':  return SettleStatus.extensionRequested;
+      case 'extensionGranted':    return SettleStatus.extensionGranted;
+      default:                    return SettleStatus.pending;
     }
   }
 
@@ -372,8 +469,68 @@ class _WalletScreenState extends State<WalletScreen>
     SplitGroupSheet.show(
       context,
       walletId: widget.activeWalletId,
-      onSave: (group) => setState(() => _splitGroups.insert(0, group)),
+      onSave: (group) {
+        setState(() => _splitGroups.insert(0, group));
+        _persistSplitGroup(group); // fire-and-forget
+      },
     );
+  }
+
+  Future<void> _persistSplitGroup(SplitGroup group) async {
+    if (!AuthService.instance.isLoggedIn) return;
+    try {
+      final row = await WalletService.instance.createSplitGroup(
+        walletId: group.walletId,
+        name: group.name,
+        emoji: group.emoji,
+        participants: group.participants
+            .map((p) => (
+                  name: p.name,
+                  emoji: p.emoji,
+                  phone: p.phone,
+                  isMe: p.isMe,
+                ))
+            .toList(),
+      );
+      if (!mounted) return;
+      // Replace local placeholder ids with real DB ids (group + participants)
+      final realId = row['id'] as String;
+      final rawParts = (row['split_participants'] as List? ?? []);
+      final realParticipants = rawParts.map((p) => SplitParticipant(
+        id: p['id'] as String,
+        name: p['name'] as String,
+        emoji: p['emoji'] as String? ?? '👤',
+        phone: p['phone'] as String?,
+        isMe: p['is_me'] as bool? ?? false,
+      )).toList();
+      setState(() {
+        final idx = _splitGroups.indexWhere((g) => g.id == group.id);
+        if (idx >= 0) {
+          _splitGroups[idx] = SplitGroup(
+            id: realId,
+            name: group.name,
+            emoji: group.emoji,
+            walletId: group.walletId,
+            participants: realParticipants,
+            transactions: group.transactions,
+            messages: group.messages,
+            createdAt: group.createdAt,
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('[WalletScreen] createSplitGroup failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save group: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
   }
 
   void _openEditGroup(SplitGroup group) {
@@ -393,12 +550,13 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  void _openGroupDetail(SplitGroup group) {
+  void _openGroupDetail(SplitGroup group, {bool autoAddExpense = false}) {
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (_, anim, __) => SplitGroupDetailScreen(
           group: group,
+          autoOpenAddExpense: autoAddExpense,
           onGroupUpdated: (updated) {
             setState(() {
               final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
@@ -528,12 +686,6 @@ class _WalletScreenState extends State<WalletScreen>
     if (groups.isEmpty) {
       return CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _CreateGroupBanner(onTap: _openCreateGroup),
-            ),
-          ),
           SliverFillRemaining(child: _buildSplitsEmpty(isDark, tc, sub)),
         ],
       );
@@ -566,6 +718,7 @@ class _WalletScreenState extends State<WalletScreen>
                   sub: sub,
                   onTap: () => _openGroupDetail(g),
                   onEdit: () => _openEditGroup(g),
+                  onAddExpense: () => _openGroupDetail(g, autoAddExpense: true),
                 ),
               );
             }, childCount: itemCount),
@@ -651,9 +804,11 @@ class _WalletScreenState extends State<WalletScreen>
 
   Widget _buildSplitsEmpty(bool isDark, Color tc, Color sub) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           const Text('🤝', style: TextStyle(fontSize: 56)),
           const SizedBox(height: 16),
           Text(
@@ -692,6 +847,7 @@ class _WalletScreenState extends State<WalletScreen>
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -1558,7 +1714,7 @@ class _SplitGroupCard extends StatelessWidget {
   final SplitGroup group;
   final bool isDark;
   final Color cardBg, surfBg, tc, sub;
-  final VoidCallback onTap, onEdit;
+  final VoidCallback onTap, onEdit, onAddExpense;
 
   const _SplitGroupCard({
     required this.group,
@@ -1569,12 +1725,16 @@ class _SplitGroupCard extends StatelessWidget {
     required this.sub,
     required this.onTap,
     required this.onEdit,
+    required this.onAddExpense,
   });
 
   @override
   Widget build(BuildContext context) {
     final balances = group.netBalances;
-    final myBalance = balances['me'] ?? 0;
+    final meId = group.participants
+        .firstWhere((p) => p.isMe, orElse: () => SplitParticipant(id: 'me', name: 'Me', emoji: '🧑'))
+        .id;
+    final myBalance = balances[meId] ?? 0;
     final isOwed = myBalance > 0;
     final isEven = myBalance.abs() < 0.01;
     final balColor = isEven
@@ -1702,10 +1862,9 @@ class _SplitGroupCard extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // Participant avatars
+            // Participant avatars row
             Row(
               children: [
-                // Stacked avatars
                 SizedBox(
                   height: 28,
                   width: 20.0 + (group.participants.length.clamp(0, 5) * 20),
@@ -1750,6 +1909,42 @@ class _SplitGroupCard extends StatelessWidget {
                     ),
                   ),
                 ],
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Actions row: Add Expense + settlement progress
+            Row(
+              children: [
+                // Quick add expense button
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onAddExpense();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.split.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.split.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.add_rounded, size: 14, color: AppColors.split),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Add Expense',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: AppColors.split,
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
                 const Spacer(),
                 // Settlement progress
                 if (group.transactions.isNotEmpty) ...[

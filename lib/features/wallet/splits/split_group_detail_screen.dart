@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
+import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import '../../../../core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14,11 +18,13 @@ import '../../../../core/theme/app_theme.dart';
 class SplitGroupDetailScreen extends StatefulWidget {
   final SplitGroup group;
   final void Function(SplitGroup) onGroupUpdated;
+  final bool autoOpenAddExpense;
 
   const SplitGroupDetailScreen({
     super.key,
     required this.group,
     required this.onGroupUpdated,
+    this.autoOpenAddExpense = false,
   });
 
   @override
@@ -32,7 +38,15 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   final _chatCtrl = TextEditingController();
   final _chatScroll = ScrollController();
 
-  static const String _myId = 'me';
+  // Resolve current-user participant ID from the isMe flag (real DB IDs).
+  // Falls back to 'me' for local/mock data.
+  String get _myId {
+    try {
+      return _group.participants.firstWhere((p) => p.isMe).id;
+    } catch (_) {
+      return 'me';
+    }
+  }
 
   @override
   void initState() {
@@ -40,6 +54,12 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     _group = widget.group;
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
+    if (widget.autoOpenAddExpense) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tab.animateTo(1); // jump to Expenses tab
+        _showAddExpense();
+      });
+    }
   }
 
   @override
@@ -51,14 +71,614 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   }
 
   void _update() {
+    final wasSettled = _group.isSettled;
+    if (!wasSettled && _group.isFullySettled && _group.transactions.isNotEmpty) {
+      _group.isSettled = true;
+      _group.messages.add(
+        SplitGroupMsg(
+          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+          groupId: _group.id,
+          senderId: 'system',
+          senderName: 'System',
+          senderEmoji: '🎉',
+          text: '🎉 All payments settled! "${_group.name}" is now fully closed.',
+          time: DateTime.now(),
+          type: MsgType.settled,
+        ),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGroupSettledSheet();
+      });
+    }
     setState(() {});
     widget.onGroupUpdated(_group);
+  }
+
+  // ── Group settled celebration ───────────────────────────────────────────────
+  void _showGroupSettledSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      isDismissible: true,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 48),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 28),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Big emoji
+            const Text('🎉', style: TextStyle(fontSize: 64)),
+            const SizedBox(height: 16),
+
+            Text(
+              'Group Fully Settled!',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito',
+                color: AppColors.income,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '"${_group.name}"\nAll payments confirmed. Group is now inactive.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Nunito',
+                color: sub,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Stats row
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.income.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.income.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _SettledStat(
+                    '₹${_group.totalSpend.toStringAsFixed(0)}',
+                    'Total',
+                    AppColors.income,
+                    tc,
+                    sub,
+                  ),
+                  Container(width: 1, height: 36, color: sub.withValues(alpha: 0.2)),
+                  _SettledStat(
+                    '${_group.transactions.length}',
+                    'Expenses',
+                    AppColors.split,
+                    tc,
+                    sub,
+                  ),
+                  Container(width: 1, height: 36, color: sub.withValues(alpha: 0.2)),
+                  _SettledStat(
+                    '${_group.participants.length}',
+                    'Members',
+                    const Color(0xFF9C27B0),
+                    tc,
+                    sub,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.check_circle_rounded, size: 20),
+                label: const Text(
+                  'Awesome!',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.income,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _participantName(String id) => _group.participantById(id)?.name ?? id;
 
   String _participantEmoji(String id) =>
       _group.participantById(id)?.emoji ?? '🧑';
+
+  // ── Overview: Submit Proof for all my pending shares ───────────────────────
+  void _showOverviewProofSheet(
+    List<({SplitGroupTx tx, SplitShare share})> pending,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final totalAmt = pending.fold(0.0, (s, e) => s + e.share.amount);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ProofSheet(
+        totalAmount: totalAmt,
+        pendingLabels: pending
+            .map((e) => '${e.tx.title}  ₹${e.share.amount.toStringAsFixed(0)}')
+            .toList(),
+        isDark: isDark,
+        surfBg: surfBg,
+        tc: tc,
+        sub: sub,
+        onSubmit: (note, imagePath) {
+          for (final e in pending) {
+            e.share.status = SettleStatus.proofSubmitted;
+            e.share.proofNote = note.isNotEmpty ? note : null;
+            e.share.proofImagePath = imagePath;
+            e.share.proofDate = DateTime.now();
+          }
+          _group.messages.add(
+            SplitGroupMsg(
+              id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+              groupId: _group.id,
+              senderId: _myId,
+              senderName: _participantName(_myId),
+              senderEmoji: _participantEmoji(_myId),
+              text:
+                  'Submitted payment proof for ₹${totalAmt.toStringAsFixed(0)}'
+                  '${note.isNotEmpty ? ': $note' : ''}',
+              time: DateTime.now(),
+              type: MsgType.settled,
+            ),
+          );
+          _update();
+        },
+      ),
+    );
+  }
+
+  // ── Overview: Request Extension for all my pending shares ──────────────────
+  void _showOverviewExtensionSheet(
+    List<({SplitGroupTx tx, SplitShare share})> pending,
+  ) {
+    final ctrl = TextEditingController();
+    DateTime pickedDate = DateTime.now().add(const Duration(days: 5));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final totalAmt = pending.fold(0.0, (s, e) => s + e.share.amount);
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Request Extension',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'For ₹${totalAmt.toStringAsFixed(0)} across ${pending.length} payment${pending.length > 1 ? 's' : ''}.',
+                style: const TextStyle(fontFamily: 'Nunito', fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: pickedDate,
+                    firstDate: DateTime.now().add(const Duration(days: 1)),
+                    lastDate: DateTime.now().add(const Duration(days: 90)),
+                  );
+                  if (d != null) setSt(() => pickedDate = d);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9C27B0).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFF9C27B0).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 16,
+                        color: Color(0xFF9C27B0),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Pay by: ${_fmtDate(pickedDate)}',
+                        style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF9C27B0),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'Reason e.g. salary credit on 5th',
+                  hintStyle: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 12,
+                  ),
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontFamily: 'Nunito'),
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (ctrl.text.trim().isEmpty) return;
+                for (final e in pending) {
+                  e.share.status = SettleStatus.extensionRequested;
+                  e.share.extensionDate = pickedDate;
+                  e.share.extensionReason = ctrl.text.trim();
+                }
+                Navigator.pop(ctx);
+                _group.messages.add(
+                  SplitGroupMsg(
+                    id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+                    groupId: _group.id,
+                    senderId: _myId,
+                    senderName: _participantName(_myId),
+                    senderEmoji: _participantEmoji(_myId),
+                    text:
+                        'Requested extension till ${_fmtDate(pickedDate)}: ${ctrl.text.trim()}',
+                    time: DateTime.now(),
+                    type: MsgType.extensionReq,
+                  ),
+                );
+                _update();
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF9C27B0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Request',
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Send reminder ──────────────────────────────────────────────────────────
+  void _showReminderSheet(SplitParticipant p, double owedAmount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    final firstName = p.name.split(' ')[0];
+    final message =
+        'Hey $firstName! 👋 Just a gentle reminder to settle your share of '
+        '₹${owedAmount.toStringAsFixed(0)} in "${_group.name}". '
+        'Thanks! 🙏';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            // Header
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.expense.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.notifications_rounded,
+                    color: AppColors.expense,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Send Reminder',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
+                    ),
+                    Text(
+                      'to ${p.name}  ${p.emoji}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Message preview
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: surfBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.expense.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'Nunito',
+                  color: tc,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Amount chip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.expense.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.expense.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.account_balance_wallet_rounded,
+                    size: 14,
+                    color: AppColors.expense,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${p.name} owes ₹${owedAmount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.expense,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final nav = Navigator.of(context);
+                      final messenger = ScaffoldMessenger.of(context);
+                      await Clipboard.setData(ClipboardData(text: message));
+                      nav.pop();
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: const Row(
+                            children: [
+                              Icon(Icons.copy_rounded,
+                                  color: Colors.white, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'Message copied to clipboard!',
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: AppColors.split,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          margin: const EdgeInsets.all(16),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    label: const Text(
+                      'Copy Message',
+                      style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                if (p.phone != null) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        final nav = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
+                        // Compose WhatsApp URL — requires WhatsApp installed
+                        final phone = p.phone!.replaceAll(RegExp(r'[^\d]'), '');
+                        final encoded = Uri.encodeComponent(message);
+                        final waUrl = 'https://wa.me/91$phone?text=$encoded';
+                        await Clipboard.setData(ClipboardData(text: waUrl));
+                        nav.pop();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: const Row(
+                              children: [
+                                Text('💬', style: TextStyle(fontSize: 18)),
+                                SizedBox(width: 8),
+                                Text(
+                                  'WhatsApp link copied!',
+                                  style: TextStyle(
+                                    fontFamily: 'Nunito',
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: const Color(0xFF25D366),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            margin: const EdgeInsets.all(16),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      icon: const Text('💬', style: TextStyle(fontSize: 14)),
+                      label: const Text(
+                        'WhatsApp',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF25D366),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   // ── Add expense ────────────────────────────────────────────────────────────
   void _showAddExpense() {
@@ -83,8 +703,62 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           ),
         );
         _update();
+        _persistSplitTransaction(tx); // fire-and-forget
       },
     );
+  }
+
+  Future<void> _persistSplitTransaction(SplitGroupTx tx) async {
+    if (!AuthService.instance.isLoggedIn) return;
+    try {
+      final row = await WalletService.instance.addSplitTransaction(
+        groupId: _group.id,
+        addedByParticipantId: tx.addedById,
+        title: tx.title,
+        totalAmount: tx.totalAmount,
+        splitType: tx.splitType.name,
+        shares: tx.shares
+            .map((s) => (
+                  participantId: s.participantId,
+                  amount: s.amount,
+                  percentage: s.percentage,
+                ))
+            .toList(),
+        note: tx.note,
+        date: tx.date,
+      );
+      if (!mounted) return;
+      // Replace local placeholder id with real DB id
+      final realId = row['id'] as String;
+      setState(() {
+        final idx = _group.transactions.indexWhere((t) => t.id == tx.id);
+        if (idx >= 0) {
+          _group.transactions[idx] = SplitGroupTx(
+            id: realId,
+            groupId: tx.groupId,
+            addedById: tx.addedById,
+            title: tx.title,
+            totalAmount: tx.totalAmount,
+            splitType: tx.splitType,
+            shares: tx.shares,
+            date: tx.date,
+            note: tx.note,
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint('[SplitGroupDetail] addSplitTransaction failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save expense: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
   }
 
   // ── Send chat message ──────────────────────────────────────────────────────
@@ -165,33 +839,37 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   ),
                 ),
                 Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('💸 '),
-                      const Text('Expenses'),
-                      if (_group.pendingCount > 0) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.expense,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${_group.pendingCount}',
-                            style: const TextStyle(
-                              fontSize: 9,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('💸 '),
+                        const Text('Expenses'),
+                        if (_group.pendingCount > 0) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.expense,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${_group.pendingCount}',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
                 const Tab(
@@ -294,6 +972,72 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Settled banner
+        if (_group.isFullySettled) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00C897), Color(0xFF4CAF50)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const Text('🎉', style: TextStyle(fontSize: 26)),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Group Fully Settled!',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Nunito',
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'All payments confirmed · Group inactive',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'Nunito',
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'SETTLED',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                      color: Colors.white,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         // Total spend card
         Container(
           padding: const EdgeInsets.all(20),
@@ -373,107 +1117,367 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               ? sub
               : (isOwed ? AppColors.income : AppColors.expense);
 
+          // Pending shares for "me" — used to show Submit Proof / Extension
+          final myPending = p.isMe
+              ? _group.transactions
+                  .expand((tx) => tx.shares.map((s) => (tx: tx, share: s)))
+                  .where(
+                    (e) =>
+                        e.share.participantId == p.id &&
+                        e.share.status == SettleStatus.pending,
+                  )
+                  .toList()
+              : <({SplitGroupTx tx, SplitShare share})>[];
+
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: color.withOpacity(isEven ? 0.1 : 0.25)),
+              border: Border.all(color: color.withValues(alpha: isEven ? 0.1 : 0.25)),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
+                Row(
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        p.emoji,
-                        style: const TextStyle(fontSize: 22),
-                      ),
-                    ),
-                    if (p.isMe)
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 16,
-                          height: 16,
+                    Stack(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
-                            color: AppColors.split,
+                            color: color.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
-                          child: const Icon(
-                            Icons.person,
-                            size: 10,
-                            color: Colors.white,
+                          child: Text(
+                            p.emoji,
+                            style: const TextStyle(fontSize: 22),
+                          ),
+                        ),
+                        if (p.isMe)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: AppColors.split,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.person,
+                                size: 10,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.isMe ? '${p.name} (You)' : p.name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: tc,
+                            ),
+                          ),
+                          Text(
+                            isEven
+                                ? 'All settled up ✓'
+                                : isOwed
+                                ? 'Gets back ₹${bal.abs().toStringAsFixed(0)}'
+                                : 'Owes ₹${bal.abs().toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: color,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!isEven) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: color.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          isOwed
+                              ? '+ ₹${bal.abs().toStringAsFixed(0)}'
+                              : '- ₹${bal.abs().toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'DM Mono',
+                            color: color,
                           ),
                         ),
                       ),
+                      // Remind button — only for non-me members who owe
+                      if (!p.isMe && !isOwed) ...[
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            _showReminderSheet(p, bal.abs());
+                          },
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: AppColors.expense.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: AppColors.expense.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.notifications_rounded,
+                              size: 16,
+                              color: AppColors.expense,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                // ── Action buttons for ME when I owe and have pending shares ──
+                if (p.isMe && !isEven && !isOwed && myPending.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Row(
                     children: [
-                      Text(
-                        p.isMe ? '${p.name} (You)' : p.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                          color: tc,
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            _showOverviewProofSheet(myPending);
+                          },
+                          icon: const Text(
+                            '💳',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          label: const Text(
+                            'Submit Proof',
+                            style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.split,
+                            side: BorderSide(
+                              color: AppColors.split.withValues(alpha: 0.5),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
                         ),
                       ),
-                      Text(
-                        isEven
-                            ? 'All settled up ✓'
-                            : isOwed
-                            ? 'Gets back ₹${bal.abs().toStringAsFixed(0)}'
-                            : 'Owes ₹${bal.abs().toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: color,
-                          fontWeight: FontWeight.w700,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            HapticFeedback.selectionClick();
+                            _showOverviewExtensionSheet(myPending);
+                          },
+                          icon: const Text(
+                            '⏰',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          label: const Text(
+                            'Extension',
+                            style: TextStyle(
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF9C27B0),
+                            side: BorderSide(
+                              color: const Color(0xFF9C27B0).withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                if (!isEven && !p.isMe)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: color.withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      isOwed
-                          ? '+ ₹${bal.abs().toStringAsFixed(0)}'
-                          : '- ₹${bal.abs().toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'DM Mono',
-                        color: color,
-                      ),
-                    ),
-                  ),
+                ],
               ],
             ),
+          );
+        }),
+
+        const SizedBox(height: 20),
+
+        // Settle up plan
+        Text(
+          'SETTLE UP',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1,
+            fontFamily: 'Nunito',
+            color: sub,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        Builder(builder: (_) {
+          final plan = _group.settlementPlan;
+          if (plan.isEmpty) {
+            return Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 16,
+              ),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('🎉', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'All settled up!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: AppColors.income,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return Column(
+            children: plan.map((s) {
+              final from = _group.participantById(s.fromId);
+              final to = _group.participantById(s.toId);
+              final fromName = from?.isMe == true
+                  ? 'You'
+                  : (from?.name.split(' ')[0] ?? s.fromId);
+              final toName = to?.isMe == true
+                  ? 'You'
+                  : (to?.name.split(' ')[0] ?? s.toId);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.split.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      from?.emoji ?? '🧑',
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$fromName pays $toName',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: tc,
+                            ),
+                          ),
+                          Text(
+                            from?.isMe == true
+                                ? 'You need to pay'
+                                : to?.isMe == true
+                                ? 'You will receive'
+                                : 'Settlement required',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 14,
+                      color: AppColors.split,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      to?.emoji ?? '🧑',
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.split.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.split.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        '₹${s.amount.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'DM Mono',
+                          color: AppColors.split,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           );
         }),
 
@@ -505,7 +1509,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: tx.splitType.color.withOpacity(0.12),
+                    color: tx.splitType.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
@@ -812,6 +1816,40 @@ class _ExpenseTileState extends State<_ExpenseTile> {
   String _name(String id) => widget.group.participantById(id)?.name ?? id;
   String _emoji(String id) => widget.group.participantById(id)?.emoji ?? '🧑';
 
+  static String _fmtDateTime(DateTime d) {
+    final now = DateTime.now();
+    final isToday =
+        d.year == now.year && d.month == now.month && d.day == now.day;
+    final yesterday = now.subtract(const Duration(days: 1));
+    final isYesterday = d.year == yesterday.year &&
+        d.month == yesterday.month &&
+        d.day == yesterday.day;
+    final months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final dateStr = isToday
+        ? 'Today'
+        : isYesterday
+        ? 'Yesterday'
+        : '${d.day} ${months[d.month]}';
+    final h = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
+    final m = d.minute.toString().padLeft(2, '0');
+    final period = d.hour >= 12 ? 'PM' : 'AM';
+    return '$dateStr · $h:$m $period';
+  }
+
   @override
   Widget build(BuildContext context) {
     final tx = widget.tx;
@@ -838,7 +1876,7 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: tx.splitType.color.withOpacity(0.12),
+                      color: tx.splitType.color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
@@ -867,6 +1905,14 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                             fontSize: 11,
                             fontFamily: 'Nunito',
                             color: sub,
+                          ),
+                        ),
+                        Text(
+                          _fmtDateTime(tx.date),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'Nunito',
+                            color: sub.withValues(alpha: 0.7),
                           ),
                         ),
                         if (tx.note != null)
@@ -961,7 +2007,7 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                       value: tx.shares.isEmpty
                           ? 0
                           : tx.settledCount / tx.shares.length,
-                      backgroundColor: AppColors.expense.withOpacity(0.15),
+                      backgroundColor: AppColors.expense.withValues(alpha: 0.15),
                       valueColor: const AlwaysStoppedAnimation(
                         AppColors.income,
                       ),
@@ -1097,9 +2143,9 @@ class _ShareRow extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color.withOpacity(0.3)),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1132,7 +2178,7 @@ class _ShareRow extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.07),
+                  color: color.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -1154,7 +2200,7 @@ class _ShareRow extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10,
                           fontFamily: 'Nunito',
-                          color: color.withOpacity(0.8),
+                          color: color.withValues(alpha: 0.8),
                         ),
                       ),
                   ],
@@ -1162,41 +2208,56 @@ class _ShareRow extends StatelessWidget {
               ),
             ),
 
-          // Proof info
-          if (st == SettleStatus.proofSubmitted && share.proofNote != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2196F3).withOpacity(0.07),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.upload_rounded,
-                      size: 12,
-                      color: Color(0xFF2196F3),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        share.proofNote!,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: Color(0xFF2196F3),
-                        ),
-                      ),
-                    ),
-                  ],
+          // Proof info (image + note)
+          if (st == SettleStatus.proofSubmitted) ...[
+            if (share.proofImagePath != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.file(
+                    File(share.proofImagePath!),
+                    height: 110,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-            ),
+            if (share.proofNote != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2196F3).withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.upload_rounded,
+                        size: 12,
+                        color: Color(0xFF2196F3),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          share.proofNote!,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            color: Color(0xFF2196F3),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
 
           // Action buttons
           _buildActions(context, st),
@@ -1208,32 +2269,6 @@ class _ShareRow extends StatelessWidget {
   Widget _buildActions(BuildContext context, SettleStatus st) {
     // What actions are available depends on who's looking and the current status
     final actions = <Widget>[];
-
-    // MY share, I need to pay
-    if (_isMyShare && !isPayer) {
-      if (st == SettleStatus.pending) {
-        actions.addAll([
-          _ActionBtn(
-            '💳 Submit Proof',
-            AppColors.split,
-            () => _showProofDialog(context),
-          ),
-          _ActionBtn(
-            '⏰ Request Extension',
-            const Color(0xFF9C27B0),
-            () => _showExtensionDialog(context),
-          ),
-        ]);
-      } else if (st == SettleStatus.extensionGranted) {
-        actions.add(
-          _ActionBtn(
-            '💳 Submit Proof',
-            AppColors.split,
-            () => _showProofDialog(context),
-          ),
-        );
-      }
-    }
 
     // I AM the payer — someone submitted proof or wants extension
     if (_iAmPayer && !_isMyShare) {
@@ -1307,212 +2342,6 @@ class _ShareRow extends StatelessWidget {
     );
   }
 
-  void _showProofDialog(BuildContext context) {
-    final ctrl = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Submit Payment Proof',
-          style: TextStyle(
-            fontFamily: 'Nunito',
-            fontWeight: FontWeight.w900,
-            fontSize: 16,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Describe your payment (UPI ref, bank transfer ID, etc.)',
-              style: TextStyle(fontFamily: 'Nunito', fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText:
-                    'e.g. GPay ref# 48219 sent ₹${share.amount.toStringAsFixed(0)}',
-                hintStyle: const TextStyle(fontFamily: 'Nunito', fontSize: 12),
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (ctrl.text.trim().isEmpty) return;
-              share.status = SettleStatus.proofSubmitted;
-              share.proofNote = ctrl.text.trim();
-              share.proofDate = DateTime.now();
-              Navigator.pop(context);
-              onAddChatMsg(
-                'Submitted payment proof for ₹${share.amount.toStringAsFixed(0)}: ${ctrl.text.trim()}',
-              );
-              onUpdate();
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.split,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Submit',
-              style: TextStyle(
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showExtensionDialog(BuildContext context) {
-    final ctrl = TextEditingController();
-    DateTime pickedDate = DateTime.now().add(const Duration(days: 5));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Request Extension',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Choose a new settlement date and give a reason.',
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              // Date picker button
-              GestureDetector(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: pickedDate,
-                    firstDate: DateTime.now().add(const Duration(days: 1)),
-                    lastDate: DateTime.now().add(const Duration(days: 90)),
-                  );
-                  if (d != null) setSt(() => pickedDate = d);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.split.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.split.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.calendar_today_rounded,
-                        size: 16,
-                        color: AppColors.split,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Pay by: ${_fmtDate(pickedDate)}',
-                        style: const TextStyle(
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.split,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctrl,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'Reason e.g. salary credit on 5th',
-                  hintStyle: const TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 12,
-                  ),
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.all(12),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontFamily: 'Nunito'),
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (ctrl.text.trim().isEmpty) return;
-                share.status = SettleStatus.extensionRequested;
-                share.extensionDate = pickedDate;
-                share.extensionReason = ctrl.text.trim();
-                Navigator.pop(context);
-                onAddChatMsg(
-                  'Requested extension till ${_fmtDate(pickedDate)}: ${ctrl.text.trim()}',
-                );
-                onUpdate();
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF9C27B0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Request',
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   static String _fmtDate(DateTime d) {
     final diff = DateTime.now().difference(d).inDays;
     if (diff == 0) return 'Today';
@@ -1520,6 +2349,362 @@ class _ShareRow extends StatelessWidget {
     if (diff == -1) return 'Tomorrow';
     return '${d.day} ${['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month]}';
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROOF SHEET — attach image + note, then submit
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProofSheet extends StatefulWidget {
+  final double totalAmount;
+  final List<String> pendingLabels;
+  final bool isDark;
+  final Color surfBg, tc, sub;
+  final void Function(String note, String? imagePath) onSubmit;
+
+  const _ProofSheet({
+    required this.totalAmount,
+    required this.pendingLabels,
+    required this.isDark,
+    required this.surfBg,
+    required this.tc,
+    required this.sub,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_ProofSheet> createState() => _ProofSheetState();
+}
+
+class _ProofSheetState extends State<_ProofSheet> {
+  final _noteCtrl = TextEditingController();
+  XFile? _pickedImage;
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final img = await picker.pickImage(source: source, imageQuality: 75);
+    if (img != null) setState(() => _pickedImage = img);
+  }
+
+  void _submit() {
+    if (_noteCtrl.text.trim().isEmpty && _pickedImage == null) return;
+    setState(() => _submitting = true);
+    widget.onSubmit(_noteCtrl.text.trim(), _pickedImage?.path);
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardBg =
+        widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = widget.tc;
+    final sub = widget.sub;
+    final surf = widget.surfBg;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Header
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: AppColors.split.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.receipt_long_rounded,
+                    color: AppColors.split,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Submit Payment Proof',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
+                    ),
+                    Text(
+                      '₹${widget.totalAmount.toStringAsFixed(0)} total · ${widget.pendingLabels.length} payment${widget.pendingLabels.length > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Image attachment section
+            if (_pickedImage != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(
+                  File(_pickedImage!.path),
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.check_circle_rounded,
+                      size: 14, color: AppColors.income),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Screenshot attached',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      color: AppColors.income,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => setState(() => _pickedImage = null),
+                    child: Text(
+                      'Remove',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        color: AppColors.expense,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ] else ...[
+              // Attach image buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: _AttachBtn(
+                      icon: Icons.camera_alt_rounded,
+                      label: 'Camera',
+                      surf: surf,
+                      sub: sub,
+                      onTap: () => _pickImage(ImageSource.camera),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _AttachBtn(
+                      icon: Icons.photo_library_rounded,
+                      label: 'Gallery',
+                      surf: surf,
+                      sub: sub,
+                      onTap: () => _pickImage(ImageSource.gallery),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Note field
+            Text(
+              'PAYMENT REFERENCE (OPTIONAL)',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                fontFamily: 'Nunito',
+                color: sub,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _noteCtrl,
+              maxLines: 2,
+              style: TextStyle(
+                fontSize: 13,
+                fontFamily: 'Nunito',
+                color: tc,
+              ),
+              decoration: InputDecoration(
+                hintText:
+                    'e.g. GPay ref# 48219 sent ₹${widget.totalAmount.toStringAsFixed(0)}',
+                hintStyle: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 12,
+                  color: sub,
+                ),
+                filled: true,
+                fillColor: surf,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Submit button
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _submitting ? null : _submit,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_rounded, size: 18),
+                label: Text(
+                  _submitting ? 'Submitting…' : 'Mark as Done Payment',
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.split,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color surf, sub;
+  final VoidCallback onTap;
+  const _AttachBtn({
+    required this.icon,
+    required this.label,
+    required this.surf,
+    required this.sub,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: surf,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.split.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: AppColors.split, size: 22),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w700,
+              color: sub,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTLED STAT — one metric cell in the group-settled celebration sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SettledStat extends StatelessWidget {
+  final String value;
+  final String label;
+  final Color color;
+  final Color tc;
+  final Color sub;
+
+  const _SettledStat(this.value, this.label, this.color, this.tc, this.sub);
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w900,
+          fontFamily: 'DM Mono',
+          color: color,
+        ),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        label,
+        style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+      ),
+    ],
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1561,12 +2746,21 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   SplitType _splitType = SplitType.equal;
-  String _paidById = 'me';
+  late String _paidById;
+  DateTime _expenseDate = DateTime.now();
   late Map<String, TextEditingController> _shareCtrl;
 
   @override
   void initState() {
     super.initState();
+    // Default payer = current user; resolve via isMe flag for real DB IDs.
+    try {
+      _paidById = widget.group.participants.firstWhere((p) => p.isMe).id;
+    } catch (_) {
+      _paidById = widget.group.participants.isNotEmpty
+          ? widget.group.participants.first.id
+          : 'me';
+    }
     _shareCtrl = {
       for (final p in widget.group.participants) p.id: TextEditingController(),
     };
@@ -1631,6 +2825,45 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
         }).toList();
     }
 
+    // Validate share totals for non-equal splits
+    if (_splitType == SplitType.unequal) {
+      final shareSum = shares.fold(0.0, (s, e) => s + e.amount);
+      if ((shareSum - total).abs() > 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Shares total ₹${shareSum.toStringAsFixed(2)} must equal ₹${total.toStringAsFixed(2)}',
+          ),
+          backgroundColor: Colors.red.shade700,
+        ));
+        return;
+      }
+    } else if (_splitType == SplitType.percentage) {
+      final pctSum = widget.group.participants.fold(
+        0.0,
+        (s, p) => s + (double.tryParse(_shareCtrl[p.id]?.text ?? '0') ?? 0),
+      );
+      if ((pctSum - 100).abs() > 0.1) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Percentages must sum to 100% (currently ${pctSum.toStringAsFixed(1)}%)',
+          ),
+          backgroundColor: Colors.red.shade700,
+        ));
+        return;
+      }
+    } else if (_splitType == SplitType.custom) {
+      final shareSum = shares.fold(0.0, (s, e) => s + e.amount);
+      if (shareSum > total + 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            'Shares total ₹${shareSum.toStringAsFixed(2)} exceeds ₹${total.toStringAsFixed(2)}',
+          ),
+          backgroundColor: Colors.red.shade700,
+        ));
+        return;
+      }
+    }
+
     widget.onSave(
       SplitGroupTx(
         id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
@@ -1640,7 +2873,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
         totalAmount: total,
         splitType: _splitType,
         shares: shares,
-        date: DateTime.now(),
+        date: _expenseDate,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       ),
     );
@@ -1676,7 +2909,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                 height: 4,
                 margin: const EdgeInsets.only(top: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1720,7 +2953,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                         prefixText: '₹ ',
                         prefixStyle: TextStyle(
                           fontSize: 18,
-                          color: AppColors.split.withOpacity(0.6),
+                          color: AppColors.split.withValues(alpha: 0.6),
                           fontFamily: 'DM Mono',
                         ),
                         hintText: '0',
@@ -1761,7 +2994,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                               ),
                               decoration: BoxDecoration(
                                 color: sel
-                                    ? AppColors.split.withOpacity(0.12)
+                                    ? AppColors.split.withValues(alpha: 0.12)
                                     : surfBg,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
@@ -1815,7 +3048,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: sel
-                                      ? t.color.withOpacity(0.12)
+                                      ? t.color.withValues(alpha: 0.12)
                                       : surfBg,
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
@@ -1924,6 +3157,72 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                     ],
 
                     const SizedBox(height: 14),
+                    // Date & Time
+                    _Lbl('DATE & TIME', sub),
+                    GestureDetector(
+                      onTap: () async {
+                        final date = await showDatePicker(
+                          context: context,
+                          initialDate: _expenseDate,
+                          firstDate: DateTime.now().subtract(
+                            const Duration(days: 365),
+                          ),
+                          lastDate: DateTime.now(),
+                        );
+                        if (date == null || !mounted) return;
+                        final time = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.fromDateTime(_expenseDate),
+                        );
+                        if (!mounted) return;
+                        setState(() {
+                          _expenseDate = DateTime(
+                            date.year,
+                            date.month,
+                            date.day,
+                            time?.hour ?? _expenseDate.hour,
+                            time?.minute ?? _expenseDate.minute,
+                          );
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 16,
+                              color: AppColors.split,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _fmtExpenseDate(_expenseDate),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: tc,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.edit_calendar_rounded,
+                              size: 16,
+                              color: sub,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     // Note
                     _Lbl('NOTE (OPTIONAL)', sub),
                     _F(_noteCtrl, 'e.g. Rahul had extra drinks', surfBg, tc),
@@ -1958,6 +3257,40 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
         ),
       ),
     );
+  }
+
+  String _fmtExpenseDate(DateTime d) {
+    final now = DateTime.now();
+    final isToday =
+        d.year == now.year && d.month == now.month && d.day == now.day;
+    final yesterday = now.subtract(const Duration(days: 1));
+    final isYesterday = d.year == yesterday.year &&
+        d.month == yesterday.month &&
+        d.day == yesterday.day;
+    final months = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final dateStr = isToday
+        ? 'Today'
+        : isYesterday
+        ? 'Yesterday'
+        : '${d.day} ${months[d.month]}';
+    final h = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
+    final m = d.minute.toString().padLeft(2, '0');
+    final period = d.hour >= 12 ? 'PM' : 'AM';
+    return '$dateStr, $h:$m $period';
   }
 
   Widget _Lbl(String t, Color c) => Padding(
@@ -2007,9 +3340,9 @@ class _ActionBtn extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
@@ -2032,7 +3365,7 @@ class _InfoChip extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.15),
+      color: Colors.white.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(8),
     ),
     child: Row(
@@ -2086,7 +3419,7 @@ class _ChatBubble extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: AppColors.split.withOpacity(0.12),
+                color: AppColors.split.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
@@ -2184,7 +3517,7 @@ class _SystemMsgBubble extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: sub.withOpacity(0.08),
+        color: sub.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

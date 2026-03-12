@@ -238,8 +238,15 @@ class SplitGroup {
        messages = messages ?? [],
        createdAt = createdAt ?? DateTime.now();
 
+  bool isSettled = false; // set to true once all transactions fully settled
+
   double get totalSpend =>
       transactions.fold(0.0, (s, tx) => s + tx.totalAmount);
+
+  bool get isFullySettled =>
+      isSettled ||
+      (transactions.isNotEmpty &&
+          transactions.every((tx) => tx.isFullySettled));
 
   int get pendingCount => transactions
       .expand((tx) => tx.shares)
@@ -272,6 +279,40 @@ class SplitGroup {
     } catch (_) {
       return null;
     }
+  }
+
+  // Minimum transactions to settle all debts.
+  // Returns list of (fromId, toId, amount) — "fromId owes toId this amount".
+  List<({String fromId, String toId, double amount})> get settlementPlan {
+    final balances = Map<String, double>.from(netBalances);
+
+    final debtorIds = balances.keys
+        .where((k) => (balances[k] ?? 0) < -0.01)
+        .toList()
+      ..sort((a, b) => (balances[a] ?? 0).compareTo(balances[b] ?? 0));
+    final creditorIds = balances.keys
+        .where((k) => (balances[k] ?? 0) > 0.01)
+        .toList()
+      ..sort((a, b) => (balances[b] ?? 0).compareTo(balances[a] ?? 0));
+
+    final debtAmt = {for (final id in debtorIds) id: -(balances[id] ?? 0)};
+    final creditAmt = {for (final id in creditorIds) id: balances[id] ?? 0};
+
+    final result = <({String fromId, String toId, double amount})>[];
+    int i = 0, j = 0;
+    while (i < debtorIds.length && j < creditorIds.length) {
+      final from = debtorIds[i];
+      final to = creditorIds[j];
+      final pay = debtAmt[from]! < creditAmt[to]!
+          ? debtAmt[from]!
+          : creditAmt[to]!;
+      if (pay > 0.01) result.add((fromId: from, toId: to, amount: pay));
+      debtAmt[from] = debtAmt[from]! - pay;
+      creditAmt[to] = creditAmt[to]! - pay;
+      if ((debtAmt[from] ?? 0) < 0.01) i++;
+      if ((creditAmt[to] ?? 0) < 0.01) j++;
+    }
+    return result;
   }
 }
 
@@ -361,7 +402,7 @@ List<SplitGroup> mockSplitGroups = [
           SplitShare(
             participantId: 'me',
             amount: 600,
-            status: SettleStatus.settled,
+            status: SettleStatus.pending,
           ),
           SplitShare(
             participantId: 'priya',
@@ -393,7 +434,7 @@ List<SplitGroup> mockSplitGroups = [
             participantId: 'me',
             amount: 480,
             percentage: 40,
-            status: SettleStatus.settled,
+            status: SettleStatus.pending,
           ),
           SplitShare(
             participantId: 'priya',

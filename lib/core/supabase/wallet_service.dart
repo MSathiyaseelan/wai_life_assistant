@@ -205,7 +205,7 @@ class WalletService {
       'emoji': emoji,
     }).select().single();
 
-    // 2. Insert participants
+    // 2. Insert participants and return them with real DB ids
     final rows = participants.map((p) => {
       'group_id': group['id'],
       'user_id': p.isMe ? _uid : null,
@@ -214,9 +214,15 @@ class WalletService {
       'phone': p.phone,
       'is_me': p.isMe,
     }).toList();
-    await _db.from('split_participants').insert(rows);
+    final insertedParticipants = await _db
+        .from('split_participants')
+        .insert(rows)
+        .select();
 
-    return group;
+    return {
+      ...group,
+      'split_participants': insertedParticipants,
+    };
   }
 
   /// Add a split transaction with per-participant shares.
@@ -241,13 +247,13 @@ class WalletService {
       'date': (date ?? DateTime.now()).toIso8601String(),
     }).select().single();
 
-    // 2. Insert shares
+    // 2. Insert shares — payer's own share is auto-settled
     final shareRows = shares.map((s) => {
       'transaction_id': tx['id'],
       'participant_id': s.participantId,
       'amount': s.amount,
       'percentage': s.percentage,
-      'status': 'pending',
+      'status': s.participantId == addedByParticipantId ? 'settled' : 'pending',
     }).toList();
     await _db.from('split_shares').insert(shareRows);
 
