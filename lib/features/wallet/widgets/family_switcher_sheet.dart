@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;
@@ -126,12 +129,13 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                   ...familyList.asMap().entries.map((entry) {
                     final w = entry.value;
                     final family = familiesList.firstWhere(
-                      (f) => f.id == w.id,
+                      (f) => (f.walletId ?? f.id) == w.id,
                       orElse: () => FamilyModel(
                         id: w.id,
                         name: w.name,
                         emoji: w.emoji,
                         colorIndex: 0,
+                        walletId: w.id,
                       ),
                     );
                     return Padding(
@@ -166,7 +170,7 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                     GestureDetector(
                       onTap: () async {
                         Navigator.pop(context);
-                        final newId = await _showAddFamily(
+                        final newId = await showAddFamilySheet(
                           context,
                           isDark,
                           widget.appState,
@@ -193,7 +197,7 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Add New Family / Group',
+                              'Add New Family',
                               style: TextStyle(
                                 color: AppColors.primary,
                                 fontWeight: FontWeight.w800,
@@ -261,7 +265,7 @@ class _WalletTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
               ),
               alignment: Alignment.center,
-              child: Text(wallet.emoji, style: const TextStyle(fontSize: 22)),
+              child: EmojiOrImage(value: wallet.emoji, size: 22, borderRadius: 6),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -384,7 +388,7 @@ class _MemberAvatarStack extends StatelessWidget {
   }
 }
 
-Future<String?> _showAddFamily(
+Future<String?> showAddFamilySheet(
   BuildContext context,
   bool isDark,
   AppStateNotifier appState,
@@ -436,24 +440,25 @@ class _FamilyFormSheet extends StatefulWidget {
 class _FamilyFormSheetState extends State<_FamilyFormSheet> {
   final _nameCtrl = TextEditingController();
   String _selectedEmoji = '👨\u200d👩\u200d👧';
+  String? _groupPhotoPath;
   final List<FamilyMember> _members = [];
 
   static const _groupEmojis = [
     '👨\u200d👩\u200d👧',
     '👨\u200d👩\u200d👦',
     '👪',
-    '👥',
+    '👨\u200d👩\u200d👧\u200d👦',
+    '👩\u200d👧\u200d👦',
+    '👨\u200d👧\u200d👦',
+    '👩\u200d👧',
+    '👩\u200d👦',
+    '👨\u200d👧',
+    '👨\u200d👦',
     '🏠',
-    '💼',
-    '🎓',
+    '🏡',
     '❤️',
     '🌟',
     '🤝',
-    '⚽',
-    '🎵',
-    '🏋️',
-    '🍕',
-    '🎮',
   ];
 
   bool get _isEdit => widget.existing != null;
@@ -464,6 +469,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     if (_isEdit) {
       _nameCtrl.text = widget.existing!.name;
       _selectedEmoji = widget.existing!.emoji;
+      _groupPhotoPath = widget.existing!.photoPath;
       _members.addAll(
         widget.existing!.members.map(
           (m) => FamilyMember(
@@ -473,6 +479,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             role: m.role,
             phone: m.phone,
             relation: m.relation,
+            photoPath: m.photoPath,
           ),
         ),
       );
@@ -532,7 +539,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        _isEdit ? 'Edit Family / Group' : 'New Family / Group',
+                        _isEdit ? 'Edit Family' : 'Add Family',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
@@ -557,41 +564,116 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                   controller: sc,
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                   children: [
-                    // Emoji picker
+                    // Group icon
                     _Label('GROUP ICON', sub),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _groupEmojis
-                          .map(
-                            (e) => GestureDetector(
-                              onTap: () => setState(() => _selectedEmoji = e),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: _selectedEmoji == e
-                                      ? AppColors.primary.withOpacity(0.15)
-                                      : surfBg,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: _selectedEmoji == e
-                                        ? AppColors.primary
-                                        : Colors.transparent,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  e,
-                                  style: const TextStyle(fontSize: 22),
+                    Row(
+                      children: [
+                        _PhotoPickerButton(
+                          icon: Icons.photo_library_rounded,
+                          label: 'Gallery',
+                          isDark: isDark,
+                          surfBg: surfBg,
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final img = await picker.pickImage(
+                                source: ImageSource.gallery, imageQuality: 80);
+                            if (img != null) {
+                              setState(() {
+                                _groupPhotoPath = img.path;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _PhotoPickerButton(
+                          icon: Icons.camera_alt_rounded,
+                          label: 'Camera',
+                          isDark: isDark,
+                          surfBg: surfBg,
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final img = await picker.pickImage(
+                                source: ImageSource.camera, imageQuality: 80);
+                            if (img != null) {
+                              setState(() {
+                                _groupPhotoPath = img.path;
+                              });
+                            }
+                          },
+                        ),
+                        if (_groupPhotoPath != null) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () =>
+                                setState(() => _groupPhotoPath = null),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.expense
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                '✕ Remove',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.expense,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
-                          )
-                          .toList(),
+                          ),
+                        ],
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    if (_groupPhotoPath != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.file(
+                          File(_groupPhotoPath!),
+                          height: 72,
+                          width: 72,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _groupEmojis
+                            .map(
+                              (e) => GestureDetector(
+                                onTap: () =>
+                                    setState(() => _selectedEmoji = e),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: _selectedEmoji == e
+                                        ? AppColors.primary
+                                            .withValues(alpha: 0.15)
+                                        : surfBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _selectedEmoji == e
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    e,
+                                    style: const TextStyle(fontSize: 22),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
                     const SizedBox(height: 14),
 
                     // Name
@@ -674,7 +756,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Add New Member',
+                              'Add Family Member',
                               style: TextStyle(
                                 color: AppColors.income,
                                 fontWeight: FontWeight.w800,
@@ -733,6 +815,19 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
 
   Future<void> _save() async {
     if (_nameCtrl.text.trim().isEmpty) return;
+    if (!_isEdit) {
+      final nonMeCount = _members.where((m) => !m.id.startsWith('me_')).length;
+      if (nonMeCount < 1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please add at least one family member'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
     HapticFeedback.lightImpact();
     setState(() => _saving = true);
 
@@ -766,20 +861,23 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
       } else {
         final newId = 'f${DateTime.now().millisecondsSinceEpoch}';
         final ci = familyWallets.length % AppColors.familyGradients.length;
+        // In bypass mode, use local photo path as emoji so EmojiOrImage can display it
+        final bypassEmoji = _groupPhotoPath ?? _selectedEmoji;
         mockFamilies.add(
           FamilyModel(
             id: newId,
             name: _nameCtrl.text.trim(),
-            emoji: _selectedEmoji,
+            emoji: bypassEmoji,
             colorIndex: ci,
             members: List.from(_members),
+            walletId: newId,
           ),
         );
         familyWallets.add(
           WalletModel(
             id: newId,
             name: _nameCtrl.text.trim(),
-            emoji: _selectedEmoji,
+            emoji: bypassEmoji,
             isPersonal: false,
             cashIn: 0,
             cashOut: 0,
@@ -797,14 +895,25 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     // Supabase mode
     try {
       if (_isEdit) {
+        // Upload group photo if one was picked
+        String groupEmoji = _selectedEmoji;
+        if (_groupPhotoPath != null) {
+          try {
+            groupEmoji = await ProfileService.instance.uploadPhoto(
+              localPath: _groupPhotoPath!,
+              folder: 'families',
+              name: widget.existing!.id,
+            );
+          } catch (e) { debugPrint('[Photo upload] $e'); }
+        }
         await ProfileService.instance.updateFamily(
           familyId: widget.existing!.id,
           name: _nameCtrl.text.trim(),
-          emoji: _selectedEmoji,
+          emoji: groupEmoji,
           colorIndex: widget.existing!.colorIndex,
         );
 
-        // Sync member changes: remove deleted, add new
+        // Sync member changes: remove deleted, update changed, add new
         final originalIds = widget.existing!.members.map((m) => m.id).toSet();
         final currentIds = _members.map((m) => m.id).toSet();
 
@@ -815,14 +924,55 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           await ProfileService.instance.removeMember(removed.id);
         }
 
+        // Members updated (existed before and still exist — check for changes)
+        for (final updated in _members.where((m) => originalIds.contains(m.id))) {
+          final original = widget.existing!.members
+              .firstWhere((o) => o.id == updated.id);
+          // Upload new photo if member picked one
+          String memberEmoji = updated.emoji;
+          if (updated.photoPath != null && updated.photoPath != original.photoPath) {
+            try {
+              memberEmoji = await ProfileService.instance.uploadPhoto(
+                localPath: updated.photoPath!,
+                folder: 'members',
+                name: updated.id,
+              );
+              updated.emoji = memberEmoji;
+            } catch (e) { debugPrint('[Photo upload] $e'); }
+          }
+          if (updated.name     != original.name     ||
+              memberEmoji      != original.emoji    ||
+              updated.role     != original.role     ||
+              updated.phone    != original.phone    ||
+              updated.relation != original.relation) {
+            await ProfileService.instance.updateMember(updated.id, {
+              'name':     updated.name,
+              'emoji':    memberEmoji,
+              'role':     updated.role.name,
+              'phone':    updated.phone,
+              'relation': updated.relation,
+            });
+          }
+        }
+
         // Members added (local timestamp IDs are not real UUIDs)
         for (final added in _members.where(
           (m) => !originalIds.contains(m.id),
         )) {
+          String addedEmoji = added.emoji;
+          if (added.photoPath != null) {
+            try {
+              addedEmoji = await ProfileService.instance.uploadPhoto(
+                localPath: added.photoPath!,
+                folder: 'members',
+                name: '${DateTime.now().millisecondsSinceEpoch}_${added.name.replaceAll(' ', '_')}',
+              );
+            } catch (e) { debugPrint('[Photo upload] $e'); }
+          }
           await ProfileService.instance.addMember(
             familyId: widget.existing!.id,
             name: added.name,
-            emoji: added.emoji,
+            emoji: addedEmoji,
             role: added.role.name,
             relation: added.relation,
             phone: added.phone,
@@ -834,9 +984,20 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           Navigator.pop(context);
         }
       } else {
+        // Upload group photo if one was picked
+        String groupEmoji = _selectedEmoji;
+        if (_groupPhotoPath != null) {
+          try {
+            groupEmoji = await ProfileService.instance.uploadPhoto(
+              localPath: _groupPhotoPath!,
+              folder: 'families',
+              name: DateTime.now().millisecondsSinceEpoch.toString(),
+            );
+          } catch (e) { debugPrint('[Photo upload] $e'); }
+        }
         final result = await ProfileService.instance.createFamily(
           name: _nameCtrl.text.trim(),
-          emoji: _selectedEmoji,
+          emoji: groupEmoji,
           colorIndex: 0,
         );
 
@@ -844,10 +1005,20 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         // skip the auto-added 'Me' placeholder whose id starts with 'me_')
         final familyId = result['family_id'] as String;
         for (final m in _members.where((m) => !m.id.startsWith('me_'))) {
+          String memberEmoji = m.emoji;
+          if (m.photoPath != null) {
+            try {
+              memberEmoji = await ProfileService.instance.uploadPhoto(
+                localPath: m.photoPath!,
+                folder: 'members',
+                name: '${DateTime.now().millisecondsSinceEpoch}_${m.name.replaceAll(' ', '_')}',
+              );
+            } catch (e) { debugPrint('[Photo upload] $e'); }
+          }
           await ProfileService.instance.addMember(
             familyId: familyId,
             name: m.name,
-            emoji: m.emoji,
+            emoji: memberEmoji,
             role: m.role.name,
             relation: m.relation,
             phone: m.phone,
@@ -944,6 +1115,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     final relationCtrl = TextEditingController(text: editing?.relation ?? '');
     var role = editing?.role ?? MemberRole.member;
     var emoji = editing?.emoji ?? '👤';
+    String? memberPhotoPath = editing?.photoPath;
     const avatars = [
       '👤',
       '🧑',
@@ -993,7 +1165,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      editing == null ? 'Add Member' : 'Edit Member',
+                      editing == null ? 'Add Family Member' : 'Edit Member',
                       style: const TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
@@ -1006,38 +1178,113 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                       'AVATAR',
                       isDark ? AppColors.subDark : AppColors.subLight,
                     ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: avatars
-                          .map(
-                            (e) => GestureDetector(
-                              onTap: () => ss(() => emoji = e),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 140),
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: emoji == e
-                                      ? AppColors.primary.withOpacity(0.15)
-                                      : surfBg,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: emoji == e
-                                        ? AppColors.primary
-                                        : Colors.transparent,
-                                  ),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  e,
-                                  style: const TextStyle(fontSize: 20),
+                    Row(
+                      children: [
+                        _PhotoPickerButton(
+                          icon: Icons.photo_library_rounded,
+                          label: 'Gallery',
+                          isDark: isDark,
+                          surfBg: surfBg,
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final img = await picker.pickImage(
+                                source: ImageSource.gallery,
+                                imageQuality: 80);
+                            if (img != null) {
+                              ss(() {
+                                memberPhotoPath = img.path;
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _PhotoPickerButton(
+                          icon: Icons.camera_alt_rounded,
+                          label: 'Camera',
+                          isDark: isDark,
+                          surfBg: surfBg,
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final img = await picker.pickImage(
+                                source: ImageSource.camera,
+                                imageQuality: 80);
+                            if (img != null) {
+                              ss(() {
+                                memberPhotoPath = img.path;
+                              });
+                            }
+                          },
+                        ),
+                        if (memberPhotoPath != null) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => ss(() => memberPhotoPath = null),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.expense
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                '✕',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.expense,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
-                          )
-                          .toList(),
+                          ),
+                        ],
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    if (memberPhotoPath != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.file(
+                          File(memberPhotoPath!),
+                          height: 56,
+                          width: 56,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: avatars
+                            .map(
+                              (e) => GestureDetector(
+                                onTap: () => ss(() => emoji = e),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 140),
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: emoji == e
+                                        ? AppColors.primary
+                                            .withValues(alpha: 0.15)
+                                        : surfBg,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: emoji == e
+                                          ? AppColors.primary
+                                          : Colors.transparent,
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    e,
+                                    style: const TextStyle(fontSize: 20),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
                     const SizedBox(height: 12),
 
                     _Field(
@@ -1156,6 +1403,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                             if (editing != null) {
                               editing.name = nameCtrl.text.trim();
                               editing.emoji = emoji;
+                              editing.photoPath = memberPhotoPath;
                               editing.role = role;
                               editing.phone = phoneCtrl.text.trim().isEmpty
                                   ? null
@@ -1171,6 +1419,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                                       .toString(),
                                   name: nameCtrl.text.trim(),
                                   emoji: emoji,
+                                  photoPath: memberPhotoPath,
                                   role: role,
                                   phone: phoneCtrl.text.trim().isEmpty
                                       ? null
@@ -1192,7 +1441,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                           ),
                         ),
                         child: Text(
-                          editing == null ? 'Add Member' : 'Save',
+                          editing == null ? 'Add Family Member' : 'Save',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
@@ -1283,7 +1532,7 @@ class _MemberRow extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: Text(member.emoji, style: const TextStyle(fontSize: 18)),
+            child: EmojiOrImage(value: member.emoji, size: 18, borderRadius: 5),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1441,6 +1690,50 @@ class _Field extends StatelessWidget {
         borderSide: BorderSide.none,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    ),
+  );
+}
+
+class _PhotoPickerButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isDark;
+  final Color surfBg;
+  final VoidCallback onTap;
+  const _PhotoPickerButton({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+    required this.surfBg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppColors.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

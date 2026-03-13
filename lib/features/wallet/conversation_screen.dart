@@ -9,12 +9,14 @@ import 'conversation_flow.dart';
 class ConversationScreen extends StatelessWidget {
   final FlowType flowType;
   final String walletId;
+  final List<WalletModel> wallets;
   final void Function(TxModel tx) onComplete;
 
   const ConversationScreen({
     super.key,
     required this.flowType,
     required this.walletId,
+    required this.wallets,
     required this.onComplete,
   });
 
@@ -65,6 +67,7 @@ class ConversationScreen extends StatelessWidget {
       body: ConversationFlow(
         flowType: flowType,
         walletId: walletId,
+        wallets: wallets,
         onComplete: (tx) {
           onComplete(tx);
           // Pop back after a short delay so user sees the success card

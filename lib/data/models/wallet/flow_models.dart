@@ -206,7 +206,8 @@ extension FlowStepExt on FlowStep {
 class FlowData {
   double? amount;
   String? category;
-  String? owner; // 'Personal' | 'Family'
+  String? owner;           // display label for chat bubble
+  String? selectedWalletId; // actual wallet ID chosen in the owner step
   String? paymode; // 'Cash' | 'Online'
   String? date;
   List<String>? persons;
@@ -242,7 +243,7 @@ class FlowData {
       amount: amount ?? 0,
       category: cat,
       date: txDate,
-      walletId: walletId,
+      walletId: selectedWalletId ?? walletId,
       payMode: pm,
       note: (note?.isEmpty ?? true) ? null : note,
       person: person,

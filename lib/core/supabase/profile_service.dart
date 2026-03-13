@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/models/wallet/wallet_models.dart';
 import '../theme/app_theme.dart';
@@ -115,6 +117,7 @@ class ProfileService {
         emoji:      fm['emoji'] as String? ?? '👥',
         colorIndex: colorIdx,
         members:    members,
+        walletId:   fm['wallet_id'] as String?,
       ));
 
       if (fm['wallet_id'] != null) {
@@ -225,5 +228,35 @@ class ProfileService {
         .eq('family_id', familyId)
         .order('created_at');
     return List<Map<String, dynamic>>.from(rows);
+  }
+
+  // ── Photo Upload ──────────────────────────────────────────────────────────
+
+  /// Upload a local image file to Supabase Storage and return its public URL.
+  /// [folder] is either 'families' or 'members'.
+  /// [name] is a unique identifier (e.g. family_id or member_id).
+  Future<String> uploadPhoto({
+    required String localPath,
+    required String folder,
+    required String name,
+  }) async {
+    final file = File(localPath);
+    if (!await file.exists()) throw Exception('Photo file not found: $localPath');
+    final ext = localPath.contains('.')
+        ? localPath.split('.').last.toLowerCase().replaceAll(RegExp(r'\?.*'), '')
+        : 'jpg';
+    final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+    // Sanitise name to avoid path issues
+    final safeName = name.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+    final filename = '$folder/${_uid}_$safeName.$ext';
+    debugPrint('[Storage] uploading to wai-photos/$filename');
+    await _db.storage.from('wai-photos').upload(
+      filename,
+      file,
+      fileOptions: FileOptions(upsert: true, contentType: contentType),
+    );
+    final url = _db.storage.from('wai-photos').getPublicUrl(filename);
+    debugPrint('[Storage] uploaded → $url');
+    return url;
   }
 }

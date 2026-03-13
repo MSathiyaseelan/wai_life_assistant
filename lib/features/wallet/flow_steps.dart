@@ -330,11 +330,13 @@ class ToggleOption {
   final String label;
   final String emoji;
   final Color color;
+  final String? walletId; // set for wallet-picker options
 
   const ToggleOption({
     required this.label,
     required this.emoji,
     required this.color,
+    this.walletId,
   });
 }
 

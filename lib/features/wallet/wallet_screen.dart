@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_tile.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/wallet_card_widget.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_sheet.dart';
@@ -329,6 +330,7 @@ class _WalletScreenState extends State<WalletScreen>
         pageBuilder: (_, anim, __) => ConversationScreen(
           flowType: flowType,
           walletId: widget.activeWalletId,
+          wallets: _allWallets,
           onComplete: _onTransactionSaved,
         ),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
@@ -1001,12 +1003,67 @@ class _WalletScreenState extends State<WalletScreen>
   // ── Family tab body ────────────────────────────────────────────────────────
   Widget _buildFamilyBody(bool isDark) {
     final wallets = _allWallets.where((w) => !w.isPersonal).toList();
+    if (wallets.isEmpty) return _buildNoFamilyEmpty(isDark);
     final ids = wallets.map((w) => w.id).toSet();
     return _buildWalletTabBody(
       wallets: wallets,
       walletIds: ids,
       isDark: isDark,
       extraHeader: _buildContactStrip(ids, isDark),
+    );
+  }
+
+  Widget _buildNoFamilyEmpty(bool isDark) {
+    final appState = AppStateScope.of(context);
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 54)),
+          const SizedBox(height: 14),
+          Text(
+            'No family group yet',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Create a family group to track shared expenses',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? Colors.white24 : Colors.black26,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final newId = await showAddFamilySheet(context, isDark, appState);
+              if (newId != null && mounted) {
+                widget.onWalletChange(newId);
+                await appState.reload();
+              }
+            },
+            icon: const Icon(Icons.group_add_rounded),
+            label: const Text(
+              'Add Family',
+              style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1319,18 +1376,23 @@ class _WalletScreenState extends State<WalletScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _currentWallet.emoji,
-                  style: const TextStyle(fontSize: 16),
+                EmojiOrImage(
+                  value: _currentWallet.emoji,
+                  size: 18,
+                  borderRadius: 4,
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  _currentWallet.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    fontFamily: 'Nunito',
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 100),
+                  child: Text(
+                    _currentWallet.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (_allWallets.length > 1) ...[

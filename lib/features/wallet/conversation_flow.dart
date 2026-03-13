@@ -36,6 +36,7 @@ class _Message {
 class ConversationFlow extends StatefulWidget {
   final FlowType flowType;
   final String walletId;
+  final List<WalletModel> wallets;
 
   /// Called after user saves — receives the new TxModel
   final void Function(TxModel tx) onComplete;
@@ -44,6 +45,7 @@ class ConversationFlow extends StatefulWidget {
     super.key,
     required this.flowType,
     required this.walletId,
+    required this.wallets,
     required this.onComplete,
   });
 
@@ -204,21 +206,20 @@ class _ConversationFlowState extends State<ConversationFlow> {
 
       // ── Owner ────────────────────────────────────────────────────────────────
       case FlowStep.owner:
+        final walletOptions = widget.wallets.map((w) => ToggleOption(
+          label: w.name,
+          emoji: w.emoji.startsWith('http') || w.emoji.startsWith('/')
+              ? (w.isPersonal ? '👤' : '👨\u200D👩\u200D👧')
+              : (w.emoji.isEmpty ? (w.isPersonal ? '👤' : '👨\u200D👩\u200D👧') : w.emoji),
+          color: w.isPersonal ? AppColors.primary : AppColors.income,
+          walletId: w.id,
+        )).toList();
         return ToggleStep(
-          options: const [
-            ToggleOption(
-              label: 'Personal',
-              emoji: '👤',
-              color: AppColors.primary,
-            ),
-            ToggleOption(
-              label: 'Family',
-              emoji: '👨\u200D👩\u200D👧',
-              color: AppColors.income,
-            ),
-          ],
+          options: walletOptions,
           onSelect: (v) => _answer(step, v, () {
+            final picked = widget.wallets.firstWhere((w) => w.name == v);
             _data.owner = v;
+            _data.selectedWalletId = picked.id;
           }),
         );
 

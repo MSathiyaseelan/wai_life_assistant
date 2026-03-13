@@ -203,6 +203,7 @@ class FamilyMember {
   MemberRole role;
   String? phone;
   String? relation; // e.g. "Wife", "Son", "Colleague"
+  String? photoPath; // local file path or remote URL
 
   FamilyMember({
     required this.id,
@@ -211,6 +212,7 @@ class FamilyMember {
     required this.role,
     this.phone,
     this.relation,
+    this.photoPath,
   });
 
   FamilyMember copyWith({
@@ -219,6 +221,7 @@ class FamilyMember {
     MemberRole? role,
     String? phone,
     String? relation,
+    String? photoPath,
   }) => FamilyMember(
     id: id,
     name: name ?? this.name,
@@ -226,15 +229,18 @@ class FamilyMember {
     role: role ?? this.role,
     phone: phone ?? this.phone,
     relation: relation ?? this.relation,
+    photoPath: photoPath ?? this.photoPath,
   );
 }
 
 class FamilyModel {
-  String id;
+  String id;         // family UUID (used for RPCs)
   String name;
   String emoji;
   int colorIndex;
   List<FamilyMember> members;
+  String? photoPath; // local file path or remote URL
+  String? walletId;  // the linked wallet UUID (for switcher matching)
 
   FamilyModel({
     required this.id,
@@ -242,6 +248,8 @@ class FamilyModel {
     required this.emoji,
     required this.colorIndex,
     List<FamilyMember>? members,
+    this.photoPath,
+    this.walletId,
   }) : members = members ?? [];
 }
 
