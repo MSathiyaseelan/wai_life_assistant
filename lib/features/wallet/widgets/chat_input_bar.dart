@@ -15,6 +15,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback onMicTap; // wallet_screen drives mic state
   final VoidCallback onAddTap; // opens flow selector
   final bool isListening;
+  final String? hintText; // optional override for the placeholder text
 
   const ChatInputBar({
     super.key,
@@ -22,6 +23,7 @@ class ChatInputBar extends StatefulWidget {
     required this.onMicTap,
     required this.onAddTap,
     this.isListening = false,
+    this.hintText,
   });
 
   @override
@@ -189,7 +191,7 @@ class ChatInputBarState extends State<ChatInputBar>
                         decoration: InputDecoration.collapsed(
                           hintText: listening
                               ? 'Listening…'
-                              : 'e.g. "paid ₹500 for lunch"',
+                              : (widget.hintText ?? 'e.g. "paid ₹500 for lunch"'),
                           hintStyle: TextStyle(
                             fontSize: 13,
                             fontFamily: 'Nunito',

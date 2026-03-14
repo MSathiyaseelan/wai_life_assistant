@@ -94,17 +94,6 @@ class PantryFlowSelector extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               _PantryFlowTile(
-                emoji: '📖',
-                label: 'Recipe Box',
-                subtitle: 'Save a new\nrecipe',
-                color: AppColors.lend,
-                onTap: () {
-                  Navigator.pop(context);
-                  onRecipe();
-                },
-              ),
-              const SizedBox(width: 12),
-              _PantryFlowTile(
                 emoji: '🧺',
                 label: 'Basket',
                 subtitle: 'Add items\nto buy',
@@ -112,6 +101,17 @@ class PantryFlowSelector extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(context);
                   onBasket();
+                },
+              ),
+              const SizedBox(width: 12),
+              _PantryFlowTile(
+                emoji: '📖',
+                label: 'Recipe Box',
+                subtitle: 'Save a new\nrecipe',
+                color: AppColors.lend,
+                onTap: () {
+                  Navigator.pop(context);
+                  onRecipe();
                 },
               ),
             ],

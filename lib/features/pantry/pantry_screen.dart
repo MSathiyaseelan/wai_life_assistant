@@ -301,8 +301,8 @@ class _PantryScreenState extends State<PantryScreen>
       // Auto-switch to the matching tab
       final targetTab = switch (intent.kind) {
         PantryIntentKind.meal => 0,
-        PantryIntentKind.recipe => 1,
-        PantryIntentKind.basket => 2,
+        PantryIntentKind.basket => 1,
+        PantryIntentKind.recipe => 2,
       };
       if (_sectionTab.index != targetTab) _sectionTab.animateTo(targetTab);
 
@@ -373,11 +373,11 @@ class _PantryScreenState extends State<PantryScreen>
         );
       },
       onRecipe: () {
-        _sectionTab.animateTo(1);
+        _sectionTab.animateTo(2);
         AddRecipeSheet.show(context, onSave: _addRecipe);
       },
       onBasket: () {
-        _sectionTab.animateTo(2);
+        _sectionTab.animateTo(1);
         _showAddGrocerySheet(context);
       },
     );
@@ -518,6 +518,11 @@ class _PantryScreenState extends State<PantryScreen>
         onMicTap: _onMicTap,
         onAddTap: _openFlowSelector,
         isListening: _isListening,
+        hintText: switch (_sectionTab.index) {
+          0 => 'e.g. "had idli sambar for breakfast today"',
+          1 => 'e.g. "add 2kg tomatoes to basket"',
+          _ => 'e.g. "add chicken biryani recipe"',
+        },
       ),
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [
@@ -695,7 +700,7 @@ class _PantryScreenState extends State<PantryScreen>
             value: '$_toBuyCount',
             label: 'Items\nTo Buy',
             color: AppColors.expense,
-            onTap: () => _sectionTab.animateTo(2),
+            onTap: () => _sectionTab.animateTo(1),
           ),
         ],
       ),
@@ -883,6 +888,7 @@ class _PantryScreenState extends State<PantryScreen>
             walletId: widget.activeWalletId,
             onItemToggleBuy: _toggleBuy,
             onItemToggleStock: _toggleStock,
+            onItemAdded: _addGrocery,
             onItemDeleted: _deleteGrocery,
           ),
         ),
@@ -895,8 +901,8 @@ class _PantryScreenState extends State<PantryScreen>
     final tab = _sectionTab.index;
     final (icon, color) = switch (tab) {
       0 => (Icons.restaurant_menu_rounded, AppColors.income),
-      1 => (Icons.menu_book_rounded, AppColors.lend),
-      _ => (Icons.add_shopping_cart_rounded, AppColors.expense),
+      1 => (Icons.add_shopping_cart_rounded, AppColors.expense),
+      _ => (Icons.menu_book_rounded, AppColors.lend),
     };
     return FloatingActionButton.small(
       onPressed: () => _onFabTap(tab),
@@ -919,9 +925,9 @@ class _PantryScreenState extends State<PantryScreen>
           onSave: _addMeal,
         );
       case 1:
-        AddRecipeSheet.show(context, onSave: _addRecipe);
-      case 2:
         _showAddGrocerySheet(context);
+      case 2:
+        AddRecipeSheet.show(context, onSave: _addRecipe);
     }
   }
 
