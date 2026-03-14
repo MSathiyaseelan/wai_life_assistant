@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
@@ -39,6 +40,9 @@ class _PantryScreenState extends State<PantryScreen>
 
   // Live data (starts with mock)
   final List<MealEntry> _meals = List.from(mockMeals);
+
+  // Logged-in user display name
+  String _currentUserName = '';
 
   // Meal map clipboard
   List<MealEntry>? _clipboardMeals;
@@ -231,6 +235,16 @@ class _PantryScreenState extends State<PantryScreen>
     super.initState();
     _sectionTab = TabController(length: 3, vsync: this);
     _sectionTab.addListener(() => setState(() {}));
+    _fetchUserName();
+  }
+
+  Future<void> _fetchUserName() async {
+    try {
+      final profile = await ProfileService.instance.fetchProfile();
+      if (profile != null && mounted) {
+        setState(() => _currentUserName = (profile['name'] as String? ?? '').trim());
+      }
+    } catch (_) {}
   }
 
   @override
@@ -312,6 +326,7 @@ class _PantryScreenState extends State<PantryScreen>
           context,
           date: _selectedDate,
           walletId: widget.activeWalletId,
+          recipes: _recipes,
           onSave: _addMeal,
         ),
         onOpenRecipeForm: () =>
@@ -353,6 +368,7 @@ class _PantryScreenState extends State<PantryScreen>
           context,
           date: _selectedDate,
           walletId: widget.activeWalletId,
+          recipes: _recipes,
           onSave: _addMeal,
         );
       },
@@ -377,13 +393,15 @@ class _PantryScreenState extends State<PantryScreen>
       child: _MealDetailSheet(
         meal: m,
         isDark: isDark,
+        currentUserName: _currentUserName,
         onEdit: () {
           Navigator.pop(context);
           AddMealSheet.show(
             context,
             date: m.date,
             walletId: m.walletId,
-            onSave: _addMeal, // unused in edit mode
+            recipes: _recipes,
+            onSave: _addMeal,
             existing: m,
             onUpdate: (updated) {
               setState(() {
@@ -396,6 +414,36 @@ class _PantryScreenState extends State<PantryScreen>
         onDelete: () {
           setState(() => _meals.remove(m));
           Navigator.pop(context);
+        },
+        onReactionAdded: (reaction) {
+          setState(() {
+            final idx = _meals.indexWhere((e) => e.id == m.id);
+            if (idx >= 0) {
+              _meals[idx] = _meals[idx].copyWith(
+                reactions: [..._meals[idx].reactions, reaction],
+              );
+            }
+          });
+        },
+        onReactionUpdated: (reactionIndex, updated) {
+          setState(() {
+            final idx = _meals.indexWhere((e) => e.id == m.id);
+            if (idx >= 0) {
+              final list = List<MealReaction>.from(_meals[idx].reactions);
+              list[reactionIndex] = updated;
+              _meals[idx] = _meals[idx].copyWith(reactions: list);
+            }
+          });
+        },
+        onReactionDeleted: (reactionIndex) {
+          setState(() {
+            final idx = _meals.indexWhere((e) => e.id == m.id);
+            if (idx >= 0) {
+              final list = List<MealReaction>.from(_meals[idx].reactions)
+                ..removeAt(reactionIndex);
+              _meals[idx] = _meals[idx].copyWith(reactions: list);
+            }
+          });
         },
       ),
     );
@@ -762,6 +810,7 @@ class _PantryScreenState extends State<PantryScreen>
             context,
             date: now,
             walletId: widget.activeWalletId,
+            recipes: _recipes,
             onSave: _addMeal,
           ),
         ),
@@ -771,6 +820,7 @@ class _PantryScreenState extends State<PantryScreen>
         // ── Weekly Meal Map — driven by _selectedDate (calendar nav) ──────
         MealMapSection(
           meals: _meals,
+          recipes: _recipes,
           selectedDate: _selectedDate,
           walletId: widget.activeWalletId,
           onMealAdded: _addMeal,
@@ -833,7 +883,6 @@ class _PantryScreenState extends State<PantryScreen>
             walletId: widget.activeWalletId,
             onItemToggleBuy: _toggleBuy,
             onItemToggleStock: _toggleStock,
-            onItemAdded: _addGrocery,
             onItemDeleted: _deleteGrocery,
           ),
         ),
@@ -866,6 +915,7 @@ class _PantryScreenState extends State<PantryScreen>
           context,
           date: _selectedDate,
           walletId: widget.activeWalletId,
+          recipes: _recipes,
           onSave: _addMeal,
         );
       case 1:
@@ -1143,159 +1193,589 @@ class _PantryScreenState extends State<PantryScreen>
 // MEAL DETAIL SHEET
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MealDetailSheet extends StatelessWidget {
+class _MealDetailSheet extends StatefulWidget {
   final MealEntry meal;
   final bool isDark;
+  final String currentUserName;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final void Function(MealReaction reaction) onReactionAdded;
+  final void Function(int index, MealReaction updated) onReactionUpdated;
+  final void Function(int index) onReactionDeleted;
 
   const _MealDetailSheet({
     required this.meal,
     required this.isDark,
+    required this.currentUserName,
     required this.onEdit,
     required this.onDelete,
+    required this.onReactionAdded,
+    required this.onReactionUpdated,
+    required this.onReactionDeleted,
   });
 
+  @override
+  State<_MealDetailSheet> createState() => _MealDetailSheetState();
+}
+
+class _MealDetailSheetState extends State<_MealDetailSheet> {
   static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
+
+  static const _reactionOptions = [
+    ('👍', 'Love it'),
+    ('😋', 'Yummy'),
+    ('🤔', 'Not sure'),
+    ('❌', "Don't want it"),
+    ('🔄', 'Want alternative'),
+  ];
+
+  static const _replyOptions = [
+    ('✅', 'Accepted'),
+    ('❌', 'Rejected'),
+    ('🤔', 'Let me think'),
+    ('🔄', 'Suggest alternative'),
+    ('💬', 'Noted'),
+    ('🙏', 'Thanks for sharing'),
+  ];
+
+  // Local state — mirrors parent but allows immediate in-sheet feedback
+  late List<MealReaction> _reactions;
+  bool _showForm = false;
+  String _selectedEmoji = '👍';
+  final _nameCtrl = TextEditingController();
+  final _commentCtrl = TextEditingController();
+
+  // Edit / reply state
+  int? _editingIndex;    // null = add mode, int = editing that index
+  String? _replyingTo;   // null = not a reply, String = replying to this name
+
+  @override
+  void initState() {
+    super.initState();
+    _reactions = List.from(widget.meal.reactions);
+    if (widget.currentUserName.isNotEmpty) {
+      _nameCtrl.text = widget.currentUserName;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  void _startEdit(int index) {
+    final r = _reactions[index];
+    setState(() {
+      _editingIndex = index;
+      _replyingTo = null;
+      _nameCtrl.text = r.memberName;
+      _commentCtrl.text = r.comment ?? '';
+      _selectedEmoji = r.reactionEmoji;
+      _showForm = true;
+    });
+  }
+
+  void _startReply(int index) {
+    final r = _reactions[index];
+    setState(() {
+      _editingIndex = null;
+      _replyingTo = r.memberName;
+      _nameCtrl.text = widget.currentUserName;
+      _commentCtrl.clear();
+      _selectedEmoji = '✅'; // first reply option
+      _showForm = true;
+    });
+  }
+
+  void _cancelForm() {
+    setState(() {
+      _showForm = false;
+      _editingIndex = null;
+      _replyingTo = null;
+      _nameCtrl.text = widget.currentUserName;
+      _commentCtrl.clear();
+      _selectedEmoji = '👍'; // back to opinion default
+    });
+  }
+
+  void _deleteReaction(int index) {
+    setState(() => _reactions.removeAt(index));
+    widget.onReactionDeleted(index);
+  }
+
+  void _submitReaction() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    final comment = _commentCtrl.text.trim().isEmpty ? null : _commentCtrl.text.trim();
+
+    if (_editingIndex != null) {
+      // Edit existing
+      final updated = _reactions[_editingIndex!].copyWith(
+        memberName: name,
+        reactionEmoji: _selectedEmoji,
+        comment: comment,
+      );
+      setState(() {
+        _reactions[_editingIndex!] = updated;
+        _showForm = false;
+        _editingIndex = null;
+        _nameCtrl.text = widget.currentUserName;
+        _commentCtrl.clear();
+        _selectedEmoji = '👍';
+      });
+      widget.onReactionUpdated(_editingIndex!, updated);
+    } else {
+      // Add new (or reply)
+      final r = MealReaction(
+        memberName: name,
+        reactionEmoji: _selectedEmoji,
+        comment: comment,
+        replyTo: _replyingTo,
+      );
+      setState(() {
+        _reactions = [..._reactions, r];
+        _showForm = false;
+        _replyingTo = null;
+        _nameCtrl.text = widget.currentUserName;
+        _commentCtrl.clear();
+        _selectedEmoji = '👍';
+      });
+      widget.onReactionAdded(r);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final c = meal.mealTime.color;
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final c = widget.meal.mealTime.color;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Emoji + name
-          Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: c.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(16),
+      padding: EdgeInsets.only(
+        left: 20, right: 20, top: 8,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Meal header ──────────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(widget.meal.emoji, style: const TextStyle(fontSize: 28)),
                 ),
-                alignment: Alignment.center,
-                child: Text(meal.emoji, style: const TextStyle(fontSize: 28)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.meal.name,
+                        style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w900,
+                          fontFamily: 'Nunito', color: tc,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: c.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '${widget.meal.mealTime.emoji} ${widget.meal.mealTime.label}',
+                              style: TextStyle(
+                                fontSize: 11, fontWeight: FontWeight.w800,
+                                color: c, fontFamily: 'Nunito',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_months[widget.meal.date.month - 1]} ${widget.meal.date.day}',
+                            style: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── Edit / Delete ────────────────────────────────────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: widget.onEdit,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Edit', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: widget.onDelete,
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Delete', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.expense,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 22),
+
+            // ── Opinions section ─────────────────────────────────────────────
+            Row(
+              children: [
+                Text(
+                  '💬  Family Opinions',
+                  style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito', color: tc,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => _showForm ? _cancelForm() : setState(() => _showForm = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      _showForm ? 'Cancel' : '+ Add Opinion',
+                      style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito', color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Existing reactions
+            if (_reactions.isEmpty && !_showForm)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'No opinions yet. Be the first to share!',
+                  style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                ),
+              )
+            else
+              ...List.generate(_reactions.length, (i) {
+                final r = _reactions[i];
+                final isReply = r.replyTo != null;
+                return Container(
+                  margin: EdgeInsets.only(bottom: 8, left: isReply ? 16 : 0),
+                  decoration: BoxDecoration(
+                    color: surfBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: isReply
+                        ? Border(left: BorderSide(color: AppColors.primary.withValues(alpha: 0.4), width: 3))
+                        : null,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (isReply)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                          child: Text(
+                            '↩ replying to ${r.replyTo}',
+                            style: TextStyle(fontSize: 10, fontFamily: 'Nunito',
+                                color: AppColors.primary, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(r.reactionEmoji, style: const TextStyle(fontSize: 20)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r.memberName,
+                                    style: TextStyle(
+                                      fontSize: 12, fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito', color: tc,
+                                    ),
+                                  ),
+                                  Text(
+                                    _reactionOptions.firstWhere(
+                                      (o) => o.$1 == r.reactionEmoji,
+                                      orElse: () => (r.reactionEmoji, r.reactionEmoji),
+                                    ).$2,
+                                    style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+                                  ),
+                                  if (r.comment != null && r.comment!.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 3),
+                                      child: Text(
+                                        '"${r.comment}"',
+                                        style: TextStyle(
+                                          fontSize: 11, fontFamily: 'Nunito',
+                                          fontStyle: FontStyle.italic, color: sub,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            // Action buttons
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _ReactionActionBtn(
+                                  icon: Icons.reply_rounded,
+                                  color: AppColors.primary,
+                                  onTap: () => _startReply(i),
+                                  tooltip: 'Reply',
+                                ),
+                                _ReactionActionBtn(
+                                  icon: Icons.edit_rounded,
+                                  color: sub,
+                                  onTap: () => _startEdit(i),
+                                  tooltip: 'Edit',
+                                ),
+                                _ReactionActionBtn(
+                                  icon: Icons.delete_outline_rounded,
+                                  color: Colors.redAccent,
+                                  onTap: () => _deleteReaction(i),
+                                  tooltip: 'Delete',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+
+            // Add / Edit / Reply form
+            if (_showForm) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: surfBg,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      meal.name,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Nunito',
-                        color: tc,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${meal.mealTime.emoji} ${meal.mealTime.label}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: c,
-                              fontFamily: 'Nunito',
+                    // Context label for reply / edit
+                    if (_replyingTo != null) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.reply_rounded, size: 13, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Replying to $_replyingTo',
+                            style: const TextStyle(
+                              fontSize: 11, fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w700, color: AppColors.primary,
                             ),
                           ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ] else if (_editingIndex != null) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.edit_rounded, size: 13, color: sub),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Editing opinion',
+                            style: TextStyle(
+                              fontSize: 11, fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w700, color: sub,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    // Name field — read-only when logged-in user name is known
+                    TextField(
+                      controller: _nameCtrl,
+                      readOnly: widget.currentUserName.isNotEmpty && _editingIndex == null,
+                      style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
+                      decoration: InputDecoration(
+                        hintText: 'Your name (e.g. Mom, Dad)',
+                        hintStyle: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                        prefixIcon: widget.currentUserName.isNotEmpty && _editingIndex == null
+                            ? Icon(Icons.person_rounded, size: 16, color: AppColors.primary)
+                            : null,
+                        filled: true,
+                        fillColor: widget.currentUserName.isNotEmpty && _editingIndex == null
+                            ? AppColors.primary.withValues(alpha: 0.06)
+                            : (widget.isDark ? AppColors.cardDark : Colors.white),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${_months[meal.date.month - 1]} ${meal.date.day}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: sub,
-                            fontFamily: 'Nunito',
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Reaction / reply options row
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: (_replyingTo != null ? _replyOptions : _reactionOptions).map((opt) {
+                        final selected = _selectedEmoji == opt.$1;
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedEmoji = opt.$1),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AppColors.primary.withValues(alpha: 0.12)
+                                  : (widget.isDark ? AppColors.cardDark : Colors.white),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: selected
+                                    ? AppColors.primary
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(opt.$1, style: const TextStyle(fontSize: 16)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  opt.$2,
+                                  style: TextStyle(
+                                    fontSize: 11, fontFamily: 'Nunito',
+                                    fontWeight: FontWeight.w700,
+                                    color: selected ? AppColors.primary : sub,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                    // Comment field
+                    TextField(
+                      controller: _commentCtrl,
+                      style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment or suggestion (optional)',
+                        hintStyle: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                        filled: true,
+                        fillColor: widget.isDark ? AppColors.cardDark : Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _submitReaction,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          _editingIndex != null ? 'Update Opinion' : _replyingTo != null ? 'Post Reply' : 'Share Opinion',
+                          style: const TextStyle(
+                            fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-          // Actions
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text(
-                    'Edit',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text(
-                    'Delete',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.expense,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+// ─────────────────────────────────────────────────────────────────────────────
+// REACTION ACTION BUTTON — small icon button used in opinion cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ReactionActionBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final String tooltip;
+  const _ReactionActionBtn({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Icon(icon, size: 16, color: color),
+        ),
       ),
     );
   }

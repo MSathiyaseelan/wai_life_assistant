@@ -165,6 +165,34 @@ extension CuisineTypeExt on CuisineType {
   }
 }
 
+// ── Meal reaction ─────────────────────────────────────────────────────────────
+
+class MealReaction {
+  final String memberName;
+  final String reactionEmoji; // e.g. 👍 😋 🤔 ❌ 🔄
+  final String? comment;
+  final String? replyTo; // name of the person being replied to
+
+  const MealReaction({
+    required this.memberName,
+    required this.reactionEmoji,
+    this.comment,
+    this.replyTo,
+  });
+
+  MealReaction copyWith({
+    String? memberName,
+    String? reactionEmoji,
+    String? comment,
+    String? replyTo,
+  }) => MealReaction(
+    memberName: memberName ?? this.memberName,
+    reactionEmoji: reactionEmoji ?? this.reactionEmoji,
+    comment: comment ?? this.comment,
+    replyTo: replyTo ?? this.replyTo,
+  );
+}
+
 // ── Models ────────────────────────────────────────────────────────────────────
 
 class MealEntry {
@@ -176,6 +204,9 @@ class MealEntry {
   final String? note;
   final String walletId; // 'personal' or family id
   final String emoji;
+  // Nullable backing field — getter ensures non-null even on hot-reload
+  final List<MealReaction>? _reactions;
+  List<MealReaction> get reactions => _reactions ?? const [];
 
   const MealEntry({
     required this.id,
@@ -186,7 +217,8 @@ class MealEntry {
     this.recipeId,
     this.note,
     this.emoji = '🍽️',
-  });
+    List<MealReaction>? reactions,
+  }) : _reactions = reactions;
 
   MealEntry copyWith({
     String? name,
@@ -194,15 +226,18 @@ class MealEntry {
     DateTime? date,
     String? note,
     String? emoji,
+    String? recipeId,
+    List<MealReaction>? reactions,
   }) => MealEntry(
     id: id,
     walletId: walletId,
-    recipeId: recipeId,
+    recipeId: recipeId ?? this.recipeId,
     name: name ?? this.name,
     mealTime: mealTime ?? this.mealTime,
     date: date ?? this.date,
     note: note ?? this.note,
     emoji: emoji ?? this.emoji,
+    reactions: reactions ?? this.reactions,
   );
 }
 

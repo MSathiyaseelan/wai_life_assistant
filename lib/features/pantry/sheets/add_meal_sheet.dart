@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 class AddMealSheet extends StatefulWidget {
   final DateTime date;
   final String walletId;
+  final List<RecipeModel> recipes;
   final void Function(MealEntry) onSave;
   // Edit mode — provide existing meal + onUpdate
   final MealEntry? existing;
@@ -14,6 +15,7 @@ class AddMealSheet extends StatefulWidget {
     super.key,
     required this.date,
     required this.walletId,
+    required this.recipes,
     required this.onSave,
     this.existing,
     this.onUpdate,
@@ -23,6 +25,7 @@ class AddMealSheet extends StatefulWidget {
     BuildContext context, {
     required DateTime date,
     required String walletId,
+    required List<RecipeModel> recipes,
     required void Function(MealEntry) onSave,
     MealEntry? existing,
     void Function(MealEntry)? onUpdate,
@@ -34,6 +37,7 @@ class AddMealSheet extends StatefulWidget {
       builder: (_) => AddMealSheet(
         date: date,
         walletId: walletId,
+        recipes: recipes,
         onSave: onSave,
         existing: existing,
         onUpdate: onUpdate,
@@ -49,8 +53,32 @@ class _AddMealSheetState extends State<AddMealSheet> {
   final _nameCtrl = TextEditingController();
   MealTime _mealTime = MealTime.lunch;
   String _emoji = '🍽️';
+  String? _selectedRecipeId;
 
   bool get _isEdit => widget.existing != null;
+
+  // Recipes sorted: matching meal time first, then others
+  List<RecipeModel> get _sortedRecipes {
+    final matched = widget.recipes.where((r) => r.suitableFor.contains(_mealTime)).toList();
+    final rest = widget.recipes.where((r) => !r.suitableFor.contains(_mealTime)).toList();
+    return [...matched, ...rest];
+  }
+
+  void _pickRecipe(RecipeModel r) {
+    setState(() {
+      _selectedRecipeId = r.id;
+      _nameCtrl.text = r.name;
+      _emoji = r.emoji;
+    });
+  }
+
+  void _clearRecipe() {
+    setState(() {
+      _selectedRecipeId = null;
+      _nameCtrl.clear();
+      _emoji = '🍽️';
+    });
+  }
 
   final _emojis = [
     '🍽️',
@@ -96,6 +124,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
       _nameCtrl.text = widget.existing!.name;
       _mealTime = widget.existing!.mealTime;
       _emoji = widget.existing!.emoji;
+      _selectedRecipeId = widget.existing!.recipeId;
     }
   }
 
@@ -120,12 +149,12 @@ class _AddMealSheetState extends State<AddMealSheet> {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
     if (_isEdit) {
-      // Edit mode — preserve id, walletId, date, recipeId
       widget.onUpdate!(
         widget.existing!.copyWith(
           name: name,
           mealTime: _mealTime,
           emoji: _emoji,
+          recipeId: _selectedRecipeId,
         ),
       );
     } else {
@@ -137,6 +166,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
           date: widget.date,
           walletId: widget.walletId,
           emoji: _emoji,
+          recipeId: _selectedRecipeId,
         ),
       );
     }
@@ -203,7 +233,104 @@ class _AddMealSheetState extends State<AddMealSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
+
+            // ── Recipe picker ──────────────────────────────────────────────
+            if (widget.recipes.isNotEmpty) ...[
+              Row(
+                children: [
+                  Text(
+                    '📖  From Recipe Box',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                    ),
+                  ),
+                  if (_selectedRecipeId != null) ...[
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: _clearRecipe,
+                      child: const Text(
+                        '✕ Clear',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 56,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _sortedRecipes.length,
+                  itemBuilder: (_, i) {
+                    final r = _sortedRecipes[i];
+                    final sel = r.id == _selectedRecipeId;
+                    final matches = r.suitableFor.contains(_mealTime);
+                    return GestureDetector(
+                      onTap: () => _pickRecipe(r),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppColors.primary.withValues(alpha: 0.15)
+                              : surfBg,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: sel
+                                ? AppColors.primary
+                                : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(r.emoji, style: const TextStyle(fontSize: 20)),
+                            const SizedBox(width: 6),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  r.name,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: sel ? AppColors.primary : tc,
+                                  ),
+                                ),
+                                if (!matches)
+                                  Text(
+                                    r.suitableFor.map((m) => m.label).join(', '),
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontFamily: 'Nunito',
+                                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
 
             // Emoji picker
             SizedBox(

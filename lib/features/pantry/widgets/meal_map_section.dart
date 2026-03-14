@@ -6,6 +6,7 @@ import '../sheets/add_meal_sheet.dart';
 
 class MealMapSection extends StatelessWidget {
   final List<MealEntry> meals;
+  final List<RecipeModel> recipes;
   final DateTime selectedDate;
   final String walletId;
   final void Function(MealEntry meal) onMealAdded;
@@ -25,6 +26,7 @@ class MealMapSection extends StatelessWidget {
   const MealMapSection({
     super.key,
     required this.meals,
+    required this.recipes,
     required this.selectedDate,
     required this.walletId,
     required this.onMealAdded,
@@ -222,6 +224,7 @@ class MealMapSection extends StatelessWidget {
                     context,
                     date: dt,
                     walletId: walletId,
+                    recipes: recipes,
                     onSave: onMealAdded,
                   );
                 },
@@ -530,7 +533,7 @@ class _MealChip extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              meal.emoji + ' ' + meal.name,
+              '${meal.emoji} ${meal.name}',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
@@ -540,9 +543,40 @@ class _MealChip extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            if (meal.reactions.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              _ReactionBadgeRow(reactions: meal.reactions),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ReactionBadgeRow extends StatelessWidget {
+  final List<MealReaction> reactions;
+  const _ReactionBadgeRow({required this.reactions});
+
+  @override
+  Widget build(BuildContext context) {
+    // Count each emoji
+    final counts = <String, int>{};
+    for (final r in reactions) {
+      counts[r.reactionEmoji] = (counts[r.reactionEmoji] ?? 0) + 1;
+    }
+    return Row(
+      children: [
+        const Icon(Icons.chat_bubble_outline_rounded, size: 9, color: AppColors.primary),
+        const SizedBox(width: 3),
+        Expanded(
+          child: Text(
+            counts.entries.map((e) => '${e.key}${e.value > 1 ? e.value : ''}').join(' '),
+            style: const TextStyle(fontSize: 9, color: AppColors.primary),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

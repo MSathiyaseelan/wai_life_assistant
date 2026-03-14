@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 
@@ -8,7 +7,6 @@ class ShoppingBasketSection extends StatefulWidget {
   final String walletId;
   final void Function(GroceryItem) onItemToggleBuy;
   final void Function(GroceryItem) onItemToggleStock;
-  final void Function(GroceryItem) onItemAdded;
   final void Function(GroceryItem) onItemDeleted;
 
   const ShoppingBasketSection({
@@ -17,7 +15,6 @@ class ShoppingBasketSection extends StatefulWidget {
     required this.walletId,
     required this.onItemToggleBuy,
     required this.onItemToggleStock,
-    required this.onItemAdded,
     required this.onItemDeleted,
   });
 
@@ -224,12 +221,6 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
           ),
         ),
 
-        // Chat-style add bar
-        _GroceryChatBar(
-          isDark: isDark,
-          walletId: widget.walletId,
-          onAdded: widget.onItemAdded,
-        ),
         const SizedBox(height: 8),
       ],
     );
@@ -464,167 +455,6 @@ class _BuyTrail extends StatelessWidget {
       ),
     ),
   );
-}
-
-// ── Chat-style grocery add bar ────────────────────────────────────────────────
-
-class _GroceryChatBar extends StatefulWidget {
-  final bool isDark;
-  final String walletId;
-  final void Function(GroceryItem) onAdded;
-  const _GroceryChatBar({
-    required this.isDark,
-    required this.walletId,
-    required this.onAdded,
-  });
-  @override
-  State<_GroceryChatBar> createState() => _GroceryChatBarState();
-}
-
-class _GroceryChatBarState extends State<_GroceryChatBar> {
-  final _ctrl = TextEditingController();
-  final _focus = FocusNode();
-  bool _hasText = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl.addListener(() => setState(() => _hasText = _ctrl.text.isNotEmpty));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    _focus.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final text = _ctrl.text.trim();
-    if (text.isEmpty) return;
-
-    // Simple parse: "2 kg rice" → qty=2, unit=kg, name=rice
-    final parts = text.split(' ');
-    double qty = 1;
-    String unit = 'pcs';
-    String name = text;
-
-    if (parts.length >= 3) {
-      qty = double.tryParse(parts[0]) ?? 1;
-      unit = parts[1];
-      name = parts.sublist(2).join(' ');
-    } else if (parts.length == 2) {
-      final maybeQty = double.tryParse(parts[0]);
-      if (maybeQty != null) {
-        qty = maybeQty;
-        name = parts[1];
-      }
-    }
-
-    widget.onAdded(
-      GroceryItem(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: _capitalize(name),
-        category: GroceryCategory.other,
-        quantity: qty,
-        unit: unit,
-        walletId: widget.walletId,
-        inStock: false,
-        toBuy: true,
-      ),
-    );
-    _ctrl.clear();
-    _focus.unfocus();
-    HapticFeedback.lightImpact();
-  }
-
-  String _capitalize(String s) =>
-      s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
-    final inputBg = widget.isDark ? AppColors.surfDark : AppColors.bgLight;
-    final hint = widget.isDark ? AppColors.subDark : AppColors.subLight;
-    final text = widget.isDark ? AppColors.textDark : AppColors.textLight;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Input
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: inputBg,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: _hasText
-                      ? AppColors.income.withOpacity(0.4)
-                      : Colors.transparent,
-                  width: 1.5,
-                ),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: TextField(
-                controller: _ctrl,
-                focusNode: _focus,
-                maxLines: null,
-                minLines: 1,
-                textCapitalization: TextCapitalization.words,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: text,
-                  fontFamily: 'Nunito',
-                ),
-                decoration: InputDecoration.collapsed(
-                  hintText: 'Add item... e.g. "2 kg tomatoes"',
-                  hintStyle: TextStyle(
-                    fontSize: 12,
-                    color: hint,
-                    fontFamily: 'Nunito',
-                  ),
-                ),
-                onSubmitted: (_) => _submit(),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Send button
-          GestureDetector(
-            onTap: _hasText ? _submit : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: _hasText ? AppColors.income : inputBg,
-                shape: BoxShape.circle,
-                boxShadow: _hasText
-                    ? [
-                        BoxShadow(
-                          color: AppColors.income.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                _hasText ? Icons.add_rounded : Icons.add_rounded,
-                color: _hasText
-                    ? Colors.white
-                    : (widget.isDark ? AppColors.subDark : AppColors.subLight),
-                size: 22,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ── Category filter chip ──────────────────────────────────────────────────────
