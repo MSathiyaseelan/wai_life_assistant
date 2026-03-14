@@ -31,7 +31,7 @@ class _PantryScreenState extends State<PantryScreen>
     with SingleTickerProviderStateMixin {
   // ── State ──────────────────────────────────────────────────────────────────
   DateTime _selectedDate = DateTime.now();
-  late TabController _sectionTab; // 0=MealMap, 1=RecipeBox, 2=Basket
+  late TabController _sectionTab; // 0=MealMap, 1=Basket, 2=RecipeBox
 
   // Chat bar — mic + NLP
   bool _isListening = false;
@@ -39,6 +39,12 @@ class _PantryScreenState extends State<PantryScreen>
 
   // Live data (starts with mock)
   final List<MealEntry> _meals = List.from(mockMeals);
+
+  // Meal map clipboard
+  List<MealEntry>? _clipboardMeals;
+  String _clipboardLabel = '';
+  bool _clipboardIsWeek = false;
+  DateTime? _clipboardSourceWeekStart;
   final List<RecipeModel> _recipes = List.from(mockRecipes);
   final List<GroceryItem> _groceries = List.from(mockGroceries);
 
@@ -86,6 +92,138 @@ class _PantryScreenState extends State<PantryScreen>
   DateTime _mondayOf(DateTime d) {
     final diff = d.weekday - 1;
     return DateTime(d.year, d.month, d.day - diff);
+  }
+
+  // ── Meal map clipboard ─────────────────────────────────────────────────────
+
+  void _copyMeal(MealEntry m) {
+    setState(() {
+      _clipboardMeals = [m];
+      _clipboardLabel = '${m.emoji} ${m.name}';
+      _clipboardIsWeek = false;
+      _clipboardSourceWeekStart = null;
+    });
+    _showCopiedSnack('Copied: ${m.name}');
+  }
+
+  void _copyDay(DateTime day) {
+    final meals = _meals.where((m) =>
+        m.walletId == widget.activeWalletId &&
+        m.date.year == day.year &&
+        m.date.month == day.month &&
+        m.date.day == day.day).toList();
+    if (meals.isEmpty) { _showCopiedSnack('No meals on this day to copy'); return; }
+    setState(() {
+      _clipboardMeals = meals;
+      _clipboardLabel = '${_shortDay(day)} (${meals.length} meal${meals.length == 1 ? '' : 's'})';
+      _clipboardIsWeek = false;
+      _clipboardSourceWeekStart = null;
+    });
+    _showCopiedSnack('Copied ${meals.length} meal${meals.length == 1 ? '' : 's'} from ${_shortDay(day)}');
+  }
+
+  void _copyWeek(DateTime weekStart) {
+    // Normalise to midnight so isBefore/isAfter comparisons are day-accurate
+    final mon = DateTime(weekStart.year, weekStart.month, weekStart.day);
+    final sun = mon.add(const Duration(days: 7)); // exclusive upper bound
+    final meals = _meals.where((m) =>
+        m.walletId == widget.activeWalletId &&
+        !m.date.isBefore(mon) &&
+        m.date.isBefore(sun)).toList();
+    if (meals.isEmpty) { _showCopiedSnack('No meals this week to copy'); return; }
+    setState(() {
+      _clipboardMeals = meals;
+      _clipboardLabel = 'Week (${meals.length} meal${meals.length == 1 ? '' : 's'})';
+      _clipboardIsWeek = true;
+      _clipboardSourceWeekStart = mon; // always store as midnight
+    });
+    _showCopiedSnack('Copied ${meals.length} meal${meals.length == 1 ? '' : 's'} from this week');
+  }
+
+  void _pasteToDay(DateTime targetDay) {
+    final clips = _clipboardMeals;
+    if (clips == null || clips.isEmpty) return;
+    final existing = _meals.where((m) =>
+        m.walletId == widget.activeWalletId &&
+        m.date.year == targetDay.year &&
+        m.date.month == targetDay.month &&
+        m.date.day == targetDay.day).toList();
+    final toAdd = <MealEntry>[];
+    for (final m in clips) {
+      if (existing.any((e) => e.name == m.name && e.mealTime == m.mealTime)) continue;
+      toAdd.add(MealEntry(
+        id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
+        name: m.name,
+        mealTime: m.mealTime,
+        date: DateTime(targetDay.year, targetDay.month, targetDay.day),
+        walletId: widget.activeWalletId,
+        emoji: m.emoji,
+        note: m.note,
+        recipeId: m.recipeId,
+      ));
+    }
+    if (toAdd.isEmpty) { _showCopiedSnack('Already exists on this day'); return; }
+    setState(() => _meals.addAll(toAdd));
+    _showCopiedSnack('Pasted ${toAdd.length} meal${toAdd.length == 1 ? '' : 's'} to ${_shortDay(targetDay)}');
+  }
+
+  void _pasteToWeek(DateTime targetWeekStart) {
+    final clips = _clipboardMeals;
+    final srcStart = _clipboardSourceWeekStart;
+    if (clips == null || clips.isEmpty || srcStart == null) return;
+    // Normalise both anchors to midnight for accurate day arithmetic
+    final srcMon = DateTime(srcStart.year, srcStart.month, srcStart.day);
+    final targetMon = DateTime(targetWeekStart.year, targetWeekStart.month, targetWeekStart.day);
+    final toAdd = <MealEntry>[];
+    for (final m in clips) {
+      final mealDay = DateTime(m.date.year, m.date.month, m.date.day);
+      final offset = mealDay.difference(srcMon).inDays.clamp(0, 6);
+      final td = targetMon.add(Duration(days: offset));
+      if (_meals.any((e) =>
+          e.walletId == widget.activeWalletId &&
+          e.name == m.name &&
+          e.mealTime == m.mealTime &&
+          e.date.year == td.year &&
+          e.date.month == td.month &&
+          e.date.day == td.day)) continue;
+      toAdd.add(MealEntry(
+        id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
+        name: m.name,
+        mealTime: m.mealTime,
+        date: DateTime(td.year, td.month, td.day),
+        walletId: widget.activeWalletId,
+        emoji: m.emoji,
+        note: m.note,
+        recipeId: m.recipeId,
+      ));
+    }
+    if (toAdd.isEmpty) { _showCopiedSnack('All meals already exist in this week'); return; }
+    setState(() => _meals.addAll(toAdd));
+    _showCopiedSnack('Pasted ${toAdd.length} meal${toAdd.length == 1 ? '' : 's'} into this week');
+  }
+
+  String _shortDay(DateTime d) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${days[d.weekday - 1]} ${d.day}';
+  }
+
+  void _clearClipboard() {
+    setState(() {
+      _clipboardMeals = null;
+      _clipboardLabel = '';
+      _clipboardIsWeek = false;
+      _clipboardSourceWeekStart = null;
+    });
+  }
+
+  void _showCopiedSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+      backgroundColor: AppColors.primary,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   @override
@@ -351,8 +489,8 @@ class _PantryScreenState extends State<PantryScreen>
           SliverPersistentHeader(
             pinned: true,
             delegate: _PinnedDelegate(
-              minH: 114,
-              maxH: 114,
+              minH: 52,
+              maxH: 52,
               child: Container(
                 color: cardBg,
                 child: Column(
@@ -395,10 +533,10 @@ class _PantryScreenState extends State<PantryScreen>
           children: [
             // ── TAB 0: Meal Map ───────────────────────────────────────────
             _buildMealMapTab(isDark),
-            // ── TAB 1: Recipe Box ─────────────────────────────────────────
-            _buildRecipeBoxTab(isDark),
-            // ── TAB 2: Shopping Basket ────────────────────────────────────
+            // ── TAB 1: Basket ─────────────────────────────────────────────
             _buildBasketTab(isDark),
+            // ── TAB 2: Recipe Box ─────────────────────────────────────────
+            _buildRecipeBoxTab(isDark),
           ],
         ),
       ),
@@ -520,8 +658,8 @@ class _PantryScreenState extends State<PantryScreen>
   Widget _buildSectionTabBar(bool isDark, Color surfBg) {
     const labels = [
       ('🗺️', 'Meal Map'),
-      ('📖', 'Recipe Box'),
       ('🧺', 'Basket'),
+      ('📖', 'Recipe Box'),
     ];
     return Container(
       color: isDark ? AppColors.bgDark : AppColors.bgLight,
@@ -637,6 +775,15 @@ class _PantryScreenState extends State<PantryScreen>
           walletId: widget.activeWalletId,
           onMealAdded: _addMeal,
           onMealTapped: _showMealDetail,
+          clipboardMeals: _clipboardMeals,
+          clipboardLabel: _clipboardLabel,
+          clipboardIsWeek: _clipboardIsWeek,
+          onCopyMeal: _copyMeal,
+          onCopyDay: _copyDay,
+          onPasteToDay: _pasteToDay,
+          onCopyWeek: _copyWeek,
+          onPasteToWeek: _pasteToWeek,
+          onClearClipboard: _clearClipboard,
         ),
 
         const SizedBox(height: 24),

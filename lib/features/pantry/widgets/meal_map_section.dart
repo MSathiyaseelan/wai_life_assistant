@@ -11,6 +11,17 @@ class MealMapSection extends StatelessWidget {
   final void Function(MealEntry meal) onMealAdded;
   final void Function(MealEntry meal) onMealTapped;
 
+  // Copy / paste
+  final List<MealEntry>? clipboardMeals;
+  final String clipboardLabel;
+  final bool clipboardIsWeek;
+  final void Function(MealEntry meal)? onCopyMeal;
+  final void Function(DateTime day)? onCopyDay;
+  final void Function(DateTime day)? onPasteToDay;
+  final void Function(DateTime weekStart)? onCopyWeek;
+  final void Function(DateTime weekStart)? onPasteToWeek;
+  final VoidCallback? onClearClipboard;
+
   const MealMapSection({
     super.key,
     required this.meals,
@@ -18,6 +29,15 @@ class MealMapSection extends StatelessWidget {
     required this.walletId,
     required this.onMealAdded,
     required this.onMealTapped,
+    this.clipboardMeals,
+    this.clipboardLabel = '',
+    this.clipboardIsWeek = false,
+    this.onCopyMeal,
+    this.onCopyDay,
+    this.onPasteToDay,
+    this.onCopyWeek,
+    this.onPasteToWeek,
+    this.onClearClipboard,
   });
 
   // Get 7-day window starting from Monday of selectedDate's week
@@ -47,17 +67,21 @@ class MealMapSection extends StatelessWidget {
 
   static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+  bool get _hasClipboard =>
+      clipboardMeals != null && clipboardMeals!.isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final days = _weekDays;
+    final weekStart = days.first;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section header
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
           child: Row(
             children: [
               const Text('🗺️', style: TextStyle(fontSize: 18)),
@@ -71,10 +95,101 @@ class MealMapSection extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              _SectionBadge(label: 'This Week', color: const Color(0xFF6C63FF)),
+              // Copy week
+              _IconAction(
+                icon: Icons.copy_rounded,
+                tooltip: 'Copy week',
+                onTap: () => onCopyWeek?.call(weekStart),
+              ),
+              // Paste week (only when clipboard has week data)
+              if (_hasClipboard && clipboardIsWeek) ...[
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () => onPasteToWeek?.call(weekStart),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.content_paste_rounded,
+                          size: 12,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'Paste Week',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
+
+        // Clipboard banner
+        if (_hasClipboard)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.copy_rounded,
+                    size: 13,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Copied: $clipboardLabel  •  Long-press a day to paste',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: onClearClipboard,
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          const SizedBox(height: 8),
 
         // Horizontal scroll of day columns
         SizedBox(
@@ -100,6 +215,8 @@ class MealMapSection extends StatelessWidget {
                 isSelected: isSel,
                 walletId: walletId,
                 isDark: isDark,
+                hasClipboard: _hasClipboard,
+                clipboardLabel: clipboardLabel,
                 onAddMeal: (dt) async {
                   await AddMealSheet.show(
                     context,
@@ -109,6 +226,9 @@ class MealMapSection extends StatelessWidget {
                   );
                 },
                 onMealTapped: onMealTapped,
+                onCopyDay: onCopyDay,
+                onPasteToDay: onPasteToDay,
+                onCopyMeal: onCopyMeal,
               );
             },
           ),
@@ -126,8 +246,13 @@ class _DayColumn extends StatelessWidget {
   final List<MealEntry> meals;
   final bool isToday, isSelected, isDark;
   final String walletId;
+  final bool hasClipboard;
+  final String clipboardLabel;
   final void Function(DateTime) onAddMeal;
   final void Function(MealEntry) onMealTapped;
+  final void Function(DateTime)? onCopyDay;
+  final void Function(DateTime)? onPasteToDay;
+  final void Function(MealEntry)? onCopyMeal;
 
   const _DayColumn({
     required this.day,
@@ -139,6 +264,11 @@ class _DayColumn extends StatelessWidget {
     required this.walletId,
     required this.onAddMeal,
     required this.onMealTapped,
+    this.hasClipboard = false,
+    this.clipboardLabel = '',
+    this.onCopyDay,
+    this.onPasteToDay,
+    this.onCopyMeal,
   });
 
   @override
@@ -167,47 +297,53 @@ class _DayColumn extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Day header
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? AppColors.primary
-                  : isToday
-                  ? AppColors.income.withOpacity(0.12)
-                  : (isDark ? AppColors.surfDark : AppColors.bgLight),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(18),
+          // Day header — long-press to copy/paste
+          GestureDetector(
+            onLongPress: () {
+              HapticFeedback.mediumImpact();
+              _showDayCopyMenu(context);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary
+                    : isToday
+                    ? AppColors.income.withOpacity(0.12)
+                    : (isDark ? AppColors.surfDark : AppColors.bgLight),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(18),
+                ),
               ),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  dayName,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito',
-                    color: isSelected
-                        ? Colors.white70
-                        : (isDark ? AppColors.subDark : AppColors.subLight),
+              child: Column(
+                children: [
+                  Text(
+                    dayName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Nunito',
+                      color: isSelected
+                          ? Colors.white70
+                          : (isDark ? AppColors.subDark : AppColors.subLight),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${day.day}',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Nunito',
-                    color: isSelected
-                        ? Colors.white
-                        : isToday
-                        ? AppColors.income
-                        : (isDark ? AppColors.textDark : AppColors.textLight),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                      color: isSelected
+                          ? Colors.white
+                          : isToday
+                          ? AppColors.income
+                          : (isDark ? AppColors.textDark : AppColors.textLight),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -222,6 +358,9 @@ class _DayColumn extends StatelessWidget {
                       meal: m,
                       isDark: isDark,
                       onTap: () => onMealTapped(m),
+                      onLongPress: onCopyMeal != null
+                          ? () => onCopyMeal!(m)
+                          : null,
                     ),
                   ),
 
@@ -273,6 +412,72 @@ class _DayColumn extends StatelessWidget {
       ),
     );
   }
+
+  void _showDayCopyMenu(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final label = '$dayName ${day.day}';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito', color: tc,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _SheetOption(
+              icon: Icons.copy_rounded,
+              color: AppColors.primary,
+              title: 'Copy "$label" meals',
+              subtitle: meals.isEmpty ? 'No meals to copy' : '${meals.length} meal${meals.length == 1 ? '' : 's'}',
+              enabled: meals.isNotEmpty,
+              onTap: () {
+                Navigator.pop(context);
+                onCopyDay?.call(day);
+              },
+            ),
+            if (hasClipboard) ...[
+              const SizedBox(height: 10),
+              _SheetOption(
+                icon: Icons.content_paste_rounded,
+                color: AppColors.income,
+                title: 'Paste here',
+                subtitle: clipboardLabel,
+                onTap: () {
+                  Navigator.pop(context);
+                  onPasteToDay?.call(day);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ── Meal chip inside day column ────────────────────────────────────────────────
@@ -281,11 +486,13 @@ class _MealChip extends StatelessWidget {
   final MealEntry meal;
   final bool isDark;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _MealChip({
     required this.meal,
     required this.isDark,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -293,6 +500,7 @@ class _MealChip extends StatelessWidget {
     final c = meal.mealTime.color;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 4),
@@ -584,25 +792,103 @@ class _EmptyMealState extends StatelessWidget {
   }
 }
 
-class _SectionBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _SectionBadge({required this.label, required this.color});
+// ── Small icon action button ───────────────────────────────────────────────────
+
+class _IconAction extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  const _IconAction({required this.icon, required this.tooltip, this.onTap});
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        color: color,
-        fontFamily: 'Nunito',
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.surfDark
+                : AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 15, color: AppColors.primary),
+        ),
       ),
-    ),
-  );
+    );
+  }
+}
+
+// ── Sheet option row ───────────────────────────────────────────────────────────
+
+class _SheetOption extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _SheetOption({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.4,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 18, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito', color: tc,
+                    )),
+                    if (subtitle.isNotEmpty)
+                      Text(subtitle, style: TextStyle(
+                        fontSize: 11, fontFamily: 'Nunito', color: sub,
+                      )),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

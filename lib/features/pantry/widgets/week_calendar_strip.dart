@@ -20,7 +20,6 @@ class WeekCalendarStrip extends StatefulWidget {
 class _WeekCalendarStripState extends State<WeekCalendarStrip> {
   late DateTime _weekStart;
 
-  static const _weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   static const _months = [
     'Jan',
     'Feb',
@@ -47,19 +46,6 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
     final diff = date.weekday - 1; // Mon=1 → diff=0, Sun=7 → diff=6
     return DateTime(date.year, date.month, date.day - diff);
   }
-
-  List<DateTime> get _weekDates =>
-      List.generate(7, (i) => _weekStart.add(Duration(days: i)));
-
-  bool _isToday(DateTime d) {
-    final n = DateTime.now();
-    return d.year == n.year && d.month == n.month && d.day == n.day;
-  }
-
-  bool _isSelected(DateTime d) =>
-      d.year == widget.selectedDate.year &&
-      d.month == widget.selectedDate.month &&
-      d.day == widget.selectedDate.day;
 
   void _prevWeek() {
     HapticFeedback.lightImpact();
@@ -88,13 +74,11 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final subColor = isDark ? AppColors.subDark : AppColors.subLight;
-    final textColor = isDark ? AppColors.textDark : AppColors.textLight;
 
     return Container(
       color: isDark ? AppColors.bgDark : AppColors.bgLight,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // ── Month header row ─────────────────────────────────────────────────
           Padding(
@@ -155,73 +139,6 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
             ),
           ),
 
-          // ── Day pills row ────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            child: Row(
-              children: _weekDates.map((date) {
-                final today = _isToday(date);
-                final selected = _isSelected(date);
-                final dayName = _weekDays[date.weekday % 7];
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      widget.onDateSelected(date);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutBack,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.primary
-                            : today
-                            ? AppColors.primary.withOpacity(0.1)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        children: [
-                          // Day name
-                          Text(
-                            dayName,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Nunito',
-                              color: selected
-                                  ? Colors.white70
-                                  : today
-                                  ? AppColors.primary
-                                  : subColor,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          // Date number
-                          Text(
-                            '${date.day}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              fontFamily: 'Nunito',
-                              color: selected
-                                  ? Colors.white
-                                  : today
-                                  ? AppColors.primary
-                                  : textColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
         ],
       ),
     );

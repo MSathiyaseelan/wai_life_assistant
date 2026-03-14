@@ -926,16 +926,19 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         icon: const Icon(Icons.arrow_back_ios_new_rounded),
         onPressed: () => Navigator.pop(context),
       ),
+      titleSpacing: 0,
       title: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           EmojiOrImage(value: _group.emoji, size: 28, borderRadius: 8),
           const SizedBox(width: 10),
-          Expanded(
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _group.name,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w900,
@@ -946,6 +949,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 Text(
                   '${_group.participants.length} members · '
                   '₹${_group.totalSpend.toStringAsFixed(0)} total',
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Nunito',
