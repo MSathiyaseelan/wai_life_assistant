@@ -1281,13 +1281,15 @@ class _TodayMealCard extends StatelessWidget {
                 children: [
                   Text('🍽️', style: const TextStyle(fontSize: 22)),
                   const SizedBox(width: 10),
-                  Text(
-                    "Nothing logged yet — tap + to add today's meals",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'Nunito',
-                      color: AppColors.income.withOpacity(0.75),
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      "Nothing logged yet — tap + to add today's meals",
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: AppColors.income.withValues(alpha: 0.75),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

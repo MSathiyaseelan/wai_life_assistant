@@ -893,18 +893,39 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     }
 
     // Supabase mode
+    // Collect non-fatal photo upload errors to surface after save
+    final photoErrors = <String>[];
+
+    Future<String> tryUpload({
+      required String localPath,
+      required String folder,
+      required String name,
+      required String fallback,
+    }) async {
+      try {
+        return await ProfileService.instance.uploadPhoto(
+          localPath: localPath,
+          folder: folder,
+          name: name,
+        );
+      } catch (e) {
+        debugPrint('[Photo upload] $folder/$name error: $e');
+        photoErrors.add('$folder/$name: $e');
+        return fallback;
+      }
+    }
+
     try {
       if (_isEdit) {
         // Upload group photo if one was picked
         String groupEmoji = _selectedEmoji;
         if (_groupPhotoPath != null) {
-          try {
-            groupEmoji = await ProfileService.instance.uploadPhoto(
-              localPath: _groupPhotoPath!,
-              folder: 'families',
-              name: widget.existing!.id,
-            );
-          } catch (e) { debugPrint('[Photo upload] $e'); }
+          groupEmoji = await tryUpload(
+            localPath: _groupPhotoPath!,
+            folder: 'families',
+            name: widget.existing!.id,
+            fallback: _selectedEmoji,
+          );
         }
         await ProfileService.instance.updateFamily(
           familyId: widget.existing!.id,
@@ -928,19 +949,23 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         for (final updated in _members.where((m) => originalIds.contains(m.id))) {
           final original = widget.existing!.members
               .firstWhere((o) => o.id == updated.id);
-          // Upload new photo if member picked one
           String memberEmoji = updated.emoji;
+          bool photoUpdated = false;
           if (updated.photoPath != null && updated.photoPath != original.photoPath) {
-            try {
-              memberEmoji = await ProfileService.instance.uploadPhoto(
-                localPath: updated.photoPath!,
-                folder: 'members',
-                name: updated.id,
-              );
+            final uploaded = await tryUpload(
+              localPath: updated.photoPath!,
+              folder: 'members',
+              name: updated.id,
+              fallback: updated.emoji,
+            );
+            if (uploaded != updated.emoji) {
+              memberEmoji = uploaded;
               updated.emoji = memberEmoji;
-            } catch (e) { debugPrint('[Photo upload] $e'); }
+              photoUpdated = true;
+            }
           }
-          if (updated.name     != original.name     ||
+          if (photoUpdated           ||
+              updated.name     != original.name     ||
               memberEmoji      != original.emoji    ||
               updated.role     != original.role     ||
               updated.phone    != original.phone    ||
@@ -961,13 +986,12 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         )) {
           String addedEmoji = added.emoji;
           if (added.photoPath != null) {
-            try {
-              addedEmoji = await ProfileService.instance.uploadPhoto(
-                localPath: added.photoPath!,
-                folder: 'members',
-                name: '${DateTime.now().millisecondsSinceEpoch}_${added.name.replaceAll(' ', '_')}',
-              );
-            } catch (e) { debugPrint('[Photo upload] $e'); }
+            addedEmoji = await tryUpload(
+              localPath: added.photoPath!,
+              folder: 'members',
+              name: '${DateTime.now().millisecondsSinceEpoch}_${added.name.replaceAll(' ', '_')}',
+              fallback: added.emoji,
+            );
           }
           await ProfileService.instance.addMember(
             familyId: widget.existing!.id,
@@ -981,19 +1005,19 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
 
         if (mounted) {
           widget.appState.reload();
+          _showPhotoErrors(photoErrors);
           Navigator.pop(context);
         }
       } else {
         // Upload group photo if one was picked
         String groupEmoji = _selectedEmoji;
         if (_groupPhotoPath != null) {
-          try {
-            groupEmoji = await ProfileService.instance.uploadPhoto(
-              localPath: _groupPhotoPath!,
-              folder: 'families',
-              name: DateTime.now().millisecondsSinceEpoch.toString(),
-            );
-          } catch (e) { debugPrint('[Photo upload] $e'); }
+          groupEmoji = await tryUpload(
+            localPath: _groupPhotoPath!,
+            folder: 'families',
+            name: DateTime.now().millisecondsSinceEpoch.toString(),
+            fallback: _selectedEmoji,
+          );
         }
         final result = await ProfileService.instance.createFamily(
           name: _nameCtrl.text.trim(),
@@ -1007,13 +1031,12 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         for (final m in _members.where((m) => !m.id.startsWith('me_'))) {
           String memberEmoji = m.emoji;
           if (m.photoPath != null) {
-            try {
-              memberEmoji = await ProfileService.instance.uploadPhoto(
-                localPath: m.photoPath!,
-                folder: 'members',
-                name: '${DateTime.now().millisecondsSinceEpoch}_${m.name.replaceAll(' ', '_')}',
-              );
-            } catch (e) { debugPrint('[Photo upload] $e'); }
+            memberEmoji = await tryUpload(
+              localPath: m.photoPath!,
+              folder: 'members',
+              name: '${DateTime.now().millisecondsSinceEpoch}_${m.name.replaceAll(' ', '_')}',
+              fallback: m.emoji,
+            );
           }
           await ProfileService.instance.addMember(
             familyId: familyId,
@@ -1027,6 +1050,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
 
         if (mounted) {
           await widget.appState.reload();
+          _showPhotoErrors(photoErrors);
           // onSelect expects a wallet ID, not a family ID
           Navigator.pop(context, result['wallet_id'] as String?);
         }
@@ -1039,6 +1063,18 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         );
       }
     }
+  }
+
+  void _showPhotoErrors(List<String> errors) {
+    if (errors.isEmpty || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved, but photo upload failed:\n${errors.first}'),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   void _confirmDelete(BuildContext ctx) {

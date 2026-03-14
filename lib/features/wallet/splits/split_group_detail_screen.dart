@@ -6,6 +6,7 @@ import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/emoji_or_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPLIT GROUP DETAIL SCREEN
@@ -927,7 +928,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       ),
       title: Row(
         children: [
-          Text(_group.emoji, style: const TextStyle(fontSize: 22)),
+          EmojiOrImage(value: _group.emoji, size: 28, borderRadius: 8),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

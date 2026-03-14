@@ -207,12 +207,19 @@ class ProfileService {
     });
   }
 
-  /// Update a member's editable fields.
+  /// Update a member's editable fields via SECURITY DEFINER RPC (bypasses RLS).
   Future<void> updateMember(
     String memberId,
     Map<String, dynamic> updates,
   ) async {
-    await _db.from('family_members').update(updates).eq('id', memberId);
+    await _db.rpc('update_family_member', params: {
+      'p_member_id': memberId,
+      'p_name':      updates['name'],
+      'p_emoji':     updates['emoji'],
+      'p_role':      updates['role'],
+      'p_phone':     updates['phone'],
+      'p_relation':  updates['relation'],
+    });
   }
 
   /// Remove a member from a family.

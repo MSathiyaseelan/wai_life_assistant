@@ -56,6 +56,9 @@ class _WalletScreenState extends State<WalletScreen>
   // Wallets list (from AppStateScope)
   List<WalletModel> _allWallets = [];
 
+  // Family tab card pager
+  PageController? _familyPageCtrl;
+
   WalletModel get _currentWallet => _allWallets.firstWhere(
     (w) => w.id == widget.activeWalletId,
     orElse: () => _allWallets.isNotEmpty ? _allWallets.first : personalWallet,
@@ -81,6 +84,9 @@ class _WalletScreenState extends State<WalletScreen>
     final newWallets = AppStateScope.of(context).wallets;
     if (newWallets != _allWallets) {
       _allWallets = newWallets;
+      // Reset family page controller so it reinitialises with correct page count
+      _familyPageCtrl?.dispose();
+      _familyPageCtrl = null;
     }
     // Initial transaction load
     if (_txLoading) _loadTransactions();
@@ -93,6 +99,21 @@ class _WalletScreenState extends State<WalletScreen>
     if (old.activeWalletId != widget.activeWalletId) {
       _loadTransactions();
       _loadSplitGroups();
+      _syncFamilyPage();
+    }
+  }
+
+  void _syncFamilyPage() {
+    final ctrl = _familyPageCtrl;
+    if (ctrl == null || !ctrl.hasClients) return;
+    final familyWallets = _allWallets.where((w) => !w.isPersonal).toList();
+    final idx = familyWallets.indexWhere((w) => w.id == widget.activeWalletId);
+    if (idx >= 0 && ctrl.page?.round() != idx) {
+      ctrl.animateToPage(
+        idx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -229,6 +250,7 @@ class _WalletScreenState extends State<WalletScreen>
   @override
   void dispose() {
     _tabCtrl.dispose();
+    _familyPageCtrl?.dispose();
     super.dispose();
   }
 
@@ -1004,11 +1026,25 @@ class _WalletScreenState extends State<WalletScreen>
   Widget _buildFamilyBody(bool isDark) {
     final wallets = _allWallets.where((w) => !w.isPersonal).toList();
     if (wallets.isEmpty) return _buildNoFamilyEmpty(isDark);
-    final ids = wallets.map((w) => w.id).toSet();
+
+    // Ensure controller exists, starting at the active wallet's page
+    if (_familyPageCtrl == null) {
+      final initialPage = wallets.indexWhere((w) => w.id == widget.activeWalletId);
+      _familyPageCtrl = PageController(
+        viewportFraction: 0.88,
+        initialPage: initialPage < 0 ? 0 : initialPage,
+      );
+    }
+
+    // Show transactions only for the currently visible family wallet
+    final activeId = widget.activeWalletId;
+    final ids = {activeId};
+
     return _buildWalletTabBody(
       wallets: wallets,
       walletIds: ids,
       isDark: isDark,
+      familyPageCtrl: _familyPageCtrl,
       extraHeader: _buildContactStrip(ids, isDark),
     );
   }
@@ -1072,6 +1108,7 @@ class _WalletScreenState extends State<WalletScreen>
     required List<WalletModel> wallets,
     required Set<String> walletIds,
     required bool isDark,
+    PageController? familyPageCtrl,
     Widget? extraHeader,
   }) {
     final base = _transactions
@@ -1096,7 +1133,7 @@ class _WalletScreenState extends State<WalletScreen>
         // Wallet card(s) at the top of the tab
         if (wallets.isNotEmpty)
           SliverToBoxAdapter(
-            child: _buildInlineWalletCards(wallets, isDark),
+            child: _buildInlineWalletCards(wallets, isDark, pageCtrl: familyPageCtrl),
           ),
         if (extraHeader != null)
           SliverToBoxAdapter(child: extraHeader),
@@ -1118,7 +1155,11 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   // ── Inline wallet card(s) inside a tab ─────────────────────────────────────
-  Widget _buildInlineWalletCards(List<WalletModel> wallets, bool isDark) {
+  Widget _buildInlineWalletCards(
+    List<WalletModel> wallets,
+    bool isDark, {
+    PageController? pageCtrl,
+  }) {
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -1142,7 +1183,10 @@ class _WalletScreenState extends State<WalletScreen>
           SizedBox(
             height: 220,
             child: PageView.builder(
-              controller: PageController(viewportFraction: 0.88),
+              controller: pageCtrl ?? PageController(viewportFraction: 0.88),
+              onPageChanged: pageCtrl != null
+                  ? (i) => widget.onWalletChange(wallets[i].id)
+                  : null,
               itemCount: wallets.length,
               itemBuilder: (_, i) => Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1150,7 +1194,7 @@ class _WalletScreenState extends State<WalletScreen>
                   final ps = _periodStats(wallets[i].id);
                   return WalletCardWidget(
                     wallet: wallets[i],
-                    isActive: true,
+                    isActive: wallets[i].id == widget.activeWalletId,
                     periodCashIn: ps.cashIn,
                     periodCashOut: ps.cashOut,
                     periodOnlineIn: ps.onlineIn,
