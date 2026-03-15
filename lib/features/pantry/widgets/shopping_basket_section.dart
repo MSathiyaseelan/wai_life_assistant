@@ -66,29 +66,52 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
+        // Tabs + Scan Bill on same row
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
           child: Row(
             children: [
-              const Text('🧺', style: TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
-              const Text(
-                'Shopping Basket',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
+              // In Stock / To Buy tabs
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: tabBg,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: TabBar(
+                    controller: _tabCtrl,
+                    indicator: BoxDecoration(
+                      color: AppColors.income,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: isDark
+                        ? AppColors.subDark
+                        : AppColors.subLight,
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                    ),
+                    padding: EdgeInsets.zero,
+                    tabs: [
+                      Tab(text: '🏠 In Stock (${_inStock.length})', height: 34),
+                      Tab(text: '🛒 To Buy (${_toBuy.length})', height: 34),
+                    ],
+                  ),
                 ),
               ),
-              const Spacer(),
-              // Scan bill button
+              const SizedBox(width: 10),
+              // Scan Bill button
               GestureDetector(
                 onTap: () => _showScanSheet(context),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 6,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.income.withValues(alpha: 0.1),
@@ -120,46 +143,12 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
           ),
         ),
 
-        // Tabs
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: tabBg,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            padding: const EdgeInsets.all(3),
-            child: TabBar(
-              controller: _tabCtrl,
-              indicator: BoxDecoration(
-                color: AppColors.income,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: Colors.transparent,
-              labelColor: Colors.white,
-              unselectedLabelColor: isDark
-                  ? AppColors.subDark
-                  : AppColors.subLight,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                fontFamily: 'Nunito',
-              ),
-              padding: EdgeInsets.zero,
-              tabs: [
-                Tab(text: '🏠 In Stock (${_inStock.length})', height: 34),
-                Tab(text: '🛒 To Buy (${_toBuy.length})', height: 34),
-              ],
-            ),
-          ),
-        ),
-
-        // Category filter row
-        const SizedBox(height: 10),
+        // Category filter row — All + 5 visible + More
+        const SizedBox(height: 4),
         SizedBox(
           height: 32,
           child: ListView(
+            primary: false,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             children: [
@@ -168,10 +157,10 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                 selected: _filterCat == null,
                 onTap: () => setState(() => _filterCat = null),
               ),
-              const SizedBox(width: 6),
-              ...GroceryCategory.values.map(
+              const SizedBox(width: 3),
+              ...GroceryCategory.values.take(5).map(
                 (c) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 3),
                   child: _CatChip(
                     label: '${c.emoji} ${c.label}',
                     selected: _filterCat == c,
@@ -179,6 +168,13 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                         setState(() => _filterCat = _filterCat == c ? null : c),
                   ),
                 ),
+              ),
+              _CatChip(
+                label: GroceryCategory.values.skip(5).contains(_filterCat)
+                    ? '${_filterCat!.emoji} ${_filterCat!.label} ▾'
+                    : 'More ▾',
+                selected: GroceryCategory.values.skip(5).contains(_filterCat),
+                onTap: () => _showMoreCategories(context),
               ),
             ],
           ),
@@ -229,6 +225,92 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
 
         const SizedBox(height: 8),
       ],
+    );
+  }
+
+  void _showMoreCategories(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hiddenCats = GroceryCategory.values.skip(5).toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+          final sub = isDark ? AppColors.subDark : AppColors.subLight;
+          return Container(
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'More Categories',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: hiddenCats.map((c) {
+                    final sel = _filterCat == c;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _filterCat = sel ? null : c);
+                        Navigator.pop(context);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppColors.income.withValues(alpha: 0.18)
+                              : (isDark ? AppColors.surfDark : AppColors.bgLight),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: sel ? AppColors.income : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          '${c.emoji} ${c.label}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: sel ? AppColors.income : sub,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -294,6 +376,7 @@ class _GroceryList extends StatelessWidget {
     }
 
     return ListView.builder(
+      primary: false,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (_, i) {
@@ -491,7 +574,7 @@ class _CatChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.income.withValues(alpha: 0.18)

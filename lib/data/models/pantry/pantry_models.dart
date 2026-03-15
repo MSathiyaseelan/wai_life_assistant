@@ -495,6 +495,114 @@ List<RecipeModel> mockRecipes = [
   ),
 ];
 
+// ── Family member (pantry context) ────────────────────────────────────────────
+
+class PantryMember {
+  final String id;
+  final String name;
+  final String emoji;
+  const PantryMember({required this.id, required this.name, required this.emoji});
+}
+
+// ── Member Food Preferences ────────────────────────────────────────────────────
+
+class MemberFoodPrefs {
+  final String id;
+  final String memberId;
+  final String memberName;
+  final String memberEmoji;
+  final String walletId;
+  final List<String> allergies;
+  final List<String> likes;
+  final List<String> dislikes;
+  final List<String> mandatoryFoods;
+
+  MemberFoodPrefs({
+    required this.id,
+    required this.memberId,
+    required this.memberName,
+    required this.memberEmoji,
+    required this.walletId,
+    List<String>? allergies,
+    List<String>? likes,
+    List<String>? dislikes,
+    List<String>? mandatoryFoods,
+  })  : allergies = allergies ?? [],
+        likes = likes ?? [],
+        dislikes = dislikes ?? [],
+        mandatoryFoods = mandatoryFoods ?? [];
+
+  MemberFoodPrefs copyWith({
+    List<String>? allergies,
+    List<String>? likes,
+    List<String>? dislikes,
+    List<String>? mandatoryFoods,
+  }) => MemberFoodPrefs(
+        id: id,
+        memberId: memberId,
+        memberName: memberName,
+        memberEmoji: memberEmoji,
+        walletId: walletId,
+        allergies: allergies ?? List.from(this.allergies),
+        likes: likes ?? List.from(this.likes),
+        dislikes: dislikes ?? List.from(this.dislikes),
+        mandatoryFoods: mandatoryFoods ?? List.from(this.mandatoryFoods),
+      );
+}
+
+final List<MemberFoodPrefs> mockFoodPrefs = [
+  MemberFoodPrefs(
+    id: 'fp_me',
+    memberId: 'me',
+    memberName: 'Me',
+    memberEmoji: '🧑',
+    walletId: 'personal',
+    likes: ['Biryani', 'Dosa', 'Idly'],
+    dislikes: ['Bitter Gourd'],
+    mandatoryFoods: ['Fruits (morning)'],
+  ),
+  MemberFoodPrefs(
+    id: 'fp_dad',
+    memberId: 'dad',
+    memberName: 'Dad',
+    memberEmoji: '👨',
+    walletId: 'f1',
+    allergies: ['Peanuts'],
+    likes: ['Rice', 'Sambar'],
+    dislikes: ['Spicy food'],
+    mandatoryFoods: ['Curd Rice (dinner)'],
+  ),
+  MemberFoodPrefs(
+    id: 'fp_mom',
+    memberId: 'mom',
+    memberName: 'Mom',
+    memberEmoji: '👩',
+    walletId: 'f1',
+    likes: ['Chapati', 'Dal'],
+    mandatoryFoods: ['Milk (morning)', 'Salad (lunch)'],
+  ),
+  MemberFoodPrefs(
+    id: 'fp_arjun',
+    memberId: 'son',
+    memberName: 'Arjun',
+    memberEmoji: '👦',
+    walletId: 'f1',
+    allergies: ['Milk', 'Eggs'],
+    likes: ['Pizza', 'Pasta'],
+    dislikes: ['Vegetables'],
+    mandatoryFoods: ['Protein shake (morning)'],
+  ),
+  MemberFoodPrefs(
+    id: 'fp_priya',
+    memberId: 'dau',
+    memberName: 'Priya',
+    memberEmoji: '👧',
+    walletId: 'f1',
+    likes: ['Noodles', 'Fruits'],
+    dislikes: ['Fish'],
+  ),
+];
+
 List<GroceryItem> mockGroceries = [
   GroceryItem(
     id: 'g1',

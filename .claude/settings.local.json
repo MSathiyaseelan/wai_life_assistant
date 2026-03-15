@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(start ms-settings:developers)"
+      "Bash(start ms-settings:developers)",
+      "Bash(adb kill-server:*)",
+      "Bash(adb start-server:*)",
+      "Bash(adb devices:*)"
     ]
   }
 }

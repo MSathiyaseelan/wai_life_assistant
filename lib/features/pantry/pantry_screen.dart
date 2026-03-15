@@ -7,6 +7,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_map_section.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/family_food_prefs_card.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/recipe_box_section.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/shopping_basket_section.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/week_calendar_strip.dart';
@@ -51,6 +52,32 @@ class _PantryScreenState extends State<PantryScreen>
   DateTime? _clipboardSourceWeekStart;
   final List<RecipeModel> _recipes = List.from(mockRecipes);
   final List<GroceryItem> _groceries = List.from(mockGroceries);
+  final List<MemberFoodPrefs> _foodPrefs = List.from(mockFoodPrefs);
+
+  // ── Family food prefs ────────────────────────────────────────────────────────
+  List<PantryMember> get _currentMembers {
+    if (widget.activeWalletId == 'personal') {
+      return const [PantryMember(id: 'me', name: 'Me', emoji: '🧑')];
+    }
+    return const [
+      PantryMember(id: 'me', name: 'Me', emoji: '🧑'),
+      PantryMember(id: 'dad', name: 'Dad', emoji: '👨'),
+      PantryMember(id: 'mom', name: 'Mom', emoji: '👩'),
+      PantryMember(id: 'son', name: 'Arjun', emoji: '👦'),
+      PantryMember(id: 'dau', name: 'Priya', emoji: '👧'),
+    ];
+  }
+
+  void _saveFoodPrefs(MemberFoodPrefs updated) {
+    setState(() {
+      final idx = _foodPrefs.indexWhere((p) => p.id == updated.id);
+      if (idx >= 0) {
+        _foodPrefs[idx] = updated;
+      } else {
+        _foodPrefs.add(updated);
+      }
+    });
+  }
 
   // Derived
   List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
@@ -58,20 +85,6 @@ class _PantryScreenState extends State<PantryScreen>
     (w) => w.id == widget.activeWalletId,
     orElse: () => personalWallet,
   );
-
-  List<MealEntry> get _todayMeals {
-    final now = DateTime.now();
-    return _meals
-        .where(
-          (m) =>
-              m.walletId == widget.activeWalletId &&
-              m.date.year == now.year &&
-              m.date.month == now.month &&
-              m.date.day == now.day,
-        )
-        .toList()
-      ..sort((a, b) => a.mealTime.index.compareTo(b.mealTime.index));
-  }
 
   // Stats helpers
   int get _mealsThisWeek {
@@ -301,8 +314,8 @@ class _PantryScreenState extends State<PantryScreen>
       // Auto-switch to the matching tab
       final targetTab = switch (intent.kind) {
         PantryIntentKind.meal => 0,
-        PantryIntentKind.basket => 1,
-        PantryIntentKind.recipe => 2,
+        PantryIntentKind.recipe => 1,
+        PantryIntentKind.basket => 2,
       };
       if (_sectionTab.index != targetTab) _sectionTab.animateTo(targetTab);
 
@@ -373,11 +386,11 @@ class _PantryScreenState extends State<PantryScreen>
         );
       },
       onRecipe: () {
-        _sectionTab.animateTo(2);
+        _sectionTab.animateTo(1);
         AddRecipeSheet.show(context, onSave: _addRecipe);
       },
       onBasket: () {
-        _sectionTab.animateTo(1);
+        _sectionTab.animateTo(2);
         _showAddGrocerySheet(context);
       },
     );
@@ -520,8 +533,8 @@ class _PantryScreenState extends State<PantryScreen>
         isListening: _isListening,
         hintText: switch (_sectionTab.index) {
           0 => 'e.g. "had idli sambar for breakfast today"',
-          1 => 'e.g. "add 2kg tomatoes to basket"',
-          _ => 'e.g. "add chicken biryani recipe"',
+          1 => 'e.g. "add chicken biryani recipe"',
+          _ => 'e.g. "add 2kg tomatoes to basket"',
         },
       ),
       body: NestedScrollView(
@@ -538,32 +551,6 @@ class _PantryScreenState extends State<PantryScreen>
             actions: [_buildWalletSwitcher(isDark)],
           ),
 
-          // ── Week calendar (pinned below appbar) ──────────────────────────
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _PinnedDelegate(
-              minH: 52,
-              maxH: 52,
-              child: Container(
-                color: cardBg,
-                child: Column(
-                  children: [
-                    WeekCalendarStrip(
-                      selectedDate: _selectedDate,
-                      onDateSelected: (d) => setState(() => _selectedDate = d),
-                    ),
-                    // thin divider
-                    Divider(
-                      height: 1,
-                      color: isDark
-                          ? Colors.white.withOpacity(0.06)
-                          : Colors.black.withOpacity(0.06),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
 
           // ── Stats row ────────────────────────────────────────────────────
           // SliverToBoxAdapter(
@@ -586,10 +573,10 @@ class _PantryScreenState extends State<PantryScreen>
           children: [
             // ── TAB 0: Meal Map ───────────────────────────────────────────
             _buildMealMapTab(isDark),
-            // ── TAB 1: Basket ─────────────────────────────────────────────
-            _buildBasketTab(isDark),
-            // ── TAB 2: Recipe Box ─────────────────────────────────────────
+            // ── TAB 1: Recipe Box ─────────────────────────────────────────
             _buildRecipeBoxTab(isDark),
+            // ── TAB 2: Basket ─────────────────────────────────────────────
+            _buildBasketTab(isDark),
           ],
         ),
       ),
@@ -700,7 +687,7 @@ class _PantryScreenState extends State<PantryScreen>
             value: '$_toBuyCount',
             label: 'Items\nTo Buy',
             color: AppColors.expense,
-            onTap: () => _sectionTab.animateTo(1),
+            onTap: () => _sectionTab.animateTo(2),
           ),
         ],
       ),
@@ -711,8 +698,8 @@ class _PantryScreenState extends State<PantryScreen>
   Widget _buildSectionTabBar(bool isDark, Color surfBg) {
     const labels = [
       ('🗺️', 'Meal Map'),
-      ('🧺', 'Basket'),
       ('📖', 'Recipe Box'),
+      ('🧺', 'Basket'),
     ];
     return Container(
       color: isDark ? AppColors.bgDark : AppColors.bgLight,
@@ -793,71 +780,61 @@ class _PantryScreenState extends State<PantryScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildMealMapTab(bool isDark) {
-    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final now = DateTime.now();
-
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        // ── TODAY card — always first, regardless of selected week ────────
-        _TodayMealCard(
-          meals: _todayMeals,
-          isDark: isDark,
-          cardBg: cardBg,
-          surfBg: surfBg,
-          tc: tc,
-          sub: sub,
-          onMealTapped: _showMealDetail,
-          onAddMeal: () => AddMealSheet.show(
-            context,
-            date: now,
-            walletId: widget.activeWalletId,
-            recipes: _recipes,
-            onSave: _addMeal,
+    return PrimaryScrollController.none(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          WeekCalendarStrip(
+            selectedDate: _selectedDate,
+            onDateSelected: (d) => setState(() => _selectedDate = d),
           ),
-        ),
-
-        _SectionDivider(isDark: isDark),
-
-        // ── Weekly Meal Map — driven by _selectedDate (calendar nav) ──────
-        MealMapSection(
-          meals: _meals,
-          recipes: _recipes,
-          selectedDate: _selectedDate,
-          walletId: widget.activeWalletId,
-          onMealAdded: _addMeal,
-          onMealTapped: _showMealDetail,
-          clipboardMeals: _clipboardMeals,
-          clipboardLabel: _clipboardLabel,
-          clipboardIsWeek: _clipboardIsWeek,
-          onCopyMeal: _copyMeal,
-          onCopyDay: _copyDay,
-          onPasteToDay: _pasteToDay,
-          onCopyWeek: _copyWeek,
-          onPasteToWeek: _pasteToWeek,
-          onClearClipboard: _clearClipboard,
-        ),
-
-        const SizedBox(height: 24),
-      ],
+          FamilyFoodPrefsCard(
+            members: _currentMembers,
+            foodPrefs: _foodPrefs
+                .where((p) => p.walletId == widget.activeWalletId)
+                .toList(),
+            currentUserId: 'me',
+            isAdmin: true,
+            onSave: _saveFoodPrefs,
+          ),
+          _SectionDivider(isDark: isDark),
+          MealMapSection(
+            meals: _meals,
+            recipes: _recipes,
+            selectedDate: _selectedDate,
+            walletId: widget.activeWalletId,
+            onMealAdded: _addMeal,
+            onMealTapped: _showMealDetail,
+            clipboardMeals: _clipboardMeals,
+            clipboardLabel: _clipboardLabel,
+            clipboardIsWeek: _clipboardIsWeek,
+            onCopyMeal: _copyMeal,
+            onCopyDay: _copyDay,
+            onPasteToDay: _pasteToDay,
+            onCopyWeek: _copyWeek,
+            onPasteToWeek: _pasteToWeek,
+            onClearClipboard: _clearClipboard,
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
   Widget _buildRecipeBoxTab(bool isDark) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        RecipeBoxSection(
-          recipes: _recipes,
-          onRecipeTapped: _showRecipeDetail,
-          onToggleFavourite: _toggleFav,
-          onRecipeAdded: _addRecipe,
-        ),
-        const SizedBox(height: 24),
-      ],
+    return PrimaryScrollController.none(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          RecipeBoxSection(
+            recipes: _recipes,
+            onRecipeTapped: _showRecipeDetail,
+            onToggleFavourite: _toggleFav,
+            onRecipeAdded: _addRecipe,
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
@@ -901,8 +878,8 @@ class _PantryScreenState extends State<PantryScreen>
     final tab = _sectionTab.index;
     final (icon, color) = switch (tab) {
       0 => (Icons.restaurant_menu_rounded, AppColors.income),
-      1 => (Icons.add_shopping_cart_rounded, AppColors.expense),
-      _ => (Icons.menu_book_rounded, AppColors.lend),
+      1 => (Icons.menu_book_rounded, AppColors.lend),
+      _ => (Icons.add_shopping_cart_rounded, AppColors.expense),
     };
     return FloatingActionButton.small(
       onPressed: () => _onFabTap(tab),
@@ -925,9 +902,9 @@ class _PantryScreenState extends State<PantryScreen>
           onSave: _addMeal,
         );
       case 1:
-        _showAddGrocerySheet(context);
-      case 2:
         AddRecipeSheet.show(context, onSave: _addRecipe);
+      case 2:
+        _showAddGrocerySheet(context);
     }
   }
 
@@ -1278,7 +1255,7 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
     final r = _reactions[index];
     setState(() {
       _editingIndex = index;
-      _replyingTo = null;
+      _replyingTo = r.replyTo; // preserve reply context so options show correctly
       _nameCtrl.text = r.memberName;
       _commentCtrl.text = r.comment ?? '';
       _selectedEmoji = r.reactionEmoji;
@@ -1545,10 +1522,10 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
                                     ),
                                   ),
                                   Text(
-                                    _reactionOptions.firstWhere(
+                                    ([..._reactionOptions, ..._replyOptions].firstWhere(
                                       (o) => o.$1 == r.reactionEmoji,
                                       orElse: () => (r.reactionEmoji, r.reactionEmoji),
-                                    ).$2,
+                                    )).$2,
                                     style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
                                   ),
                                   if (r.comment != null && r.comment!.isNotEmpty)
@@ -1787,215 +1764,6 @@ class _ReactionActionBtn extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TODAY MEAL CARD — always shown as first item in Meal Map tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TodayMealCard extends StatelessWidget {
-  final List<MealEntry> meals;
-  final bool isDark;
-  final Color cardBg, surfBg, tc, sub;
-  final void Function(MealEntry) onMealTapped;
-  final VoidCallback onAddMeal;
-
-  const _TodayMealCard({
-    required this.meals,
-    required this.isDark,
-    required this.cardBg,
-    required this.surfBg,
-    required this.tc,
-    required this.sub,
-    required this.onMealTapped,
-    required this.onAddMeal,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final dayName = weekdays[now.weekday - 1];
-    final dateStr = '$dayName, ${months[now.month - 1]} ${now.day}';
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1B3A2D), const Color(0xFF0F2419)]
-              : [const Color(0xFFE8F8F0), const Color(0xFFD0F0E0)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.income.withOpacity(isDark ? 0.3 : 0.25),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ────────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.income,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    'TODAY',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Nunito',
-                      color: Colors.white,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  dateStr,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito',
-                    color: AppColors.income,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: onAddMeal,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: AppColors.income,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.add_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Meal slots ────────────────────────────────────────────────────
-          if (meals.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: Row(
-                children: [
-                  Text('🍽️', style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      "Nothing logged yet — tap + to add today's meals",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'Nunito',
-                        color: AppColors.income.withValues(alpha: 0.75),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: meals
-                    .map(
-                      (m) => GestureDetector(
-                        onTap: () => onMealTapped(m),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: m.mealTime.color.withOpacity(
-                              isDark ? 0.18 : 0.12,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: m.mealTime.color.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                m.emoji,
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                              const SizedBox(width: 6),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    m.name,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      fontFamily: 'Nunito',
-                                      color: tc,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${m.mealTime.emoji} ${m.mealTime.label}',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontFamily: 'Nunito',
-                                      color: m.mealTime.color,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED WIDGETS

@@ -23,60 +23,198 @@ class RecipeBoxSection extends StatefulWidget {
 
 class _RecipeBoxSectionState extends State<RecipeBoxSection> {
   CuisineType? _filterCuisine;
-  MealTime? _filterTime;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(
+      () => setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   List<RecipeModel> get _filtered {
     return widget.recipes.where((r) {
       if (_filterCuisine != null && r.cuisine != _filterCuisine) return false;
-      if (_filterTime != null && !r.suitableFor.contains(_filterTime))
-        return false;
+      if (_searchQuery.isNotEmpty) {
+        final q = _searchQuery;
+        if (!r.name.toLowerCase().contains(q) &&
+            !r.cuisine.label.toLowerCase().contains(q) &&
+            !r.ingredients.any((i) => i.toLowerCase().contains(q))) {
+          return false;
+        }
+      }
       return true;
     }).toList();
+  }
+
+  void _showMoreCuisines(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hiddenCuisines = CuisineType.values.skip(5).toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+          final sub = isDark ? AppColors.subDark : AppColors.subLight;
+          return Container(
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'More Cuisines',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: hiddenCuisines.map((c) {
+                    final sel = _filterCuisine == c;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _filterCuisine = sel ? null : c);
+                        Navigator.pop(context);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppColors.lend
+                              : (isDark
+                                  ? AppColors.surfDark
+                                  : AppColors.bgLight),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: sel ? AppColors.lend : Colors.transparent,
+                          ),
+                        ),
+                        child: Text(
+                          '${c.emoji} ${c.label}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: sel ? Colors.white : sub,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inputBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
+        // Search + Add Recipe on same row
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Row(
             children: [
-              const Text('📖', style: TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
-              const Text(
-                'Recipe Box',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
+              Expanded(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: inputBg,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search_rounded, size: 16, color: sub),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchCtrl,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
+                          decoration: InputDecoration.collapsed(
+                            hintText: 'Search recipes...',
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_searchQuery.isNotEmpty)
+                        GestureDetector(
+                          onTap: () => _searchCtrl.clear(),
+                          child: Icon(Icons.close_rounded, size: 14, color: sub),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 10),
               GestureDetector(
                 onTap: () =>
                     AddRecipeSheet.show(context, onSave: widget.onRecipeAdded),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
-                    vertical: 6,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF7043).withOpacity(0.1),
+                    color: const Color(0xFFFF7043).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.add_rounded,
-                        size: 14,
-                        color: Color(0xFFFF7043),
-                      ),
+                      Icon(Icons.add_rounded, size: 14,
+                          color: Color(0xFFFF7043)),
                       SizedBox(width: 4),
                       Text(
                         'Add Recipe',
@@ -95,26 +233,24 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
           ),
         ),
 
-        // Cuisine filter chips
+        // Cuisine filter chips — first 5 + More
         SizedBox(
-          height: 36,
+          height: 34,
           child: ListView(
+            primary: false,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             children: [
               _FilterChip(
                 label: 'All',
-                selected: _filterCuisine == null && _filterTime == null,
+                selected: _filterCuisine == null,
                 color: AppColors.primary,
-                onTap: () => setState(() {
-                  _filterCuisine = null;
-                  _filterTime = null;
-                }),
+                onTap: () => setState(() => _filterCuisine = null),
               ),
-              const SizedBox(width: 6),
-              ...CuisineType.values.map(
+              const SizedBox(width: 4),
+              ...CuisineType.values.take(5).map(
                 (c) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 4),
                   child: _FilterChip(
                     label: '${c.emoji} ${c.label}',
                     selected: _filterCuisine == c,
@@ -125,24 +261,18 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              ...MealTime.values.map(
-                (t) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: _FilterChip(
-                    label: '${t.emoji} ${t.label}',
-                    selected: _filterTime == t,
-                    color: t.color,
-                    onTap: () => setState(
-                      () => _filterTime = _filterTime == t ? null : t,
-                    ),
-                  ),
-                ),
+              _FilterChip(
+                label: CuisineType.values.skip(5).contains(_filterCuisine)
+                    ? '${_filterCuisine!.emoji} ${_filterCuisine!.label} ▾'
+                    : 'More ▾',
+                selected: CuisineType.values.skip(5).contains(_filterCuisine),
+                color: AppColors.lend,
+                onTap: () => _showMoreCuisines(context),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
 
         // Recipe cards
         if (_filtered.isEmpty)
@@ -190,7 +320,7 @@ class RecipeCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+              color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -204,8 +334,8 @@ class RecipeCard extends StatelessWidget {
               height: 52,
               decoration: BoxDecoration(
                 color: recipe.cuisine.emoji.isNotEmpty
-                    ? AppColors.lend.withOpacity(0.1)
-                    : AppColors.primary.withOpacity(0.1),
+                    ? AppColors.lend.withValues(alpha: 0.1)
+                    : AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.center,
@@ -314,7 +444,7 @@ class _MiniBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(10),
     ),
     child: Text(

@@ -81,21 +81,11 @@ class MealMapSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header
+        // Section header — actions only (title shown in tab bar)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
           child: Row(
             children: [
-              const Text('🗺️', style: TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
-              const Text(
-                'Meal Map',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
-              ),
               const Spacer(),
               // Copy week
               _IconAction(
