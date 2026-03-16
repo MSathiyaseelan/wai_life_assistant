@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Thin service layer between the Pantry UI and Supabase.
@@ -12,8 +13,36 @@ class PantryService {
   PantryService._();
   static final PantryService instance = PantryService._();
 
+  /// Incremented whenever meal entries are added, updated, or deleted.
+  /// Other screens (e.g. Dashboard) listen to this to refresh their data.
+  static final mealChangeSignal = ValueNotifier<int>(0);
+
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid => _db.auth.currentUser!.id;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MASTER RECIPES  (shared catalogue)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Search the shared master recipe catalogue by name, cuisine, or tag.
+  /// Returns all rows when [query] is empty.
+  Future<List<Map<String, dynamic>>> searchMasterRecipes(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) {
+      final rows = await _db
+          .from('master_recipes')
+          .select()
+          .order('name');
+      return List<Map<String, dynamic>>.from(rows);
+    }
+    // Use ilike on name; for wider coverage also filter by cuisine/tags client-side
+    final rows = await _db
+        .from('master_recipes')
+        .select()
+        .or('name.ilike.%$q%,cuisine.ilike.%$q%')
+        .order('name');
+    return List<Map<String, dynamic>>.from(rows);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // RECIPE BOX

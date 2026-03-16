@@ -168,12 +168,14 @@ extension CuisineTypeExt on CuisineType {
 // ── Meal reaction ─────────────────────────────────────────────────────────────
 
 class MealReaction {
+  final String? id;          // DB UUID; null for locally-created reactions not yet persisted
   final String memberName;
   final String reactionEmoji; // e.g. 👍 😋 🤔 ❌ 🔄
   final String? comment;
-  final String? replyTo; // name of the person being replied to
+  final String? replyTo;     // name of the person being replied to
 
   const MealReaction({
+    this.id,
     required this.memberName,
     required this.reactionEmoji,
     this.comment,
@@ -181,15 +183,25 @@ class MealReaction {
   });
 
   MealReaction copyWith({
+    String? id,
     String? memberName,
     String? reactionEmoji,
     String? comment,
     String? replyTo,
   }) => MealReaction(
+    id: id ?? this.id,
     memberName: memberName ?? this.memberName,
     reactionEmoji: reactionEmoji ?? this.reactionEmoji,
     comment: comment ?? this.comment,
     replyTo: replyTo ?? this.replyTo,
+  );
+
+  factory MealReaction.fromMap(Map<String, dynamic> m) => MealReaction(
+    id: m['id'] as String?,
+    memberName: m['member_name'] as String,
+    reactionEmoji: m['reaction_emoji'] as String,
+    comment: m['comment'] as String?,
+    replyTo: m['reply_to'] as String?,
   );
 }
 
@@ -239,10 +251,35 @@ class MealEntry {
     emoji: emoji ?? this.emoji,
     reactions: reactions ?? this.reactions,
   );
+
+  /// Deserialise a Supabase row (with optional nested meal_reactions list).
+  factory MealEntry.fromMap(Map<String, dynamic> m) {
+    final rawReactions = m['meal_reactions'];
+    final reactions = rawReactions is List
+        ? rawReactions
+            .map((r) => MealReaction.fromMap(r as Map<String, dynamic>))
+            .toList()
+        : <MealReaction>[];
+    return MealEntry(
+      id: m['id'] as String,
+      walletId: m['wallet_id'] as String,
+      name: m['name'] as String,
+      emoji: (m['emoji'] as String?) ?? '🍽️',
+      mealTime: MealTime.values.firstWhere(
+        (t) => t.name == (m['meal_time'] as String),
+        orElse: () => MealTime.lunch,
+      ),
+      date: DateTime.parse(m['date'] as String),
+      recipeId: m['recipe_id'] as String?,
+      note: m['note'] as String?,
+      reactions: reactions,
+    );
+  }
 }
 
 class RecipeModel {
   final String id;
+  final String walletId;
   final String name;
   final String emoji;
   final CuisineType cuisine;
@@ -255,6 +292,7 @@ class RecipeModel {
 
   RecipeModel({
     required this.id,
+    this.walletId = 'personal',
     required this.name,
     required this.emoji,
     required this.cuisine,
@@ -265,6 +303,33 @@ class RecipeModel {
     this.cookTimeMin,
     this.isFavourite = false,
   });
+
+  /// Deserialise a Supabase row.
+  factory RecipeModel.fromMap(Map<String, dynamic> m) {
+    final suitableRaw = (m['suitable_for'] as List<dynamic>?)?.cast<String>() ?? [];
+    final ingredientsRaw = (m['ingredients'] as List<dynamic>?)?.cast<String>() ?? [];
+    return RecipeModel(
+      id: m['id'] as String,
+      walletId: m['wallet_id'] as String,
+      name: m['name'] as String,
+      emoji: (m['emoji'] as String?) ?? '🍽️',
+      cuisine: CuisineType.values.firstWhere(
+        (c) => c.name == (m['cuisine'] as String),
+        orElse: () => CuisineType.indian,
+      ),
+      suitableFor: suitableRaw
+          .map((s) => MealTime.values.firstWhere(
+                (t) => t.name == s,
+                orElse: () => MealTime.lunch,
+              ))
+          .toList(),
+      ingredients: ingredientsRaw,
+      socialLink: m['social_link'] as String?,
+      note: m['note'] as String?,
+      cookTimeMin: m['cook_time_min'] as int?,
+      isFavourite: (m['is_favourite'] as bool?) ?? false,
+    );
+  }
 }
 
 class GroceryItem {
@@ -291,6 +356,128 @@ class GroceryItem {
     this.expiryDate,
     DateTime? lastUpdated,
   }) : lastUpdated = lastUpdated ?? DateTime.now();
+
+  /// Deserialise a Supabase row.
+  factory GroceryItem.fromMap(Map<String, dynamic> m) => GroceryItem(
+    id: m['id'] as String,
+    walletId: m['wallet_id'] as String,
+    name: m['name'] as String,
+    category: GroceryCategory.values.firstWhere(
+      (c) => c.name == (m['category'] as String),
+      orElse: () => GroceryCategory.other,
+    ),
+    quantity: (m['quantity'] as num).toDouble(),
+    unit: m['unit'] as String,
+    inStock: (m['in_stock'] as bool?) ?? true,
+    toBuy: (m['to_buy'] as bool?) ?? false,
+    expiryDate: m['expiry_date'] != null
+        ? DateTime.parse(m['expiry_date'] as String)
+        : null,
+    lastUpdated: m['last_updated'] != null
+        ? DateTime.parse(m['last_updated'] as String)
+        : DateTime.now(),
+  );
+}
+
+// ── Master Recipe (shared catalogue, read from DB) ────────────────────────────
+
+class MasterRecipe {
+  final String id;
+  final String name;
+  final String emoji;
+  final String cuisine;          // plain string, not an enum
+  final List<String> mealTypes;  // raw strings: 'breakfast', 'lunch', etc.
+  final List<String> ingredients; // formatted "Name (qty unit)"
+  final int? cookTimeMin;
+  final int? prepTimeMin;
+  final int? servings;
+  final int? calories;
+  final String? youtubeSearch;
+  final List<String> tags;
+
+  const MasterRecipe({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.cuisine,
+    required this.mealTypes,
+    required this.ingredients,
+    this.cookTimeMin,
+    this.prepTimeMin,
+    this.servings,
+    this.calories,
+    this.youtubeSearch,
+    this.tags = const [],
+  });
+
+  factory MasterRecipe.fromMap(Map<String, dynamic> m) {
+    // ingredients stored as jsonb: [{name, qty, unit}, ...]
+    final rawIngs = m['ingredients'] as List? ?? [];
+    final ingredients = rawIngs.map((i) {
+      final name = (i['name'] as String?) ?? '';
+      final qty  = i['qty'];
+      final unit = (i['unit'] as String?) ?? '';
+      final qtyStr = qty is double && qty == qty.truncateToDouble()
+          ? qty.toInt().toString()
+          : qty?.toString() ?? '';
+      return '$name ($qtyStr $unit)'.trim();
+    }).toList();
+
+    return MasterRecipe(
+      id:            m['id'] as String,
+      name:          m['name'] as String,
+      emoji:         (m['emoji'] as String?) ?? '🍽️',
+      cuisine:       m['cuisine'] as String,
+      mealTypes:     List<String>.from(m['meal_types'] as List? ?? []),
+      ingredients:   ingredients,
+      cookTimeMin:   m['cook_time_min'] as int?,
+      prepTimeMin:   m['prep_time_min'] as int?,
+      servings:      m['servings'] as int?,
+      calories:      m['calories'] as int?,
+      youtubeSearch: m['youtube_search'] as String?,
+      tags:          List<String>.from(m['tags'] as List? ?? []),
+    );
+  }
+
+  /// Convert to a RecipeModel to save in the user's Recipe Box.
+  RecipeModel toRecipeModel() {
+    // Map raw meal_type strings to MealTime enum (skip 'beverage', 'dessert')
+    final suitableFor = mealTypes
+        .map((t) {
+          switch (t) {
+            case 'breakfast': return MealTime.breakfast;
+            case 'lunch':     return MealTime.lunch;
+            case 'dinner':    return MealTime.dinner;
+            case 'snacks':    return MealTime.snack;
+            default:          return null;
+          }
+        })
+        .whereType<MealTime>()
+        .toList();
+
+    // Map cuisine string to CuisineType enum
+    CuisineType cuisineType = CuisineType.indian;
+    final cl = cuisine.toLowerCase();
+    if (cl.contains('chinese') || cl.contains('indo-chinese')) {
+      cuisineType = CuisineType.chinese;
+    } else if (cl.contains('continental') || cl.contains('italian')) {
+      cuisineType = cl.contains('italian') ? CuisineType.italian : CuisineType.continental;
+    } else if (cl.contains('beverage') || cl.contains('snack') || cl.contains('street') ||
+               cl.contains('dessert') || cl.contains('rice') ||
+               cl.contains('north indian') || cl.contains('south indian')) {
+      cuisineType = CuisineType.indian;
+    }
+
+    return RecipeModel(
+      id:          DateTime.now().millisecondsSinceEpoch.toString(),
+      name:        name,
+      emoji:       emoji,
+      cuisine:     cuisineType,
+      suitableFor: suitableFor.isEmpty ? [MealTime.lunch] : suitableFor,
+      ingredients: ingredients,
+      cookTimeMin: cookTimeMin,
+    );
+  }
 }
 
 // ── Mock Data ──────────────────────────────────────────────────────────────────
@@ -531,6 +718,19 @@ class MemberFoodPrefs {
         likes = likes ?? [],
         dislikes = dislikes ?? [],
         mandatoryFoods = mandatoryFoods ?? [];
+
+  /// Deserialise a Supabase row.
+  factory MemberFoodPrefs.fromMap(Map<String, dynamic> m) => MemberFoodPrefs(
+    id: m['id'] as String,
+    memberId: m['member_id'] as String,
+    memberName: m['member_name'] as String,
+    memberEmoji: (m['member_emoji'] as String?) ?? '👤',
+    walletId: m['wallet_id'] as String,
+    allergies: (m['allergies'] as List<dynamic>?)?.cast<String>() ?? [],
+    likes: (m['likes'] as List<dynamic>?)?.cast<String>() ?? [],
+    dislikes: (m['dislikes'] as List<dynamic>?)?.cast<String>() ?? [],
+    mandatoryFoods: (m['mandatory_foods'] as List<dynamic>?)?.cast<String>() ?? [],
+  );
 
   MemberFoodPrefs copyWith({
     List<String>? allergies,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
@@ -39,8 +40,9 @@ class _PantryScreenState extends State<PantryScreen>
   bool _isListening = false;
   final _chatBarKey = GlobalKey<ChatInputBarState>();
 
-  // Live data (starts with mock)
-  final List<MealEntry> _meals = List.from(mockMeals);
+  // Meal Map — loaded from DB
+  List<MealEntry> _meals = [];
+  bool _mealsLoading = true;
 
   // Logged-in user display name
   String _currentUserName = '';
@@ -50,9 +52,11 @@ class _PantryScreenState extends State<PantryScreen>
   String _clipboardLabel = '';
   bool _clipboardIsWeek = false;
   DateTime? _clipboardSourceWeekStart;
-  final List<RecipeModel> _recipes = List.from(mockRecipes);
-  final List<GroceryItem> _groceries = List.from(mockGroceries);
-  final List<MemberFoodPrefs> _foodPrefs = List.from(mockFoodPrefs);
+  List<RecipeModel> _recipes = [];
+  bool _recipesLoading = true;
+  List<GroceryItem> _groceries = [];
+  bool _groceriesLoading = true;
+  List<MemberFoodPrefs> _foodPrefs = [];
 
   // ── Family food prefs ────────────────────────────────────────────────────────
   List<PantryMember> get _currentMembers {
@@ -68,15 +72,38 @@ class _PantryScreenState extends State<PantryScreen>
     ];
   }
 
-  void _saveFoodPrefs(MemberFoodPrefs updated) {
+  Future<void> _saveFoodPrefs(MemberFoodPrefs updated) async {
+    // Optimistic update
     setState(() {
-      final idx = _foodPrefs.indexWhere((p) => p.id == updated.id);
+      final idx = _foodPrefs.indexWhere((p) => p.memberId == updated.memberId);
       if (idx >= 0) {
         _foodPrefs[idx] = updated;
       } else {
         _foodPrefs.add(updated);
       }
     });
+    try {
+      final row = await PantryService.instance.upsertFoodPrefs(
+        walletId: widget.activeWalletId,
+        memberId: updated.memberId,
+        memberName: updated.memberName,
+        memberEmoji: updated.memberEmoji,
+        allergies: updated.allergies,
+        likes: updated.likes,
+        dislikes: updated.dislikes,
+        mandatoryFoods: updated.mandatoryFoods,
+      );
+      if (!mounted) return;
+      final saved = MemberFoodPrefs.fromMap(row);
+      setState(() {
+        final idx = _foodPrefs.indexWhere((p) => p.memberId == saved.memberId);
+        if (idx >= 0) _foodPrefs[idx] = saved;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _showSavedSnack('Failed to save food preferences', AppColors.expense);
+      _loadFoodPrefs(); // reload to restore consistent state
+    }
   }
 
   // Derived
@@ -157,7 +184,7 @@ class _PantryScreenState extends State<PantryScreen>
     _showCopiedSnack('Copied ${meals.length} meal${meals.length == 1 ? '' : 's'} from this week');
   }
 
-  void _pasteToDay(DateTime targetDay) {
+  Future<void> _pasteToDay(DateTime targetDay) async {
     final clips = _clipboardMeals;
     if (clips == null || clips.isEmpty) return;
     final existing = _meals.where((m) =>
@@ -165,58 +192,95 @@ class _PantryScreenState extends State<PantryScreen>
         m.date.year == targetDay.year &&
         m.date.month == targetDay.month &&
         m.date.day == targetDay.day).toList();
-    final toAdd = <MealEntry>[];
-    for (final m in clips) {
-      if (existing.any((e) => e.name == m.name && e.mealTime == m.mealTime)) continue;
-      toAdd.add(MealEntry(
-        id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
-        name: m.name,
-        mealTime: m.mealTime,
-        date: DateTime(targetDay.year, targetDay.month, targetDay.day),
-        walletId: widget.activeWalletId,
-        emoji: m.emoji,
-        note: m.note,
-        recipeId: m.recipeId,
-      ));
+    final toInsert = clips
+        .where((m) => !existing.any((e) => e.name == m.name && e.mealTime == m.mealTime))
+        .toList();
+    if (toInsert.isEmpty) { _showCopiedSnack('Already exists on this day'); return; }
+
+    final targetDate = DateTime(targetDay.year, targetDay.month, targetDay.day);
+    // Optimistic add with temp IDs
+    final temps = toInsert.map((m) => MealEntry(
+      id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
+      name: m.name, mealTime: m.mealTime, date: targetDate,
+      walletId: widget.activeWalletId, emoji: m.emoji, note: m.note, recipeId: m.recipeId,
+    )).toList();
+    setState(() => _meals.addAll(temps));
+    _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} to ${_shortDay(targetDay)}');
+
+    try {
+      for (int i = 0; i < toInsert.length; i++) {
+        final m = toInsert[i];
+        final row = await PantryService.instance.addMealEntry(
+          walletId: widget.activeWalletId,
+          name: m.name, emoji: m.emoji, mealTime: m.mealTime.name,
+          date: targetDate, recipeId: m.recipeId, note: m.note,
+        );
+        if (!mounted) return;
+        final saved = MealEntry.fromMap(row);
+        setState(() {
+          final idx = _meals.indexWhere((e) => e.id == temps[i].id);
+          if (idx >= 0) _meals[idx] = saved;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSavedSnack('Failed to paste some meals', AppColors.expense);
+      await _loadMeals(); // reload to get consistent state
     }
-    if (toAdd.isEmpty) { _showCopiedSnack('Already exists on this day'); return; }
-    setState(() => _meals.addAll(toAdd));
-    _showCopiedSnack('Pasted ${toAdd.length} meal${toAdd.length == 1 ? '' : 's'} to ${_shortDay(targetDay)}');
   }
 
-  void _pasteToWeek(DateTime targetWeekStart) {
+  Future<void> _pasteToWeek(DateTime targetWeekStart) async {
     final clips = _clipboardMeals;
     final srcStart = _clipboardSourceWeekStart;
     if (clips == null || clips.isEmpty || srcStart == null) return;
-    // Normalise both anchors to midnight for accurate day arithmetic
+
     final srcMon = DateTime(srcStart.year, srcStart.month, srcStart.day);
     final targetMon = DateTime(targetWeekStart.year, targetWeekStart.month, targetWeekStart.day);
-    final toAdd = <MealEntry>[];
+
+    final toInsert = <({MealEntry meal, DateTime targetDate})>[];
     for (final m in clips) {
       final mealDay = DateTime(m.date.year, m.date.month, m.date.day);
       final offset = mealDay.difference(srcMon).inDays.clamp(0, 6);
       final td = targetMon.add(Duration(days: offset));
       if (_meals.any((e) =>
           e.walletId == widget.activeWalletId &&
-          e.name == m.name &&
-          e.mealTime == m.mealTime &&
-          e.date.year == td.year &&
-          e.date.month == td.month &&
-          e.date.day == td.day)) continue;
-      toAdd.add(MealEntry(
-        id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
-        name: m.name,
-        mealTime: m.mealTime,
-        date: DateTime(td.year, td.month, td.day),
-        walletId: widget.activeWalletId,
-        emoji: m.emoji,
-        note: m.note,
-        recipeId: m.recipeId,
-      ));
+          e.name == m.name && e.mealTime == m.mealTime &&
+          e.date.year == td.year && e.date.month == td.month && e.date.day == td.day)) continue;
+      toInsert.add((meal: m, targetDate: td));
     }
-    if (toAdd.isEmpty) { _showCopiedSnack('All meals already exist in this week'); return; }
-    setState(() => _meals.addAll(toAdd));
-    _showCopiedSnack('Pasted ${toAdd.length} meal${toAdd.length == 1 ? '' : 's'} into this week');
+    if (toInsert.isEmpty) { _showCopiedSnack('All meals already exist in this week'); return; }
+
+    // Optimistic
+    final temps = toInsert.map((item) => MealEntry(
+      id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${item.meal.id}',
+      name: item.meal.name, mealTime: item.meal.mealTime, date: item.targetDate,
+      walletId: widget.activeWalletId, emoji: item.meal.emoji,
+      note: item.meal.note, recipeId: item.meal.recipeId,
+    )).toList();
+    setState(() => _meals.addAll(temps));
+    _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} into this week');
+
+    try {
+      for (int i = 0; i < toInsert.length; i++) {
+        final item = toInsert[i];
+        final row = await PantryService.instance.addMealEntry(
+          walletId: widget.activeWalletId,
+          name: item.meal.name, emoji: item.meal.emoji,
+          mealTime: item.meal.mealTime.name, date: item.targetDate,
+          recipeId: item.meal.recipeId, note: item.meal.note,
+        );
+        if (!mounted) return;
+        final saved = MealEntry.fromMap(row);
+        setState(() {
+          final idx = _meals.indexWhere((e) => e.id == temps[i].id);
+          if (idx >= 0) _meals[idx] = saved;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSavedSnack('Failed to paste some meals', AppColors.expense);
+      await _loadMeals();
+    }
   }
 
   String _shortDay(DateTime d) {
@@ -249,6 +313,84 @@ class _PantryScreenState extends State<PantryScreen>
     _sectionTab = TabController(length: 3, vsync: this);
     _sectionTab.addListener(() => setState(() {}));
     _fetchUserName();
+    _loadMeals();
+    _loadRecipes();
+    _loadGroceries();
+    _loadFoodPrefs();
+  }
+
+  @override
+  void didUpdateWidget(PantryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeWalletId != widget.activeWalletId) {
+      _clearClipboard();
+      _loadMeals();
+      _loadRecipes();
+      _loadGroceries();
+      _loadFoodPrefs();
+    }
+  }
+
+  Future<void> _loadRecipes() async {
+    if (!mounted) return;
+    setState(() => _recipesLoading = true);
+    try {
+      final rows = await PantryService.instance.fetchRecipes(widget.activeWalletId);
+      if (!mounted) return;
+      setState(() {
+        _recipes = rows.map(RecipeModel.fromMap).toList();
+        _recipesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _recipesLoading = false);
+      _showSavedSnack('Failed to load recipes', AppColors.expense);
+    }
+  }
+
+  Future<void> _loadMeals() async {
+    if (!mounted) return;
+    setState(() => _mealsLoading = true);
+    try {
+      final rows = await PantryService.instance.fetchMealEntries(widget.activeWalletId);
+      if (!mounted) return;
+      setState(() {
+        _meals = rows.map(MealEntry.fromMap).toList();
+        _mealsLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _mealsLoading = false);
+      _showSavedSnack('Failed to load meals', AppColors.expense);
+    }
+  }
+
+  Future<void> _loadFoodPrefs() async {
+    if (!mounted) return;
+    try {
+      final rows = await PantryService.instance.fetchFoodPrefs(widget.activeWalletId);
+      if (!mounted) return;
+      setState(() {
+        _foodPrefs = rows.map(MemberFoodPrefs.fromMap).toList();
+      });
+    } catch (_) {} // non-critical — card shows empty state gracefully
+  }
+
+  Future<void> _loadGroceries() async {
+    if (!mounted) return;
+    setState(() => _groceriesLoading = true);
+    try {
+      final rows = await PantryService.instance.fetchGroceryItems(widget.activeWalletId);
+      if (!mounted) return;
+      setState(() {
+        _groceries = rows.map(GroceryItem.fromMap).toList();
+        _groceriesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _groceriesLoading = false);
+      _showSavedSnack('Failed to load basket', AppColors.expense);
+    }
   }
 
   Future<void> _fetchUserName() async {
@@ -397,7 +539,34 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   // ── Meal handlers ──────────────────────────────────────────────────────────
-  void _addMeal(MealEntry m) => setState(() => _meals.add(m));
+
+  // Adds a meal: optimistic insert → persist to DB → replace with real UUID row.
+  Future<void> _addMeal(MealEntry m) async {
+    setState(() => _meals.add(m)); // optimistic
+    try {
+      final row = await PantryService.instance.addMealEntry(
+        walletId: m.walletId,
+        name: m.name,
+        emoji: m.emoji,
+        mealTime: m.mealTime.name,
+        date: m.date,
+        recipeId: m.recipeId,
+        note: m.note,
+      );
+      if (!mounted) return;
+      final saved = MealEntry.fromMap(row);
+      setState(() {
+        final idx = _meals.indexWhere((e) => e.id == m.id);
+        if (idx >= 0) _meals[idx] = saved;
+      });
+      PantryService.mealChangeSignal.value++;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _meals.remove(m));
+      _showSavedSnack('Failed to save meal', AppColors.expense);
+    }
+  }
+
   void _showMealDetail(MealEntry m) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     _showHandleSheet(
@@ -416,19 +585,47 @@ class _PantryScreenState extends State<PantryScreen>
             recipes: _recipes,
             onSave: _addMeal,
             existing: m,
-            onUpdate: (updated) {
+            onUpdate: (updated) async {
+              // Optimistic update
               setState(() {
                 final idx = _meals.indexWhere((e) => e.id == updated.id);
                 if (idx >= 0) _meals[idx] = updated;
               });
+              try {
+                await PantryService.instance.updateMealEntry(updated.id, {
+                  'name': updated.name,
+                  'emoji': updated.emoji,
+                  'meal_time': updated.mealTime.name,
+                  'date': '${updated.date.year}-${updated.date.month.toString().padLeft(2,'0')}-${updated.date.day.toString().padLeft(2,'0')}',
+                  'recipe_id': updated.recipeId,
+                  'note': updated.note,
+                });
+              } catch (e) {
+                if (!mounted) return;
+                // Revert on failure
+                setState(() {
+                  final idx = _meals.indexWhere((e) => e.id == m.id);
+                  if (idx >= 0) _meals[idx] = m;
+                });
+                _showSavedSnack('Failed to update meal', AppColors.expense);
+              }
             },
           );
         },
-        onDelete: () {
-          setState(() => _meals.remove(m));
+        onDelete: () async {
+          setState(() => _meals.remove(m)); // optimistic
           Navigator.pop(context);
+          try {
+            await PantryService.instance.deleteMealEntry(m.id);
+            PantryService.mealChangeSignal.value++;
+          } catch (e) {
+            if (!mounted) return;
+            setState(() => _meals.add(m)); // revert
+            _showSavedSnack('Failed to delete meal', AppColors.expense);
+          }
         },
-        onReactionAdded: (reaction) {
+        onReactionAdded: (reaction) async {
+          // Optimistic add with temp identity
           setState(() {
             final idx = _meals.indexWhere((e) => e.id == m.id);
             if (idx >= 0) {
@@ -437,8 +634,44 @@ class _PantryScreenState extends State<PantryScreen>
               );
             }
           });
+          try {
+            final row = await PantryService.instance.addReaction(
+              mealId: m.id,
+              memberName: reaction.memberName,
+              reactionEmoji: reaction.reactionEmoji,
+              comment: reaction.comment,
+              replyTo: reaction.replyTo,
+            );
+            if (!mounted) return;
+            // Replace temp reaction with DB-assigned ID version
+            final saved = MealReaction.fromMap(row);
+            setState(() {
+              final idx = _meals.indexWhere((e) => e.id == m.id);
+              if (idx >= 0) {
+                final list = List<MealReaction>.from(_meals[idx].reactions);
+                final ri = list.lastIndexWhere(
+                  (r) => r.id == null &&
+                      r.memberName == reaction.memberName &&
+                      r.reactionEmoji == reaction.reactionEmoji,
+                );
+                if (ri >= 0) list[ri] = saved;
+                _meals[idx] = _meals[idx].copyWith(reactions: list);
+              }
+            });
+          } catch (e) {
+            if (!mounted) return;
+            setState(() {
+              final idx = _meals.indexWhere((e) => e.id == m.id);
+              if (idx >= 0) {
+                final list = List<MealReaction>.from(_meals[idx].reactions)
+                  ..remove(reaction);
+                _meals[idx] = _meals[idx].copyWith(reactions: list);
+              }
+            });
+            _showSavedSnack('Failed to save reaction', AppColors.expense);
+          }
         },
-        onReactionUpdated: (reactionIndex, updated) {
+        onReactionUpdated: (reactionIndex, updated) async {
           setState(() {
             final idx = _meals.indexWhere((e) => e.id == m.id);
             if (idx >= 0) {
@@ -447,28 +680,121 @@ class _PantryScreenState extends State<PantryScreen>
               _meals[idx] = _meals[idx].copyWith(reactions: list);
             }
           });
+          final mealIdx = _meals.indexWhere((e) => e.id == m.id);
+          final dbId = mealIdx >= 0 && reactionIndex < _meals[mealIdx].reactions.length
+              ? _meals[mealIdx].reactions[reactionIndex].id
+              : null;
+          if (dbId == null) return; // not yet persisted
+          try {
+            await PantryService.instance.updateReaction(dbId, {
+              'member_name': updated.memberName,
+              'reaction_emoji': updated.reactionEmoji,
+              'comment': updated.comment,
+            });
+          } catch (_) {
+            // Reactions are non-critical; swallow silently
+          }
         },
-        onReactionDeleted: (reactionIndex) {
+        onReactionDeleted: (reactionIndex) async {
+          final mealIdx = _meals.indexWhere((e) => e.id == m.id);
+          final dbId = mealIdx >= 0 && reactionIndex < _meals[mealIdx].reactions.length
+              ? _meals[mealIdx].reactions[reactionIndex].id
+              : null;
           setState(() {
-            final idx = _meals.indexWhere((e) => e.id == m.id);
-            if (idx >= 0) {
-              final list = List<MealReaction>.from(_meals[idx].reactions)
+            if (mealIdx >= 0) {
+              final list = List<MealReaction>.from(_meals[mealIdx].reactions)
                 ..removeAt(reactionIndex);
-              _meals[idx] = _meals[idx].copyWith(reactions: list);
+              _meals[mealIdx] = _meals[mealIdx].copyWith(reactions: list);
             }
           });
+          if (dbId == null) return;
+          try {
+            await PantryService.instance.deleteReaction(dbId);
+          } catch (_) {
+            // Reactions are non-critical; swallow silently
+          }
         },
       ),
     );
   }
 
   // ── Recipe handlers ────────────────────────────────────────────────────────
-  void _addRecipe(RecipeModel r) => setState(() => _recipes.add(r));
-  void _toggleFav(RecipeModel r) =>
-      setState(() => r.isFavourite = !r.isFavourite);
+
+  Future<void> _addRecipe(RecipeModel r) async {
+    setState(() => _recipes.add(r)); // optimistic
+    try {
+      final row = await PantryService.instance.addRecipe(
+        walletId: widget.activeWalletId,
+        name: r.name,
+        emoji: r.emoji,
+        cuisine: r.cuisine.name,
+        suitableFor: r.suitableFor.map((t) => t.name).toList(),
+        ingredients: r.ingredients,
+        socialLink: r.socialLink,
+        note: r.note,
+        cookTimeMin: r.cookTimeMin,
+        isFavourite: r.isFavourite,
+      );
+      if (!mounted) return;
+      final saved = RecipeModel.fromMap(row);
+      setState(() {
+        final idx = _recipes.indexWhere((e) => e.id == r.id);
+        if (idx >= 0) _recipes[idx] = saved;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _recipes.remove(r));
+      _showSavedSnack('Failed to save recipe', AppColors.expense);
+    }
+  }
+
+  Future<void> _updateRecipe(RecipeModel updated) async {
+    final idx = _recipes.indexWhere((r) => r.id == updated.id);
+    if (idx < 0) return;
+    final old = _recipes[idx];
+    setState(() => _recipes[idx] = updated); // optimistic
+    try {
+      await PantryService.instance.updateRecipe(updated.id, {
+        'name': updated.name,
+        'emoji': updated.emoji,
+        'cuisine': updated.cuisine.name,
+        'suitable_for': updated.suitableFor.map((t) => t.name).toList(),
+        'ingredients': updated.ingredients,
+        'social_link': updated.socialLink,
+        'note': updated.note,
+        'cook_time_min': updated.cookTimeMin,
+        'is_favourite': updated.isFavourite,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _recipes[idx] = old); // revert
+      _showSavedSnack('Failed to update recipe', AppColors.expense);
+    }
+  }
+
+  Future<void> _toggleFav(RecipeModel r) async {
+    final newVal = !r.isFavourite;
+    setState(() => r.isFavourite = newVal); // optimistic
+    try {
+      await PantryService.instance.toggleFavourite(r.id, isFavourite: newVal);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => r.isFavourite = !newVal); // revert
+      _showSavedSnack('Failed to update favourite', AppColors.expense);
+    }
+  }
   void _showRecipeDetail(RecipeModel r) => RecipeDetailSheet.show(
     context,
     r,
+    onEdit: () {
+      Navigator.pop(context);
+      AddRecipeSheet.show(
+        context,
+        onSave: _addRecipe,
+        existing: r,
+        onUpdate: _updateRecipe,
+      );
+    },
     onLogMeal: (meal) {
       // Resolve correct walletId
       final entry = MealEntry(
@@ -780,6 +1106,11 @@ class _PantryScreenState extends State<PantryScreen>
   // ─────────────────────────────────────────────────────────────────────────
 
   Widget _buildMealMapTab(bool isDark) {
+    if (_mealsLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.income, strokeWidth: 2),
+      );
+    }
     return PrimaryScrollController.none(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -794,6 +1125,7 @@ class _PantryScreenState extends State<PantryScreen>
                 .where((p) => p.walletId == widget.activeWalletId)
                 .toList(),
             currentUserId: 'me',
+            walletId: widget.activeWalletId,
             isAdmin: true,
             onSave: _saveFoodPrefs,
           ),
@@ -822,6 +1154,11 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Widget _buildRecipeBoxTab(bool isDark) {
+    if (_recipesLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.lend, strokeWidth: 2),
+      );
+    }
     return PrimaryScrollController.none(
       child: ListView(
         padding: EdgeInsets.zero,

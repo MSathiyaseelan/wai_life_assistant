@@ -6,14 +6,16 @@ class FamilyFoodPrefsCard extends StatelessWidget {
   final List<PantryMember> members;
   final List<MemberFoodPrefs> foodPrefs;
   final String currentUserId;
+  final String walletId;
   final bool isAdmin;
-  final void Function(MemberFoodPrefs) onSave;
+  final Future<void> Function(MemberFoodPrefs) onSave;
 
   const FamilyFoodPrefsCard({
     super.key,
     required this.members,
     required this.foodPrefs,
     required this.currentUserId,
+    required this.walletId,
     required this.isAdmin,
     required this.onSave,
   });
@@ -44,7 +46,7 @@ class FamilyFoodPrefsCard extends StatelessWidget {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final walletId = foodPrefs.isNotEmpty ? foodPrefs.first.walletId : 'personal';
+    // walletId is passed explicitly — don't infer from foodPrefs which may be empty
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -187,9 +189,9 @@ class FamilyFoodPrefsCard extends StatelessWidget {
         member: m,
         prefs: prefs,
         canEdit: canEdit,
-        onSave: (updated) {
+        onSave: (updated) async {
           Navigator.pop(ctx);
-          onSave(updated);
+          await onSave(updated);
         },
       ),
     );
@@ -202,7 +204,7 @@ class _MemberPrefsSheet extends StatefulWidget {
   final PantryMember member;
   final MemberFoodPrefs prefs;
   final bool canEdit;
-  final void Function(MemberFoodPrefs) onSave;
+  final Future<void> Function(MemberFoodPrefs) onSave;
 
   const _MemberPrefsSheet({
     required this.member,

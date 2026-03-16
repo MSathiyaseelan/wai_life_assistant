@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
+import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 
@@ -13,7 +14,8 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final int refreshCount;
+  const DashboardScreen({super.key, this.refreshCount = 0});
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -22,6 +24,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userName = 'Sathiya';
   bool _balanceHidden = false;
   String? _outfitNote; // today's selfie / outfit note
+
+  // Today's meals — loaded from DB
+  List<MealEntry> _todayMeals = [];
+  String _mealsWalletId = '';
 
   // derived data — walletId is read from AppStateScope in build()
   WalletModel _wallet(String wid) => wid == 'personal'
@@ -35,8 +41,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
       .where((t) => t.walletId == wid && _isToday(t.date))
       .toList();
 
-  List<MealEntry> _todayMeals(String wid) =>
-      mockMeals.where((m) => m.walletId == wid && _isToday(m.date)).toList();
+  @override
+  void initState() {
+    super.initState();
+    PantryService.mealChangeSignal.addListener(_onMealChange);
+  }
+
+  @override
+  void dispose() {
+    PantryService.mealChangeSignal.removeListener(_onMealChange);
+    super.dispose();
+  }
+
+  void _onMealChange() => _loadTodayMeals(_mealsWalletId);
+
+  @override
+  void didUpdateWidget(DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshCount != widget.refreshCount) {
+      _loadTodayMeals(_mealsWalletId);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final walletId = AppStateScope.of(context).activeWalletId;
+    if (walletId != _mealsWalletId) {
+      _mealsWalletId = walletId;
+      _loadTodayMeals(walletId);
+    }
+  }
+
+  Future<void> _loadTodayMeals(String walletId) async {
+    if (walletId.isEmpty) return;
+    try {
+      final rows = await PantryService.instance.fetchMealEntriesForDay(
+        walletId,
+        DateTime.now(),
+      );
+      if (!mounted) return;
+      setState(() => _todayMeals = rows.map(MealEntry.fromMap).toList());
+    } catch (_) {} // non-critical — Today's Plate shows empty state gracefully
+  }
 
   List<_PlanNudge> get _nudges {
     final now = DateTime.now();
@@ -372,7 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 10),
                   _TodaysPlateCard(
-                    meals: _todayMeals(_walletId),
+                    meals: _todayMeals,
                     isDark: isDark,
                     cardBg: cardBg,
                   ),

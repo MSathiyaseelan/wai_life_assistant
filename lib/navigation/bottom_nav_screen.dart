@@ -50,6 +50,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _idx = 0;
+  int _dashboardRefreshCount = 0;
   final _appState = AppStateNotifier();
 
   @override
@@ -83,7 +84,7 @@ class _AppShellState extends State<AppShell> {
         builder: (context, _) {
           final walletId = _appState.activeWalletId;
           final screens = [
-            const DashboardScreen(),
+            DashboardScreen(refreshCount: _dashboardRefreshCount),
             WalletScreen(
               activeWalletId: walletId,
               onWalletChange: _appState.switchWallet,
@@ -130,7 +131,10 @@ class _AppShellState extends State<AppShell> {
                       return Expanded(
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => setState(() => _idx = i),
+                          onTap: () => setState(() {
+                            if (i == 0 && _idx != 0) _dashboardRefreshCount++;
+                            _idx = i;
+                          }),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 220),
                             curve: Curves.easeOutBack,
