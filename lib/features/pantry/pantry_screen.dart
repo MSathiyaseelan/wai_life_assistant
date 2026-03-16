@@ -113,31 +113,6 @@ class _PantryScreenState extends State<PantryScreen>
     orElse: () => personalWallet,
   );
 
-  // Stats helpers
-  int get _mealsThisWeek {
-    final weekStart = _mondayOf(_selectedDate);
-    final weekEnd = weekStart.add(const Duration(days: 7));
-    return _meals
-        .where(
-          (m) =>
-              m.walletId == widget.activeWalletId &&
-              m.date.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
-              m.date.isBefore(weekEnd),
-        )
-        .length;
-  }
-
-  int get _toBuyCount => _groceries
-      .where((g) => g.walletId == widget.activeWalletId && g.toBuy)
-      .length;
-
-  int get _favRecipes => _recipes.where((r) => r.isFavourite).length;
-
-  DateTime _mondayOf(DateTime d) {
-    final diff = d.weekday - 1;
-    return DateTime(d.year, d.month, d.day - diff);
-  }
-
   // ── Meal map clipboard ─────────────────────────────────────────────────────
 
   void _copyMeal(MealEntry m) {
@@ -332,7 +307,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadRecipes() async {
-    if (!mounted) return;
+    if (!mounted || widget.activeWalletId.isEmpty) return;
     setState(() => _recipesLoading = true);
     try {
       final rows = await PantryService.instance.fetchRecipes(widget.activeWalletId);
@@ -349,7 +324,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadMeals() async {
-    if (!mounted) return;
+    if (!mounted || widget.activeWalletId.isEmpty) return;
     setState(() => _mealsLoading = true);
     try {
       final rows = await PantryService.instance.fetchMealEntries(widget.activeWalletId);
@@ -366,7 +341,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadFoodPrefs() async {
-    if (!mounted) return;
+    if (!mounted || widget.activeWalletId.isEmpty) return;
     try {
       final rows = await PantryService.instance.fetchFoodPrefs(widget.activeWalletId);
       if (!mounted) return;
@@ -377,7 +352,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadGroceries() async {
-    if (!mounted) return;
+    if (!mounted || widget.activeWalletId.isEmpty) return;
     setState(() => _groceriesLoading = true);
     try {
       final rows = await PantryService.instance.fetchGroceryItems(widget.activeWalletId);
@@ -832,7 +807,55 @@ class _PantryScreenState extends State<PantryScreen>
   // ── Grocery handlers ───────────────────────────────────────────────────────
   void _toggleBuy(GroceryItem i) => setState(() => i.toBuy = !i.toBuy);
   void _toggleStock(GroceryItem i) => setState(() => i.inStock = !i.inStock);
-  void _addGrocery(GroceryItem i) => setState(() => _groceries.add(i));
+
+  /// Mark a To-Buy item as purchased: move it to In Stock, off the shopping list.
+  Future<void> _markBought(GroceryItem i) async {
+    setState(() {
+      i.inStock = true;
+      i.toBuy = false;
+    });
+    try {
+      await PantryService.instance.updateGroceryItem(i.id, {
+        'in_stock': true,
+        'to_buy': false,
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        i.inStock = false;
+        i.toBuy = true;
+      });
+      _showSavedSnack('Failed to update item', AppColors.expense);
+    }
+  }
+
+  Future<void> _addGrocery(GroceryItem i) async {
+    setState(() => _groceries.add(i)); // optimistic
+    try {
+      final row = await PantryService.instance.addGroceryItem(
+        walletId: widget.activeWalletId,
+        name: i.name,
+        category: i.category.name,
+        quantity: i.quantity,
+        unit: i.unit,
+        inStock: i.inStock,
+        toBuy: i.toBuy,
+        expiryDate: i.expiryDate,
+        note: i.note,
+      );
+      if (!mounted) return;
+      final saved = GroceryItem.fromMap(row);
+      setState(() {
+        final idx = _groceries.indexWhere((g) => g.id == i.id);
+        if (idx >= 0) _groceries[idx] = saved;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _groceries.remove(i));
+      _showSavedSnack('Failed to save item', AppColors.expense);
+    }
+  }
+
   void _deleteGrocery(GroceryItem i) => setState(() => _groceries.remove(i));
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -845,8 +868,6 @@ class _PantryScreenState extends State<PantryScreen>
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final textColor = isDark ? AppColors.textDark : AppColors.textLight;
-    final subColor = isDark ? AppColors.subDark : AppColors.subLight;
-
     return Scaffold(
       backgroundColor: bg,
       resizeToAvoidBottomInset: true,
@@ -864,7 +885,7 @@ class _PantryScreenState extends State<PantryScreen>
         },
       ),
       body: NestedScrollView(
-        headerSliverBuilder: (_, __) => [
+        headerSliverBuilder: (_, _) => [
           // ── Sliver AppBar ────────────────────────────────────────────────
           SliverAppBar(
             pinned: true,
@@ -908,7 +929,6 @@ class _PantryScreenState extends State<PantryScreen>
       ),
 
       // ── Context-aware mini FAB (form shortcut per active tab) ─────────────
-      //floatingActionButton: _buildFAB(isDark),
       //floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
@@ -987,39 +1007,6 @@ class _PantryScreenState extends State<PantryScreen>
     );
   }
 
-  // ── Stats row ─────────────────────────────────────────────────────────────
-  Widget _buildStatsRow(bool isDark, Color cardBg, Color sub, Color text) {
-    return Container(
-      color: cardBg,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      child: Row(
-        children: [
-          _StatPill(
-            emoji: '🗓️',
-            value: '$_mealsThisWeek',
-            label: 'Meals\nThis Week',
-            color: AppColors.income,
-          ),
-          const SizedBox(width: 10),
-          _StatPill(
-            emoji: '📖',
-            value: '$_favRecipes',
-            label: 'Fav\nRecipes',
-            color: AppColors.lend,
-          ),
-          const SizedBox(width: 10),
-          _StatPill(
-            emoji: '🛒',
-            value: '$_toBuyCount',
-            label: 'Items\nTo Buy',
-            color: AppColors.expense,
-            onTap: () => _sectionTab.animateTo(2),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── Section tab bar ───────────────────────────────────────────────────────
   Widget _buildSectionTabBar(bool isDark, Color surfBg) {
     const labels = [
@@ -1043,7 +1030,7 @@ class _PantryScreenState extends State<PantryScreen>
             gradient: LinearGradient(
               colors: [
                 _tabColor(_sectionTab.index),
-                _tabColor(_sectionTab.index).withOpacity(0.75),
+                _tabColor(_sectionTab.index).withValues(alpha: 0.75),
               ],
             ),
             borderRadius: BorderRadius.circular(12),
@@ -1180,13 +1167,14 @@ class _PantryScreenState extends State<PantryScreen>
     final now = DateTime.now();
     final expiring =
         _groceries
-            .where(
-              (g) =>
-                  g.walletId == widget.activeWalletId &&
-                  g.expiryDate != null &&
-                  g.expiryDate!.difference(now).inDays <= 3 &&
-                  g.expiryDate!.isAfter(now.subtract(const Duration(days: 1))),
-            )
+            .where((g) {
+              if (g.walletId != widget.activeWalletId) return false;
+              if (g.expiryDate == null) return false;
+              final expiryDay = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
+              final todayDay = DateTime(now.year, now.month, now.day);
+              // Only show items that have already expired (strictly before today)
+              return expiryDay.isBefore(todayDay);
+            })
             .toList()
           ..sort((a, b) => a.expiryDate!.compareTo(b.expiryDate!));
 
@@ -1202,28 +1190,12 @@ class _PantryScreenState extends State<PantryScreen>
             walletId: widget.activeWalletId,
             onItemToggleBuy: _toggleBuy,
             onItemToggleStock: _toggleStock,
+            onItemMarkBought: _markBought,
             onItemAdded: _addGrocery,
             onItemDeleted: _deleteGrocery,
           ),
         ),
       ],
-    );
-  }
-
-  // ── Context FAB — small shortcut for current tab's form ──────────────────
-  Widget _buildFAB(bool isDark) {
-    final tab = _sectionTab.index;
-    final (icon, color) = switch (tab) {
-      0 => (Icons.restaurant_menu_rounded, AppColors.income),
-      1 => (Icons.menu_book_rounded, AppColors.lend),
-      _ => (Icons.add_shopping_cart_rounded, AppColors.expense),
-    };
-    return FloatingActionButton.small(
-      onPressed: () => _onFabTap(tab),
-      backgroundColor: color,
-      foregroundColor: Colors.white,
-      elevation: 4,
-      child: Icon(icon, size: 20),
     );
   }
 
@@ -1254,8 +1226,13 @@ class _PantryScreenState extends State<PantryScreen>
 
     final nameCtrl = TextEditingController();
     final qtyCtrl = TextEditingController(text: '1');
-    final unitCtrl = TextEditingController(text: 'pcs');
+    final noteCtrl = TextEditingController();
     GroceryCategory cat = GroceryCategory.other;
+    String selectedUnit = 'pieces';
+    DateTime? expiryDate = DateTime.now(); // defaults to today
+    bool addToInStock = true;   // true = In Stock, false = To Buy
+
+    const units = ['kg', 'g', 'litre', 'ml', 'pieces', 'packet', 'bunch'];
 
     showModalBottomSheet(
       context: context,
@@ -1263,6 +1240,12 @@ class _PantryScreenState extends State<PantryScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) {
+          final dateLabel = expiryDate == null
+              ? 'No date'
+              : '${expiryDate!.day.toString().padLeft(2, '0')}/'
+                '${expiryDate!.month.toString().padLeft(2, '0')}/'
+                '${expiryDate!.year}';
+
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -1274,20 +1257,23 @@ class _PantryScreenState extends State<PantryScreen>
                   top: Radius.circular(28),
                 ),
               ),
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                  // Handle
                   Container(
                     width: 40,
                     height: 4,
                     margin: const EdgeInsets.only(top: 12, bottom: 20),
                     decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.3),
+                      color: Colors.grey.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
 
+                  // Header
                   Row(
                     children: [
                       const Text('🛒', style: TextStyle(fontSize: 22)),
@@ -1308,10 +1294,11 @@ class _PantryScreenState extends State<PantryScreen>
                   _inputField(nameCtrl, 'Item name', surfBg, tc, sub),
                   const SizedBox(height: 10),
 
-                  // Qty + unit row
+                  // Qty + date row
                   Row(
                     children: [
                       Expanded(
+                        flex: 2,
                         child: _inputField(
                           qtyCtrl,
                           'Qty',
@@ -1322,16 +1309,106 @@ class _PantryScreenState extends State<PantryScreen>
                         ),
                       ),
                       const SizedBox(width: 10),
+                      // Date picker button
                       Expanded(
-                        child: _inputField(
-                          unitCtrl,
-                          'Unit (kg/g/pcs)',
-                          surfBg,
-                          tc,
-                          sub,
+                        flex: 3,
+                        child: GestureDetector(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: ctx,
+                              initialDate: expiryDate ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (picked != null) setSt(() => expiryDate = picked);
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: surfBg,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 14,
+                                  color: AppColors.expense,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    dateLabel,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontFamily: 'Nunito',
+                                      fontWeight: FontWeight.w700,
+                                      color: tc,
+                                    ),
+                                  ),
+                                ),
+                                if (expiryDate != null)
+                                  GestureDetector(
+                                    onTap: () => setSt(() => expiryDate = null),
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 14,
+                                      color: sub,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Unit chips
+                  SizedBox(
+                    height: 34,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: units.map((u) {
+                        final sel = u == selectedUnit;
+                        return GestureDetector(
+                          onTap: () => setSt(() => selectedUnit = u),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: sel
+                                  ? AppColors.expense.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: sel
+                                    ? AppColors.expense
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              u,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: sel ? AppColors.expense : sub,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                   const SizedBox(height: 14),
 
@@ -1351,7 +1428,7 @@ class _PantryScreenState extends State<PantryScreen>
                           ),
                           decoration: BoxDecoration(
                             color: sel
-                                ? AppColors.expense.withOpacity(0.15)
+                                ? AppColors.expense.withValues(alpha: 0.15)
                                 : surfBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
@@ -1374,6 +1451,86 @@ class _PantryScreenState extends State<PantryScreen>
                       );
                     }).toList(),
                   ),
+                  const SizedBox(height: 10),
+
+                  // Notes
+                  _inputField(
+                    noteCtrl,
+                    'Notes (optional)',
+                    surfBg,
+                    tc,
+                    sub,
+                  ),
+                  const SizedBox(height: 14),
+
+                  // In Stock / To Buy toggle
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setSt(() => addToInStock = true),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: BoxDecoration(
+                              color: addToInStock
+                                  ? AppColors.income.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: addToInStock
+                                    ? AppColors.income
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              '🏠  In Stock',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: addToInStock ? AppColors.income : sub,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setSt(() => addToInStock = false),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: BoxDecoration(
+                              color: !addToInStock
+                                  ? AppColors.expense.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: !addToInStock
+                                    ? AppColors.expense
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              '🛒  To Buy',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: !addToInStock ? AppColors.expense : sub,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 18),
 
                   // Save
@@ -1390,12 +1547,14 @@ class _PantryScreenState extends State<PantryScreen>
                             name: name,
                             category: cat,
                             quantity: double.tryParse(qtyCtrl.text) ?? 1,
-                            unit: unitCtrl.text.trim().isEmpty
-                                ? 'pcs'
-                                : unitCtrl.text.trim(),
+                            unit: selectedUnit,
                             walletId: widget.activeWalletId,
-                            inStock: false,
-                            toBuy: true,
+                            inStock: addToInStock,
+                            toBuy: !addToInStock,
+                            expiryDate: expiryDate,
+                            note: noteCtrl.text.trim().isEmpty
+                                ? null
+                                : noteCtrl.text.trim(),
                           ),
                         );
                         Navigator.pop(context);
@@ -1422,7 +1581,7 @@ class _PantryScreenState extends State<PantryScreen>
                         backgroundColor: AppColors.expense,
                         foregroundColor: Colors.white,
                         elevation: 4,
-                        shadowColor: AppColors.expense.withOpacity(0.4),
+                        shadowColor: AppColors.expense.withValues(alpha: 0.4),
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -1439,6 +1598,7 @@ class _PantryScreenState extends State<PantryScreen>
                     ),
                   ),
                 ],
+                ),
               ),
             ),
           );
@@ -1497,7 +1657,7 @@ class _PantryScreenState extends State<PantryScreen>
               height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 4),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.grey.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2106,64 +2266,6 @@ class _ReactionActionBtn extends StatelessWidget {
 // SHARED WIDGETS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StatPill extends StatelessWidget {
-  final String emoji, value, label;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const _StatPill({
-    required this.emoji,
-    required this.value,
-    required this.label,
-    required this.color,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(isDark ? 0.12 : 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.2)),
-          ),
-          child: Column(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 20)),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'DM Mono',
-                  color: color,
-                ),
-              ),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Nunito',
-                  color: color.withOpacity(0.75),
-                  height: 1.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SectionDivider extends StatelessWidget {
   final bool isDark;
   const _SectionDivider({required this.isDark});
@@ -2173,8 +2275,8 @@ class _SectionDivider extends StatelessWidget {
     indent: 16,
     endIndent: 16,
     color: isDark
-        ? Colors.white.withOpacity(0.06)
-        : Colors.black.withOpacity(0.06),
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.06),
   );
 }
 
@@ -2189,16 +2291,22 @@ class _ExpiryBanner extends StatelessWidget {
   const _ExpiryBanner({required this.items, required this.isDark});
 
   String _expiryLabel(GroceryItem item) {
-    final days = item.expiryDate!.difference(DateTime.now()).inDays;
-    if (days <= 0) return 'expires today';
-    if (days == 1) return 'expires tomorrow';
-    return 'expires in $days days';
+    final expiryDay = DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day);
+    final today = DateTime.now();
+    final todayDay = DateTime(today.year, today.month, today.day);
+    final days = expiryDay.difference(todayDay).inDays;
+    if (days == 0) return 'expired today';
+    if (days == -1) return 'expired yesterday';
+    return 'expired ${(-days)} days ago';
   }
 
   Color _urgencyColor(GroceryItem item) {
-    final days = item.expiryDate!.difference(DateTime.now()).inDays;
-    if (days <= 0) return AppColors.expense;
-    if (days == 1) return const Color(0xFFFF7043);
+    final expiryDay = DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day);
+    final today = DateTime.now();
+    final todayDay = DateTime(today.year, today.month, today.day);
+    final days = expiryDay.difference(todayDay).inDays;
+    if (days >= -1) return AppColors.expense;
+    if (days >= -3) return const Color(0xFFFF7043);
     return const Color(0xFFFFAA2C);
   }
 
@@ -2208,10 +2316,10 @@ class _ExpiryBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFF7043).withOpacity(isDark ? 0.15 : 0.08),
+        color: const Color(0xFFFF7043).withValues(alpha: isDark ? 0.15 : 0.08),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFFFF7043).withOpacity(0.4),
+          color: const Color(0xFFFF7043).withValues(alpha: 0.4),
           width: 1.5,
         ),
       ),
@@ -2320,7 +2428,7 @@ class _PinnedDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent => maxH;
   @override
-  Widget build(_, __, ___) => child;
+  Widget build(_, _, _) => child;
   @override
   bool shouldRebuild(covariant _PinnedDelegate o) =>
       o.child != child || o.minH != minH || o.maxH != maxH;

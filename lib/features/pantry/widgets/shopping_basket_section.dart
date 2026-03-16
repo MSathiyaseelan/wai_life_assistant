@@ -11,6 +11,7 @@ class ShoppingBasketSection extends StatefulWidget {
   final String walletId;
   final void Function(GroceryItem) onItemToggleBuy;
   final void Function(GroceryItem) onItemToggleStock;
+  final void Function(GroceryItem) onItemMarkBought;
   final void Function(GroceryItem) onItemAdded;
   final void Function(GroceryItem) onItemDeleted;
 
@@ -20,6 +21,7 @@ class ShoppingBasketSection extends StatefulWidget {
     required this.walletId,
     required this.onItemToggleBuy,
     required this.onItemToggleStock,
+    required this.onItemMarkBought,
     required this.onItemAdded,
     required this.onItemDeleted,
   });
@@ -213,10 +215,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                 trailing: (item) => _BuyTrail(
                   item: item,
                   isDark: isDark,
-                  onMarkBought: () {
-                    widget.onItemToggleStock(item);
-                    widget.onItemToggleBuy(item);
-                  },
+                  onMarkBought: () => widget.onItemMarkBought(item),
                 ),
               ),
             ],
@@ -385,9 +384,10 @@ class _GroceryList extends StatelessWidget {
         final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
 
         // Check expiry warning
-        final isExpiringSoon =
-            item.expiryDate != null &&
-            item.expiryDate!.difference(DateTime.now()).inDays <= 2;
+        final now = DateTime.now();
+        final isExpiringSoon = item.expiryDate != null &&
+            DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day)
+                .isBefore(DateTime(now.year, now.month, now.day));
 
         return Dismissible(
           key: ValueKey(item.id),

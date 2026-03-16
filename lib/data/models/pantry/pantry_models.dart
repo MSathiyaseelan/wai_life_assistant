@@ -343,6 +343,7 @@ class GroceryItem {
   DateTime? expiryDate;
   DateTime lastUpdated;
   String walletId;
+  String? note;
 
   GroceryItem({
     required this.id,
@@ -354,6 +355,7 @@ class GroceryItem {
     this.inStock = true,
     this.toBuy = false,
     this.expiryDate,
+    this.note,
     DateTime? lastUpdated,
   }) : lastUpdated = lastUpdated ?? DateTime.now();
 
@@ -373,6 +375,7 @@ class GroceryItem {
     expiryDate: m['expiry_date'] != null
         ? DateTime.parse(m['expiry_date'] as String)
         : null,
+    note: m['note'] as String?,
     lastUpdated: m['last_updated'] != null
         ? DateTime.parse(m['last_updated'] as String)
         : DateTime.now(),

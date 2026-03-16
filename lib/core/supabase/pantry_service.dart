@@ -265,6 +265,7 @@ class PantryService {
     bool inStock = true,
     bool toBuy = false,
     DateTime? expiryDate,
+    String? note,
   }) async {
     final row = await _db.from('grocery_items').insert({
       'wallet_id':    walletId,
@@ -276,6 +277,7 @@ class PantryService {
       'in_stock':     inStock,
       'to_buy':       toBuy,
       'expiry_date':  expiryDate?.toIso8601String().substring(0, 10),
+      'note':         note,
       'last_updated': DateTime.now().toIso8601String(),
     }).select().single();
     return row;

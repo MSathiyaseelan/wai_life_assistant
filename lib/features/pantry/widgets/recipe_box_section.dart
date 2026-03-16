@@ -26,12 +26,27 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  /// Distinct cuisines present in the recipe list, ordered by CuisineType.values.
+  List<CuisineType> get _availableCuisines {
+    final present = widget.recipes.map((r) => r.cuisine).toSet();
+    return CuisineType.values.where(present.contains).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(
       () => setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase()),
     );
+  }
+
+  @override
+  void didUpdateWidget(RecipeBoxSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset filter if the selected cuisine is no longer in the list
+    if (_filterCuisine != null && !_availableCuisines.contains(_filterCuisine)) {
+      _filterCuisine = null;
+    }
   }
 
   @override
@@ -53,94 +68,6 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
       }
       return true;
     }).toList();
-  }
-
-  void _showMoreCuisines(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hiddenCuisines = CuisineType.values.skip(5).toList();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
-          final sub = isDark ? AppColors.subDark : AppColors.subLight;
-          return Container(
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'More Cuisines',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Nunito',
-                    color: isDark ? AppColors.textDark : AppColors.textLight,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: hiddenCuisines.map((c) {
-                    final sel = _filterCuisine == c;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => _filterCuisine = sel ? null : c);
-                        Navigator.pop(context);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? AppColors.lend
-                              : (isDark
-                                  ? AppColors.surfDark
-                                  : AppColors.bgLight),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: sel ? AppColors.lend : Colors.transparent,
-                          ),
-                        ),
-                        child: Text(
-                          '${c.emoji} ${c.label}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: sel ? Colors.white : sub,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
   }
 
   @override
@@ -233,45 +160,37 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
           ),
         ),
 
-        // Cuisine filter chips — first 5 + More
-        SizedBox(
-          height: 34,
-          child: ListView(
-            primary: false,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              _FilterChip(
-                label: 'All',
-                selected: _filterCuisine == null,
-                color: AppColors.primary,
-                onTap: () => setState(() => _filterCuisine = null),
-              ),
-              const SizedBox(width: 4),
-              ...CuisineType.values.take(5).map(
-                (c) => Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: _FilterChip(
-                    label: '${c.emoji} ${c.label}',
-                    selected: _filterCuisine == c,
-                    color: AppColors.lend,
-                    onTap: () => setState(
-                      () => _filterCuisine = _filterCuisine == c ? null : c,
+        // Cuisine filter chips — only cuisines present in recipes
+        if (_availableCuisines.isNotEmpty)
+          SizedBox(
+            height: 34,
+            child: ListView(
+              primary: false,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _FilterChip(
+                  label: 'All',
+                  selected: _filterCuisine == null,
+                  color: AppColors.primary,
+                  onTap: () => setState(() => _filterCuisine = null),
+                ),
+                ..._availableCuisines.map(
+                  (c) => Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: _FilterChip(
+                      label: '${c.emoji} ${c.label}',
+                      selected: _filterCuisine == c,
+                      color: AppColors.lend,
+                      onTap: () => setState(
+                        () => _filterCuisine = _filterCuisine == c ? null : c,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              _FilterChip(
-                label: CuisineType.values.skip(5).contains(_filterCuisine)
-                    ? '${_filterCuisine!.emoji} ${_filterCuisine!.label} ▾'
-                    : 'More ▾',
-                selected: CuisineType.values.skip(5).contains(_filterCuisine),
-                color: AppColors.lend,
-                onTap: () => _showMoreCuisines(context),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 10),
 
         // Recipe cards
