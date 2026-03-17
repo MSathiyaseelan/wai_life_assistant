@@ -51,6 +51,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
   String _emoji = '👥';
   String? _groupPhotoPath; // local path when user picks from gallery/camera
   bool _saving = false;
+  bool _pinned = false;
 
   final List<SplitParticipant> _participants = [];
   late TabController _addTab;
@@ -83,6 +84,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
     if (_isEdit) {
       _nameCtrl.text = widget.existing!.name;
       _emoji = widget.existing!.emoji;
+      _pinned = widget.existing!.pinnedToDashboard;
       _participants.addAll(
         widget.existing!.participants.map(
           (p) => SplitParticipant(
@@ -223,7 +225,9 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
       transactions: widget.existing?.transactions,
       messages: widget.existing?.messages,
       createdAt: widget.existing?.createdAt,
+      pinnedToDashboard: _pinned,
     );
+    group.isSettled = widget.existing?.isSettled ?? false;
 
     if (mounted) {
       widget.onSave(group);
@@ -403,6 +407,65 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
                     // Add participant panel
                     _buildAddPanel(isDark, surfBg, tc, sub),
                     const SizedBox(height: 24),
+
+                    // Pin to Dashboard (edit mode only)
+                    if (_isEdit) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text('📌', style: TextStyle(fontSize: 18)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Pin to Dashboard',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito',
+                                      color: tc,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Quick access to add expenses from home',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch.adaptive(
+                              value: _pinned,
+                              onChanged: (v) => setState(() => _pinned = v),
+                              activeThumbColor: Colors.white,
+                              activeTrackColor: AppColors.primary,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Save button
                     SizedBox(

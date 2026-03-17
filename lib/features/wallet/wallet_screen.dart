@@ -159,6 +159,13 @@ class _WalletScreenState extends State<WalletScreen>
     }
   }
 
+  // Push the current pinned groups to the notifier so Dashboard can display them.
+  void _syncPinnedGroups() {
+    pinnedSplitGroupsNotifier.value = _splitGroups
+        .where((g) => g.pinnedToDashboard && !g.isFullySettled)
+        .toList();
+  }
+
   Future<void> _loadSplitGroups() async {
     setState(() => _sgLoading = true);
     try {
@@ -168,6 +175,7 @@ class _WalletScreenState extends State<WalletScreen>
             _splitGroups = List.from(mockSplitGroups);
             _sgLoading = false;
           });
+          _syncPinnedGroups();
         }
         return;
       }
@@ -177,6 +185,7 @@ class _WalletScreenState extends State<WalletScreen>
           _splitGroups = rows.map(_splitGroupFromRow).toList();
           _sgLoading = false;
         });
+        _syncPinnedGroups();
       }
     } catch (e) {
       debugPrint('[WalletScreen] fetchSplitGroups failed: $e');
@@ -185,73 +194,14 @@ class _WalletScreenState extends State<WalletScreen>
           _splitGroups = List.from(mockSplitGroups);
           _sgLoading = false;
         });
+        _syncPinnedGroups();
       }
     }
   }
 
-  SplitGroup _splitGroupFromRow(Map<String, dynamic> row) {
-    final rawParticipants = (row['split_participants'] as List? ?? []);
-    final participants = rawParticipants.map((p) => SplitParticipant(
-      id: p['id'] as String,
-      name: p['name'] as String,
-      emoji: p['emoji'] as String? ?? '👤',
-      phone: p['phone'] as String?,
-      isMe: p['is_me'] as bool? ?? false,
-    )).toList();
-
-    final rawTxs = (row['split_group_transactions'] as List? ?? []);
-    final transactions = rawTxs.map((t) {
-      final rawShares = (t['split_shares'] as List? ?? []);
-      final shares = rawShares.map((s) => SplitShare(
-        participantId: s['participant_id'] as String,
-        amount: (s['amount'] as num).toDouble(),
-        percentage: s['percentage'] != null ? (s['percentage'] as num).toDouble() : null,
-        status: _parseSettleStatus(s['status'] as String? ?? 'pending'),
-      )).toList();
-      return SplitGroupTx(
-        id: t['id'] as String,
-        groupId: t['group_id'] as String,
-        addedById: t['added_by_id'] as String,
-        title: t['title'] as String,
-        totalAmount: (t['total_amount'] as num).toDouble(),
-        splitType: _parseSplitType(t['split_type'] as String? ?? 'equal'),
-        shares: shares,
-        date: DateTime.parse(t['date'] as String),
-        note: t['note'] as String?,
-      );
-    }).toList();
-
-    return SplitGroup(
-      id: row['id'] as String,
-      name: row['name'] as String,
-      emoji: row['emoji'] as String? ?? '🤝',
-      walletId: row['wallet_id'] as String,
-      participants: participants,
-      transactions: transactions,
-      createdAt: row['created_at'] != null
-          ? DateTime.parse(row['created_at'] as String)
-          : null,
-    );
-  }
-
-  SplitType _parseSplitType(String s) {
-    switch (s) {
-      case 'unequal':   return SplitType.unequal;
-      case 'percentage': return SplitType.percentage;
-      case 'custom':    return SplitType.custom;
-      default:          return SplitType.equal;
-    }
-  }
-
-  SettleStatus _parseSettleStatus(String s) {
-    switch (s) {
-      case 'proofSubmitted':      return SettleStatus.proofSubmitted;
-      case 'settled':             return SettleStatus.settled;
-      case 'extensionRequested':  return SettleStatus.extensionRequested;
-      case 'extensionGranted':    return SettleStatus.extensionGranted;
-      default:                    return SettleStatus.pending;
-    }
-  }
+  // Delegates to shared top-level splitGroupFromRow in split_group_models.dart
+  SplitGroup _splitGroupFromRow(Map<String, dynamic> row) =>
+      splitGroupFromRow(row);
 
   @override
   void dispose() {
@@ -558,9 +508,17 @@ class _WalletScreenState extends State<WalletScreen>
           final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
           if (idx >= 0) _splitGroups[idx] = updated;
         });
+        _syncPinnedGroups();
+        if (AuthService.instance.isLoggedIn) {
+          WalletService.instance.updateSplitGroupPin(
+            updated.id,
+            pinned: updated.pinnedToDashboard,
+          );
+        }
       },
       onDelete: () {
         setState(() => _splitGroups.removeWhere((g) => g.id == group.id));
+        _syncPinnedGroups();
       },
     );
   }
@@ -577,6 +535,7 @@ class _WalletScreenState extends State<WalletScreen>
               final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
               if (idx >= 0) _splitGroups[idx] = updated;
             });
+            _syncPinnedGroups();
           },
         ),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
@@ -615,7 +574,7 @@ class _WalletScreenState extends State<WalletScreen>
                 children: [
                   _buildWalletBody(isDark),
                   _buildSplitsBody(isDark),
-                  _buildBillWatchBody(isDark),
+                  _buildBillWatchBody(isDark, context),
                 ],
               ),
             ),
@@ -675,13 +634,14 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   // ── Bill Watch tab body ───────────────────────────────────────────────────
-  Widget _buildBillWatchBody(bool isDark) {
+  Widget _buildBillWatchBody(bool isDark, BuildContext hostContext) {
     return BillWatchScreen(
       key: _billWatchKey,
       walletId: widget.activeWalletId,
       walletName: _currentWallet.name,
       walletEmoji: _currentWallet.emoji,
       bills: _bills,
+      hostContext: hostContext,
     );
   }
 

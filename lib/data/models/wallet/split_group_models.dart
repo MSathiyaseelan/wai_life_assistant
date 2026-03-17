@@ -224,6 +224,7 @@ class SplitGroup {
   List<SplitGroupTx> transactions;
   List<SplitGroupMsg> messages;
   final DateTime createdAt;
+  bool pinnedToDashboard;
 
   SplitGroup({
     required this.id,
@@ -234,6 +235,7 @@ class SplitGroup {
     List<SplitGroupTx>? transactions,
     List<SplitGroupMsg>? messages,
     DateTime? createdAt,
+    this.pinnedToDashboard = false,
   }) : transactions = transactions ?? [],
        messages = messages ?? [],
        createdAt = createdAt ?? DateTime.now();
@@ -314,6 +316,86 @@ class SplitGroup {
     }
     return result;
   }
+}
+
+// Notifier holding the list of split groups pinned to the Dashboard.
+// The wallet screen updates this whenever groups change (load / edit / delete).
+// The dashboard also populates this directly from Supabase on init.
+final pinnedSplitGroupsNotifier = ValueNotifier<List<SplitGroup>>([]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DB ROW → MODEL CONVERTERS  (shared between wallet_screen and dashboard)
+// ─────────────────────────────────────────────────────────────────────────────
+
+SplitType splitTypeFromString(String s) {
+  switch (s) {
+    case 'unequal':    return SplitType.unequal;
+    case 'percentage': return SplitType.percentage;
+    case 'custom':     return SplitType.custom;
+    default:           return SplitType.equal;
+  }
+}
+
+SettleStatus settleStatusFromString(String s) {
+  switch (s) {
+    case 'proofSubmitted':     return SettleStatus.proofSubmitted;
+    case 'settled':            return SettleStatus.settled;
+    case 'extensionRequested': return SettleStatus.extensionRequested;
+    case 'extensionGranted':   return SettleStatus.extensionGranted;
+    default:                   return SettleStatus.pending;
+  }
+}
+
+SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
+  final participants = (row['split_participants'] as List? ?? [])
+      .map((p) => SplitParticipant(
+            id: p['id'] as String,
+            name: p['name'] as String,
+            emoji: p['emoji'] as String? ?? '👤',
+            phone: p['phone'] as String?,
+            isMe: p['is_me'] as bool? ?? false,
+          ))
+      .toList();
+
+  final transactions = (row['split_group_transactions'] as List? ?? [])
+      .map((t) {
+        final shares = (t['split_shares'] as List? ?? [])
+            .map((s) => SplitShare(
+                  participantId: s['participant_id'] as String,
+                  amount: (s['amount'] as num).toDouble(),
+                  percentage: s['percentage'] != null
+                      ? (s['percentage'] as num).toDouble()
+                      : null,
+                  status: settleStatusFromString(s['status'] as String? ?? 'pending'),
+                ))
+            .toList();
+        return SplitGroupTx(
+          id: t['id'] as String,
+          groupId: t['group_id'] as String,
+          addedById: t['added_by_id'] as String,
+          title: t['title'] as String,
+          totalAmount: (t['total_amount'] as num).toDouble(),
+          splitType: splitTypeFromString(t['split_type'] as String? ?? 'equal'),
+          shares: shares,
+          date: DateTime.parse(t['date'] as String),
+          note: t['note'] as String?,
+        );
+      })
+      .toList();
+
+  final group = SplitGroup(
+    id: row['id'] as String,
+    name: row['name'] as String,
+    emoji: row['emoji'] as String? ?? '🤝',
+    walletId: row['wallet_id'] as String,
+    participants: participants,
+    transactions: transactions,
+    createdAt: row['created_at'] != null
+        ? DateTime.parse(row['created_at'] as String)
+        : null,
+    pinnedToDashboard: row['pinned_to_dashboard'] as bool? ?? false,
+  );
+  return group;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

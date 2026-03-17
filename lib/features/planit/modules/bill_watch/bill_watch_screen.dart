@@ -16,6 +16,9 @@ class BillWatchScreen extends StatefulWidget {
   final String walletEmoji;
   final List<PlanMember> members;
   final List<BillModel> bills;
+  /// When embedded inside another Scaffold (e.g. wallet tab), pass the outer
+  /// context so SnackBars are shown on the root Scaffold instead of the nested one.
+  final BuildContext? hostContext;
   const BillWatchScreen({
     super.key,
     required this.walletId,
@@ -23,6 +26,7 @@ class BillWatchScreen extends StatefulWidget {
     this.walletEmoji = '👤',
     this.members = const [],
     required this.bills,
+    this.hostContext,
   });
   @override
   State<BillWatchScreen> createState() => BillWatchScreenState();
@@ -33,6 +37,9 @@ class BillWatchScreenState extends State<BillWatchScreen>
   late TabController _tab;
   // Uses widget.bills — shared state from PlanItScreen
   BillCategory? _filterCat;
+
+  // Use hostContext when embedded in another Scaffold to avoid nested-Scaffold SnackBar issues.
+  BuildContext get _snackCtx => widget.hostContext ?? context;
 
   List<BillModel> get _mine =>
       widget.bills.where((b) => b.walletId == widget.walletId).toList()
@@ -116,7 +123,7 @@ class BillWatchScreenState extends State<BillWatchScreen>
         );
       }
     });
-    final sm = ScaffoldMessenger.of(context);
+    final sm = ScaffoldMessenger.of(_snackCtx);
     sm.clearSnackBars();
     sm.showSnackBar(
       SnackBar(
@@ -154,7 +161,7 @@ class BillWatchScreenState extends State<BillWatchScreen>
       history: b.history.isNotEmpty ? b.history.skip(1).toList() : [],
     );
     setState(() => _replace(unpaid));
-    final sm = ScaffoldMessenger.of(context);
+    final sm = ScaffoldMessenger.of(_snackCtx);
     sm.clearSnackBars();
     sm.showSnackBar(
       SnackBar(

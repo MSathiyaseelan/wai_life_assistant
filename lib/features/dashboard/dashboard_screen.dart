@@ -6,8 +6,12 @@ import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
+import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
+import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
+import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -45,15 +49,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     PantryService.mealChangeSignal.addListener(_onMealChange);
+    pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
+    _loadPinnedGroups();
+  }
+
+  Future<void> _loadPinnedGroups() async {
+    if (!AuthService.instance.isLoggedIn) return;
+    try {
+      final groups = await WalletService.instance.fetchPinnedSplitGroups();
+      pinnedSplitGroupsNotifier.value = groups;
+    } catch (e) {
+      debugPrint('[Dashboard] fetchPinnedSplitGroups failed: $e');
+    }
   }
 
   @override
   void dispose() {
     PantryService.mealChangeSignal.removeListener(_onMealChange);
+    pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
     super.dispose();
   }
 
   void _onMealChange() => _loadTodayMeals(_mealsWalletId);
+  void _onSplitGroupsChanged() => setState(() {});
+
+  void _onPinnedGroupUpdated(SplitGroup updated) {
+    final current = List<SplitGroup>.from(pinnedSplitGroupsNotifier.value);
+    final i = current.indexWhere((g) => g.id == updated.id);
+    if (i != -1) current[i] = updated;
+    // Remove if no longer active
+    pinnedSplitGroupsNotifier.value =
+        current.where((g) => !g.isFullySettled).toList();
+  }
 
   @override
   void didUpdateWidget(DashboardScreen oldWidget) {
@@ -234,6 +261,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       .where((t) => t.type == TxType.split && t.walletId == wid)
       .toList();
 
+  // Split groups pinned to dashboard — fed by the wallet screen via pinnedSplitGroupsNotifier.
+  List<SplitGroup> get _pinnedGroups => pinnedSplitGroupsNotifier.value;
+
   bool _isToday(DateTime d) {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
@@ -404,6 +434,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         isDark: isDark,
                         onAddMyShare: () =>
                             _showQuickAdd(context, isDark, surfBg, s),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+
+                  // ①c  PINNED SPLIT GROUPS ──────────────────────────────────
+                  if (_pinnedGroups.isNotEmpty) ...[
+                    _SectionHeader(
+                      emoji: '📌',
+                      title: 'Active Splits',
+                      sub: sub,
+                      action: 'Wallet →',
+                      onAction: () {},
+                    ),
+                    const SizedBox(height: 8),
+                    ..._pinnedGroups.map(
+                      (g) => _PinnedSplitCard(
+                        group: g,
+                        isDark: isDark,
+                        cardBg: cardBg,
+                        onAddExpense: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SplitGroupDetailScreen(
+                              group: g,
+                              onGroupUpdated: _onPinnedGroupUpdated,
+                              autoOpenAddExpense: true,
+                            ),
+                          ),
+                        ),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SplitGroupDetailScreen(
+                              group: g,
+                              onGroupUpdated: _onPinnedGroupUpdated,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1699,6 +1768,170 @@ class _SplitNudgeCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ①c PINNED SPLIT CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PinnedSplitCard extends StatelessWidget {
+  final SplitGroup group;
+  final bool isDark;
+  final Color cardBg;
+  final VoidCallback onTap;
+  final VoidCallback onAddExpense;
+  const _PinnedSplitCard({
+    required this.group,
+    required this.isDark,
+    required this.cardBg,
+    required this.onTap,
+    required this.onAddExpense,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final pending = group.pendingCount;
+    final me = group.participants.firstWhere(
+      (p) => p.isMe,
+      orElse: () => group.participants.first,
+    );
+    final myBalance = group.netBalances[me.id] ?? 0.0;
+    final balanceColor = myBalance >= 0 ? AppColors.income : AppColors.expense;
+    final balanceLabel = myBalance >= 0
+        ? '+₹${myBalance.abs().toStringAsFixed(0)} owed to you'
+        : '₹${myBalance.abs().toStringAsFixed(0)} you owe';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.split.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            // Group icon
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.split.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              alignment: Alignment.center,
+              child: Text(group.emoji, style: const TextStyle(fontSize: 22)),
+            ),
+            const SizedBox(width: 12),
+            // Name + meta
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: tc,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (pending > 0) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.lend.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '$pending pending',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: AppColors.lend,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        balanceLabel,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                          color: balanceColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  // Participant avatars
+                  Row(
+                    children: group.participants.take(5).map((p) {
+                      return Container(
+                        width: 20,
+                        height: 20,
+                        margin: const EdgeInsets.only(right: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.split.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.split.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          p.emoji,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            // Add Expense button
+            GestureDetector(
+              onTap: onAddExpense,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppColors.split,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                    Text(
+                      'Add',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

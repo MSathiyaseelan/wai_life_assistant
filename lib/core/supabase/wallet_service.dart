@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 
 /// Thin service layer between the wallet UI and Supabase.
 /// All methods throw [PostgrestException] on failure — callers should catch.
@@ -172,6 +173,33 @@ class WalletService {
   }
 
   // ── Split Groups ─────────────────────────────────────────────────────────
+
+  /// Fetch all split groups pinned to the dashboard for the current user.
+  Future<List<SplitGroup>> fetchPinnedSplitGroups() async {
+    final rows = await _db
+        .from('split_groups')
+        .select('''
+          *,
+          split_participants(*),
+          split_group_transactions(
+            *,
+            split_shares(*)
+          )
+        ''')
+        .eq('pinned_to_dashboard', true)
+        .order('created_at', ascending: false);
+    return (rows as List)
+        .map((r) => splitGroupFromRow(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Toggle the dashboard pin for a split group.
+  Future<void> updateSplitGroupPin(String groupId, {required bool pinned}) async {
+    await _db
+        .from('split_groups')
+        .update({'pinned_to_dashboard': pinned})
+        .eq('id', groupId);
+  }
 
   /// Fetch all split groups for a wallet, including participants & transactions.
   Future<List<Map<String, dynamic>>> fetchSplitGroups(String walletId) async {
