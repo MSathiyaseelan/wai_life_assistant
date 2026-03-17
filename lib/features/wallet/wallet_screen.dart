@@ -19,6 +19,8 @@ import 'package:wai_life_assistant/features/wallet/AI/nlp_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
 
 class WalletScreen extends StatefulWidget {
   final String activeWalletId;
@@ -35,7 +37,7 @@ class WalletScreen extends StatefulWidget {
 class _WalletScreenState extends State<WalletScreen>
     with SingleTickerProviderStateMixin {
   // Filter tab
-  WalletTab _activeTab = WalletTab.personal;
+  WalletTab _activeTab = WalletTab.wallet;
   late TabController _tabCtrl;
 
   // Calendar
@@ -55,6 +57,10 @@ class _WalletScreenState extends State<WalletScreen>
 
   // Wallets list (from AppStateScope)
   List<WalletModel> _allWallets = [];
+
+  // Bill Watch — lifted state + key to trigger add-sheet from bottom bar
+  final List<BillModel> _bills = List.from(mockBills);
+  final _billWatchKey = GlobalKey<BillWatchScreenState>();
 
   // Family tab card pager
   PageController? _familyPageCtrl;
@@ -261,11 +267,12 @@ class _WalletScreenState extends State<WalletScreen>
         .toList();
 
     switch (_activeTab) {
-      case WalletTab.personal:
-      case WalletTab.family:
+      case WalletTab.wallet:
         return base;
       case WalletTab.splits:
         return base.where((t) => t.type == TxType.split).toList();
+      case WalletTab.billWatch:
+        return [];
     }
   }
 
@@ -325,17 +332,7 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _autoSwitchWalletForTab(WalletTab tab) {
-    final WalletModel? target;
-    switch (tab) {
-      case WalletTab.personal:
-      case WalletTab.splits:
-        target = _allWallets.where((w) => w.isPersonal).firstOrNull;
-      case WalletTab.family:
-        target = _allWallets.where((w) => !w.isPersonal).firstOrNull;
-    }
-    if (target != null && target.id != widget.activeWalletId) {
-      widget.onWalletChange(target.id);
-    }
+    // No auto-switch — the wallet pill handles wallet switching across all tabs
   }
 
   void _openFlowSelector() {
@@ -616,9 +613,9 @@ class _WalletScreenState extends State<WalletScreen>
               body: TabBarView(
                 controller: _tabCtrl,
                 children: [
-                  _buildPersonalBody(isDark),
-                  _buildFamilyBody(isDark),
+                  _buildWalletBody(isDark),
                   _buildSplitsBody(isDark),
+                  _buildBillWatchBody(isDark),
                 ],
               ),
             ),
@@ -630,7 +627,14 @@ class _WalletScreenState extends State<WalletScreen>
             onMicTap: _onMicTap,
             onAddTap: _activeTab == WalletTab.splits
                 ? _openCreateGroup
-                : _openFlowSelector,
+                : _activeTab == WalletTab.billWatch
+                    ? () {
+                        final ctx = context;
+                        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+                        _billWatchKey.currentState?.openAddSheet(ctx, isDark, surfBg);
+                      }
+                    : _openFlowSelector,
             isListening: _isListening,
           ),
         ],
@@ -638,15 +642,46 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Personal tab body ──────────────────────────────────────────────────────
-  Widget _buildPersonalBody(bool isDark) {
-    final wallets = _allWallets.where((w) => w.isPersonal).toList();
-    final ids = wallets.map((w) => w.id).toSet();
-    return _buildWalletTabBody(
-      wallets: wallets,
-      walletIds: ids,
-      isDark: isDark,
-      extraHeader: _buildContactStrip(ids, isDark),
+  // ── Wallet tab body — adapts to personal vs family active wallet ───────────
+  Widget _buildWalletBody(bool isDark) {
+    if (_currentWallet.isPersonal) {
+      final wallets = _allWallets.where((w) => w.isPersonal).toList();
+      final ids = wallets.map((w) => w.id).toSet();
+      return _buildWalletTabBody(
+        wallets: wallets,
+        walletIds: ids,
+        isDark: isDark,
+        extraHeader: _buildContactStrip(ids, isDark),
+      );
+    } else {
+      final wallets = _allWallets.where((w) => !w.isPersonal).toList();
+      if (wallets.isEmpty) return _buildNoFamilyEmpty(isDark);
+      if (_familyPageCtrl == null) {
+        final initialPage = wallets.indexWhere((w) => w.id == widget.activeWalletId);
+        _familyPageCtrl = PageController(
+          viewportFraction: 0.88,
+          initialPage: initialPage < 0 ? 0 : initialPage,
+        );
+      }
+      final ids = {widget.activeWalletId};
+      return _buildWalletTabBody(
+        wallets: wallets,
+        walletIds: ids,
+        isDark: isDark,
+        familyPageCtrl: _familyPageCtrl,
+        extraHeader: _buildContactStrip(ids, isDark),
+      );
+    }
+  }
+
+  // ── Bill Watch tab body ───────────────────────────────────────────────────
+  Widget _buildBillWatchBody(bool isDark) {
+    return BillWatchScreen(
+      key: _billWatchKey,
+      walletId: widget.activeWalletId,
+      walletName: _currentWallet.name,
+      walletEmoji: _currentWallet.emoji,
+      bills: _bills,
     );
   }
 
@@ -1022,32 +1057,6 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Family tab body ────────────────────────────────────────────────────────
-  Widget _buildFamilyBody(bool isDark) {
-    final wallets = _allWallets.where((w) => !w.isPersonal).toList();
-    if (wallets.isEmpty) return _buildNoFamilyEmpty(isDark);
-
-    // Ensure controller exists, starting at the active wallet's page
-    if (_familyPageCtrl == null) {
-      final initialPage = wallets.indexWhere((w) => w.id == widget.activeWalletId);
-      _familyPageCtrl = PageController(
-        viewportFraction: 0.88,
-        initialPage: initialPage < 0 ? 0 : initialPage,
-      );
-    }
-
-    // Show transactions only for the currently visible family wallet
-    final activeId = widget.activeWalletId;
-    final ids = {activeId};
-
-    return _buildWalletTabBody(
-      wallets: wallets,
-      walletIds: ids,
-      isDark: isDark,
-      familyPageCtrl: _familyPageCtrl,
-      extraHeader: _buildContactStrip(ids, isDark),
-    );
-  }
 
   Widget _buildNoFamilyEmpty(bool isDark) {
     final appState = AppStateScope.of(context);
@@ -1489,9 +1498,12 @@ class _WalletScreenState extends State<WalletScreen>
             fontFamily: 'Nunito',
           ),
           padding: EdgeInsets.zero,
-          tabs: WalletTab.values
-              .map((t) => Tab(text: t.label, height: 36))
-              .toList(),
+          tabs: WalletTab.values.map((t) {
+            final label = t == WalletTab.wallet
+                ? (_currentWallet.isPersonal ? 'Personal' : _currentWallet.name)
+                : t.label;
+            return Tab(text: label, height: 36);
+          }).toList(),
         ),
       ),
     );

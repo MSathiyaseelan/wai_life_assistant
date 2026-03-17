@@ -249,14 +249,15 @@ class PlanEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 56)),
-            const SizedBox(height: 16),
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 48)),
+              const SizedBox(height: 12),
             Text(
               title,
               textAlign: TextAlign.center,
@@ -304,11 +305,14 @@ class PlanEmptyState extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
 // ── Input field ───────────────────────────────────────────────────────────────
+
+
 
 class PlanInputField extends StatelessWidget {
   final TextEditingController controller;

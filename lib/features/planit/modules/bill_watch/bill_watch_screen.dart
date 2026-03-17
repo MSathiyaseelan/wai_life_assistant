@@ -25,10 +25,10 @@ class BillWatchScreen extends StatefulWidget {
     required this.bills,
   });
   @override
-  State<BillWatchScreen> createState() => _BillWatchScreenState();
+  State<BillWatchScreen> createState() => BillWatchScreenState();
 }
 
-class _BillWatchScreenState extends State<BillWatchScreen>
+class BillWatchScreenState extends State<BillWatchScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   // Uses widget.bills — shared state from PlanItScreen
@@ -220,55 +220,8 @@ class _BillWatchScreenState extends State<BillWatchScreen>
         backgroundColor: cardBg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Row(
-          children: [
-            Text('🧾', style: TextStyle(fontSize: 20)),
-            SizedBox(width: 8),
-            Text(
-              'Bill Watch',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Nunito',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (widget.walletName != 'Personal')
-            Container(
-              margin: const EdgeInsets.only(right: 14),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.walletEmoji,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    widget.walletName,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
+        automaticallyImplyLeading: false,
+        toolbarHeight: 0,
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,
@@ -284,19 +237,6 @@ class _BillWatchScreenState extends State<BillWatchScreen>
             Tab(text: 'Pending (${_unpaid.length})'),
             Tab(text: 'Paid (${_paid.length})'),
           ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openAddSheet(context, isDark, surfBg),
-        backgroundColor: AppColors.borrow,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text(
-          'Add Bill',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Nunito',
-          ),
         ),
       ),
       body: Column(
@@ -316,6 +256,7 @@ class _BillWatchScreenState extends State<BillWatchScreen>
           Expanded(
             child: TabBarView(
               controller: _tab,
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _BillList(
                   key: ValueKey('unpaid-${_unpaid.length}'),
@@ -343,7 +284,7 @@ class _BillWatchScreenState extends State<BillWatchScreen>
     );
   }
 
-  void _openAddSheet(BuildContext ctx, bool isDark, Color surfBg) =>
+  void openAddSheet(BuildContext ctx, bool isDark, Color surfBg) =>
       showModalBottomSheet(
         context: ctx,
         backgroundColor: Colors.transparent,

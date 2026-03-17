@@ -355,4 +355,52 @@ class WalletService {
         )
         .subscribe();
   }
+
+  // ── Bills (schema matches planit BillModel) ────────────────────────────────
+
+  /// Fetch all bills for a wallet, ordered by due date.
+  Future<List<Map<String, dynamic>>> fetchBills(String walletId) async {
+    final rows = await _db
+        .from('bills')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('due_date');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Create a new bill.
+  Future<Map<String, dynamic>> addBill({
+    required String walletId,
+    required String name,
+    required String category,
+    required double amount,
+    required DateTime dueDate,
+    required String repeat,
+    String? provider,
+    String? accountNumber,
+    String? note,
+  }) async {
+    final row = await _db.from('bills').insert({
+      'wallet_id': walletId,
+      'name': name,
+      'category': category,
+      'amount': amount,
+      'due_date': dueDate.toIso8601String().split('T').first,
+      'repeat': repeat,
+      if (provider != null) 'provider': provider,
+      if (accountNumber != null) 'account_number': accountNumber,
+      if (note != null) 'note': note,
+    }).select().single();
+    return row;
+  }
+
+  /// Update mutable bill fields.
+  Future<void> updateBill(String billId, Map<String, dynamic> updates) async {
+    await _db.from('bills').update(updates).eq('id', billId);
+  }
+
+  /// Delete a bill.
+  Future<void> deleteBill(String billId) async {
+    await _db.from('bills').delete().eq('id', billId);
+  }
 }
