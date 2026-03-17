@@ -60,6 +60,20 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
       .where((i) => _filterCat == null || i.category == _filterCat)
       .toList();
 
+  /// Distinct categories present across both In Stock and To Buy, in GroceryCategory.values order.
+  List<GroceryCategory> get _availableCategories {
+    final present = _walletItems.map((i) => i.category).toSet();
+    return GroceryCategory.values.where(present.contains).toList();
+  }
+
+  @override
+  void didUpdateWidget(ShoppingBasketSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_filterCat != null && !_availableCategories.contains(_filterCat)) {
+      _filterCat = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -145,42 +159,37 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
           ),
         ),
 
-        // Category filter row — All + 5 visible + More
-        const SizedBox(height: 4),
-        SizedBox(
-          height: 32,
-          child: ListView(
-            primary: false,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              _CatChip(
-                label: 'All',
-                selected: _filterCat == null,
-                onTap: () => setState(() => _filterCat = null),
-              ),
-              const SizedBox(width: 3),
-              ...GroceryCategory.values.take(5).map(
-                (c) => Padding(
-                  padding: const EdgeInsets.only(right: 3),
-                  child: _CatChip(
-                    label: '${c.emoji} ${c.label}',
-                    selected: _filterCat == c,
-                    onTap: () =>
-                        setState(() => _filterCat = _filterCat == c ? null : c),
+        // Category filter chips — only categories present in items
+        if (_availableCategories.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 32,
+            child: ListView(
+              primary: false,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _CatChip(
+                  label: 'All',
+                  selected: _filterCat == null,
+                  onTap: () => setState(() => _filterCat = null),
+                ),
+                ..._availableCategories.map(
+                  (c) => Padding(
+                    padding: const EdgeInsets.only(left: 3),
+                    child: _CatChip(
+                      label: '${c.emoji} ${c.label}',
+                      selected: _filterCat == c,
+                      onTap: () => setState(
+                        () => _filterCat = _filterCat == c ? null : c,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              _CatChip(
-                label: GroceryCategory.values.skip(5).contains(_filterCat)
-                    ? '${_filterCat!.emoji} ${_filterCat!.label} ▾'
-                    : 'More ▾',
-                selected: GroceryCategory.values.skip(5).contains(_filterCat),
-                onTap: () => _showMoreCategories(context),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
         const SizedBox(height: 12),
 
         // Tab content — Expanded fills all remaining space so inner ListView scrolls freely
@@ -224,92 +233,6 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
 
         const SizedBox(height: 8),
       ],
-    );
-  }
-
-  void _showMoreCategories(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final hiddenCats = GroceryCategory.values.skip(5).toList();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
-          final sub = isDark ? AppColors.subDark : AppColors.subLight;
-          return Container(
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'More Categories',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Nunito',
-                    color: isDark ? AppColors.textDark : AppColors.textLight,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: hiddenCats.map((c) {
-                    final sel = _filterCat == c;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() => _filterCat = sel ? null : c);
-                        Navigator.pop(context);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? AppColors.income.withValues(alpha: 0.18)
-                              : (isDark ? AppColors.surfDark : AppColors.bgLight),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: sel ? AppColors.income : Colors.transparent,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Text(
-                          '${c.emoji} ${c.label}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: sel ? AppColors.income : sub,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
     );
   }
 

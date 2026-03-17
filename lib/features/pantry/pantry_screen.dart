@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/features/pantry/sheets/add_recipe_sheet.dart'
 import 'package:wai_life_assistant/features/pantry/flows/pantry_nlp_parser.dart';
 import 'package:wai_life_assistant/features/pantry/flows/pantry_flow_selector.dart';
 import 'package:wai_life_assistant/features/pantry/flows/PantryIntentConfirmSheet.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -106,12 +107,8 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  // Derived
-  List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
-  WalletModel get _currentWallet => _allWallets.firstWhere(
-    (w) => w.id == widget.activeWalletId,
-    orElse: () => personalWallet,
-  );
+  // Derived — read from AppStateScope so real Supabase wallet IDs resolve correctly
+  WalletModel get _currentWallet => AppStateScope.of(context).activeWallet;
 
   // ── Meal map clipboard ─────────────────────────────────────────────────────
 
@@ -894,8 +891,9 @@ class _PantryScreenState extends State<PantryScreen>
             backgroundColor: cardBg,
             elevation: 0,
             scrolledUnderElevation: 0,
+            titleSpacing: 0,
             title: _buildAppBarTitle(isDark, textColor),
-            actions: [_buildWalletSwitcher(isDark)],
+            actions: const [],
           ),
 
 
@@ -933,14 +931,18 @@ class _PantryScreenState extends State<PantryScreen>
     );
   }
 
-  // ── AppBar title ──────────────────────────────────────────────────────────
+  // ── AppBar title (includes wallet switcher on the right) ─────────────────
   Widget _buildAppBarTitle(bool isDark, Color textColor) {
+    final wallet = _currentWallet;
+    final subColor = isDark ? AppColors.subDark : AppColors.subLight;
     return Row(
       children: [
+        // Left: icon + title/subtitle
         const Text('🥗', style: TextStyle(fontSize: 22)),
         const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Pantry',
@@ -952,58 +954,53 @@ class _PantryScreenState extends State<PantryScreen>
               ),
             ),
             Text(
-              '· Recipe Box ·',
+              switch (_sectionTab.index) {
+                0 => '· Meal Map ·',
+                1 => '· Recipe Box ·',
+                _ => '· Basket ·',
+              },
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
                 fontFamily: 'Nunito',
-                color: isDark ? AppColors.subDark : AppColors.subLight,
+                color: subColor,
               ),
             ),
           ],
+        ),
+        // Right: wallet pill — Expanded+Align ensures it gets a bounded flex
+        // allocation, preventing unbounded-width measurement of the Text.
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
+              onTap: () => FamilySwitcherSheet.show(
+                context,
+                currentWalletId: widget.activeWalletId,
+                onSelect: widget.onWalletChange,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: wallet.gradient),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${wallet.emoji} ${wallet.name} ▾',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ],
-    );
-  }
-
-  // ── Wallet switcher (same as Wallet tab) ──────────────────────────────────
-  Widget _buildWalletSwitcher(bool isDark) {
-    return GestureDetector(
-      onTap: () => FamilySwitcherSheet.show(
-        context,
-        currentWalletId: widget.activeWalletId,
-        onSelect: widget.onWalletChange,
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(right: 14),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: _currentWallet.gradient),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_currentWallet.emoji, style: const TextStyle(fontSize: 15)),
-            const SizedBox(width: 5),
-            Text(
-              _currentWallet.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                fontFamily: 'Nunito',
-              ),
-            ),
-            const SizedBox(width: 3),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: Colors.white,
-              size: 15,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
