@@ -479,6 +479,46 @@ class ReminderModel {
     this.done = false,
     this.note,
   });
+
+  factory ReminderModel.fromRow(Map<String, dynamic> row) {
+    final timeParts = (row['due_time'] as String? ?? '09:00').split(':');
+    return ReminderModel(
+      id: row['id'] as String,
+      walletId: row['wallet_id'] as String,
+      title: row['title'] as String,
+      emoji: row['emoji'] as String? ?? '🔔',
+      dueDate: DateTime.parse(row['due_date'] as String),
+      dueTime: TimeOfDay(
+        hour: int.tryParse(timeParts[0]) ?? 9,
+        minute: int.tryParse(timeParts.length > 1 ? timeParts[1] : '0') ?? 0,
+      ),
+      repeat: RepeatMode.values.firstWhere(
+        (r) => r.name == (row['repeat'] as String? ?? 'none'),
+        orElse: () => RepeatMode.none,
+      ),
+      priority: Priority.values.firstWhere(
+        (p) => p.name == (row['priority'] as String? ?? 'medium'),
+        orElse: () => Priority.medium,
+      ),
+      assignedTo: row['assigned_to'] as String? ?? 'me',
+      snoozed: row['snoozed'] as bool? ?? false,
+      done: row['done'] as bool? ?? false,
+      note: row['note'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'title':       title,
+    'emoji':       emoji,
+    'due_date':    dueDate.toIso8601String().split('T').first,
+    'due_time':    '${dueTime.hour.toString().padLeft(2, '0')}:${dueTime.minute.toString().padLeft(2, '0')}',
+    'repeat':      repeat.name,
+    'priority':    priority.name,
+    'assigned_to': assignedTo,
+    'snoozed':     snoozed,
+    'done':        done,
+    if (note != null) 'note': note,
+  };
 }
 
 final DateTime _t = DateTime.now();

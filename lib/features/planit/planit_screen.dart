@@ -36,7 +36,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
   void _switchWallet(String id) => widget.onWalletChange(id);
 
   // ── Lifted state — persists across navigation ─────────────────────────────
-  final List<ReminderModel> _reminders = List.from(mockReminders);
   final List<TaskModel> _tasksList = List.from(mockTasks);
   final List<SpecialDayModel> _days = List.from(mockSpecialDays);
   final List<WishModel> _wishes = List.from(mockWishes);
@@ -63,10 +62,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  int get _dueReminders => _reminders
-      .where((r) => r.walletId == widget.activeWalletId && !r.done)
-      .where((r) => r.dueDate.difference(DateTime.now()).inDays <= 3)
-      .length;
+  int get _dueReminders => 0; // AlertMeScreen loads from DB independently
 
   int get _pendingTasks => _tasksList
       .where(
@@ -437,7 +433,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         members: _members,
-        reminders: _reminders,
+        isPersonal: _currentWallet.isPersonal,
       ),
     ),
     _ModuleInfo(

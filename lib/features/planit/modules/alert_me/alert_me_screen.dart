@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import '../../widgets/plan_widgets.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -11,14 +13,14 @@ class AlertMeScreen extends StatefulWidget {
   final String walletName;
   final String walletEmoji;
   final List<PlanMember> members;
-  final List<ReminderModel> reminders;
+  final bool isPersonal;
   const AlertMeScreen({
     super.key,
     required this.walletId,
     this.walletName = 'Personal',
     this.walletEmoji = '👤',
     this.members = const [],
-    required this.reminders,
+    this.isPersonal = true,
   });
   @override
   State<AlertMeScreen> createState() => _AlertMeScreenState();
@@ -27,24 +29,23 @@ class AlertMeScreen extends StatefulWidget {
 class _AlertMeScreenState extends State<AlertMeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  // LOCAL copy — changes don't affect global mock
-  // Uses widget.reminders — shared state from PlanItScreen
+  List<ReminderModel> _reminders = [];
+  bool _loading = false;
 
-  List<ReminderModel> get _active =>
-      widget.reminders
-          .where((r) => r.walletId == widget.walletId && !r.done)
-          .toList()
-        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+  List<ReminderModel> get _active => _reminders
+      .where((r) => !r.done)
+      .toList()
+    ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
-  List<ReminderModel> get _done => widget.reminders
-      .where((r) => r.walletId == widget.walletId && r.done)
-      .toList();
+  List<ReminderModel> get _done =>
+      _reminders.where((r) => r.done).toList();
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
+    _loadReminders();
   }
 
   @override
@@ -53,18 +54,78 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     super.dispose();
   }
 
+  Future<void> _loadReminders() async {
+    setState(() => _loading = true);
+    try {
+      final rows = await ReminderService.instance.fetchReminders(widget.walletId);
+      if (!mounted) return;
+      setState(() {
+        _reminders = rows.map(ReminderModel.fromRow).toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   // ── Mutators ──────────────────────────────────────────────────────────────
-  void _add(ReminderModel r) => setState(() => widget.reminders.add(r));
-  void _delete(ReminderModel r) => setState(() => widget.reminders.remove(r));
-  void _update(ReminderModel updated) => setState(() {
-    final i = widget.reminders.indexWhere((r) => r.id == updated.id);
-    if (i >= 0) widget.reminders[i] = updated;
-  });
-  void _markDone(ReminderModel r) => setState(() => r.done = true);
-  void _snooze(ReminderModel r) => setState(() {
-    r.dueDate = r.dueDate.add(const Duration(hours: 1));
-    r.snoozed = true;
-  });
+  Future<void> _add(ReminderModel r) async {
+    try {
+      final row = await ReminderService.instance.addReminder(
+        walletId: r.walletId,
+        title: r.title,
+        emoji: r.emoji,
+        dueDate: r.dueDate,
+        dueTime: '${r.dueTime.hour.toString().padLeft(2, '0')}:${r.dueTime.minute.toString().padLeft(2, '0')}',
+        repeat: r.repeat.name,
+        priority: r.priority.name,
+        assignedTo: r.assignedTo,
+        note: r.note,
+      );
+      final saved = ReminderModel.fromRow(row);
+      if (mounted) setState(() => _reminders.add(saved));
+    } catch (_) {
+      if (mounted) setState(() => _reminders.add(r));
+    }
+  }
+
+  Future<void> _delete(ReminderModel r) async {
+    setState(() => _reminders.remove(r));
+    try {
+      await ReminderService.instance.deleteReminder(r.id);
+    } catch (_) {}
+  }
+
+  Future<void> _update(ReminderModel updated) async {
+    setState(() {
+      final i = _reminders.indexWhere((r) => r.id == updated.id);
+      if (i >= 0) _reminders[i] = updated;
+    });
+    try {
+      await ReminderService.instance.updateReminder(updated.id, updated.toMap());
+    } catch (_) {}
+  }
+
+  Future<void> _markDone(ReminderModel r) async {
+    setState(() => r.done = true);
+    try {
+      await ReminderService.instance.updateReminder(r.id, {'done': true});
+    } catch (_) {}
+  }
+
+  Future<void> _snooze(ReminderModel r) async {
+    final newDate = r.dueDate.add(const Duration(hours: 1));
+    setState(() {
+      r.dueDate = newDate;
+      r.snoozed = true;
+    });
+    try {
+      await ReminderService.instance.updateReminder(r.id, {
+        'due_date': newDate.toIso8601String().split('T').first,
+        'snoozed': true,
+      });
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -161,7 +222,9 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         ),
       ),
 
-      body: TabBarView(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
         controller: _tab,
         children: [
           _ReminderList(
@@ -200,10 +263,8 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         surfBg: surfBg,
         walletId: widget.walletId,
         members: widget.members,
-        onSave: (r) {
-          // _add does setState — AlertMeScreen is still mounted, sheet is separate route
-          _add(r);
-        },
+        isPersonal: widget.isPersonal,
+        onSave: (r) => _add(r),
       ),
     );
   }
@@ -256,6 +317,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         surfBg: surfBg,
         walletId: widget.walletId,
         members: widget.members,
+        isPersonal: widget.isPersonal,
         existing: existing,
         onSave: (r) => _update(r),
       ),
@@ -749,6 +811,7 @@ class _AddReminderSheetHost extends StatelessWidget {
   final Color surfBg;
   final String walletId;
   final List<PlanMember> members;
+  final bool isPersonal;
   final ReminderModel? existing; // null = add mode, non-null = edit mode
   final void Function(ReminderModel) onSave;
 
@@ -757,6 +820,7 @@ class _AddReminderSheetHost extends StatelessWidget {
     required this.surfBg,
     required this.walletId,
     this.members = const [],
+    this.isPersonal = true,
     this.existing,
     required this.onSave,
   });
@@ -787,6 +851,7 @@ class _AddReminderSheetHost extends StatelessWidget {
               surfBg: surfBg,
               walletId: walletId,
               members: members,
+              isPersonal: isPersonal,
               existing: existing,
               onSave: (r) {
                 Navigator.pop(hostCtx);
@@ -829,6 +894,7 @@ class _AddReminderSheet extends StatefulWidget {
   final Color surfBg;
   final String walletId;
   final List<PlanMember> members;
+  final bool isPersonal;
   final ReminderModel? existing; // null = add, non-null = edit
   final void Function(ReminderModel) onSave;
 
@@ -837,6 +903,7 @@ class _AddReminderSheet extends StatefulWidget {
     required this.surfBg,
     required this.walletId,
     this.members = const [],
+    this.isPersonal = true,
     this.existing,
     required this.onSave,
   });
@@ -871,25 +938,30 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
 
   static const _emojis = [
     '🔔',
-    '💊',
-    '🚗',
-    '💡',
-    '🧾',
-    '🎂',
-    '🦷',
+    '⏰',
     '📅',
-    '📞',
+    '💊',
     '🏥',
+    '💉',
+    '🦷',
     '💼',
+    '📞',
+    '🎂',
+    '🚗',
+    '✈️',
+    '🎓',
+    '📚',
     '🏋️',
     '🛒',
-    '✈️',
-    '🏫',
-    '💉',
-    '🔧',
-    '📚',
-    '🎯',
     '💰',
+    '🧾',
+    '🏦',
+    '⚠️',
+    '🏠',
+    '👨‍👩‍👧',
+    '🌡️',
+    '💸',
+    '🗓️',
   ];
 
   @override
@@ -1127,6 +1199,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
             isDark: widget.isDark,
             surfBg: widget.surfBg,
             members: widget.members,
+            isPersonal: widget.isPersonal,
             titleCtrl: _titleCtrl,
             noteCtrl: _noteCtrl,
             emoji: _emoji,
@@ -1639,6 +1712,7 @@ class _ManualForm extends StatelessWidget {
   final bool isDark;
   final Color surfBg;
   final List<PlanMember> members;
+  final bool isPersonal;
   final TextEditingController titleCtrl, noteCtrl;
   final String emoji, assignedTo;
   final DateTime date;
@@ -1658,6 +1732,7 @@ class _ManualForm extends StatelessWidget {
     required this.isDark,
     required this.surfBg,
     this.members = const [],
+    this.isPersonal = true,
     required this.titleCtrl,
     required this.noteCtrl,
     required this.emoji,
@@ -1903,52 +1978,82 @@ class _ManualForm extends StatelessWidget {
         const SizedBox(height: 16),
         // Assign to
         const SheetLabel(text: 'ASSIGN TO'),
-        SizedBox(
-          height: 52,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: (members.isNotEmpty ? members : mockMembers)
-                .map(
-                  (m) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () => onAssignedToChanged(m.id),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: assignedTo == m.id
-                              ? AppColors.primary.withOpacity(0.15)
-                              : surfBg,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
+        if (isPersonal)
+          // Personal wallet — non-interactive "Me" chip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('👤', style: TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Text(
+                  'Me',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: (members.isNotEmpty ? members : mockMembers)
+                  .map(
+                    (m) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => onAssignedToChanged(m.id),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
                             color: assignedTo == m.id
-                                ? AppColors.primary
-                                : Colors.transparent,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(m.emoji, style: const TextStyle(fontSize: 18)),
-                            Text(
-                              m.name.split(' ')[0],
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontFamily: 'Nunito',
-                                color: sub,
-                              ),
+                                ? AppColors.primary.withOpacity(0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: assignedTo == m.id
+                                  ? AppColors.primary
+                                  : Colors.transparent,
                             ),
-                          ],
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                m.emoji,
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                              Text(
+                                m.name.split(' ')[0],
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
+                  )
+                  .toList(),
+            ),
           ),
-        ),
       ],
     );
   }
