@@ -20,6 +20,7 @@ class ParsedIntent {
   final String? person;
   final PayMode? payMode;
   final String? note;
+  final DateTime? date;
   final double confidence; // 0–1
 
   const ParsedIntent({
@@ -29,6 +30,7 @@ class ParsedIntent {
     this.person,
     this.payMode,
     this.note,
+    this.date,
     required this.confidence,
   });
 }

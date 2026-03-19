@@ -1,43 +1,56 @@
 import 'package:flutter/material.dart';
-import 'package:wai_life_assistant/data/models/wallet/AiIntent.dart';
-import 'handleAiIntent.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:wai_life_assistant/data/models/wallet/WalletTransaction.dart';
+import 'package:wai_life_assistant/core/theme/app_theme.dart';
+import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'IntentConfirmSheet.dart';
+import 'nlp_parser.dart';
 
 class SparkBottomSheet extends StatefulWidget {
-  const SparkBottomSheet({super.key});
+  final String walletId;
+  final void Function(TxModel tx) onSave;
+  final VoidCallback onOpenFlow;
+
+  const SparkBottomSheet({
+    super.key,
+    required this.walletId,
+    required this.onSave,
+    required this.onOpenFlow,
+  });
 
   @override
   State<SparkBottomSheet> createState() => _SparkBottomSheetState();
 }
 
 class _SparkBottomSheetState extends State<SparkBottomSheet> {
-  final controller = TextEditingController();
-  AiIntent? parsedIntent;
-
-  //Speech to Text
+  final _controller = TextEditingController();
   final SpeechToText _speech = SpeechToText();
-  bool isListening = false;
-  bool isLoadingAi = false;
-  String spokenText = '';
-  //AiIntent? parsedIntent;
+
+  bool _isListening = false;
+  bool _isLoading = false;
+  String _spokenText = '';
+  String? _errorMsg;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // ── Speech ──────────────────────────────────────────────────────────────────
 
   Future<void> _onTapToSpeak() async {
     final available = await _speech.initialize(
-      onStatus: (status) {
-        debugPrint('🎧 status: $status');
-      },
-      onError: (error) {
-        debugPrint('❌ error: ${error.errorMsg}');
-      },
+      onStatus: (s) => debugPrint('🎧 $s'),
+      onError: (e) => debugPrint('❌ ${e.errorMsg}'),
     );
-
     if (!available) return;
 
     setState(() {
-      isListening = true;
-      spokenText = ''; // clear only on start
-      parsedIntent = null;
+      _isListening = true;
+      _spokenText = '';
+      _errorMsg = null;
     });
 
     await _speech.listen(
@@ -47,605 +60,297 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       pauseFor: const Duration(seconds: 3),
       listenFor: const Duration(seconds: 30),
       onResult: (result) {
-        debugPrint(
-          '🎙️ "${result.recognizedWords}" final=${result.finalResult}',
-        );
-
-        // 🔥 ALWAYS update spokenText
-        setState(() {
-          spokenText = result.recognizedWords;
-        });
-
-        // If engine decides it's final
-        if (result.finalResult) {
-          _onSpeechComplete(fromFinalResult: true);
-        }
+        setState(() => _spokenText = result.recognizedWords);
+        if (result.finalResult) _onSpeechComplete();
       },
     );
   }
 
-  Future<void> _onSpeechComplete({bool fromFinalResult = false}) async {
-    debugPrint('🛑 Speech complete (final=$fromFinalResult)');
-    debugPrint('📝 Final spokenText: "$spokenText"');
-
+  Future<void> _onSpeechComplete() async {
     await _speech.stop();
-
-    setState(() {
-      isListening = false;
-      isLoadingAi = true;
-      // ❌ DO NOT clear spokenText here
-    });
-
-    if (spokenText.trim().isEmpty) {
-      debugPrint('⚠️ Empty speech');
-      setState(() => isLoadingAi = false);
-      return;
+    setState(() => _isListening = false);
+    if (_spokenText.trim().isNotEmpty) {
+      _controller.text = _spokenText;
+      await _parseInput();
     }
-
-    // Later: AI parsing
-    // final json = await GeminiService().parseWalletIntent(spokenText);
-
-    setState(() {
-      isLoadingAi = false;
-    });
   }
 
   Future<void> _stopListening() async {
-    debugPrint('🛑 User stopped');
-    debugPrint('📝 Captured so far: "$spokenText"');
-
     await _speech.stop();
-
-    setState(() {
-      isListening = false;
-    });
-
-    // 🔥 Treat manual stop as final
-    if (spokenText.trim().isNotEmpty) {
-      _onSpeechComplete(fromFinalResult: false);
+    setState(() => _isListening = false);
+    if (_spokenText.trim().isNotEmpty) {
+      _controller.text = _spokenText;
+      await _parseInput();
     }
   }
 
-  void _parseInput() {
-    final text = controller.text.trim();
+  // ── AI Parse ─────────────────────────────────────────────────────────────────
+
+  Future<void> _parseInput() async {
+    final text = _controller.text.trim();
     if (text.isEmpty) return;
 
-    String _capitalize(String value) {
-      return value[0].toUpperCase() + value.substring(1);
-    }
-
-    //   //Amount Extraction
-    double? _extractAmount(String text) {
-      final match = RegExp(
-        r'(?:₹\s*)?(\d{1,9}(?:,\d{3})*(?:\.\d{1,2})?)',
-      ).firstMatch(text);
-      return match != null
-          ? double.tryParse(match.group(1)!.replaceAll(',', ''))
-          : 0.0;
-    }
-
-    //   //Payment Mode Detection
-    PaymentMode? _extractPaymentMode(String text) {
-      final paymentMode = text.toLowerCase();
-      final matches = <PaymentMode>[];
-
-      const paymentKeywords = {
-        PaymentMode.cash: [
-          'cash',
-          'money',
-          'பணம்',
-          'காசு',
-          'efectivo',
-          'espèces',
-        ],
-        PaymentMode.upi: ['upi', 'gpay', 'phonepe', 'paytm', 'bhim'],
-        PaymentMode.card: [
-          'card',
-          'credit card',
-          'debit card',
-          'visa',
-          'mastercard',
-          'amex',
-        ],
-        PaymentMode.bankTransfer: [
-          'bank transfer',
-          'wire',
-          'neft',
-          'rtgs',
-          'imps',
-          'sepa',
-          'swift',
-        ],
-        PaymentMode.wallet: [
-          'paypal',
-          'apple pay',
-          'google wallet',
-          'amazon pay',
-          'alipay',
-          'wechat pay',
-        ],
-      };
-
-      paymentKeywords.forEach((mode, keywords) {
-        for (final k in keywords) {
-          if (RegExp(r'\b' + RegExp.escape(k) + r'\b').hasMatch(text)) {
-            matches.add(mode);
-            break;
-          }
-        }
-      });
-
-      if (matches.length == 1) return matches.first;
-      return null; // ambiguous or none
-    }
-
-    //   //Action Type Detection (Expense vs Income)
-    AiIntentType _extractIntentType(String text) {
-      final intentType = text.toLowerCase();
-
-      if (intentType.contains('create') && intentType.contains('group')) {
-        return AiIntentType.createGroup;
-      }
-
-      if (intentType.contains('split')) return AiIntentType.addToGroup;
-
-      if (intentType.contains('gave') ||
-          intentType.contains('koduthen') ||
-          intentType.contains('lend')) {
-        return AiIntentType.lend;
-      }
-
-      if (text.contains('borrow') || text.contains('vaanginen')) {
-        return AiIntentType.borrow;
-      }
-
-      if (text.contains('receive') || text.contains('get')) {
-        return AiIntentType.addIncome;
-      }
-
-      // Default fallback
-      return AiIntentType.addExpense;
-    }
-
-    //   //Paid By Detection
-    String? _extractPaidBy(String text) {
-      final t = text.toLowerCase().trim();
-
-      // 1️⃣ Self-paid detection (high confidence only)
-      final selfPatterns = [
-        r'\bi paid\b',
-        r'\bpaid by me\b',
-        r'\bpaid myself\b',
-        r'\bnaan pay\b',
-        r'\bnaan paid\b',
-      ];
-
-      for (final pattern in selfPatterns) {
-        if (RegExp(pattern).hasMatch(t)) {
-          return 'You';
-        }
-      }
-
-      // 2️⃣ Name-based patterns (common sentence orders)
-      final namePatterns = [
-        // Ravi paid / Ravi pay
-        r'\b([a-z]+)\s+(paid|pay|payed)\b',
-
-        // Ravi has paid
-        r'\b([a-z]+)\s+has\s+paid\b',
-
-        // Paid by Ravi
-        r'\bpaid\s+by\s+([a-z]+)\b',
-
-        // Paid Ravi (rare but possible)
-        r'\bpaid\s+([a-z]+)\b',
-      ];
-
-      for (final pattern in namePatterns) {
-        final match = RegExp(pattern).firstMatch(t);
-        if (match != null) {
-          return _capitalize(match.group(1)!);
-        }
-      }
-
-      return null; // unknown or ambiguous
-    }
-
-    //   //Detect Participants (for group expenses)
-    List<String> _extractParticipants(String text) {
-      final t = text.toLowerCase();
-      final result = <String>{};
-
-      // 1️⃣ Known people (later load from DB)
-      final knownNames = ['ravi', 'arun', 'meena', 'sandy', 'imman', 'venis'];
-
-      // Match names safely using word boundaries
-      for (final name in knownNames) {
-        final regex = RegExp(r'\b' + RegExp.escape(name) + r'\b');
-        if (regex.hasMatch(t)) {
-          result.add(_capitalize(name));
-        }
-      }
-
-      // 2️⃣ Self references (high confidence only)
-      final selfPatterns = [r'\bme\b', r'\bmyself\b', r'\bi\b', r'\bnaan\b'];
-
-      for (final p in selfPatterns) {
-        if (RegExp(p).hasMatch(t)) {
-          result.add('You');
-          break;
-        }
-      }
-
-      return result.toList();
-    }
-
-    String? _extractGroupHint(String text) {
-      final t = text.toLowerCase().trim();
-
-      final groupKeywords = <String, List<String>>{
-        'Goa Trip': ['goa', 'goa trip'],
-        'Office': ['office', 'work', 'team'],
-        'Trip': ['trip', 'travel', 'tour'],
-      };
-
-      for (final entry in groupKeywords.entries) {
-        for (final keyword in entry.value) {
-          final regex = RegExp(r'\b' + RegExp.escape(keyword) + r'\b');
-          if (regex.hasMatch(t)) {
-            return entry.key;
-          }
-        }
-      }
-
-      return null;
-    }
-
-    //   //Category Detection
-    ExpenseCategory? _extractCategory(String text) {
-      final t = text.toLowerCase().trim();
-
-      final categoryKeywords = <ExpenseCategory, List<String>>{
-        ExpenseCategory.food: [
-          'food',
-          'lunch',
-          'dinner',
-          'breakfast',
-          'hotel',
-          'restaurant',
-          'meal',
-          'biriyani',
-          'pizza',
-          'tea',
-          'coffee',
-        ],
-        ExpenseCategory.travel: [
-          'trip',
-          'travel',
-          'goa',
-          'bus',
-          'train',
-          'flight',
-          'cab',
-          'taxi',
-          'uber',
-          'ola',
-        ],
-        ExpenseCategory.shopping: [
-          'shopping',
-          'dress',
-          'clothes',
-          'shirt',
-          'pant',
-          'jeans',
-          'mall',
-          'amazon',
-          'flipkart',
-        ],
-        ExpenseCategory.fuel: ['fuel', 'petrol', 'diesel', 'gas', 'cng'],
-        ExpenseCategory.entertainment: [
-          'movie',
-          'cinema',
-          'netflix',
-          'spotify',
-          'game',
-          'concert',
-        ],
-        ExpenseCategory.groceries: [
-          'grocery',
-          'groceries',
-          'vegetables',
-          'fruits',
-          'milk',
-          'supermarket',
-        ],
-        ExpenseCategory.rent: ['rent', 'house rent', 'room rent'],
-        ExpenseCategory.utilities: [
-          'electricity',
-          'current bill',
-          'water bill',
-          'gas bill',
-          'internet',
-          'wifi',
-          'mobile bill',
-        ],
-        ExpenseCategory.medical: [
-          'medical',
-          'medicine',
-          'hospital',
-          'doctor',
-          'pharmacy',
-        ],
-      };
-
-      for (final entry in categoryKeywords.entries) {
-        for (final keyword in entry.value) {
-          final regex = RegExp(r'\b' + RegExp.escape(keyword) + r'\b');
-          if (regex.hasMatch(t)) {
-            return entry.key;
-          }
-        }
-      }
-
-      return ExpenseCategory.others;
-    }
-
-    //   //Date Detection (Today, Yesterday, Specific Date)
-    DateTime detectDate(String text) {
-      final t = text.toLowerCase().trim();
-      final now = DateTime.now();
-
-      // 1️⃣ Relative keywords
-      if (RegExp(r'\byesterday\b').hasMatch(t)) {
-        return DateTime(
-          now.year,
-          now.month,
-          now.day,
-        ).subtract(const Duration(days: 1));
-      }
-
-      if (RegExp(r'\btoday\b').hasMatch(t)) {
-        return DateTime(now.year, now.month, now.day);
-      }
-
-      if (RegExp(r'\btomorrow\b').hasMatch(t)) {
-        return DateTime(
-          now.year,
-          now.month,
-          now.day,
-        ).add(const Duration(days: 1));
-      }
-
-      // 2️⃣ X days ago
-      final daysAgoMatch = RegExp(r'\b(\d+)\s+days?\s+ago\b').firstMatch(t);
-      if (daysAgoMatch != null) {
-        final days = int.parse(daysAgoMatch.group(1)!);
-        return DateTime(
-          now.year,
-          now.month,
-          now.day,
-        ).subtract(Duration(days: days));
-      }
-
-      // 3️⃣ Absolute date: 12 jan / 12 january
-      final monthMap = {
-        'jan': 1,
-        'january': 1,
-        'feb': 2,
-        'february': 2,
-        'mar': 3,
-        'march': 3,
-        'apr': 4,
-        'april': 4,
-        'may': 5,
-        'jun': 6,
-        'june': 6,
-        'jul': 7,
-        'july': 7,
-        'aug': 8,
-        'august': 8,
-        'sep': 9,
-        'september': 9,
-        'oct': 10,
-        'october': 10,
-        'nov': 11,
-        'november': 11,
-        'dec': 12,
-        'december': 12,
-      };
-
-      final dateMatch = RegExp(
-        r'\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)\b',
-      ).firstMatch(t);
-
-      if (dateMatch != null) {
-        final day = int.parse(dateMatch.group(1)!);
-        final month = monthMap[dateMatch.group(2)!]!;
-
-        // assume current year
-        return DateTime(now.year, month, day);
-      }
-
-      // 4️⃣ Default: today (safe fallback)
-      return DateTime(now.year, now.month, now.day);
-    }
-
-    AiIntent parseAiIntent(String input) {
-      final text = input.toLowerCase();
-
-      final amount = _extractAmount(text);
-      final paymentMode = _extractPaymentMode(text);
-      final intentType = _extractIntentType(text);
-      final paidBy = _extractPaidBy(text);
-      final groupName = _extractGroupHint(text);
-      final participants = _extractParticipants(text);
-      final category = _extractCategory(text);
-
-      return AiIntent(
-        type: intentType,
-        amount: amount ?? 0.0,
-        paymentMode: paymentMode,
-        paidBy: paidBy,
-        groupName: groupName,
-        participants: participants,
-        category: category,
-        splitType: intentType == AiIntentType.addExpense && groupName != null
-            ? SplitType.equal
-            : null,
-      );
-    }
-
-    //   // TEMP: replace with real parser later
     setState(() {
-      parsedIntent = parseAiIntent(text);
+      _isLoading = true;
+      _errorMsg = null;
     });
+
+    final result = await AIParser.parseText(
+      feature: 'wallet',
+      subFeature: 'expense',
+      text: text,
+    );
+
+    if (!mounted) return;
+
+    if (!result.success || result.data == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMsg = result.error ?? 'Could not understand. Try rephrasing.';
+      });
+      return;
+    }
+
+    final intent = _mapToIntent(result.data!);
+
+    // Pop Spark sheet then show confirm sheet
+    if (!mounted) return;
+    Navigator.pop(context);
+    await IntentConfirmSheet.show(
+      context,
+      intent: intent,
+      walletId: widget.walletId,
+      onSave: widget.onSave,
+      onOpenFlow: widget.onOpenFlow,
+    );
   }
 
-  // void _parseInput() {
-  //   final text = controller.text.trim();
-  //   if (text.isEmpty) return;
+  ParsedIntent _mapToIntent(Map<String, dynamic> data) {
+    // flow type
+    FlowType flowType;
+    switch ((data['type'] as String? ?? '').toLowerCase()) {
+      case 'income':
+        flowType = FlowType.income;
+      case 'lend':
+        flowType = FlowType.lend;
+      case 'borrow':
+        flowType = FlowType.borrow;
+      default:
+        flowType = FlowType.expense;
+    }
 
-  //   setState(() {
-  //     parsedIntent = AiIntent.mock(text);
-  //   });
-  // }
+    // pay mode
+    PayMode? payMode;
+    final pm = (data['payment_mode'] as String? ?? '').toLowerCase();
+    if (pm == 'cash') {
+      payMode = PayMode.cash;
+    } else if (pm.isNotEmpty && pm != 'null') {
+      payMode = PayMode.online;
+    }
+
+    return ParsedIntent(
+      flowType: flowType,
+      amount: (data['amount'] as num?)?.toDouble(),
+      category: data['category'] as String?,
+      person: data['person'] as String?,
+      payMode: payMode,
+      note: (data['note'] as String?) ?? (data['title'] as String?),
+      confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
+    );
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : Colors.white;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
     return Container(
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
         top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "✨ Spark Assistant",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Tell me what happened",
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 16),
-
-          TextField(
-            controller: controller,
-            onSubmitted: (_) => _parseInput(),
-            decoration: InputDecoration(
-              hintText: "Goa trip taxi 800 Ravi paid",
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.send),
-                onPressed: _parseInput,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
+          const SizedBox(height: 14),
 
-          const SizedBox(height: 12),
+          // Header
+          Row(
+            children: [
+              const Text('✨', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Spark Assistant',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                  Text(
+                    'Tell me what happened',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      color: sub,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
-          // TextButton.icon(
-          //   onPressed: () {},
-          //   icon: const Icon(Icons.mic),
-          //   label: const Text("Tap to speak"),
-          // ),
+          // Input row
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  enabled: !_isLoading,
+                  onSubmitted: (_) => _parseInput(),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontFamily: 'Nunito',
+                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                  ),
+                  decoration: InputDecoration(
+                    hintText:
+                        _isListening ? _spokenText : 'e.g. coffee 120 by UPI',
+                    hintStyle: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 13,
+                      color: _isListening
+                          ? AppColors.primary.withValues(alpha: 0.7)
+                          : sub,
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? AppColors.surfDark
+                        : const Color(0xFFEDEEF5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _isLoading
+                  ? const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        ),
+                      ),
+                    )
+                  : FilledButton(
+                      onPressed: _parseInput,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        minimumSize: const Size(44, 44),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.send_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Mic button
           TextButton.icon(
-            onPressed: isListening ? _stopListening : _onTapToSpeak,
+            onPressed: _isLoading
+                ? null
+                : (_isListening ? _stopListening : _onTapToSpeak),
             icon: Icon(
-              isListening ? Icons.stop : Icons.mic,
-              color: isListening ? Colors.redAccent : null,
+              _isListening ? Icons.stop_circle_rounded : Icons.mic_rounded,
+              color: _isListening ? Colors.redAccent : AppColors.primary,
+              size: 20,
             ),
-            label: Text(isListening ? "Listening…" : "Tap to speak"),
-          ),
-
-          const SizedBox(height: 16),
-
-          if (parsedIntent != null) ...[
-            const Divider(),
-            _AiPreview(intent: parsedIntent!),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _AiPreview extends StatelessWidget {
-  final AiIntent intent;
-
-  const _AiPreview({required this.intent});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "What I understood",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-
-        _row("Action", intent.type.name),
-        if (intent.groupName != null) _row("Group", intent.groupName!),
-        if (intent.amount != null) _row("Amount", "₹${intent.amount}"),
-        if (intent.paidBy != null) _row("Paid by", intent.paidBy!),
-        if (intent.splitType != null) _row("Split", intent.splitType!.name),
-        if (intent.category != null) _row("Category", intent.category!.name),
-        if (intent.participants.isNotEmpty)
-          _row("Participants", intent.participants.join(", ")),
-        if (intent.paymentMode != null)
-          _row("Payment Mode", intent.paymentMode!.name),
-
-        const SizedBox(height: 12),
-
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () {
-                  final intents = AiIntent(
-                    type: intent.type,
-                    //walletType: detectedWalletType,
-                    //action: detectedAction,
-                    amount: intent.amount,
-                    purpose: intent.purpose,
-                    category: intent.category,
-                    //notes: detectedNotes,
-                  );
-
-                  Navigator.pop(context, intents); // ✅ RETURN INTENT
-                },
-                child: const Text("Confirm"),
+            label: Text(
+              _isListening ? 'Listening… tap to stop' : 'Tap to speak',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: _isListening ? Colors.redAccent : AppColors.primary,
               ),
             ),
-            const SizedBox(width: 12),
-            TextButton(onPressed: () {}, child: const Text("Edit")),
-          ],
-        ),
-      ],
-    );
-  }
+          ),
 
-  Widget _row(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.grey.shade600)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          // Error message
+          if (_errorMsg != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline_rounded,
+                    color: Colors.redAccent,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _errorMsg!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 4),
         ],
       ),
     );

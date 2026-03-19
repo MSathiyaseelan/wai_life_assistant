@@ -16,6 +16,7 @@ import 'conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/features/wallet/AI/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/AI/nlp_parser.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
@@ -389,21 +390,122 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  void _onChatSubmit(String text) {
-    final intent = NlpParser.parse(text);
-    if (intent.confidence >= 0.5) {
-      IntentConfirmSheet.show(
-        context,
-        intent: intent,
-        walletId: widget.activeWalletId,
-        onSave: _onTransactionSaved,
-        onOpenFlow: () => _openConversation(intent.flowType),
-      );
-    } else if (intent.confidence >= 0.25) {
-      _openConversation(intent.flowType);
+  static const _splitKeywords = [
+    'split', 'splits', 'equally', 'divide', 'divided', 'share', 'shared',
+    'dutch', 'between us', 'among us', 'split equally', 'split between',
+  ];
+
+  bool _looksLikeSplit(String text) {
+    final lower = text.toLowerCase();
+    return _splitKeywords.any((k) => lower.contains(k));
+  }
+
+  Future<void> _onChatSubmit(String text) async {
+    final isSplit = _looksLikeSplit(text);
+    final subFeature = isSplit ? 'split' : 'expense';
+
+    // Show parsing indicator
+    final sm = ScaffoldMessenger.of(context);
+    sm.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Text(isSplit ? 'Parsing split with AI…' : 'Parsing with AI…'),
+          ],
+        ),
+        duration: const Duration(seconds: 10),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    final result = await AIParser.parseText(
+      feature: 'wallet',
+      subFeature: subFeature,
+      text: text,
+    );
+
+    sm.hideCurrentSnackBar();
+    if (!mounted) return;
+
+    debugPrint('🤖 AI parse ($subFeature): success=${result.success} error=${result.error} data=${result.data}');
+
+    ParsedIntent intent;
+    if (result.success && result.data != null) {
+      intent = isSplit
+          ? _splitResultToIntent(result.data!)
+          : _aiResultToIntent(result.data!);
     } else {
-      _openFlowSelector();
+      debugPrint('⚠️ AI failed, falling back to NlpParser. Reason: ${result.error}');
+      intent = NlpParser.parse(text);
     }
+
+    IntentConfirmSheet.show(
+      context,
+      intent: intent,
+      walletId: widget.activeWalletId,
+      onSave: _onTransactionSaved,
+      onOpenFlow: () => _openConversation(intent.flowType),
+    );
+  }
+
+  // Maps wallet/split AI response → ParsedIntent
+  ParsedIntent _splitResultToIntent(Map<String, dynamic> data) {
+    DateTime? date;
+    final dateStr = data['date'] as String?;
+    if (dateStr != null) date = DateTime.tryParse(dateStr);
+
+    return ParsedIntent(
+      flowType: FlowType.split,
+      amount: (data['total_amount'] as num?)?.toDouble(),
+      category: data['category'] as String?,
+      person: data['paid_by'] as String?,
+      note: data['title'] as String?,
+      date: date,
+      confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
+    );
+  }
+
+  ParsedIntent _aiResultToIntent(Map<String, dynamic> data) {
+    FlowType flowType;
+    switch ((data['type'] as String? ?? '').toLowerCase()) {
+      case 'income':
+        flowType = FlowType.income;
+      case 'lend':
+        flowType = FlowType.lend;
+      case 'borrow':
+        flowType = FlowType.borrow;
+      default:
+        flowType = FlowType.expense;
+    }
+
+    PayMode? payMode;
+    final pm = (data['payment_mode'] as String? ?? '').toLowerCase();
+    if (pm == 'cash') {
+      payMode = PayMode.cash;
+    } else if (pm.isNotEmpty && pm != 'null') {
+      payMode = PayMode.online;
+    }
+
+    DateTime? date;
+    final dateStr = data['date'] as String?;
+    if (dateStr != null) date = DateTime.tryParse(dateStr);
+
+    return ParsedIntent(
+      flowType: flowType,
+      amount: (data['amount'] as num?)?.toDouble(),
+      category: data['category'] as String?,
+      person: data['person'] as String?,
+      payMode: payMode,
+      note: (data['note'] as String?) ?? (data['title'] as String?),
+      date: date,
+      confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
+    );
   }
 
   void _onMicTap() {

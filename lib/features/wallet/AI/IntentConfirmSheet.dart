@@ -56,6 +56,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   late TextEditingController _personCtrl;
   String? _category;
   PayMode? _payMode;
+  late DateTime _date;
 
   // All category options
   static const _expenseCategories = [
@@ -101,6 +102,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
     _personCtrl = TextEditingController(text: i.person ?? '');
     _category = i.category;
     _payMode = i.payMode;
+    _date = i.date ?? DateTime.now();
   }
 
   @override
@@ -156,7 +158,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       },
       note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       walletId: widget.walletId,
-      date: now,
+      date: _date,
       person: _personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim(),
     );
 
@@ -224,7 +226,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
+                            Wrap(
                               children: [
                                 Text(
                                   'Got it! This looks like a ',
@@ -381,6 +383,62 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                   const SizedBox(height: 14),
                 ],
 
+                // ── Date ───────────────────────────────────────────────────
+                _Label('DATE', sub),
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _date,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setState(() => _date = picked);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: surfBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          size: 16,
+                          color: color,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          _date.year == DateTime.now().year &&
+                                  _date.month == DateTime.now().month &&
+                                  _date.day == DateTime.now().day
+                              ? 'Today'
+                              : _date.difference(DateTime.now()).inDays == -1
+                              ? 'Yesterday'
+                              : '${_date.day} ${_monthName(_date.month)} ${_date.year}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            color: tc,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 18,
+                          color: sub,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
                 // ── Note ───────────────────────────────────────────────────
                 _Label('NOTE (OPTIONAL)', sub),
                 _InputField(
@@ -458,6 +516,12 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       ),
     );
   }
+
+  static const _months = [
+    'Jan','Feb','Mar','Apr','May','Jun',
+    'Jul','Aug','Sep','Oct','Nov','Dec',
+  ];
+  String _monthName(int m) => _months[m - 1];
 
   void _showFlowTypePicker(BuildContext ctx, bool isDark, Color surfBg) {
     showModalBottomSheet(
