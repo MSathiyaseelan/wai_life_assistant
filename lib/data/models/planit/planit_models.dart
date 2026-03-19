@@ -605,6 +605,61 @@ class TaskModel {
     this.subtasks = const [],
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  factory TaskModel.fromRow(Map<String, dynamic> row) {
+    const sm = {
+      'todo': TaskStatus.todo,
+      'inProgress': TaskStatus.inProgress,
+      'done': TaskStatus.done,
+    };
+    const pm = {
+      'low': Priority.low,
+      'medium': Priority.medium,
+      'high': Priority.high,
+      'urgent': Priority.urgent,
+    };
+    final rawSubs = (row['subtasks'] as List? ?? []);
+    return TaskModel(
+      id: row['id'] as String,
+      walletId: row['wallet_id'] as String,
+      title: row['title'] as String,
+      emoji: row['emoji'] as String? ?? '✅',
+      description: row['description'] as String?,
+      status: sm[row['status']] ?? TaskStatus.todo,
+      priority: pm[row['priority']] ?? Priority.medium,
+      dueDate: row['due_date'] != null
+          ? DateTime.tryParse(row['due_date'] as String)
+          : null,
+      project: row['project'] as String?,
+      tags: List<String>.from(row['tags'] as List? ?? []),
+      assignedTo: row['assigned_to'] as String? ?? 'me',
+      subtasks: rawSubs.map((s) {
+        final m = Map<String, dynamic>.from(s as Map);
+        return SubTask(
+          id: m['id'] as String,
+          title: m['title'] as String,
+          done: m['done'] as bool? ?? false,
+        );
+      }).toList(),
+      createdAt: row['created_at'] != null
+          ? DateTime.parse(row['created_at'] as String)
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toRow() => {
+    'wallet_id': walletId,
+    'title': title,
+    'emoji': emoji,
+    if (description != null) 'description': description,
+    'status': status.name,
+    'priority': priority.name,
+    if (dueDate != null) 'due_date': dueDate!.toIso8601String().split('T').first,
+    if (project != null) 'project': project,
+    'tags': tags,
+    'assigned_to': assignedTo,
+    'subtasks': subtasks.map((s) => s.toMap()).toList(),
+  };
 }
 
 class SubTask {
@@ -612,6 +667,8 @@ class SubTask {
   String title;
   bool done;
   SubTask({required this.id, required this.title, this.done = false});
+
+  Map<String, dynamic> toMap() => {'id': id, 'title': title, 'done': done};
 }
 
 List<TaskModel> mockTasks = [

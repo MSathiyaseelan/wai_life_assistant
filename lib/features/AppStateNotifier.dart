@@ -48,28 +48,31 @@ class AppStateNotifier extends ChangeNotifier {
     notifyListeners();
 
     try {
-      if (!AuthService.instance.isLoggedIn) {
+      final loggedIn = AuthService.instance.isLoggedIn;
+      debugPrint('[AppState] init — isLoggedIn=$loggedIn');
+      if (!loggedIn) {
         // OTP bypassed — use mock data
         _wallets = [personalWallet, ...familyWallets];
         _families = mockFamilies;
-        // Preserve valid active wallet (e.g. newly added family); reset to personal only if missing
         if (_activeWalletId.isEmpty || !_wallets.any((w) => w.id == _activeWalletId)) {
           _activeWalletId = personalWallet.id;
         }
       } else {
         final row = await ProfileService.instance.fetchSwitcherData();
+        debugPrint('[AppState] fetchSwitcherData row=${row != null ? 'found' : 'null'}');
         if (row != null) {
           final parsed = ProfileService.instance.parseSwitcherData(row);
           _wallets = [parsed.personal, ...parsed.familyWallets];
           _families = parsed.families;
-          // Keep active wallet if still valid, else default to personal
+          debugPrint('[AppState] wallets=${_wallets.length} families=${_families.length}');
           if (_activeWalletId.isEmpty ||
               !_wallets.any((w) => w.id == _activeWalletId)) {
             _activeWalletId = parsed.personal.id;
           }
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AppState] init error: $e');
       // Fall back to mock data on any error
       if (_wallets.isEmpty) {
         _wallets = [personalWallet, ...familyWallets];

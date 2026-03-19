@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
-import 'package:wai_life_assistant/features/auth/auth_service.dart';
+import 'package:wai_life_assistant/core/services/notification_service.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
-import 'dart:convert';
-import 'dart:io';
 
 class AlertMeScreen extends StatefulWidget {
   final String walletId;
@@ -46,6 +45,9 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
     _loadReminders();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.requestPermissions();
+    });
   }
 
   @override
@@ -59,10 +61,13 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     try {
       final rows = await ReminderService.instance.fetchReminders(widget.walletId);
       if (!mounted) return;
+      final loaded = rows.map(ReminderModel.fromRow).toList();
       setState(() {
-        _reminders = rows.map(ReminderModel.fromRow).toList();
+        _reminders = loaded;
         _loading = false;
       });
+      // Reschedule all active reminders on load
+      NotificationService.instance.rescheduleAll(loaded);
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -84,13 +89,16 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       );
       final saved = ReminderModel.fromRow(row);
       if (mounted) setState(() => _reminders.add(saved));
+      NotificationService.instance.schedule(saved);
     } catch (_) {
       if (mounted) setState(() => _reminders.add(r));
+      NotificationService.instance.schedule(r);
     }
   }
 
   Future<void> _delete(ReminderModel r) async {
     setState(() => _reminders.remove(r));
+    NotificationService.instance.cancel(r);
     try {
       await ReminderService.instance.deleteReminder(r.id);
     } catch (_) {}
@@ -101,6 +109,9 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       final i = _reminders.indexWhere((r) => r.id == updated.id);
       if (i >= 0) _reminders[i] = updated;
     });
+    // Cancel old, reschedule with new time
+    await NotificationService.instance.cancel(updated);
+    if (!updated.done) NotificationService.instance.schedule(updated);
     try {
       await ReminderService.instance.updateReminder(updated.id, updated.toMap());
     } catch (_) {}
@@ -108,8 +119,17 @@ class _AlertMeScreenState extends State<AlertMeScreen>
 
   Future<void> _markDone(ReminderModel r) async {
     setState(() => r.done = true);
+    NotificationService.instance.cancel(r);
     try {
       await ReminderService.instance.updateReminder(r.id, {'done': true});
+    } catch (_) {}
+  }
+
+  Future<void> _markActive(ReminderModel r) async {
+    setState(() => r.done = false);
+    NotificationService.instance.schedule(r);
+    try {
+      await ReminderService.instance.updateReminder(r.id, {'done': false});
     } catch (_) {}
   }
 
@@ -235,6 +255,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onSnooze: _snooze,
             onDelete: _delete,
             onTap: (r) => _openDetailSheet(context, r, isDark, surfBg),
+            onReactivate: null,
           ),
           _ReminderList(
             key: ValueKey('done-${_done.length}'),
@@ -244,6 +265,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onSnooze: null,
             onDelete: _delete,
             onTap: null,
+            onReactivate: _markActive,
           ),
         ],
       ),
@@ -336,6 +358,7 @@ class _ReminderList extends StatelessWidget {
   final void Function(ReminderModel)? onSnooze;
   final void Function(ReminderModel) onDelete;
   final void Function(ReminderModel)? onTap;
+  final void Function(ReminderModel)? onReactivate;
 
   const _ReminderList({
     super.key,
@@ -345,6 +368,7 @@ class _ReminderList extends StatelessWidget {
     required this.onSnooze,
     required this.onDelete,
     required this.onTap,
+    this.onReactivate,
   });
 
   @override
@@ -369,6 +393,7 @@ class _ReminderList extends StatelessWidget {
             onDone: onDone != null ? () => onDone!(reminders[i]) : null,
             onSnooze: onSnooze != null ? () => onSnooze!(reminders[i]) : null,
             onTap: onTap != null ? () => onTap!(reminders[i]) : null,
+            onReactivate: onReactivate != null ? () => onReactivate!(reminders[i]) : null,
           ),
         ),
       ),
@@ -383,7 +408,7 @@ class _ReminderList extends StatelessWidget {
 class _ReminderCard extends StatelessWidget {
   final ReminderModel reminder;
   final bool isDark;
-  final VoidCallback? onDone, onSnooze, onTap;
+  final VoidCallback? onDone, onSnooze, onTap, onReactivate;
 
   const _ReminderCard({
     required this.reminder,
@@ -391,6 +416,7 @@ class _ReminderCard extends StatelessWidget {
     this.onDone,
     this.onSnooze,
     this.onTap,
+    this.onReactivate,
   });
 
   @override
@@ -519,24 +545,30 @@ class _ReminderCard extends StatelessWidget {
                             ),
                         ],
                       ),
-                      if (!reminder.done &&
-                          (onDone != null || onSnooze != null))
+                      if (onDone != null || onSnooze != null || onReactivate != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: Row(
                             children: [
-                              if (onSnooze != null)
+                              if (onSnooze != null) ...[
                                 _ActionBtn(
                                   label: '💤 Snooze 1h',
                                   color: AppColors.lend,
                                   onTap: onSnooze!,
                                 ),
-                              if (onSnooze != null) const SizedBox(width: 8),
+                                const SizedBox(width: 8),
+                              ],
                               if (onDone != null)
                                 _ActionBtn(
                                   label: '✓ Done',
                                   color: AppColors.income,
                                   onTap: onDone!,
+                                ),
+                              if (onReactivate != null)
+                                _ActionBtn(
+                                  label: '↩ Reactivate',
+                                  color: AppColors.primary,
+                                  onTap: onReactivate!,
                                 ),
                             ],
                           ),
@@ -1185,10 +1217,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
             _ExamplesSection(
               surfBg: widget.surfBg,
               sub: sub,
-              onTap: (s) {
-                _aiCtrl.text = s;
-                _parseAI(s);
-              },
+              onTap: (s) => _aiCtrl.text = s,
             ),
           ],
         ],
@@ -1327,7 +1356,7 @@ class _AiInputBox extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Plain text → Claude AI fills all fields',
+                    'Plain text → AI fills all fields',
                     style: TextStyle(
                       fontSize: 11,
                       color: sub,
@@ -2102,99 +2131,62 @@ class _PickerTile extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ClaudeParser {
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
-
   static Future<_ParsedReminder> parse(String text, String walletId) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') throw Exception('No API key');
+    final result = await AIParser.parseText(
+      feature: 'planit',
+      subFeature: 'reminder',
+      text: text,
+    );
 
-    final now = DateTime.now();
-    final today = now.toIso8601String().substring(0, 10);
-    final prompt =
-        '''
-Extract reminder details from this text and return ONLY a JSON object with no markdown:
-{
-  "title": "concise reminder title",
-  "emoji": "single best emoji",
-  "date": "YYYY-MM-DD relative to today $today",
-  "hour": 0-23,
-  "minute": 0-59,
-  "priority": "low|medium|high|urgent",
-  "repeat": "none|daily|weekly|monthly|yearly",
-  "note": "optional note or null",
-  "assignedTo": "me"
-}
-
-User text: "$text"''';
-
-    final client = HttpClient();
-    try {
-      final uri = Uri.parse('https://api.anthropic.com/v1/messages');
-      final req = await client.postUrl(uri);
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(
-        utf8.encode(
-          jsonEncode({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 300,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-          }),
-        ),
-      );
-      final res = await req.close().timeout(const Duration(seconds: 8));
-      final body = await res.transform(utf8.decoder).join();
-      if (res.statusCode != 200) throw Exception('API ${res.statusCode}');
-
-      final decoded = jsonDecode(body);
-      final content = (decoded['content'] as List).first['text'] as String;
-      final jsonStr = content
-          .replaceAll(RegExp(r'```json\s*'), '')
-          .replaceAll(RegExp(r'```\s*'), '')
-          .trim();
-      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-      DateTime date;
-      try {
-        date = DateTime.parse(data['date'] as String);
-      } catch (_) {
-        date = now.add(const Duration(days: 1));
-      }
-
-      const pm = {
-        'low': Priority.low,
-        'medium': Priority.medium,
-        'high': Priority.high,
-        'urgent': Priority.urgent,
-      };
-      const rm = {
-        'none': RepeatMode.none,
-        'daily': RepeatMode.daily,
-        'weekly': RepeatMode.weekly,
-        'monthly': RepeatMode.monthly,
-        'yearly': RepeatMode.yearly,
-      };
-
-      return _ParsedReminder(
-        title: data['title'] as String,
-        emoji: data['emoji'] as String? ?? '🔔',
-        date: date,
-        time: TimeOfDay(
-          hour: ((data['hour'] as int?) ?? 9).clamp(0, 23),
-          minute: ((data['minute'] as int?) ?? 0).clamp(0, 59),
-        ),
-        priority: pm[data['priority']] ?? Priority.medium,
-        repeat: rm[data['repeat']] ?? RepeatMode.none,
-        assignedTo: data['assignedTo'] as String? ?? 'me',
-        walletId: walletId,
-        note: data['note'] as String?,
-      );
-    } finally {
-      client.close();
+    if (!result.success || result.data == null) {
+      throw Exception(result.error ?? 'AI parse failed');
     }
+
+    final data = result.data!;
+    final now = DateTime.now();
+
+    DateTime date;
+    try {
+      date = DateTime.parse(data['date'] as String);
+    } catch (_) {
+      date = now.add(const Duration(days: 1));
+    }
+
+    // Parse HH:MM time string
+    TimeOfDay time = const TimeOfDay(hour: 9, minute: 0);
+    final timeStr = data['time'] as String?;
+    if (timeStr != null && timeStr.contains(':')) {
+      final parts = timeStr.split(':');
+      final h = int.tryParse(parts[0]) ?? 9;
+      final m = int.tryParse(parts[1]) ?? 0;
+      time = TimeOfDay(hour: h.clamp(0, 23), minute: m.clamp(0, 59));
+    }
+
+    const pm = {
+      'low': Priority.low,
+      'medium': Priority.medium,
+      'high': Priority.high,
+      'urgent': Priority.urgent,
+    };
+    const rm = {
+      'none': RepeatMode.none,
+      'daily': RepeatMode.daily,
+      'weekly': RepeatMode.weekly,
+      'monthly': RepeatMode.monthly,
+      'yearly': RepeatMode.yearly,
+    };
+
+    return _ParsedReminder(
+      title: data['title'] as String? ?? text,
+      emoji: data['emoji'] as String? ?? '🔔',
+      date: date,
+      time: time,
+      priority: pm[data['priority']] ?? Priority.medium,
+      repeat: rm[data['repeat']] ?? RepeatMode.none,
+      assignedTo: data['assigned_to'] as String? ?? 'me',
+      walletId: walletId,
+      note: data['note'] as String?,
+    );
   }
 }
 

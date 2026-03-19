@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
@@ -25,9 +26,34 @@ class AuthService {
     await _client.auth.signOut();
   }
 
-  /// Sign in anonymously (dev bypass — requires Anonymous auth enabled in Supabase dashboard).
-  Future<void> signInAnonymously() async {
-    await _client.auth.signInAnonymously();
+  /// Dev bypass: sign in with a stable email+password derived from the phone number.
+  /// This gives a consistent auth.uid() across cache clears for the same phone,
+  /// so existing profile/wallet data is always found.
+  /// Requires Email auth enabled in Supabase Dashboard → Auth → Email → enabled.
+  /// Also disable "Confirm email" in Supabase Dashboard → Auth → Email settings.
+  Future<void> signInWithPhoneBypass(String phone) async {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    final email = 'dev_$digits@wai.app';
+    const password = 'wai_dev_bypass_2024';
+    debugPrint('[Auth] bypass sign-in for $email');
+    try {
+      final res = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      debugPrint('[Auth] signed in uid=${res.user?.id}');
+    } on AuthException catch (e) {
+      debugPrint('[Auth] signIn failed (${e.statusCode}): ${e.message}');
+      // User doesn't exist yet — sign up, then sign in explicitly
+      // (signUp alone doesn't create a session when email confirmation is on)
+      await _client.auth.signUp(email: email, password: password);
+      debugPrint('[Auth] signed up, now signing in');
+      final res = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      debugPrint('[Auth] post-signup sign-in uid=${res.user?.id}');
+    }
   }
 
   /// Returns true if a valid session exists.

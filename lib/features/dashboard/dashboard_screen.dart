@@ -71,7 +71,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _onMealChange() => _loadTodayMeals(_mealsWalletId);
-  void _onSplitGroupsChanged() => setState(() {});
+  void _onSplitGroupsChanged() {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
 
   void _onPinnedGroupUpdated(SplitGroup updated) {
     final current = List<SplitGroup>.from(pinnedSplitGroupsNotifier.value);

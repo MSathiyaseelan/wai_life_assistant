@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/core/supabase/task_service.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
-import 'dart:convert';
-import 'dart:io';
 
 class MyTasksScreen extends StatefulWidget {
   final String walletId;
   final String walletName;
   final String walletEmoji;
   final List<PlanMember> members;
-  final List<TaskModel> tasks;
+  final List<TaskModel> tasks; // kept for PlanItScreen's _pendingTasks count
   const MyTasksScreen({
     super.key,
     required this.walletId,
@@ -27,19 +27,18 @@ class MyTasksScreen extends StatefulWidget {
 class _MyTasksScreenState extends State<MyTasksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  // Uses widget.tasks — shared state from PlanItScreen
+  List<TaskModel> _tasks = [];
+  bool _loading = false;
   String? _filterProject;
 
   List<TaskModel> get _filtered {
-    var list = widget.tasks
-        .where((t) => t.walletId == widget.walletId)
-        .toList();
+    var list = List<TaskModel>.from(_tasks);
     if (_filterProject != null)
       list = list.where((t) => t.project == _filterProject).toList();
     return list;
   }
 
-  List<String> get _projects => widget.tasks
+  List<String> get _projects => _tasks
       .where((t) => t.project != null)
       .map((t) => t.project!)
       .toSet()
@@ -53,6 +52,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     super.initState();
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
+    _loadTasks();
   }
 
   @override
@@ -61,15 +61,75 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     super.dispose();
   }
 
+  Future<void> _loadTasks() async {
+    setState(() => _loading = true);
+    try {
+      final rows = await TaskService.instance.fetchTasks(widget.walletId);
+      if (!mounted) return;
+      final loaded = rows.map(TaskModel.fromRow).toList();
+      setState(() {
+        _tasks = loaded;
+        // Sync back to PlanItScreen's shared list for the pending-task badge
+        widget.tasks
+          ..clear()
+          ..addAll(loaded);
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('[MyTasks] load error: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   // ── Mutators ──────────────────────────────────────────────────────────────
-  void _add(TaskModel t) => setState(() => widget.tasks.add(t));
-  void _delete(TaskModel t) => setState(() => widget.tasks.remove(t));
-  void _update(TaskModel updated) => setState(() {
-    final i = widget.tasks.indexWhere((t) => t.id == updated.id);
-    if (i >= 0) widget.tasks[i] = updated;
-  });
-  void _updateStatus(TaskModel t, TaskStatus s) => setState(() => t.status = s);
-  void _toggleSubtask(SubTask st) => setState(() => st.done = !st.done);
+  Future<void> _add(TaskModel t) async {
+    try {
+      final row = await TaskService.instance.addTask(t.toRow());
+      final saved = TaskModel.fromRow(row);
+      if (mounted) setState(() => _tasks.add(saved));
+    } catch (e) {
+      debugPrint('[MyTasks] add error: $e');
+      if (mounted) setState(() => _tasks.add(t));
+    }
+  }
+
+  Future<void> _delete(TaskModel t) async {
+    setState(() => _tasks.remove(t));
+    try {
+      await TaskService.instance.deleteTask(t.id);
+    } catch (_) {}
+  }
+
+  Future<void> _update(TaskModel updated) async {
+    setState(() {
+      final i = _tasks.indexWhere((t) => t.id == updated.id);
+      if (i >= 0) _tasks[i] = updated;
+    });
+    try {
+      await TaskService.instance.updateTask(updated.id, updated.toRow());
+    } catch (_) {}
+  }
+
+  Future<void> _updateStatus(TaskModel t, TaskStatus s) async {
+    setState(() => t.status = s);
+    try {
+      await TaskService.instance.updateTask(t.id, {'status': s.name});
+    } catch (_) {}
+  }
+
+  Future<void> _toggleSubtask(SubTask st) async {
+    setState(() => st.done = !st.done);
+    // Find the parent task to persist the updated subtask list
+    final parent = _tasks.firstWhere(
+      (t) => t.subtasks.any((s) => s.id == st.id),
+      orElse: () => _tasks.first,
+    );
+    try {
+      await TaskService.instance.updateTask(parent.id, {
+        'subtasks': parent.subtasks.map((s) => s.toMap()).toList(),
+      });
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -165,7 +225,9 @@ class _MyTasksScreenState extends State<MyTasksScreen>
           ),
         ),
       ),
-      body: Column(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
         children: [
           if (_projects.isNotEmpty)
             _ProjectFilter(
@@ -1112,8 +1174,17 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
 
     _ParsedTask? result;
     try {
-      result = await _TaskClaudeParser.parse(text.trim(), widget.walletId);
-      _usingClaudeAI = true;
+      final aiResult = await AIParser.parseText(
+        feature: 'planit',
+        subFeature: 'task',
+        text: text.trim(),
+      );
+      if (aiResult.success && aiResult.data != null) {
+        result = _parsedTaskFromAI(aiResult.data!, widget.walletId);
+        _usingClaudeAI = true;
+      } else {
+        throw Exception(aiResult.error ?? 'AI parse failed');
+      }
     } catch (_) {
       try {
         result = _TaskNlpParser.parse(text.trim(), widget.walletId);
@@ -1297,10 +1368,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
             _TaskExamples(
               surfBg: widget.surfBg,
               sub: sub,
-              onTap: (s) {
-                _aiCtrl.text = s;
-                _parseAI(s);
-              },
+              onTap: (s) => _aiCtrl.text = s,
             ),
           ],
         ],
@@ -1437,7 +1505,7 @@ class _TaskAiInputBox extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Plain text → Claude AI fills all fields',
+                    'Plain text → AI fills all fields',
                     style: TextStyle(
                       fontSize: 11,
                       color: sub,
@@ -2199,92 +2267,32 @@ class _ParsedTask {
   });
 }
 
-class _TaskClaudeParser {
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
-
-  static Future<_ParsedTask> parse(String text, String walletId) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') throw Exception('No API key');
-    final now = DateTime.now();
-    final today = now.toIso8601String().substring(0, 10);
-
-    final prompt =
-        '''
-Extract task details from this text and return ONLY a JSON object with no markdown:
-{
-  "title": "concise task title",
-  "emoji": "single best emoji",
-  "description": "brief description or null",
-  "project": "project name or null",
-  "dueDate": "YYYY-MM-DD relative to today $today or null",
-  "priority": "low|medium|high|urgent",
-  "subtasks": ["subtask 1", "subtask 2"],
-  "assignedTo": "me"
-}
-
-User text: "$text"''';
-
-    final client = HttpClient();
-    try {
-      final req = await client.postUrl(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-      );
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(
-        utf8.encode(
-          jsonEncode({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 400,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-          }),
-        ),
-      );
-      final res = await req.close().timeout(const Duration(seconds: 8));
-      final body = await res.transform(utf8.decoder).join();
-      if (res.statusCode != 200) throw Exception('API ${res.statusCode}');
-
-      final decoded = jsonDecode(body);
-      final content = (decoded['content'] as List).first['text'] as String;
-      final jsonStr = content
-          .replaceAll(RegExp(r'```json\s*'), '')
-          .replaceAll(RegExp(r'```\s*'), '')
-          .trim();
-      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-      DateTime? dueDate;
-      try {
-        if (data['dueDate'] != null) dueDate = DateTime.parse(data['dueDate']);
-      } catch (_) {}
-
-      const pm = {
-        'low': Priority.low,
-        'medium': Priority.medium,
-        'high': Priority.high,
-        'urgent': Priority.urgent,
-      };
-      final subtasks = (data['subtasks'] as List? ?? [])
-          .map((s) => s.toString())
-          .toList();
-
-      return _ParsedTask(
-        title: data['title'] as String,
-        emoji: data['emoji'] as String? ?? '✅',
-        description: data['description'] as String?,
-        project: data['project'] as String?,
-        dueDate: dueDate,
-        priority: pm[data['priority']] ?? Priority.medium,
-        subtasks: subtasks,
-        assignedTo: data['assignedTo'] as String? ?? 'me',
-        walletId: walletId,
-      );
-    } finally {
-      client.close();
-    }
-  }
+/// Maps the AI edge-function response map to [_ParsedTask].
+_ParsedTask _parsedTaskFromAI(Map<String, dynamic> data, String walletId) {
+  const pm = {
+    'low': Priority.low,
+    'medium': Priority.medium,
+    'high': Priority.high,
+    'urgent': Priority.urgent,
+  };
+  DateTime? dueDate;
+  try {
+    if (data['due_date'] != null) dueDate = DateTime.parse(data['due_date'] as String);
+  } catch (_) {}
+  final subtasks = (data['subtasks'] as List? ?? [])
+      .map((s) => s.toString())
+      .toList();
+  return _ParsedTask(
+    title: data['title'] as String? ?? '',
+    emoji: data['emoji'] as String? ?? '✅',
+    description: data['description'] as String?,
+    project: data['project'] as String?,
+    dueDate: dueDate,
+    priority: pm[data['priority']] ?? Priority.medium,
+    subtasks: subtasks,
+    assignedTo: data['assigned_to'] as String? ?? 'me',
+    walletId: walletId,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -101,16 +101,19 @@ class _OtpScreenState extends State<OtpScreen> {
     // } finally {
     //   if (mounted) setState(() => _loading = false);
     // }
-    // Attempt anonymous Supabase session so writes work in bypass mode.
-    // Requires "Anonymous sign-ins" enabled in Supabase Dashboard → Auth → Providers.
+    // Dev bypass: sign in with a stable email+password derived from the phone number.
+    // This ensures the same auth.uid() is used for the same phone, so existing data loads.
     bool anonOk = false;
     try {
-      // If already has a persisted session, don't sign in again — just re-bootstrap.
       if (!AuthService.instance.isLoggedIn) {
-        await AuthService.instance.signInAnonymously();
+        await AuthService.instance.signInWithPhoneBypass(widget.phone);
       }
-      // bootstrapNewUser is idempotent (ON CONFLICT DO UPDATE), safe to call every time.
+      // bootstrapNewUser is idempotent (ON CONFLICT DO UPDATE), safe every time.
       await ProfileService.instance.bootstrapNewUser();
+      // Migrate any existing data that was created under a different auth session
+      // for the same phone number (e.g. old anonymous session after cache clear).
+      final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
+      if (migrated) debugPrint('[OTP bypass] Profile data migrated for ${widget.phone}');
       anonOk = true;
     } catch (e) {
       debugPrint('[OTP bypass] Supabase setup failed: $e');

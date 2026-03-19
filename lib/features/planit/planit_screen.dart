@@ -36,7 +36,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
   void _switchWallet(String id) => widget.onWalletChange(id);
 
   // ── Lifted state — persists across navigation ─────────────────────────────
-  final List<TaskModel> _tasksList = List.from(mockTasks);
+  final List<TaskModel> _tasksList = [];
   final List<SpecialDayModel> _days = List.from(mockSpecialDays);
   final List<WishModel> _wishes = List.from(mockWishes);
   final List<BillModel> _bills = List.from(mockBills);

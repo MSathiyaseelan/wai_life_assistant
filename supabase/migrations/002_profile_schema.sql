@@ -42,7 +42,7 @@ DECLARE
   v_wallet_id  UUID;
   v_profile    JSON;
 BEGIN
-  -- 1. Upsert profile
+  -- 1. Upsert profile — preserve existing name/emoji on re-login
   INSERT INTO profiles (id, name, emoji, phone, onboarded)
   VALUES (
     v_uid,
@@ -52,8 +52,8 @@ BEGIN
     TRUE
   )
   ON CONFLICT (id) DO UPDATE
-    SET name      = EXCLUDED.name,
-        emoji     = EXCLUDED.emoji,
+    SET name      = CASE WHEN profiles.name  <> '' THEN profiles.name  ELSE EXCLUDED.name  END,
+        emoji     = CASE WHEN profiles.emoji <> '👤' THEN profiles.emoji ELSE EXCLUDED.emoji END,
         onboarded = TRUE,
         updated_at = NOW();
 
