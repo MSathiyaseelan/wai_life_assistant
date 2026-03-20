@@ -4,6 +4,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
 import 'package:wai_life_assistant/core/services/notification_service.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
 
@@ -39,9 +40,19 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   List<ReminderModel> get _done =>
       _reminders.where((r) => r.done).toList();
 
+  bool _wasOnline = true;
+
+  void _onNetworkChange() {
+    final online = NetworkService.instance.isOnline.value;
+    if (online && !_wasOnline) _loadReminders();
+    _wasOnline = online;
+  }
+
   @override
   void initState() {
     super.initState();
+    _wasOnline = NetworkService.instance.isOnline.value;
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
     _loadReminders();
@@ -52,11 +63,16 @@ class _AlertMeScreenState extends State<AlertMeScreen>
 
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     _tab.dispose();
     super.dispose();
   }
 
   Future<void> _loadReminders() async {
+    if (widget.walletId == 'personal' || widget.walletId.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
     setState(() => _loading = true);
     try {
       final rows = await ReminderService.instance.fetchReminders(widget.walletId);
@@ -256,6 +272,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onDelete: _delete,
             onTap: (r) => _openDetailSheet(context, r, isDark, surfBg),
             onReactivate: null,
+            onRefresh: _loadReminders,
           ),
           _ReminderList(
             key: ValueKey('done-${_done.length}'),
@@ -265,6 +282,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onSnooze: null,
             onDelete: _delete,
             onTap: null,
+            onRefresh: _loadReminders,
             onReactivate: _markActive,
           ),
         ],
@@ -359,6 +377,7 @@ class _ReminderList extends StatelessWidget {
   final void Function(ReminderModel) onDelete;
   final void Function(ReminderModel)? onTap;
   final void Function(ReminderModel)? onReactivate;
+  final Future<void> Function() onRefresh;
 
   const _ReminderList({
     super.key,
@@ -368,32 +387,46 @@ class _ReminderList extends StatelessWidget {
     required this.onSnooze,
     required this.onDelete,
     required this.onTap,
+    required this.onRefresh,
     this.onReactivate,
   });
 
   @override
   Widget build(BuildContext context) {
     if (reminders.isEmpty) {
-      return const PlanEmptyState(
-        emoji: '🔔',
-        title: 'No reminders',
-        subtitle: 'Tap + to add your first reminder',
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 200),
+            PlanEmptyState(
+              emoji: '🔔',
+              title: 'No reminders',
+              subtitle: 'Tap + to add your first reminder',
+            ),
+          ],
+        ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-      itemCount: reminders.length,
-      itemBuilder: (_, i) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: SwipeTile(
-          onDelete: () => onDelete(reminders[i]),
-          child: _ReminderCard(
-            reminder: reminders[i],
-            isDark: isDark,
-            onDone: onDone != null ? () => onDone!(reminders[i]) : null,
-            onSnooze: onSnooze != null ? () => onSnooze!(reminders[i]) : null,
-            onTap: onTap != null ? () => onTap!(reminders[i]) : null,
-            onReactivate: onReactivate != null ? () => onReactivate!(reminders[i]) : null,
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+        itemCount: reminders.length,
+        itemBuilder: (_, i) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SwipeTile(
+            onDelete: () => onDelete(reminders[i]),
+            child: _ReminderCard(
+              reminder: reminders[i],
+              isDark: isDark,
+              onDone: onDone != null ? () => onDone!(reminders[i]) : null,
+              onSnooze: onSnooze != null ? () => onSnooze!(reminders[i]) : null,
+              onTap: onTap != null ? () => onTap!(reminders[i]) : null,
+              onReactivate: onReactivate != null ? () => onReactivate!(reminders[i]) : null,
+            ),
           ),
         ),
       ),

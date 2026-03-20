@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/supabase/task_service.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
 
@@ -47,9 +48,19 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   List<TaskModel> _byStatus(TaskStatus s) =>
       _filtered.where((t) => t.status == s).toList();
 
+  bool _wasOnline = true;
+
+  void _onNetworkChange() {
+    final online = NetworkService.instance.isOnline.value;
+    if (online && !_wasOnline) _loadTasks();
+    _wasOnline = online;
+  }
+
   @override
   void initState() {
     super.initState();
+    _wasOnline = NetworkService.instance.isOnline.value;
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
     _loadTasks();
@@ -57,11 +68,16 @@ class _MyTasksScreenState extends State<MyTasksScreen>
 
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     _tab.dispose();
     super.dispose();
   }
 
   Future<void> _loadTasks() async {
+    if (widget.walletId == 'personal' || widget.walletId.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
     setState(() => _loading = true);
     try {
       final rows = await TaskService.instance.fetchTasks(widget.walletId);
@@ -248,6 +264,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
+                  onRefresh: _loadTasks,
                 ),
                 _TaskList(
                   key: ValueKey(
@@ -259,6 +276,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
+                  onRefresh: _loadTasks,
                 ),
                 _TaskList(
                   key: ValueKey('done-${_byStatus(TaskStatus.done).length}'),
@@ -268,6 +286,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: null,
+                  onRefresh: _loadTasks,
                 ),
               ],
             ),
@@ -536,6 +555,7 @@ class _TaskList extends StatelessWidget {
   final void Function(TaskModel, TaskStatus) onStatusChange;
   final void Function(SubTask) onToggleSubtask;
   final void Function(TaskModel)? onTap;
+  final Future<void> Function() onRefresh;
   const _TaskList({
     super.key,
     required this.tasks,
@@ -544,30 +564,40 @@ class _TaskList extends StatelessWidget {
     required this.onStatusChange,
     required this.onToggleSubtask,
     required this.onTap,
+    required this.onRefresh,
   });
 
   @override
   Widget build(BuildContext context) {
     if (tasks.isEmpty) {
-      return const PlanEmptyState(
-        emoji: '✅',
-        title: 'Nothing here',
-        subtitle: 'This list is empty',
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 200),
+            PlanEmptyState(emoji: '✅', title: 'Nothing here', subtitle: 'This list is empty'),
+          ],
+        ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-      itemCount: tasks.length,
-      itemBuilder: (_, i) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: SwipeTile(
-          onDelete: () => onDelete(tasks[i]),
-          child: _TaskCard(
-            task: tasks[i],
-            isDark: isDark,
-            onStatusChange: (s) => onStatusChange(tasks[i], s),
-            onToggleSubtask: onToggleSubtask,
-            onTap: onTap != null ? () => onTap!(tasks[i]) : null,
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        itemCount: tasks.length,
+        itemBuilder: (_, i) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SwipeTile(
+            onDelete: () => onDelete(tasks[i]),
+            child: _TaskCard(
+              task: tasks[i],
+              isDark: isDark,
+              onStatusChange: (s) => onStatusChange(tasks[i], s),
+              onToggleSubtask: onToggleSubtask,
+              onTap: onTap != null ? () => onTap!(tasks[i]) : null,
+            ),
           ),
         ),
       ),

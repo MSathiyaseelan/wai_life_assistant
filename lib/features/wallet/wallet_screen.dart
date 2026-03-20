@@ -20,6 +20,7 @@ import 'package:wai_life_assistant/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
 
@@ -71,10 +72,27 @@ class _WalletScreenState extends State<WalletScreen>
     orElse: () => _allWallets.isNotEmpty ? _allWallets.first : personalWallet,
   );
 
+  late AppStateNotifier _appState;
+  bool _wasOnline = true;
+
+  void _onNetworkChange() {
+    final online = NetworkService.instance.isOnline.value;
+    if (online && !_wasOnline) _refreshAll();
+    _wasOnline = online;
+  }
+
+  /// Reloads AppState (to get real wallet UUID) then fetches transactions and split groups.
+  Future<void> _refreshAll() async {
+    await _appState.reload();
+    await Future.wait([_loadTransactions(), _loadSplitGroups()]);
+  }
+
   @override
   void initState() {
     super.initState();
     _splitGroups = [];
+    _wasOnline = NetworkService.instance.isOnline.value;
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tabCtrl = TabController(length: WalletTab.values.length, vsync: this);
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
@@ -88,7 +106,8 @@ class _WalletScreenState extends State<WalletScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final newWallets = AppStateScope.of(context).wallets;
+    _appState = AppStateScope.of(context);
+    final newWallets = _appState.wallets;
     if (newWallets != _allWallets) {
       _allWallets = newWallets;
       // Reset family page controller so it reinitialises with correct page count
@@ -126,37 +145,35 @@ class _WalletScreenState extends State<WalletScreen>
 
   Future<void> _loadTransactions() async {
     setState(() => _txLoading = true);
-    try {
-      if (!AuthService.instance.isLoggedIn || widget.activeWalletId.isEmpty) {
-        // Bypass mode: filter mock transactions for this wallet
-        if (mounted) {
-          setState(() {
-            _transactions = mockTransactions
-                .where((t) => t.walletId == widget.activeWalletId)
-                .toList();
-            _txLoading = false;
-          });
-        }
-        return;
+    // Prefer the freshly-loaded wallet ID from AppState over the widget prop
+    // (widget prop can be stale "personal" if AppState failed on first load)
+    final walletId = _appState.activeWalletId.isNotEmpty &&
+            _appState.activeWalletId != 'personal'
+        ? _appState.activeWalletId
+        : widget.activeWalletId;
+
+    if (!AuthService.instance.isLoggedIn || walletId.isEmpty || walletId == 'personal') {
+      if (mounted) {
+        setState(() {
+          _transactions = mockTransactions
+              .where((t) => t.walletId == walletId)
+              .toList();
+          _txLoading = false;
+        });
       }
-      final rows = await WalletService.instance.fetchTransactions(
-        widget.activeWalletId,
-      );
+      return;
+    }
+    try {
+      final rows = await WalletService.instance.fetchTransactions(walletId);
       if (mounted) {
         setState(() {
           _transactions = rows.map(TxModel.fromRow).toList();
           _txLoading = false;
         });
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _transactions = mockTransactions
-              .where((t) => t.walletId == widget.activeWalletId)
-              .toList();
-          _txLoading = false;
-        });
-      }
+    } catch (e) {
+      debugPrint('[WalletScreen] fetchTransactions error: $e');
+      if (mounted) setState(() => _txLoading = false);
     }
   }
 
@@ -169,18 +186,23 @@ class _WalletScreenState extends State<WalletScreen>
 
   Future<void> _loadSplitGroups() async {
     setState(() => _sgLoading = true);
-    try {
-      if (!AuthService.instance.isLoggedIn || widget.activeWalletId.isEmpty) {
-        if (mounted) {
-          setState(() {
-            _splitGroups = List.from(mockSplitGroups);
-            _sgLoading = false;
-          });
-          _syncPinnedGroups();
-        }
-        return;
+    final walletId = _appState.activeWalletId.isNotEmpty &&
+            _appState.activeWalletId != 'personal'
+        ? _appState.activeWalletId
+        : widget.activeWalletId;
+
+    if (!AuthService.instance.isLoggedIn || walletId.isEmpty || walletId == 'personal') {
+      if (mounted) {
+        setState(() {
+          _splitGroups = List.from(mockSplitGroups);
+          _sgLoading = false;
+        });
+        _syncPinnedGroups();
       }
-      final rows = await WalletService.instance.fetchSplitGroups(widget.activeWalletId);
+      return;
+    }
+    try {
+      final rows = await WalletService.instance.fetchSplitGroups(walletId);
       if (mounted) {
         setState(() {
           _splitGroups = rows.map(_splitGroupFromRow).toList();
@@ -189,14 +211,8 @@ class _WalletScreenState extends State<WalletScreen>
         _syncPinnedGroups();
       }
     } catch (e) {
-      debugPrint('[WalletScreen] fetchSplitGroups failed: $e');
-      if (mounted) {
-        setState(() {
-          _splitGroups = List.from(mockSplitGroups);
-          _sgLoading = false;
-        });
-        _syncPinnedGroups();
-      }
+      debugPrint('[WalletScreen] fetchSplitGroups error: $e');
+      if (mounted) setState(() => _sgLoading = false);
     }
   }
 
@@ -206,6 +222,7 @@ class _WalletScreenState extends State<WalletScreen>
 
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     _tabCtrl.dispose();
     _familyPageCtrl?.dispose();
     super.dispose();
@@ -1199,7 +1216,10 @@ class _WalletScreenState extends State<WalletScreen>
     }
 
     final entries = grouped.entries.toList();
-    return CustomScrollView(
+    return RefreshIndicator(
+      onRefresh: _refreshAll,
+      child: CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         // Wallet card(s) at the top of the tab
         if (wallets.isNotEmpty)
@@ -1222,6 +1242,7 @@ class _WalletScreenState extends State<WalletScreen>
             ),
           ),
       ],
+    ),
     );
   }
 
@@ -1293,47 +1314,55 @@ class _WalletScreenState extends State<WalletScreen>
         .toList();
 
     if (groups.isEmpty) {
-      return CustomScrollView(
-        slivers: [
-          SliverFillRemaining(child: _buildSplitsEmpty(isDark, tc, sub)),
-        ],
+      return RefreshIndicator(
+        onRefresh: _refreshAll,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverFillRemaining(child: _buildSplitsEmpty(isDark, tc, sub)),
+          ],
+        ),
       );
     }
 
     // Build item list: [summary, create banner, ...groups]
     final itemCount = groups.length + 2;
-    return CustomScrollView(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate((_, i) {
-              if (i == 0)
-                return _buildSplitsSummary(groups, isDark, cardBg, tc, sub);
-              if (i == 1)
+    return RefreshIndicator(
+      onRefresh: _refreshAll,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((_, i) {
+                if (i == 0)
+                  return _buildSplitsSummary(groups, isDark, cardBg, tc, sub);
+                if (i == 1)
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _CreateGroupBanner(onTap: _openCreateGroup),
+                  );
+                final g = groups[i - 2];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: _CreateGroupBanner(onTap: _openCreateGroup),
+                  child: _SplitGroupCard(
+                    group: g,
+                    isDark: isDark,
+                    cardBg: cardBg,
+                    surfBg: surfBg,
+                    tc: tc,
+                    sub: sub,
+                    onTap: () => _openGroupDetail(g),
+                    onEdit: () => _openEditGroup(g),
+                    onAddExpense: () => _openGroupDetail(g, autoAddExpense: true),
+                  ),
                 );
-              final g = groups[i - 2];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _SplitGroupCard(
-                  group: g,
-                  isDark: isDark,
-                  cardBg: cardBg,
-                  surfBg: surfBg,
-                  tc: tc,
-                  sub: sub,
-                  onTap: () => _openGroupDetail(g),
-                  onEdit: () => _openEditGroup(g),
-                  onAddExpense: () => _openGroupDetail(g, autoAddExpense: true),
-                ),
-              );
-            }, childCount: itemCount),
+              }, childCount: itemCount),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

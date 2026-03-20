@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
@@ -45,12 +46,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       .where((t) => t.walletId == wid && _isToday(t.date))
       .toList();
 
+  bool _wasOnline = true;
+
+  void _onNetworkChange() {
+    final online = NetworkService.instance.isOnline.value;
+    if (online && !_wasOnline) _refresh();
+    _wasOnline = online;
+  }
+
   @override
   void initState() {
     super.initState();
+    _wasOnline = NetworkService.instance.isOnline.value;
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     PantryService.mealChangeSignal.addListener(_onMealChange);
     pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
     _loadPinnedGroups();
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([
+      _loadPinnedGroups(),
+      _loadTodayMeals(_mealsWalletId),
+    ]);
   }
 
   Future<void> _loadPinnedGroups() async {
@@ -65,6 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     PantryService.mealChangeSignal.removeListener(_onMealChange);
     pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
     super.dispose();
@@ -295,7 +314,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: bg,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           // ── Sliver App Bar ──────────────────────────────────────────────
           SliverAppBar(
@@ -581,6 +603,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

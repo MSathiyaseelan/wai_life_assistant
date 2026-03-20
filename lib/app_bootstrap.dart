@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/env/environment_config.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/network_service.dart';
 import 'main.dart';
 import 'core/env/env.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +23,7 @@ Future<void> bootstrapApp(String env) async {
   );
 
   await NotificationService.instance.init();
+  await NetworkService.instance.init();
 
   runApp(
     MultiProvider(
