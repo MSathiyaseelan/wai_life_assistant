@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
+import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/alert_me/alert_me_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_tasks/my_tasks_screen.dart';
@@ -175,55 +175,12 @@ class _PlanItScreenState extends State<PlanItScreen> {
         ],
       ),
       actions: [
-        SizedBox(
-          width: 140,
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () => FamilySwitcherSheet.show(
-                context,
-                currentWalletId: widget.activeWalletId,
-                onSelect: widget.onWalletChange,
-              ),
-              child: Container(
-                margin: const EdgeInsets.only(right: 14),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: _currentWallet.gradient),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    EmojiOrImage(
-                      value: _currentWallet.emoji,
-                      size: 18,
-                      borderRadius: 4,
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        _currentWallet.name,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 3),
-                    const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white,
-                      size: 15,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        WalletSwitcherPill(
+          wallet: _currentWallet,
+          onTap: () => FamilySwitcherSheet.show(
+            context,
+            currentWalletId: widget.activeWalletId,
+            onSelect: widget.onWalletChange,
           ),
         ),
       ],

@@ -6,6 +6,7 @@ import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_tile.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/wallet_card_widget.dart';
 import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_sheet.dart';
@@ -1504,51 +1505,12 @@ class _WalletScreenState extends State<WalletScreen>
         },
       ),
       actions: [
-        GestureDetector(
+        WalletSwitcherPill(
+          wallet: _currentWallet,
           onTap: () => FamilySwitcherSheet.show(
             context,
             currentWalletId: widget.activeWalletId,
             onSelect: widget.onWalletChange,
-          ),
-          child: Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: _currentWallet.gradient),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                EmojiOrImage(
-                  value: _currentWallet.emoji,
-                  size: 18,
-                  borderRadius: 4,
-                ),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 100),
-                  child: Text(
-                    _currentWallet.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      fontFamily: 'Nunito',
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (_allWallets.length > 1) ...[
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ],
-              ],
-            ),
           ),
         ),
       ],

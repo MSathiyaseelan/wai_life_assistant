@@ -6,7 +6,7 @@ import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_map_section.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/family_food_prefs_card.dart';
@@ -894,7 +894,16 @@ class _PantryScreenState extends State<PantryScreen>
             scrolledUnderElevation: 0,
             titleSpacing: 0,
             title: _buildAppBarTitle(isDark, textColor),
-            actions: const [],
+            actions: [
+              WalletSwitcherPill(
+                wallet: _currentWallet,
+                onTap: () => FamilySwitcherSheet.show(
+                  context,
+                  currentWalletId: widget.activeWalletId,
+                  onSelect: widget.onWalletChange,
+                ),
+              ),
+            ],
           ),
 
 
@@ -932,13 +941,11 @@ class _PantryScreenState extends State<PantryScreen>
     );
   }
 
-  // ── AppBar title (includes wallet switcher on the right) ─────────────────
+  // ── AppBar title ──────────────────────────────────────────────────────────
   Widget _buildAppBarTitle(bool isDark, Color textColor) {
-    final wallet = _currentWallet;
     final subColor = isDark ? AppColors.subDark : AppColors.subLight;
     return Row(
       children: [
-        // Left: icon + title/subtitle
         const Text('🥗', style: TextStyle(fontSize: 22)),
         const SizedBox(width: 10),
         Column(
@@ -968,49 +975,6 @@ class _PantryScreenState extends State<PantryScreen>
               ),
             ),
           ],
-        ),
-        // Right: wallet pill — Expanded+Align ensures it gets a bounded flex
-        // allocation, preventing unbounded-width measurement of the Text.
-        Expanded(
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () => FamilySwitcherSheet.show(
-                context,
-                currentWalletId: widget.activeWalletId,
-                onSelect: widget.onWalletChange,
-              ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: wallet.gradient),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    EmojiOrImage(value: wallet.emoji, size: 16, borderRadius: 3),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        wallet.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text('▾', style: TextStyle(color: Colors.white, fontSize: 12)),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ),
       ],
     );
