@@ -303,14 +303,21 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
   List<SpecialDayModel> _upcoming() {
     final flat = DateTime.now();
     final today = DateTime(flat.year, flat.month, flat.day);
-    return _filtered.where((d) => !_thisYear(d.date).isBefore(today)).toList()
-      ..sort((a, b) => _thisYear(a.date).compareTo(_thisYear(b.date)));
+    // Yearly-recurring events always appear in Upcoming (next occurrence may be next year).
+    // One-off events appear here only if this year's date hasn't passed yet.
+    return _filtered
+        .where((d) => d.yearlyRecur || !_thisYear(d.date).isBefore(today))
+        .toList()
+      ..sort((a, b) => _nextOccurrence(a.date).compareTo(_nextOccurrence(b.date)));
   }
 
   List<SpecialDayModel> _past() {
     final flat = DateTime.now();
     final today = DateTime(flat.year, flat.month, flat.day);
-    return _filtered.where((d) => _thisYear(d.date).isBefore(today)).toList()
+    // All events (recurring or not) whose date has already passed this year.
+    return _filtered
+        .where((d) => _thisYear(d.date).isBefore(today))
+        .toList()
       ..sort((a, b) => _thisYear(b.date).compareTo(_thisYear(a.date)));
   }
 
@@ -510,6 +517,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
                     key: ValueKey('past-${_past().length}'),
                     days: _past(),
                     isDark: isDark,
+                    isPast: true,
                     nextOccurrence: _nextOccurrence,
                     onDelete: _delete,
                     onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
@@ -679,6 +687,7 @@ class _Pill extends StatelessWidget {
 class _DayList extends StatelessWidget {
   final List<SpecialDayModel> days;
   final bool isDark;
+  final bool isPast;
   final DateTime Function(DateTime) nextOccurrence;
   final void Function(SpecialDayModel) onDelete;
   final void Function(SpecialDayModel) onTap;
@@ -689,6 +698,7 @@ class _DayList extends StatelessWidget {
     required this.nextOccurrence,
     required this.onDelete,
     required this.onTap,
+    this.isPast = false,
   });
 
   @override
@@ -709,6 +719,7 @@ class _DayList extends StatelessWidget {
           child: _DayCard(
             day: days[i],
             isDark: isDark,
+            isPast: isPast,
             nextOccurrence: nextOccurrence,
             onTap: () => onTap(days[i]),
           ),
@@ -725,6 +736,7 @@ class _DayList extends StatelessWidget {
 class _DayCard extends StatelessWidget {
   final SpecialDayModel day;
   final bool isDark;
+  final bool isPast;
   final DateTime Function(DateTime) nextOccurrence;
   final VoidCallback onTap;
   const _DayCard({
@@ -732,6 +744,7 @@ class _DayCard extends StatelessWidget {
     required this.isDark,
     required this.nextOccurrence,
     required this.onTap,
+    this.isPast = false,
   });
 
   @override
@@ -739,25 +752,40 @@ class _DayCard extends StatelessWidget {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final next = nextOccurrence(day.date);
-    final diff = next.difference(DateTime.now());
-    final days = diff.inDays;
     final color = day.type.color;
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final thisYear = DateTime(today.year, day.date.month, day.date.day);
 
     String countdown;
     Color countColor;
-    if (days == 0) {
-      countdown = '🎉 Today!';
-      countColor = AppColors.income;
-    } else if (days <= 7) {
-      countdown = 'In $days days';
-      countColor = AppColors.expense;
-    } else if (days <= 30) {
-      countdown = 'In $days days';
-      countColor = AppColors.lend;
+    if (isPast) {
+      final daysAgo = today.difference(thisYear).inDays;
+      if (daysAgo == 0) {
+        countdown = '🎉 Today!';
+        countColor = AppColors.income;
+      } else if (daysAgo == 1) {
+        countdown = 'Yesterday';
+        countColor = AppColors.expense;
+      } else {
+        countdown = '$daysAgo days ago';
+        countColor = sub;
+      }
     } else {
-      countdown = '${(days / 30).floor()} months away';
-      countColor = sub;
+      final next = nextOccurrence(day.date);
+      final days = next.difference(DateTime.now()).inDays;
+      if (days == 0) {
+        countdown = '🎉 Today!';
+        countColor = AppColors.income;
+      } else if (days <= 7) {
+        countdown = 'In $days days';
+        countColor = AppColors.expense;
+      } else if (days <= 30) {
+        countdown = 'In $days days';
+        countColor = AppColors.lend;
+      } else {
+        countdown = '${(days / 30).floor()} months away';
+        countColor = sub;
+      }
     }
 
     return GestureDetector(
