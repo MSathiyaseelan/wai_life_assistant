@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
-import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/core/supabase/special_day_service.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
-import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/services.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REGION PRESET DATA
@@ -273,11 +272,12 @@ class SpecialDaysScreen extends StatefulWidget {
 class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  // Uses widget.days — shared state from PlanItScreen
+  List<SpecialDayModel> _days = [];
+  bool _loading = false;
+  bool _wasOnline = true;
   SpecialDayType? _filterType;
 
-  List<SpecialDayModel> get _mine =>
-      widget.days.where((d) => d.walletId == widget.walletId).toList();
+  List<SpecialDayModel> get _mine => _days;
 
   List<SpecialDayModel> get _filtered {
     var list = _mine;
@@ -314,25 +314,79 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       ..sort((a, b) => _thisYear(b.date).compareTo(_thisYear(a.date)));
   }
 
+  void _onNetworkChange() {
+    final online = NetworkService.instance.isOnline.value;
+    if (online && !_wasOnline) _loadDays();
+    _wasOnline = online;
+  }
+
   @override
   void initState() {
     super.initState();
+    _wasOnline = NetworkService.instance.isOnline.value;
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
+    _loadDays();
   }
 
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     _tab.dispose();
     super.dispose();
   }
 
-  void _add(SpecialDayModel d) => setState(() => widget.days.add(d));
-  void _delete(SpecialDayModel d) => setState(() => widget.days.remove(d));
-  void _update(SpecialDayModel updated) => setState(() {
-    final i = widget.days.indexWhere((d) => d.id == updated.id);
-    if (i >= 0) widget.days[i] = updated;
-  });
+  Future<void> _loadDays() async {
+    if (widget.walletId.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final rows = await SpecialDayService.instance.fetchDays(widget.walletId);
+      if (!mounted) return;
+      final loaded = rows.map(SpecialDayModel.fromRow).toList();
+      setState(() {
+        _days = loaded;
+        widget.days
+          ..clear()
+          ..addAll(loaded);
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('[SpecialDays] load error: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _add(SpecialDayModel d) async {
+    try {
+      final row = await SpecialDayService.instance.addDay(d.toRow());
+      final saved = SpecialDayModel.fromRow(row);
+      if (mounted) setState(() => _days.add(saved));
+    } catch (e) {
+      debugPrint('[SpecialDays] add error: $e');
+      if (mounted) setState(() => _days.add(d));
+    }
+  }
+
+  Future<void> _delete(SpecialDayModel d) async {
+    setState(() => _days.remove(d));
+    try {
+      await SpecialDayService.instance.deleteDay(d.id);
+    } catch (_) {}
+  }
+
+  Future<void> _update(SpecialDayModel updated) async {
+    setState(() {
+      final i = _days.indexWhere((d) => d.id == updated.id);
+      if (i >= 0) _days[i] = updated;
+    });
+    try {
+      await SpecialDayService.instance.updateDay(updated.id, updated.toRow());
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -439,21 +493,27 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
             child: TabBarView(
               controller: _tab,
               children: [
-                _DayList(
-                  key: ValueKey('upcoming-${_upcoming().length}'),
-                  days: _upcoming(),
-                  isDark: isDark,
-                  nextOccurrence: _nextOccurrence,
-                  onDelete: _delete,
-                  onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
+                RefreshIndicator(
+                  onRefresh: _loadDays,
+                  child: _DayList(
+                    key: ValueKey('upcoming-${_upcoming().length}'),
+                    days: _upcoming(),
+                    isDark: isDark,
+                    nextOccurrence: _nextOccurrence,
+                    onDelete: _delete,
+                    onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
+                  ),
                 ),
-                _DayList(
-                  key: ValueKey('past-${_past().length}'),
-                  days: _past(),
-                  isDark: isDark,
-                  nextOccurrence: _nextOccurrence,
-                  onDelete: _delete,
-                  onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
+                RefreshIndicator(
+                  onRefresh: _loadDays,
+                  child: _DayList(
+                    key: ValueKey('past-${_past().length}'),
+                    days: _past(),
+                    isDark: isDark,
+                    nextOccurrence: _nextOccurrence,
+                    onDelete: _delete,
+                    onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
+                  ),
                 ),
               ],
             ),
@@ -1265,8 +1325,17 @@ class _AddDaySheetState extends State<_AddDaySheet>
 
     _ParsedDay? result;
     try {
-      result = await _DayClaudeParser.parse(text.trim());
-      _usingClaude = true;
+      final aiResult = await AIParser.parseText(
+        feature: 'planit',
+        subFeature: 'special_day',
+        text: text.trim(),
+      );
+      if (aiResult.success && aiResult.data != null) {
+        result = _parsedDayFromAI(aiResult.data!);
+        _usingClaude = true;
+      } else {
+        throw Exception(aiResult.error);
+      }
     } catch (_) {
       result = _DayNlpParser.parse(text.trim());
     }
@@ -1428,7 +1497,6 @@ class _AddDaySheetState extends State<_AddDaySheet>
               sub: sub,
               onTap: (s) {
                 _aiCtrl.text = s;
-                _parseAI(s);
               },
             ),
             const SizedBox(height: 20),
@@ -2073,7 +2141,7 @@ class _AiHint extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Describe the day in plain English — Claude AI will extract the title, date, type and more.',
+            'Describe the day in plain English — AI will extract the title, date, type and more.',
             style: TextStyle(
               fontSize: 12,
               fontFamily: 'Nunito',
@@ -2144,7 +2212,7 @@ class _AiInputBox extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Plain text → Claude AI fills all fields',
+                    'Plain text → AI fills all fields',
                     style: TextStyle(
                       fontSize: 11,
                       color: sub,
@@ -2309,7 +2377,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaude ? '🤖 Claude AI Parsed' : '✨ AI Parsed',
+                        usedClaude ? '🤖 AI Parsed' : '✨ AI Parsed',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2505,90 +2573,28 @@ class _ParsedDay {
   });
 }
 
-class _DayClaudeParser {
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
-
-  static Future<_ParsedDay> parse(String text) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') throw Exception('No API key');
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-
-    final prompt =
-        '''
-Extract special day details from this text and return ONLY a JSON object:
-{
-  "title": "event name",
-  "emoji": "single best emoji",
-  "type": "birthday|anniversary|festival|govtHoliday|holiday|custom",
-  "date": "YYYY-MM-DD or null (use current year, today is $today)",
-  "note": "brief note or null",
-  "remindDays": 1
-}
-
-Rules:
-- For birthdays use 🎂, anniversaries use 💍, festivals use 🎉, govtHoliday use 🏛️
-- remindDays: extract from text (e.g. "7 days before" → 7), default 1
-- date: resolve "March 15" as current year month/day
-
-Text: "$text"''';
-
-    final client = HttpClient();
-    try {
-      final req = await client.postUrl(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-      );
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(
-        utf8.encode(
-          jsonEncode({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 300,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-          }),
-        ),
-      );
-      final res = await req.close().timeout(const Duration(seconds: 8));
-      final body = await res.transform(utf8.decoder).join();
-      if (res.statusCode != 200) throw Exception('API ${res.statusCode}');
-
-      final decoded = jsonDecode(body);
-      final content = (decoded['content'] as List).first['text'] as String;
-      final jsonStr = content
-          .replaceAll(RegExp(r'```json\s*'), '')
-          .replaceAll('```', '')
-          .trim();
-      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-      DateTime? date;
-      try {
-        if (data['date'] != null) date = DateTime.parse(data['date']);
-      } catch (_) {}
-
-      const tm = {
-        'birthday': SpecialDayType.birthday,
-        'anniversary': SpecialDayType.anniversary,
-        'festival': SpecialDayType.festival,
-        'govtHoliday': SpecialDayType.govtHoliday,
-        'holiday': SpecialDayType.holiday,
-        'custom': SpecialDayType.custom,
-      };
-
-      return _ParsedDay(
-        title: data['title'] as String,
-        emoji: data['emoji'] as String? ?? '📅',
-        type: tm[data['type']] ?? SpecialDayType.custom,
-        date: date,
-        note: data['note'] as String?,
-        remindDays: (data['remindDays'] as num?)?.toInt() ?? 1,
-      );
-    } finally {
-      client.close();
-    }
-  }
+/// Maps AI edge-function response to [_ParsedDay].
+_ParsedDay _parsedDayFromAI(Map<String, dynamic> data) {
+  const tm = {
+    'birthday': SpecialDayType.birthday,
+    'anniversary': SpecialDayType.anniversary,
+    'festival': SpecialDayType.festival,
+    'govtHoliday': SpecialDayType.govtHoliday,
+    'holiday': SpecialDayType.holiday,
+    'custom': SpecialDayType.custom,
+  };
+  DateTime? date;
+  try {
+    if (data['date'] != null) date = DateTime.parse(data['date'] as String);
+  } catch (_) {}
+  return _ParsedDay(
+    title: data['title'] as String? ?? '',
+    emoji: data['emoji'] as String? ?? '📅',
+    type: tm[data['type']] ?? SpecialDayType.custom,
+    date: date,
+    note: data['note'] as String?,
+    remindDays: (data['remind_days'] as num?)?.toInt() ?? 1,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

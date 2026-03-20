@@ -1562,7 +1562,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaudeAI ? '🤖 Claude AI Parsed' : '✨ AI Parsed',
+                        usedClaudeAI ? '🤖 AI Parsed' : '✨ AI Parsed',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,

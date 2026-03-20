@@ -750,6 +750,41 @@ class SpecialDayModel {
     this.note,
     this.alertDaysBefore = 1,
   });
+
+  factory SpecialDayModel.fromRow(Map<String, dynamic> row) {
+    const tm = {
+      'birthday': SpecialDayType.birthday,
+      'anniversary': SpecialDayType.anniversary,
+      'festival': SpecialDayType.festival,
+      'govtHoliday': SpecialDayType.govtHoliday,
+      'holiday': SpecialDayType.holiday,
+      'custom': SpecialDayType.custom,
+    };
+    return SpecialDayModel(
+      id: row['id'] as String,
+      walletId: row['wallet_id'] as String,
+      title: row['title'] as String,
+      emoji: row['emoji'] as String? ?? '📅',
+      type: tm[row['type']] ?? SpecialDayType.custom,
+      date: DateTime.parse(row['date'] as String),
+      yearlyRecur: row['yearly_recur'] as bool? ?? true,
+      members: List<String>.from(row['members'] as List? ?? []),
+      note: row['note'] as String?,
+      alertDaysBefore: row['alert_days_before'] as int? ?? 1,
+    );
+  }
+
+  Map<String, dynamic> toRow() => {
+    'wallet_id': walletId,
+    'title': title,
+    'emoji': emoji,
+    'type': type.name,
+    'date': '${date.year.toString().padLeft(4,'0')}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}',
+    'yearly_recur': yearlyRecur,
+    'members': members,
+    if (note != null) 'note': note,
+    'alert_days_before': alertDaysBefore,
+  };
 }
 
 List<SpecialDayModel> mockSpecialDays = [
