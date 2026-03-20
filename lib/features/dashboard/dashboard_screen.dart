@@ -13,6 +13,7 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -35,12 +36,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _mealsWalletId = '';
 
   // derived data — walletId is read from AppStateScope in build()
-  WalletModel _wallet(String wid) => wid == 'personal'
-      ? personalWallet
-      : familyWallets.firstWhere(
-          (w) => w.id == wid,
-          orElse: () => personalWallet,
-        );
+  WalletModel _wallet(String wid, List<WalletModel> wallets) =>
+      wallets.firstWhere(
+        (w) => w.id == wid,
+        orElse: () => wallets.isNotEmpty ? wallets.first : personalWallet,
+      );
 
   List<TxModel> _todayTx(String wid) => mockTransactions
       .where((t) => t.walletId == wid && _isToday(t.date))
@@ -370,21 +370,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _wallet(_walletId).emoji,
-                          style: const TextStyle(fontSize: 14),
+                        EmojiOrImage(
+                          value: _wallet(_walletId, appState.wallets).emoji,
+                          size: 18,
+                          borderRadius: 4,
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          _walletId == 'personal'
-                              ? 'Personal'
-                              : _wallet(_walletId).name,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: AppColors.primary,
+                        SizedBox(
+                          width: 75,
+                          child: Text(
+                            _wallet(_walletId, appState.wallets).name,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: AppColors.primary,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -436,7 +441,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 10),
                   _MoneyPulseCard(
-                    wallet: _wallet(_walletId),
+                    wallet: _wallet(_walletId, appState.wallets),
                     isDark: isDark,
                     todayTx: _todayTx(_walletId),
                     hidden: _balanceHidden,
@@ -1440,13 +1445,19 @@ class _MoneyPulseCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      '${wallet.emoji}  ${wallet.name}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontFamily: 'Nunito',
-                        fontWeight: FontWeight.w700,
+                    EmojiOrImage(value: wallet.emoji, size: 16, borderRadius: 3),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        wallet.name,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     const Spacer(),

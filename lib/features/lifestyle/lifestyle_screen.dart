@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import '../lifestyle/modules/my_garage/my_garage_screen.dart';
 import '../lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
 import '../lifestyle/modules/my_devices/my_devices_screen.dart';
@@ -24,13 +26,23 @@ class LifeStyleScreen extends StatefulWidget {
 }
 
 class _LifeStyleScreenState extends State<LifeStyleScreen> {
-  List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
+  late AppStateNotifier _appState;
+  List<WalletModel> _allWallets = [];
+
   WalletModel get _currentWallet => _allWallets.firstWhere(
     (w) => w.id == widget.activeWalletId,
-    orElse: () => personalWallet,
+    orElse: () => _allWallets.isNotEmpty ? _allWallets.first : personalWallet,
   );
 
-  void _switchWallet(String id) => widget.onWalletChange(id);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState = AppStateScope.of(context);
+    final newWallets = _appState.wallets;
+    if (newWallets != _allWallets) {
+      _allWallets = newWallets;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +221,11 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
         ],
       ),
       actions: [
-        GestureDetector(
+        SizedBox(
+          width: 140,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
           onTap: () => FamilySwitcherSheet.show(
             context,
             currentWalletId: widget.activeWalletId,
@@ -225,18 +241,19 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _currentWallet.emoji,
-                  style: const TextStyle(fontSize: 15),
-                ),
+                EmojiOrImage(value: _currentWallet.emoji, size: 18, borderRadius: 4),
                 const SizedBox(width: 5),
-                Text(
+                Flexible(
+                  child: Text(
                   _currentWallet.name,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
                     fontFamily: 'Nunito',
+                  ),
                   ),
                 ),
                 const SizedBox(width: 3),
@@ -249,6 +266,8 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
             ),
           ),
         ),
+        ),
+      ),
       ],
     );
   }
