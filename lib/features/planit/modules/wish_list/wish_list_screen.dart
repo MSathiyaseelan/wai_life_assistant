@@ -1,10 +1,10 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/core/supabase/wish_service.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
-import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
 class WishListScreen extends StatefulWidget {
   final String walletId;
@@ -27,13 +27,13 @@ class WishListScreen extends StatefulWidget {
 class _WishListScreenState extends State<WishListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  // Uses widget.wishes — shared state from PlanItScreen
+  List<WishModel> _wishes = [];
+  bool _loading = false;
+  bool _wasOnline = true;
   WishCategory? _filterCat;
 
-  List<WishModel> get _mine =>
-      widget.wishes.where((w) => w.walletId == widget.walletId).toList();
   List<WishModel> get _filtered {
-    var list = _mine;
+    var list = List<WishModel>.from(_wishes);
     if (_filterCat != null)
       list = list.where((w) => w.category == _filterCat).toList();
     return list;
@@ -45,32 +45,90 @@ class _WishListScreenState extends State<WishListScreen>
   List<WishModel> get _purchased =>
       _filtered.where((w) => w.purchased).toList();
 
+  void _onNetworkChange() {
+    final online = NetworkService.instance.isOnline.value;
+    if (online && !_wasOnline) _loadWishes();
+    _wasOnline = online;
+  }
+
   @override
   void initState() {
     super.initState();
+    _wasOnline = NetworkService.instance.isOnline.value;
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
+    _loadWishes();
   }
 
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     _tab.dispose();
     super.dispose();
   }
 
-  void _add(WishModel w) => setState(() => widget.wishes.add(w));
-  void _delete(WishModel w) => setState(() => widget.wishes.remove(w));
-  void _update(WishModel u) => setState(() {
-    final i = widget.wishes.indexWhere((w) => w.id == u.id);
-    if (i >= 0) widget.wishes[i] = u;
-  });
+  Future<void> _loadWishes() async {
+    if (widget.walletId.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final rows = await WishService.instance.fetchWishes(widget.walletId);
+      if (!mounted) return;
+      final loaded = rows.map(WishModel.fromRow).toList();
+      setState(() {
+        _wishes = loaded;
+        widget.wishes
+          ..clear()
+          ..addAll(loaded);
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint('[WishList] load error: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
-  void _addSaving(WishModel w, double amount, String? note) => setState(() {
+  Future<void> _add(WishModel w) async {
+    try {
+      final row = await WishService.instance.addWish(w.toRow());
+      final saved = WishModel.fromRow(row);
+      if (mounted) setState(() => _wishes.add(saved));
+    } catch (e) {
+      debugPrint('[WishList] add error: $e');
+      if (mounted) setState(() => _wishes.add(w));
+    }
+  }
+
+  Future<void> _delete(WishModel w) async {
+    setState(() => _wishes.remove(w));
+    try {
+      await WishService.instance.deleteWish(w.id);
+    } catch (_) {}
+  }
+
+  Future<void> _update(WishModel u) async {
+    setState(() {
+      final i = _wishes.indexWhere((w) => w.id == u.id);
+      if (i >= 0) _wishes[i] = u;
+    });
+    try {
+      await WishService.instance.updateWish(u.id, u.toRow());
+    } catch (_) {}
+  }
+
+  Future<void> _addSaving(WishModel w, double amount, String? note) async {
     w.savedAmount += amount;
     w.savingsHistory.add(
       SavingsEntry(amount: amount, date: DateTime.now(), note: note),
     );
-  });
+    setState(() {});
+    try {
+      await WishService.instance.updateWish(w.id, w.toRow());
+    } catch (_) {}
+  }
 
   void _togglePurchased(WishModel w) {
     final prev = w.purchased;
@@ -220,20 +278,29 @@ class _WishListScreenState extends State<WishListScreen>
             child: TabBarView(
               controller: _tab,
               children: [
-                _WishList(
-                  key: ValueKey('active-${_active.length}'),
-                  wishes: _active,
-                  isDark: isDark,
-                  onDelete: _delete,
-                  onTap: (w) => _openDetailSheet(context, w, isDark, surfBg),
+                RefreshIndicator(
+                  onRefresh: _loadWishes,
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _WishList(
+                          key: ValueKey('active-${_active.length}'),
+                          wishes: _active,
+                          isDark: isDark,
+                          onDelete: _delete,
+                          onTap: (w) =>
+                              _openDetailSheet(context, w, isDark, surfBg),
+                        ),
                 ),
-                _WishList(
-                  key: ValueKey('purchased-${_purchased.length}'),
-                  wishes: _purchased,
-                  isDark: isDark,
-                  showPurchasedBadge: true,
-                  onDelete: _delete,
-                  onTap: (w) => _openDetailSheet(context, w, isDark, surfBg),
+                RefreshIndicator(
+                  onRefresh: _loadWishes,
+                  child: _WishList(
+                    key: ValueKey('purchased-${_purchased.length}'),
+                    wishes: _purchased,
+                    isDark: isDark,
+                    showPurchasedBadge: true,
+                    onDelete: _delete,
+                    onTap: (w) => _openDetailSheet(context, w, isDark, surfBg),
+                  ),
                 ),
               ],
             ),
@@ -1592,11 +1659,21 @@ class _AddWishSheetState extends State<_AddWishSheet>
     });
     _ParsedWish? result;
     try {
-      result = await _WishClaudeParser.parse(text.trim());
-      _usingClaude = true;
+      final aiResult = await AIParser.parseText(
+        feature: 'planit',
+        subFeature: 'wishlist',
+        text: text.trim(),
+      );
+      if (aiResult.success && aiResult.data != null) {
+        result = _parsedWishFromAI(aiResult.data!);
+        _usingClaude = true;
+      } else {
+        throw Exception(aiResult.error);
+      }
     } catch (_) {
       result = _WishNlpParser.parse(text.trim());
     }
+    debugPrint('[WishList] parse result: title=${result?.title} price=${result?.targetPrice} usingAI=$_usingClaude');
     if (!mounted) return;
     setState(() {
       _aiParsing = false;
@@ -1758,7 +1835,6 @@ class _AddWishSheetState extends State<_AddWishSheet>
               sub: sub,
               onTap: (s) {
                 _aiCtrl.text = s;
-                _parseAI(s);
               },
             ),
           ],
@@ -2129,7 +2205,7 @@ class _AiHint extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Describe what you want — Claude AI will fill in category, price, priority and more.',
+            'Describe what you want — AI will fill in category, price, priority and more.',
             style: TextStyle(
               fontSize: 12,
               fontFamily: 'Nunito',
@@ -2200,7 +2276,7 @@ class _AiInputBox extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Plain text → Claude fills all fields',
+                    'Plain text → AI fills all fields',
                     style: TextStyle(
                       fontSize: 11,
                       color: sub,
@@ -2365,7 +2441,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaude ? '🤖 Claude AI Parsed' : '✨ AI Parsed',
+                        usedClaude ? '🤖 AI Parsed' : '✨ AI Parsed',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2562,84 +2638,65 @@ class _ParsedWish {
   });
 }
 
-class _WishClaudeParser {
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
-  static Future<_ParsedWish> parse(String text) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') throw Exception('No key');
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    final prompt =
-        'Extract wish details from: "$text"\nToday: $today\n'
-        'Return ONLY JSON: {"title":"","emoji":"","category":"electronics|fashion|home|travel|food|experience|other",'
-        '"priority":"low|medium|high|urgent","targetPrice":null,"targetDate":null,"note":null,"link":null}\n'
-        'Rules: targetPrice=number only, targetDate=YYYY-MM-DD, default priority="medium"';
-    final client = HttpClient();
-    try {
-      final req = await client.postUrl(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-      );
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(
-        utf8.encode(
-          jsonEncode({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 300,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-          }),
-        ),
-      );
-      final res = await req.close().timeout(const Duration(seconds: 8));
-      final body = await res.transform(utf8.decoder).join();
-      if (res.statusCode != 200) throw Exception('${res.statusCode}');
-      final decoded = jsonDecode(body);
-      final raw = (decoded['content'] as List).first['text'] as String;
-      final data =
-          jsonDecode(
-                raw
-                    .replaceAll(RegExp(r'```json\s*'), '')
-                    .replaceAll('```', '')
-                    .trim(),
-              )
-              as Map<String, dynamic>;
-      DateTime? date;
-      try {
-        if (data['targetDate'] != null)
-          date = DateTime.parse(data['targetDate']);
-      } catch (_) {}
-      const cm = {
-        'electronics': WishCategory.electronics,
-        'fashion': WishCategory.fashion,
-        'home': WishCategory.home,
-        'travel': WishCategory.travel,
-        'food': WishCategory.food,
-        'experience': WishCategory.experience,
-        'other': WishCategory.other,
-      };
-      const pm = {
-        'low': Priority.low,
-        'medium': Priority.medium,
-        'high': Priority.high,
-        'urgent': Priority.urgent,
-      };
-      return _ParsedWish(
-        title: data['title'] as String,
-        emoji: data['emoji'] as String? ?? '🎁',
-        category: cm[data['category']] ?? WishCategory.other,
-        priority: pm[data['priority']] ?? Priority.medium,
-        targetPrice: (data['targetPrice'] as num?)?.toDouble(),
-        targetDate: date,
-        note: data['note'] as String?,
-        link: data['link'] as String?,
-      );
-    } finally {
-      client.close();
-    }
+/// Maps AI edge-function response to [_ParsedWish].
+_ParsedWish _parsedWishFromAI(Map<String, dynamic> data) {
+  const cm = {
+    'electronics': WishCategory.electronics,
+    'gadget': WishCategory.electronics,
+    'gadgets': WishCategory.electronics,
+    'tech': WishCategory.electronics,
+    'fashion': WishCategory.fashion,
+    'clothing': WishCategory.fashion,
+    'apparel': WishCategory.fashion,
+    'home': WishCategory.home,
+    'furniture': WishCategory.home,
+    'appliance': WishCategory.home,
+    'travel': WishCategory.travel,
+    'trip': WishCategory.travel,
+    'vacation': WishCategory.travel,
+    'food': WishCategory.food,
+    'dining': WishCategory.food,
+    'experience': WishCategory.experience,
+    'entertainment': WishCategory.experience,
+    'other': WishCategory.other,
+  };
+  const pm = {
+    'low': Priority.low,
+    'medium': Priority.medium,
+    'high': Priority.high,
+    'urgent': Priority.urgent,
+  };
+  DateTime? date;
+  try {
+    final rawDate = data['targetDate'] ?? data['target_date'];
+    if (rawDate != null) date = DateTime.parse(rawDate as String);
+  } catch (_) {}
+  // Accept any common price key the AI might return
+  final rawPrice = data['targetPrice'] ??
+      data['target_price'] ??
+      data['target_amount'] ??
+      data['price'] ??
+      data['amount'] ??
+      data['cost'];
+  double? targetPrice;
+  if (rawPrice is num) {
+    targetPrice = rawPrice.toDouble();
+  } else if (rawPrice is String && rawPrice.isNotEmpty) {
+    targetPrice = double.tryParse(rawPrice.replaceAll(RegExp(r'[^0-9.]'), ''));
   }
+  debugPrint('[WishParse] raw=$rawPrice → targetPrice=$targetPrice data=$data');
+  return _ParsedWish(
+    title: data['title'] as String? ?? '',
+    emoji: data['emoji'] as String? ?? '🎁',
+    category: cm[data['category']] ?? WishCategory.other,
+    priority: pm[data['priority']] ?? Priority.medium,
+    targetPrice: targetPrice,
+    targetDate: date,
+    note: data['note'] as String?,
+    link: data['link'] as String?,
+  );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NLP FALLBACK
@@ -2719,8 +2776,9 @@ class _WishNlpParser {
       priority = Priority.low;
 
     double? price;
+    // 1. "Rs. 1,80,000" or "₹180000" — with currency prefix
     final pm = RegExp(
-      r'(?:rs\.?\s*)(\d[\d,]*)(?:\s*k)?',
+      r'(?:rs\.?\s*|₹\s*)(\d[\d,]*)(?:\s*k)?',
       caseSensitive: false,
     ).firstMatch(raw);
     if (pm != null) {
@@ -2728,10 +2786,22 @@ class _WishNlpParser {
       price = double.tryParse(n);
       if (price != null && pm.group(0)!.toLowerCase().contains('k'))
         price *= 1000;
-    } else {
+    }
+    // 2. "180k" or "50k" — shorthand thousands
+    if (price == null) {
       final pm2 = RegExp(r'\b(\d[\d,]*)\s*k\b').firstMatch(lower);
-      if (pm2 != null)
-        price = double.tryParse(pm2.group(1)!.replaceAll(',', ''))! * 1000;
+      if (pm2 != null) {
+        price = (double.tryParse(pm2.group(1)!.replaceAll(',', '')) ?? 0) * 1000;
+      }
+    }
+    // 3. Plain large number like "180000" or "1,80,000" (≥1000)
+    if (price == null) {
+      final pm3 = RegExp(r'\b(\d{1,3}(?:,\d{2,3})+|\d{4,})\b').firstMatch(raw);
+      if (pm3 != null) {
+        final n = pm3.group(1)!.replaceAll(',', '');
+        final v = double.tryParse(n);
+        if (v != null && v >= 1000) price = v;
+      }
     }
 
     DateTime? date;

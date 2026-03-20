@@ -917,6 +917,82 @@ class WishModel {
   double get progress => (targetPrice != null && targetPrice! > 0)
       ? (savedAmount / targetPrice!).clamp(0, 1)
       : 0;
+
+  factory WishModel.fromRow(Map<String, dynamic> row) {
+    const cm = {
+      'electronics': WishCategory.electronics,
+      'fashion': WishCategory.fashion,
+      'home': WishCategory.home,
+      'travel': WishCategory.travel,
+      'food': WishCategory.food,
+      'experience': WishCategory.experience,
+      'other': WishCategory.other,
+    };
+    const pm = {
+      'low': Priority.low,
+      'medium': Priority.medium,
+      'high': Priority.high,
+      'urgent': Priority.urgent,
+    };
+    // Supabase NUMERIC columns may be returned as num or String.
+    double? parseNum(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v);
+      return null;
+    }
+    final historyJson = row['savings_history'] as List? ?? [];
+    final history = historyJson.map((e) {
+      final m = e as Map<String, dynamic>;
+      return SavingsEntry(
+        amount: parseNum(m['amount']) ?? 0,
+        date: DateTime.parse(m['date'] as String),
+        note: m['note'] as String?,
+      );
+    }).toList();
+    return WishModel(
+      id: row['id'] as String,
+      walletId: row['wallet_id'] as String,
+      title: row['title'] as String,
+      emoji: row['emoji'] as String? ?? '🎁',
+      category: cm[row['category']] ?? WishCategory.other,
+      priority: pm[row['priority']] ?? Priority.medium,
+      targetPrice: parseNum(row['target_price']),
+      savedAmount: parseNum(row['saved_amount']) ?? 0,
+      link: row['link'] as String?,
+      note: row['note'] as String?,
+      purchased: row['purchased'] as bool? ?? false,
+      targetDate: row['target_date'] != null
+          ? DateTime.tryParse(row['target_date'] as String)
+          : null,
+      savingsHistory: history,
+    );
+  }
+
+  Map<String, dynamic> toRow() => {
+    'wallet_id': walletId,
+    'title': title,
+    'emoji': emoji,
+    'category': category.name,
+    'priority': priority.name,
+    if (targetPrice != null) 'target_price': targetPrice,
+    'saved_amount': savedAmount,
+    if (link != null) 'link': link,
+    if (note != null) 'note': note,
+    'purchased': purchased,
+    if (targetDate != null)
+      'target_date':
+          '${targetDate!.year.toString().padLeft(4, '0')}-'
+          '${targetDate!.month.toString().padLeft(2, '0')}-'
+          '${targetDate!.day.toString().padLeft(2, '0')}',
+    'savings_history': savingsHistory
+        .map((e) => {
+              'amount': e.amount,
+              'date': e.date.toIso8601String(),
+              if (e.note != null) 'note': e.note,
+            })
+        .toList(),
+  };
 }
 
 List<WishModel> mockWishes = [

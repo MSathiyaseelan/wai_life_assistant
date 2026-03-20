@@ -38,7 +38,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
   // ── Lifted state — persists across navigation ─────────────────────────────
   final List<TaskModel> _tasksList = [];
   final List<SpecialDayModel> _days = [];
-  final List<WishModel> _wishes = List.from(mockWishes);
+  final List<WishModel> _wishes = [];
   final List<BillModel> _bills = List.from(mockBills);
   final List<TripModel> _trips = List.from(mockTrips);
 
