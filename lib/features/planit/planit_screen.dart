@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/alert_me/alert_me_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_tasks/my_tasks_screen.dart';
@@ -27,11 +29,23 @@ class PlanItScreen extends StatefulWidget {
 }
 
 class _PlanItScreenState extends State<PlanItScreen> {
-  List<WalletModel> get _allWallets => [personalWallet, ...familyWallets];
+  late AppStateNotifier _appState;
+  List<WalletModel> _allWallets = [];
+
   WalletModel get _currentWallet => _allWallets.firstWhere(
     (w) => w.id == widget.activeWalletId,
-    orElse: () => personalWallet,
+    orElse: () => _allWallets.isNotEmpty ? _allWallets.first : personalWallet,
   );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState = AppStateScope.of(context);
+    final newWallets = _appState.wallets;
+    if (newWallets != _allWallets) {
+      _allWallets = newWallets;
+    }
+  }
 
   void _switchWallet(String id) => widget.onWalletChange(id);
 
@@ -45,7 +59,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
   // ── Family members for current wallet — converted to PlanMember ───────────
   List<PlanMember> get _members {
     if (_currentWallet.isPersonal) return [];
-    final family = mockFamilies.firstWhere(
+    final family = _appState.families.firstWhere(
       (f) => f.id == _currentWallet.id,
       orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
     );
@@ -161,43 +175,54 @@ class _PlanItScreenState extends State<PlanItScreen> {
         ],
       ),
       actions: [
-        GestureDetector(
-          onTap: () => FamilySwitcherSheet.show(
-            context,
-            currentWalletId: widget.activeWalletId,
-            onSelect: widget.onWalletChange,
-          ),
-          child: Container(
-            margin: const EdgeInsets.only(right: 14),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: _currentWallet.gradient),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _currentWallet.emoji,
-                  style: const TextStyle(fontSize: 15),
+        SizedBox(
+          width: 140,
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: GestureDetector(
+              onTap: () => FamilySwitcherSheet.show(
+                context,
+                currentWalletId: widget.activeWalletId,
+                onSelect: widget.onWalletChange,
+              ),
+              child: Container(
+                margin: const EdgeInsets.only(right: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: _currentWallet.gradient),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  _currentWallet.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                    fontFamily: 'Nunito',
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    EmojiOrImage(
+                      value: _currentWallet.emoji,
+                      size: 18,
+                      borderRadius: 4,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        _currentWallet.name,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          fontFamily: 'Nunito',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white,
+                      size: 15,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 3),
-                const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Colors.white,
-                  size: 15,
-                ),
-              ],
+              ),
             ),
           ),
         ),

@@ -5,6 +5,7 @@ import 'dart:io';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRAVEL BOARD SCREEN
@@ -193,15 +194,20 @@ class _TravelBoardScreenState extends State<TravelBoardScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(widget.walletEmoji, style: const TextStyle(fontSize: 13)),
+                EmojiOrImage(value: widget.walletEmoji, size: 18, borderRadius: 4),
                 const SizedBox(width: 5),
-                Text(
-                  widget.walletName,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'Nunito',
-                    color: Color(0xFF4A9EFF),
+                SizedBox(
+                  width: 75,
+                  child: Text(
+                    widget.walletName,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: Color(0xFF4A9EFF),
+                    ),
                   ),
                 ),
               ],

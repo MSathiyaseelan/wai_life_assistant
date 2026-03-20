@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/supabase/special_day_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REGION PRESET DATA
@@ -440,18 +441,20 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    widget.walletEmoji,
-                    style: const TextStyle(fontSize: 13),
-                  ),
+                  EmojiOrImage(value: widget.walletEmoji, size: 18, borderRadius: 4),
                   const SizedBox(width: 5),
-                  Text(
-                    widget.walletName,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      color: AppColors.primary,
+                  SizedBox(
+                    width: 75,
+                    child: Text(
+                      widget.walletName,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ],
