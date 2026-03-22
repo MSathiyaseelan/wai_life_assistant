@@ -58,9 +58,8 @@ class AppStateNotifier extends ChangeNotifier {
       _maxFamilyGroups = await AppConfigService.instance.fetchMaxFamilyGroups();
 
       if (!loggedIn) {
-        // OTP bypassed — use mock data
-        _wallets = [personalWallet, ...familyWallets];
-        _families = mockFamilies;
+        _wallets = [personalWallet];
+        _families = [];
         if (_activeWalletId.isEmpty || !_wallets.any((w) => w.id == _activeWalletId)) {
           _activeWalletId = personalWallet.id;
         }
@@ -80,10 +79,9 @@ class AppStateNotifier extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('[AppState] init error: $e');
-      // Fall back to mock data on any error
       if (_wallets.isEmpty) {
-        _wallets = [personalWallet, ...familyWallets];
-        _families = mockFamilies;
+        _wallets = [personalWallet];
+        _families = [];
         _activeWalletId = personalWallet.id;
       }
     } finally {

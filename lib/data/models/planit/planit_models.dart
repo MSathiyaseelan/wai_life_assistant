@@ -1113,73 +1113,9 @@ class BillPayment {
   BillPayment({required this.id, required this.paidOn, required this.amount});
 }
 
-List<BillModel> mockBills = [
-  BillModel(
-    id: 'b1',
-    name: 'BESCOM Electricity',
-    category: BillCategory.electricity,
-    amount: 1850,
-    dueDate: _t.add(const Duration(days: 3)),
-    repeat: RepeatMode.monthly,
-    walletId: 'personal',
-    provider: 'BESCOM',
-    accountNumber: 'BLR-4521-990',
-    history: [
-      BillPayment(
-        id: 'bp1',
-        paidOn: _t.subtract(const Duration(days: 28)),
-        amount: 1620,
-      ),
-      BillPayment(
-        id: 'bp2',
-        paidOn: _t.subtract(const Duration(days: 58)),
-        amount: 1900,
-      ),
-    ],
-  ),
-  BillModel(
-    id: 'b2',
-    name: 'LIC Premium',
-    category: BillCategory.insurance,
-    amount: 12500,
-    dueDate: _t.add(const Duration(days: 18)),
-    repeat: RepeatMode.monthly,
-    walletId: 'personal',
-    provider: 'LIC of India',
-    accountNumber: 'LIC-7823651',
-  ),
-  BillModel(
-    id: 'b3',
-    name: 'Arjun School Fees',
-    category: BillCategory.school,
-    amount: 8500,
-    dueDate: _t.subtract(const Duration(days: 1)),
-    repeat: RepeatMode.monthly,
-    walletId: 'f1',
-    provider: 'Delhi Public School',
-  ),
-  BillModel(
-    id: 'b4',
-    name: 'Airtel Broadband',
-    category: BillCategory.internet,
-    amount: 999,
-    dueDate: _t.add(const Duration(days: 8)),
-    repeat: RepeatMode.monthly,
-    walletId: 'personal',
-    provider: 'Airtel',
-    accountNumber: 'AIR-DEL-992',
-  ),
-  BillModel(
-    id: 'b5',
-    name: 'Home Loan EMI',
-    category: BillCategory.emi,
-    amount: 35000,
-    dueDate: _t.add(const Duration(days: 5)),
-    repeat: RepeatMode.monthly,
-    walletId: 'personal',
-    provider: 'SBI Home Loans',
-  ),
-];
+
+// Legacy name kept so existing import sites compile — always empty.
+List<BillModel> mockBills = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // f. TRAVEL BOARD
@@ -1399,140 +1335,9 @@ class TripModel {
   int get tasksTotal => tasks.length;
 }
 
-List<TripModel> mockTrips = [
-  TripModel(
-    id: 'tr1',
-    title: 'Goa Beach Holiday',
-    emoji: '🏖️',
-    destinations: [
-      TripDestination(
-        name: 'Goa, India',
-        orderIndex: 0,
-        notes: 'North Goa beaches, Baga & Calangute',
-      ),
-      TripDestination(
-        name: 'Mumbai, India',
-        orderIndex: 1,
-        notes: 'Stopover — visit Marine Drive',
-      ),
-    ],
-    startDate: _t.add(const Duration(days: 45)),
-    endDate: _t.add(const Duration(days: 51)),
-    travelMode: TravelMode.flight,
-    budget: 80000,
-    memberIds: ['me', 'priya', 'arjun'],
-    walletId: 'f1',
-    createdBy: 'me',
-    status: TripStatus.confirmed,
-    tasks: [
-      TripTask(
-        id: 'tt1',
-        title: 'Book flights',
-        assignedTo: 'me',
-        addedBy: 'me',
-        category: TaskCategory.booking,
-      ),
-      TripTask(
-        id: 'tt2',
-        title: 'Hotel booking at North Goa',
-        assignedTo: 'priya',
-        addedBy: 'priya',
-        category: TaskCategory.accommodation,
-        cost: 12000,
-      ),
-      TripTask(
-        id: 'tt3',
-        title: 'Pack beach gear & sunscreen',
-        assignedTo: 'arjun',
-        addedBy: 'me',
-        category: TaskCategory.packing,
-        done: true,
-      ),
-      TripTask(
-        id: 'tt4',
-        title: 'Apply travel insurance',
-        assignedTo: 'me',
-        addedBy: 'me',
-        category: TaskCategory.document,
-      ),
-      TripTask(
-        id: 'tt5',
-        title: 'Book water sports activity',
-        assignedTo: 'priya',
-        addedBy: 'priya',
-        category: TaskCategory.activity,
-        cost: 3000,
-      ),
-    ],
-    expenses: [
-      TripExpense(
-        id: 'te1',
-        paidBy: 'me',
-        description: 'Flight tickets × 3',
-        amount: 22000,
-        at: _t.subtract(const Duration(days: 5)),
-      ),
-      TripExpense(
-        id: 'te2',
-        paidBy: 'priya',
-        description: 'Hotel advance',
-        amount: 8000,
-        at: _t.subtract(const Duration(days: 3)),
-      ),
-    ],
-    messages: [
-      TripMessage(
-        id: 'tm1',
-        senderId: 'priya',
-        text: 'I found a great resort deal! Rs. 4000/night for ocean view 🌊',
-        at: _t.subtract(const Duration(hours: 2)),
-      ),
-      TripMessage(
-        id: 'tm2',
-        senderId: 'me',
-        text: 'Looks amazing! Let\'s book it',
-        at: _t.subtract(const Duration(hours: 1)),
-      ),
-      TripMessage(
-        id: 'tm3',
-        senderId: 'arjun',
-        text: 'Count me in! Already packed my bags 😂',
-        at: _t.subtract(const Duration(minutes: 30)),
-      ),
-    ],
-    votes: [
-      TripVote(
-        id: 'tv1',
-        question: 'Which hotel?',
-        options: ['Ocean View Resort', 'Budget Hostel', 'Airbnb Villa'],
-        tally: {'0': 2, '1': 0, '2': 1},
-      ),
-    ],
-  ),
-  TripModel(
-    id: 'tr2',
-    title: 'Ooty Weekend Getaway',
-    emoji: '🌿',
-    destinations: [TripDestination(name: 'Ooty, Tamil Nadu', orderIndex: 0)],
-    startDate: _t.add(const Duration(days: 12)),
-    endDate: _t.add(const Duration(days: 14)),
-    travelMode: TravelMode.car,
-    budget: 15000,
-    memberIds: ['me', 'priya'],
-    walletId: 'personal',
-    createdBy: 'me',
-    status: TripStatus.planning,
-    expenses: [
-      TripExpense(
-        id: 'te3',
-        paidBy: 'me',
-        description: 'Fuel fill-up',
-        amount: 3500,
-        at: _t.subtract(const Duration(days: 1)),
-      ),
-    ],
-  ),
-];
+
+// Legacy name kept so existing import sites compile — always empty.
+List<TripModel> mockTrips = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // g. PLAN THE PARTY
@@ -1621,67 +1426,9 @@ class PartyMessage {
   });
 }
 
-List<PartyModel> mockParties = [
-  PartyModel(
-    id: 'p1',
-    title: "Arjun's Birthday Party",
-    emoji: '🎂',
-    eventDate: _t.add(const Duration(days: 20)),
-    eventTime: const TimeOfDay(hour: 18, minute: 0),
-    venue: 'Community Hall, Sector 5',
-    address: 'Block A, Sector 5, Noida',
-    budget: 25000,
-    spent: 8000,
-    guestIds: ['priya', 'rahul', 'sneha', 'mom', 'dad'],
-    walletId: 'f1',
-    contractors: [
-      ContractorModel(
-        id: 'c1',
-        name: 'Happy Cakes',
-        role: 'Cake',
-        phone: '9988776655',
-        quotedAmount: 3500,
-        confirmed: true,
-      ),
-      ContractorModel(
-        id: 'c2',
-        name: 'Party Deco Co.',
-        role: 'Decoration',
-        phone: '9977665544',
-        quotedAmount: 6000,
-      ),
-    ],
-    tasks: [
-      PartyTask(
-        id: 'pt1',
-        title: 'Send invites',
-        assignedTo: 'priya',
-        done: true,
-      ),
-      PartyTask(id: 'pt2', title: 'Order birthday cake', assignedTo: 'me'),
-      PartyTask(
-        id: 'pt3',
-        title: 'Arrange music playlist',
-        assignedTo: 'arjun',
-        update: 'Working on it!',
-      ),
-    ],
-    messages: [
-      PartyMessage(
-        id: 'pm1',
-        senderId: 'priya',
-        text: 'Invites sent to everyone!',
-        at: _t.subtract(const Duration(hours: 3)),
-      ),
-      PartyMessage(
-        id: 'pm2',
-        senderId: 'arjun',
-        text: 'Can we have a photo booth?',
-        at: _t.subtract(const Duration(hours: 1)),
-      ),
-    ],
-  ),
-];
+
+// Legacy name kept so existing import sites compile — always empty.
+List<PartyModel> mockParties = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // h. MY SCHEDULE

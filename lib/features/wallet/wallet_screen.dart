@@ -62,7 +62,7 @@ class _WalletScreenState extends State<WalletScreen>
   List<WalletModel> _allWallets = [];
 
   // Bill Watch — lifted state + key to trigger add-sheet from bottom bar
-  final List<BillModel> _bills = List.from(mockBills);
+  final List<BillModel> _bills = [];
   final _billWatchKey = GlobalKey<BillWatchScreenState>();
 
   // Family tab card pager
@@ -156,9 +156,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (!AuthService.instance.isLoggedIn || walletId.isEmpty || walletId == 'personal') {
       if (mounted) {
         setState(() {
-          _transactions = mockTransactions
-              .where((t) => t.walletId == walletId)
-              .toList();
+          _transactions = [];
           _txLoading = false;
         });
       }
@@ -195,7 +193,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (!AuthService.instance.isLoggedIn || walletId.isEmpty || walletId == 'personal') {
       if (mounted) {
         setState(() {
-          _splitGroups = List.from(mockSplitGroups);
+          _splitGroups = [];
           _sgLoading = false;
         });
         _syncPinnedGroups();
@@ -342,8 +340,6 @@ class _WalletScreenState extends State<WalletScreen>
 
   Future<void> _persistTransaction(TxModel tx) async {
     if (!AuthService.instance.isLoggedIn) {
-      // Bypass mode: keep in local list only
-      mockTransactions.insert(0, tx);
       return;
     }
     try {

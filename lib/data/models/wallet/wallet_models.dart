@@ -257,240 +257,27 @@ class FamilyModel {
   }) : members = members ?? [];
 }
 
-// ── Mock Data ─────────────────────────────────────────────────────────────────
+// ── Fallback placeholder — no financial data ──────────────────────────────────
 
-List<FamilyModel> mockFamilies = [
-  FamilyModel(
-    id: 'f1',
-    name: 'Singh Family',
-    emoji: '👨‍👩‍👧',
-    colorIndex: 0,
-    members: [
-      FamilyMember(
-        id: 'me',
-        name: 'Me (Arjun)',
-        emoji: '🧑',
-        role: MemberRole.admin,
-        relation: 'Self',
-      ),
-      FamilyMember(
-        id: 'dad',
-        name: 'Dad',
-        emoji: '👨',
-        role: MemberRole.admin,
-        relation: 'Father',
-        phone: '9876543210',
-      ),
-      FamilyMember(
-        id: 'mom',
-        name: 'Mom',
-        emoji: '👩',
-        role: MemberRole.member,
-        relation: 'Mother',
-        phone: '9876543211',
-      ),
-      FamilyMember(
-        id: 'priya',
-        name: 'Priya',
-        emoji: '👧',
-        role: MemberRole.member,
-        relation: 'Sister',
-        phone: '9876543212',
-      ),
-    ],
-  ),
-  FamilyModel(
-    id: 'f2',
-    name: 'Office Group',
-    emoji: '👥',
-    colorIndex: 1,
-    members: [
-      FamilyMember(
-        id: 'me',
-        name: 'Me (Arjun)',
-        emoji: '🧑',
-        role: MemberRole.admin,
-        relation: 'Self',
-      ),
-      FamilyMember(
-        id: 'rahul',
-        name: 'Rahul',
-        emoji: '👨',
-        role: MemberRole.member,
-        relation: 'Colleague',
-        phone: '9876500001',
-      ),
-      FamilyMember(
-        id: 'sneha',
-        name: 'Sneha',
-        emoji: '👩',
-        role: MemberRole.viewer,
-        relation: 'Colleague',
-        phone: '9876500002',
-      ),
-    ],
-  ),
-];
-
+/// Minimal placeholder used only as a UI fallback while real data loads.
+/// Financial fields are all zero — never shown to the user as real values.
 WalletModel personalWallet = WalletModel(
   id: 'personal',
   name: 'Personal',
   emoji: '👤',
   isPersonal: true,
-  cashIn: 12000,
-  cashOut: 4500,
-  onlineIn: 33000,
-  onlineOut: 8700,
+  cashIn: 0,
+  cashOut: 0,
+  onlineIn: 0,
+  onlineOut: 0,
   gradient: AppColors.personalGrad,
 );
 
-List<WalletModel> familyWallets = [
-  WalletModel(
-    id: 'f1',
-    name: 'Singh Family',
-    emoji: '👨‍👩‍👧',
-    isPersonal: false,
-    cashIn: 5000,
-    cashOut: 2000,
-    onlineIn: 15000,
-    onlineOut: 6000,
-    gradient: AppColors.familyGradients[0],
-  ),
-  WalletModel(
-    id: 'f2',
-    name: 'Office Group',
-    emoji: '👥',
-    isPersonal: false,
-    cashIn: 0,
-    cashOut: 0,
-    onlineIn: 8000,
-    onlineOut: 3200,
-    gradient: AppColors.familyGradients[1],
-  ),
-];
+// Legacy name kept to avoid breaking other call sites — always empty.
+final List<FamilyModel> mockFamilies = [];
 
-final mockTransactions = [
-  TxModel(
-    id: '1',
-    type: TxType.income,
-    payMode: PayMode.online,
-    amount: 45000,
-    category: 'Salary',
-    walletId: 'personal',
-    note: 'Monthly salary',
-    date: DateTime.now(),
-  ),
-  TxModel(
-    id: '2',
-    type: TxType.expense,
-    payMode: PayMode.cash,
-    amount: 500,
-    category: 'Food',
-    walletId: 'personal',
-    note: 'Lunch at Murugan',
-    date: DateTime.now(),
-  ),
-  TxModel(
-    id: '3',
-    type: TxType.expense,
-    payMode: PayMode.online,
-    amount: 1299,
-    category: 'Shopping',
-    walletId: 'personal',
-    note: 'Amazon order',
-    date: DateTime.now(),
-  ),
-  TxModel(
-    id: '4',
-    type: TxType.split,
-    payMode: null,
-    amount: 400,
-    category: 'Dinner Split',
-    walletId: 'personal',
-    persons: ['Arjun', 'Priya'],
-    status: '2/3 paid',
-    date: DateTime.now(),
-  ),
-  TxModel(
-    id: '5',
-    type: TxType.income,
-    payMode: PayMode.cash,
-    amount: 2000,
-    category: 'Freelance',
-    walletId: 'personal',
-    note: 'Design work',
-    date: DateTime.now().subtract(const Duration(days: 1)),
-  ),
-  TxModel(
-    id: '6',
-    type: TxType.expense,
-    payMode: PayMode.online,
-    amount: 849,
-    category: 'Grocery',
-    walletId: 'f1',
-    note: 'BigBasket order',
-    date: DateTime.now().subtract(const Duration(days: 1)),
-  ),
-  TxModel(
-    id: '7',
-    type: TxType.lend,
-    payMode: null,
-    amount: 2000,
-    category: 'Lent to Rahul',
-    walletId: 'personal',
-    person: 'Rahul',
-    dueDate: 'Mar 1',
-    date: DateTime.now().subtract(const Duration(days: 1)),
-  ),
-  TxModel(
-    id: '8',
-    type: TxType.borrow,
-    payMode: null,
-    amount: 500,
-    category: 'Borrowed',
-    walletId: 'personal',
-    person: 'Sneha',
-    date: DateTime.now().subtract(const Duration(days: 1)),
-  ),
-  TxModel(
-    id: '9',
-    type: TxType.request,
-    payMode: null,
-    amount: 750,
-    category: 'Request',
-    walletId: 'personal',
-    person: 'Priya',
-    status: 'pending',
-    date: DateTime.now().subtract(const Duration(days: 2)),
-  ),
-  TxModel(
-    id: '10',
-    type: TxType.expense,
-    payMode: PayMode.cash,
-    amount: 320,
-    category: 'Travel',
-    walletId: 'personal',
-    note: 'Auto fare',
-    date: DateTime.now().subtract(const Duration(days: 2)),
-  ),
-  TxModel(
-    id: '11',
-    type: TxType.expense,
-    payMode: PayMode.online,
-    amount: 599,
-    category: 'Entertainment',
-    walletId: 'f1',
-    note: 'Netflix',
-    date: DateTime.now().subtract(const Duration(days: 3)),
-  ),
-  TxModel(
-    id: '12',
-    type: TxType.income,
-    payMode: PayMode.online,
-    amount: 3500,
-    category: 'Rent',
-    walletId: 'f1',
-    note: 'From tenant',
-    date: DateTime.now().subtract(const Duration(days: 3)),
-  ),
-];
+// Legacy name kept to avoid breaking other call sites — always empty.
+final List<TxModel> mockTransactions = [];
+
+// Legacy name kept to avoid breaking other call sites — always empty.
+List<WalletModel> familyWallets = [];
