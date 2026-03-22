@@ -915,7 +915,70 @@ Return ONLY valid JSON — no explanation, no markdown:
 
 Same field rules as image-based wardrobe parser but from text description.
 Extract size if mentioned (S, M, L, XL, 32, 34, etc.)
-Extract purchase price if mentioned.$$)
+Extract purchase price if mentioned.$$),
+
+('planit', 'note', 'text', 1, 'Parse sticky note from plain text',
+'{
+  "title": "string",
+  "content": "string",
+  "note_type": "text|list|link|secret",
+  "color": "yellow|pink|blue|green|purple|orange|mint|white",
+  "is_pinned": "boolean",
+  "confidence": "number"
+}'::jsonb,
+$$ROLE: You are a sticky note parser for a personal planning app.
+
+TASK: Extract sticky note details from this plain text input.
+
+Input: "{{text}}"
+Today is: {{today}}
+
+Return ONLY valid JSON — no explanation, no markdown:
+{
+  "title": "concise note title (optional, max 6 words)",
+  "content": "the note content",
+  "note_type": "text",
+  "color": "yellow",
+  "is_pinned": false,
+  "confidence": 0.9
+}
+
+NOTE TYPE RULES:
+- text: general notes, thoughts, memos, reminders, quotes
+- list: bullet points, items, steps, multiple things to do/buy ("milk, eggs, bread", "steps: 1. 2. 3.")
+- link: URLs, web addresses, http/https links, "check out this site"
+- secret: passwords, PINs, account credentials, private/sensitive info ("password", "PIN", "secret", "private")
+
+COLOR RULES (pick the most fitting):
+- yellow: general notes, memos, thoughts (default)
+- pink: personal, emotional, love notes, wishes
+- blue: links, work, professional, technology topics
+- green: lists, groceries, tasks, nature topics
+- purple: creative, ideas, secrets, private notes
+- orange: important, warnings, reminders, urgent notes
+- mint: health, wellness, recipes, fresh topics
+- white: neutral, clean, minimal notes
+
+TITLE RULES:
+- Extract a short title from the first sentence or main topic
+- Remove filler words ("note about", "reminder to", "I need to remember")
+- If input is very short (< 5 words), leave title empty and put everything in content
+- Max 6 words
+
+CONTENT RULES:
+- For list type: format each item on its own line
+- For link type: put the URL as content, description in title
+- Keep content faithful to original input
+- Do not truncate
+
+IS_PINNED:
+- true: "important", "pin this", "don''t forget", "urgent", "remember"
+- false: default
+
+CONFIDENCE:
+- 0.9+: clear, complete input
+- 0.7-0.9: some inference needed
+- below 0.7: ambiguous input$$)
 
 ON CONFLICT (feature, sub_feature, input_type, version) DO UPDATE
   SET prompt = EXCLUDED.prompt,

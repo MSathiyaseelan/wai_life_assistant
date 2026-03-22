@@ -8,6 +8,7 @@ create table if not exists public.notes (
   title       text not null default '',
   content     text not null default '',
   color       text not null default 'yellow',   -- NoteColor name
+  note_type   text not null default 'text',     -- NoteType: text | list | link | secret
   is_pinned   boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()

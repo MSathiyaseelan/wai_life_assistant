@@ -453,7 +453,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, anim, __) => builder(context, widget.activeWalletId),
+        pageBuilder: (_, anim, __) => builder(context, _currentWallet.id),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
           child: SlideTransition(

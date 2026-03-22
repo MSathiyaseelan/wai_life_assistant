@@ -4,6 +4,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/supabase/note_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 
 // ── Note color palette ────────────────────────────────────────────────────────
 
@@ -49,6 +50,40 @@ NoteColor _noteColorFromString(String? s) {
   );
 }
 
+// ── Note type ─────────────────────────────────────────────────────────────────
+
+enum NoteType { text, list, link, secret }
+
+extension NoteTypeExt on NoteType {
+  String get label => switch (this) {
+    NoteType.text   => 'Text',
+    NoteType.list   => 'List',
+    NoteType.link   => 'Link',
+    NoteType.secret => 'Secret',
+  };
+
+  IconData get icon => switch (this) {
+    NoteType.text   => Icons.text_fields_rounded,
+    NoteType.list   => Icons.checklist_rounded,
+    NoteType.link   => Icons.link_rounded,
+    NoteType.secret => Icons.lock_outline_rounded,
+  };
+
+  String get contentHint => switch (this) {
+    NoteType.text   => 'Write your note here...',
+    NoteType.list   => 'One item per line...',
+    NoteType.link   => 'Paste a URL here...',
+    NoteType.secret => 'Your secret content...',
+  };
+}
+
+NoteType _noteTypeFromString(String? s) {
+  return NoteType.values.firstWhere(
+    (t) => t.name == s,
+    orElse: () => NoteType.text,
+  );
+}
+
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 class NoteModel {
@@ -57,6 +92,7 @@ class NoteModel {
   String title;
   String content;
   NoteColor color;
+  NoteType type;
   bool isPinned;
   final DateTime createdAt;
   DateTime updatedAt;
@@ -67,6 +103,7 @@ class NoteModel {
     this.title = '',
     this.content = '',
     this.color = NoteColor.yellow,
+    this.type = NoteType.text,
     this.isPinned = false,
     required this.createdAt,
     required this.updatedAt,
@@ -78,6 +115,7 @@ class NoteModel {
     title: row['title'] as String? ?? '',
     content: row['content'] as String? ?? '',
     color: _noteColorFromString(row['color'] as String?),
+    type: _noteTypeFromString(row['note_type'] as String?),
     isPinned: row['is_pinned'] as bool? ?? false,
     createdAt: DateTime.parse(row['created_at'] as String),
     updatedAt: DateTime.parse(row['updated_at'] as String),
@@ -88,6 +126,7 @@ class NoteModel {
     'title': title,
     'content': content,
     'color': color.name,
+    'note_type': type.name,
     'is_pinned': isPinned,
   };
 
@@ -95,6 +134,7 @@ class NoteModel {
     String? title,
     String? content,
     NoteColor? color,
+    NoteType? type,
     bool? isPinned,
   }) => NoteModel(
     id: id,
@@ -102,6 +142,7 @@ class NoteModel {
     title: title ?? this.title,
     content: content ?? this.content,
     color: color ?? this.color,
+    type: type ?? this.type,
     isPinned: isPinned ?? this.isPinned,
     createdAt: createdAt,
     updatedAt: DateTime.now(),
@@ -197,10 +238,22 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Future<void> _saveNote(NoteModel note, {bool isNew = false}) async {
     try {
-      if (isNew) {
+      if (isNew || note.id.isEmpty) {
+        // note.id.isEmpty guards against a broken local note (e.g. from a
+        // prior failed save) being re-submitted as an update.
         final row = await NoteService.instance.addNote(note.toRow());
         final saved = NoteModel.fromRow(row);
-        if (mounted) setState(() => _notes.insert(0, saved));
+        if (mounted) {
+          setState(() {
+            // Replace any stale zero-id entry or prepend the new one.
+            final stale = _notes.indexWhere((n) => n.id.isEmpty);
+            if (stale >= 0) {
+              _notes[stale] = saved;
+            } else {
+              _notes.insert(0, saved);
+            }
+          });
+        }
       } else {
         if (mounted) {
           setState(() {
@@ -212,7 +265,6 @@ class _NotesScreenState extends State<NotesScreen> {
       }
     } catch (e) {
       debugPrint('[Notes] save error: $e');
-      if (isNew && mounted) setState(() => _notes.insert(0, note));
     }
   }
 
@@ -238,6 +290,7 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   void _openNoteSheet({NoteModel? existing}) {
+    if (widget.walletId.isEmpty) return;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
@@ -583,18 +636,15 @@ class _NoteCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row: pin icon + date
+            // Header row: type icon + pin + date
             Row(
               children: [
-                if (note.isPinned)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.push_pin_rounded,
-                      size: 13,
-                      color: accent,
-                    ),
-                  ),
+                Icon(note.type.icon, size: 11, color: accent),
+                const SizedBox(width: 3),
+                if (note.isPinned) ...[
+                  Icon(Icons.push_pin_rounded, size: 11, color: accent),
+                  const SizedBox(width: 3),
+                ],
                 Expanded(
                   child: Text(
                     _relativeDate(note.updatedAt),
@@ -607,14 +657,11 @@ class _NoteCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Color dot
                 Container(
                   width: 9,
                   height: 9,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
+                  decoration:
+                      BoxDecoration(color: accent, shape: BoxShape.circle),
                 ),
               ],
             ),
@@ -639,21 +686,78 @@ class _NoteCard extends StatelessWidget {
                 ),
               ),
 
-            // Content preview
+            // Content preview (secret → obscured, list → bulleted, others → plain)
             if (note.content.isNotEmpty)
               Expanded(
-                child: Text(
-                  note.content,
-                  maxLines: 8,
-                  overflow: TextOverflow.fade,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'Nunito',
-                    fontWeight: FontWeight.w500,
-                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.65),
-                    height: 1.4,
-                  ),
-                ),
+                child: note.type == NoteType.secret
+                    ? Row(
+                        children: [
+                          Icon(Icons.lock_outline_rounded,
+                              size: 12,
+                              color: accent.withValues(alpha: 0.6)),
+                          const SizedBox(width: 4),
+                          Text(
+                            '•' * 12,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: accent.withValues(alpha: 0.6),
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ],
+                      )
+                    : note.type == NoteType.list
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: note.content
+                                .split('\n')
+                                .where((l) => l.trim().isNotEmpty)
+                                .take(5)
+                                .map((l) => Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 2),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.circle,
+                                              size: 5,
+                                              color: accent
+                                                  .withValues(alpha: 0.6)),
+                                          const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              l.trim(),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontFamily: 'Nunito',
+                                                fontWeight: FontWeight.w500,
+                                                color: (isDark
+                                                        ? Colors.white
+                                                        : Colors.black)
+                                                    .withValues(alpha: 0.65),
+                                                height: 1.4,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ))
+                                .toList(),
+                          )
+                        : Text(
+                            note.content,
+                            maxLines: 8,
+                            overflow: TextOverflow.fade,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w500,
+                              color: (isDark ? Colors.white : Colors.black)
+                                  .withValues(alpha: 0.65),
+                              height: 1.4,
+                            ),
+                          ),
               ),
           ],
         ),
@@ -681,31 +785,106 @@ class _NoteSheet extends StatefulWidget {
   State<_NoteSheet> createState() => _NoteSheetState();
 }
 
-class _NoteSheetState extends State<_NoteSheet> {
+class _NoteSheetState extends State<_NoteSheet>
+    with SingleTickerProviderStateMixin {
+  late TabController _mode;
+
+  // AI state
+  final _aiCtrl = TextEditingController();
+  bool _aiParsing = false;
+  _ParsedNote? _aiPreview;
+  String? _aiError;
+  bool _usingClaudeAI = false;
+
+  // Manual form state
   late final TextEditingController _titleCtrl;
   late final TextEditingController _contentCtrl;
   late NoteColor _color;
+  late NoteType _type;
   late bool _isPinned;
   bool _saving = false;
+  bool _secretVisible = false;
 
   @override
   void initState() {
     super.initState();
     final e = widget.existing;
+    _mode = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: e != null ? 1 : 0,
+    );
+    _mode.addListener(() => setState(() {}));
     _titleCtrl = TextEditingController(text: e?.title ?? '');
     _contentCtrl = TextEditingController(text: e?.content ?? '');
     _color = e?.color ?? NoteColor.yellow;
+    _type = e?.type ?? NoteType.text;
     _isPinned = e?.isPinned ?? false;
   }
 
   @override
   void dispose() {
+    _mode.dispose();
+    _aiCtrl.dispose();
     _titleCtrl.dispose();
     _contentCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _parseAI(String text) async {
+    if (text.trim().isEmpty) return;
+    setState(() {
+      _aiParsing = true;
+      _aiError = null;
+      _aiPreview = null;
+      _usingClaudeAI = false;
+    });
+
+    _ParsedNote? result;
+    try {
+      final aiResult = await AIParser.parseText(
+        feature: 'planit',
+        subFeature: 'note',
+        text: text.trim(),
+      );
+      if (aiResult.success && aiResult.data != null) {
+        result = _parsedNoteFromAI(aiResult.data!, widget.walletId);
+        _usingClaudeAI = true;
+      } else {
+        throw Exception(aiResult.error ?? 'AI parse failed');
+      }
+    } catch (_) {
+      try {
+        result = _NoteNlpParser.parse(text.trim(), widget.walletId);
+        _usingClaudeAI = false;
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _aiParsing = false;
+            _aiError = 'Could not understand — try again or fill manually.';
+          });
+        }
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _aiPreview = result;
+      _aiParsing = false;
+      _titleCtrl.text = result!.title;
+      _contentCtrl.text = result.content;
+      _color = result.color;
+      _type = result.type;
+      _isPinned = result.isPinned;
+    });
+  }
+
   Future<void> _save() async {
+    if (widget.walletId.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
     final title = _titleCtrl.text.trim();
     final content = _contentCtrl.text.trim();
     if (title.isEmpty && content.isEmpty) {
@@ -719,6 +898,7 @@ class _NoteSheetState extends State<_NoteSheet> {
             title: title,
             content: content,
             color: _color,
+            type: _type,
             isPinned: _isPinned,
           )
         : NoteModel(
@@ -727,6 +907,7 @@ class _NoteSheetState extends State<_NoteSheet> {
             title: title,
             content: content,
             color: _color,
+            type: _type,
             isPinned: _isPinned,
             createdAt: now,
             updatedAt: now,
@@ -740,23 +921,30 @@ class _NoteSheetState extends State<_NoteSheet> {
     final bg = _color.bg(widget.isDark);
     final accent = _color.accent(widget.isDark);
     final textColor = widget.isDark ? Colors.white : Colors.black87;
-    final hintColor = (widget.isDark ? Colors.white : Colors.black).withValues(alpha: 0.35);
+    final hintColor =
+        (widget.isDark ? Colors.white : Colors.black).withValues(alpha: 0.35);
+    final subColor =
+        (widget.isDark ? Colors.white : Colors.black).withValues(alpha: 0.5);
+    final isNew = widget.existing == null;
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: bg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Drag handle
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            // ── Drag handle ──────────────────────────────────────────────────
             Center(
               child: Container(
                 width: 36,
@@ -767,160 +955,111 @@ class _NoteSheetState extends State<_NoteSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // Color picker row
-            SizedBox(
-              height: 32,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: NoteColor.values.map((c) {
-                  final selected = c == _color;
-                  return GestureDetector(
-                    onTap: () => setState(() => _color = c),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
-                      margin: const EdgeInsets.only(right: 8),
-                      width: selected ? 36 : 28,
-                      height: selected ? 36 : 28,
-                      decoration: BoxDecoration(
-                        color: c.accent(widget.isDark),
-                        shape: BoxShape.circle,
-                        border: selected
-                            ? Border.all(color: textColor, width: 2.5)
-                            : null,
-                        boxShadow: selected
-                            ? [
-                                BoxShadow(
-                                  color: c.accent(widget.isDark).withValues(alpha: 0.4),
-                                  blurRadius: 6,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: selected
-                          ? Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                          : null,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Title field
-            TextField(
-              controller: _titleCtrl,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Nunito',
-                color: textColor,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Title',
-                hintStyle: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Nunito',
-                  color: hintColor,
-                ),
-                border: InputBorder.none,
-              ),
-              textCapitalization: TextCapitalization.sentences,
-              maxLines: 1,
-            ),
-
-            // Content field
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 80, maxHeight: 240),
-              child: TextField(
-                controller: _contentCtrl,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w500,
-                  color: textColor.withValues(alpha: 0.85),
-                  height: 1.5,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Write something…',
-                  hintStyle: TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'Nunito',
-                    color: hintColor,
-                  ),
-                  border: InputBorder.none,
-                ),
-                textCapitalization: TextCapitalization.sentences,
-                maxLines: null,
-                keyboardType: TextInputType.multiline,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Bottom actions: pin toggle + save
+            // ── Header ───────────────────────────────────────────────────────
             Row(
               children: [
-                // Pin toggle
-                GestureDetector(
-                  onTap: () => setState(() => _isPinned = !_isPinned),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _isPinned
-                          ? accent.withValues(alpha: 0.15)
-                          : accent.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: accent.withValues(alpha: _isPinned ? 0.5 : 0.2),
-                      ),
-                    ),
+                const Text('🗒️', style: TextStyle(fontSize: 20)),
+                const SizedBox(width: 8),
+                Text(
+                  isNew ? 'New Note' : 'Edit Note',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: textColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Mode switcher ────────────────────────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.all(3),
+              child: TabBar(
+                controller: _mode,
+                indicator: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: accent,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  fontFamily: 'Nunito',
+                ),
+                padding: EdgeInsets.zero,
+                tabs: const [
+                  Tab(
+                    height: 36,
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          _isPinned
-                              ? Icons.push_pin_rounded
-                              : Icons.push_pin_outlined,
-                          size: 16,
-                          color: accent,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          _isPinned ? 'Pinned' : 'Pin',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: accent,
-                          ),
-                        ),
+                        Text('✨', style: TextStyle(fontSize: 14)),
+                        SizedBox(width: 6),
+                        Text('AI Parse'),
                       ],
                     ),
                   ),
+                  Tab(
+                    height: 36,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.edit_outlined, size: 14),
+                        SizedBox(width: 6),
+                        Text('Manual'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── AI TAB ───────────────────────────────────────────────────────
+            if (_mode.index == 0) ...[
+              _NoteAiHint(isDark: widget.isDark, accent: accent),
+              const SizedBox(height: 12),
+              _NoteAiInputBox(
+                ctrl: _aiCtrl,
+                isDark: widget.isDark,
+                accent: accent,
+                isParsing: _aiParsing,
+                onParse: () => _parseAI(_aiCtrl.text),
+              ),
+              if (_aiError != null) ...[
+                const SizedBox(height: 10),
+                _NoteErrorBanner(message: _aiError!),
+              ],
+              if (_aiPreview != null) ...[
+                const SizedBox(height: 12),
+                _NoteAiPreviewCard(
+                  preview: _aiPreview!,
+                  isDark: widget.isDark,
+                  accent: accent,
+                  usedClaudeAI: _usingClaudeAI,
+                  onEdit: () => _mode.animateTo(1),
                 ),
-
-                const Spacer(),
-
-                // Save button
+                const SizedBox(height: 16),
                 GestureDetector(
                   onTap: _saving ? null : _save,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
                       color: accent,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    alignment: Alignment.center,
                     child: _saving
                         ? const SizedBox(
                             width: 18,
@@ -930,22 +1069,855 @@ class _NoteSheetState extends State<_NoteSheet> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text(
-                            'Save',
-                            style: TextStyle(
-                              color: Colors.white,
+                        : Text(
+                            isNew ? '✓  Create Note' : '✓  Save Changes',
+                            style: const TextStyle(
+                              fontSize: 14,
                               fontWeight: FontWeight.w800,
                               fontFamily: 'Nunito',
-                              fontSize: 14,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+              if (_aiPreview == null && !_aiParsing) ...[
+                const SizedBox(height: 12),
+                _NoteExamples(
+                  isDark: widget.isDark,
+                  accent: accent,
+                  onTap: (s) => setState(() => _aiCtrl.text = s),
+                ),
+              ],
+            ],
+
+            // ── MANUAL TAB ───────────────────────────────────────────────────
+            if (_mode.index == 1) ...[
+            // ── Type selector + Pin ──────────────────────────────────────────
+            Row(
+              children: [
+                // Type tabs
+                Expanded(
+                  child: Row(
+                    children: NoteType.values.map((t) {
+                      final sel = t == _type;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _type = t),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: sel
+                                  ? accent
+                                  : accent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: sel
+                                  ? null
+                                  : Border.all(
+                                      color: accent.withValues(alpha: 0.25)),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  t.icon,
+                                  size: 16,
+                                  color: sel ? Colors.white : accent,
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  t.label,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: sel ? Colors.white : accent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Pin button
+                GestureDetector(
+                  onTap: () => setState(() => _isPinned = !_isPinned),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _isPinned
+                          ? accent
+                          : accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: _isPinned
+                          ? null
+                          : Border.all(
+                              color: accent.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isPinned
+                              ? Icons.push_pin_rounded
+                              : Icons.push_pin_outlined,
+                          size: 14,
+                          color: _isPinned ? Colors.white : accent,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Pin',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: _isPinned ? Colors.white : accent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Title field ──────────────────────────────────────────────────
+            TextField(
+              controller: _titleCtrl,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Nunito',
+                color: textColor,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Note title (optional)',
+                hintStyle: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Nunito',
+                  color: hintColor,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      BorderSide(color: accent.withValues(alpha: 0.25)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      BorderSide(color: accent.withValues(alpha: 0.25)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: accent, width: 1.5),
+                ),
+                filled: true,
+                fillColor: accent.withValues(alpha: 0.06),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 12),
+              ),
+              textCapitalization: TextCapitalization.sentences,
+              maxLines: 1,
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── Content field ────────────────────────────────────────────────
+            Stack(
+              children: [
+                ConstrainedBox(
+                  constraints:
+                      const BoxConstraints(minHeight: 100, maxHeight: 260),
+                  child: TextField(
+                    controller: _contentCtrl,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w500,
+                      color: textColor.withValues(alpha: 0.85),
+                      height: 1.5,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: _type.contentHint,
+                      hintStyle: TextStyle(
+                          fontSize: 14,
+                          fontFamily: 'Nunito',
+                          color: hintColor),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                            color: accent.withValues(alpha: 0.25)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                            color: accent.withValues(alpha: 0.25)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: accent, width: 1.5),
+                      ),
+                      filled: true,
+                      fillColor: accent.withValues(alpha: 0.06),
+                      contentPadding: const EdgeInsets.fromLTRB(14, 12, 44, 12),
+                      alignLabelWithHint: true,
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                    minLines: 6,
+                    // obscureText requires maxLines == 1
+                    maxLines: (_type == NoteType.secret && !_secretVisible)
+                        ? 1
+                        : null,
+                    keyboardType: _type == NoteType.link
+                        ? TextInputType.url
+                        : TextInputType.multiline,
+                    obscureText:
+                        _type == NoteType.secret && !_secretVisible,
+                  ),
+                ),
+                // Show/hide toggle for secret type
+                if (_type == NoteType.secret)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () =>
+                          setState(() => _secretVisible = !_secretVisible),
+                      child: Icon(
+                        _secretVisible
+                            ? Icons.visibility_off_rounded
+                            : Icons.visibility_rounded,
+                        size: 20,
+                        color: accent.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Note colour ──────────────────────────────────────────────────
+            Text(
+              'NOTE COLOR',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: subColor,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: NoteColor.values.map((c) {
+                final selected = c == _color;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _color = c),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      width: selected ? 34 : 28,
+                      height: selected ? 34 : 28,
+                      decoration: BoxDecoration(
+                        color: c.bg(widget.isDark),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected
+                              ? c.accent(widget.isDark)
+                              : c.accent(widget.isDark).withValues(alpha: 0.35),
+                          width: selected ? 2.5 : 1.5,
+                        ),
+                        boxShadow: selected
+                            ? [
+                                BoxShadow(
+                                  color: c
+                                      .accent(widget.isDark)
+                                      .withValues(alpha: 0.35),
+                                  blurRadius: 6,
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: selected
+                          ? Icon(Icons.check_rounded,
+                              size: 14,
+                              color: c.accent(widget.isDark))
+                          : null,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── Action buttons ───────────────────────────────────────────────
+            Row(
+              children: [
+                // Cancel
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: accent.withValues(alpha: 0.35),
+                            width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Save / Create
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: _saving ? null : _save,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      alignment: Alignment.center,
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              isNew ? '✓  Create Note' : '✓  Save Changes',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            ], // end manual tab
+          ],
+        ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── AI helpers ────────────────────────────────────────────────────────────────
+
+class _ParsedNote {
+  final String title, content, walletId;
+  final NoteColor color;
+  final NoteType type;
+  final bool isPinned;
+
+  const _ParsedNote({
+    required this.title,
+    required this.content,
+    required this.walletId,
+    required this.color,
+    required this.type,
+    required this.isPinned,
+  });
+}
+
+_ParsedNote _parsedNoteFromAI(Map<String, dynamic> data, String walletId) =>
+    _ParsedNote(
+      title: data['title'] as String? ?? '',
+      content: data['content'] as String? ?? '',
+      walletId: walletId,
+      color: _noteColorFromString(data['color'] as String?),
+      type: _noteTypeFromString(data['note_type'] as String?),
+      isPinned: data['is_pinned'] as bool? ?? false,
+    );
+
+class _NoteNlpParser {
+  static _ParsedNote parse(String raw, String walletId) {
+    final text = raw.trim();
+    final lower = text.toLowerCase();
+
+    NoteType type = NoteType.text;
+    if (lower.contains('http://') ||
+        lower.contains('https://') ||
+        lower.contains('www.')) {
+      type = NoteType.link;
+    } else if (lower.contains('password') ||
+        lower.contains('secret') ||
+        lower.contains(' pin ') ||
+        lower.contains('credential')) {
+      type = NoteType.secret;
+    } else if (text.contains('\n') &&
+        (lower.contains('- ') ||
+            lower.contains('* ') ||
+            RegExp(r'^\d+\.', multiLine: true).hasMatch(text))) {
+      type = NoteType.list;
+    }
+
+    String title = '';
+    String content = text;
+    final lines = text.split('\n');
+    if (lines.length > 1 && lines[0].trim().length < 60) {
+      title = lines[0].trim();
+      content = lines.sublist(1).join('\n').trim();
+    }
+
+    NoteColor color = NoteColor.yellow;
+    if (type == NoteType.link) {
+      color = NoteColor.blue;
+    } else if (type == NoteType.secret) {
+      color = NoteColor.purple;
+    } else if (type == NoteType.list) {
+      color = NoteColor.green;
+    }
+
+    final isPinned = lower.contains('important') ||
+        lower.contains('pin this') ||
+        lower.contains("don't forget");
+
+    return _ParsedNote(
+      title: title,
+      content: content,
+      walletId: walletId,
+      color: color,
+      type: type,
+      isPinned: isPinned,
+    );
+  }
+}
+
+class _NoteAiHint extends StatelessWidget {
+  final bool isDark;
+  final Color accent;
+  const _NoteAiHint({required this.isDark, required this.accent});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: accent.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: accent.withValues(alpha: 0.2)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('✨', style: TextStyle(fontSize: 15)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Describe your note in plain English — Claude AI will extract the title, content, type, and color.',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'Nunito',
+              color: isDark ? AppColors.textDark : AppColors.textLight,
+              height: 1.45,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _NoteAiInputBox extends StatelessWidget {
+  final TextEditingController ctrl;
+  final bool isDark, isParsing;
+  final Color accent;
+  final VoidCallback onParse;
+
+  const _NoteAiInputBox({
+    required this.ctrl,
+    required this.isDark,
+    required this.accent,
+    required this.isParsing,
+    required this.onParse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    return Container(
+      decoration: BoxDecoration(
+        color: surfBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: TextField(
+              controller: ctrl,
+              maxLines: 3,
+              minLines: 2,
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
+              decoration: InputDecoration.collapsed(
+                hintText:
+                    '"Team meeting notes: action items for Ravi, Priya and me"',
+                hintStyle: TextStyle(
+                  fontSize: 12,
+                  color: sub,
+                  fontFamily: 'Nunito',
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+          Divider(
+            height: 1,
+            indent: 14,
+            endIndent: 14,
+            color: accent.withValues(alpha: 0.15),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 10, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Type anything — AI will figure out the rest',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'Nunito',
+                      color: sub,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: isParsing ? null : onParse,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: isParsing
+                          ? accent.withValues(alpha: 0.4)
+                          : accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: isParsing
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            '✨ Parse',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: Colors.white,
                             ),
                           ),
                   ),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _NoteErrorBanner extends StatelessWidget {
+  final String message;
+  const _NoteErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: Colors.red.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.error_outline_rounded,
+            color: Colors.red, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(
+              fontSize: 12,
+              fontFamily: 'Nunito',
+              color: Colors.red,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _NoteAiPreviewCard extends StatelessWidget {
+  final _ParsedNote preview;
+  final bool isDark, usedClaudeAI;
+  final Color accent;
+  final VoidCallback onEdit;
+
+  const _NoteAiPreviewCard({
+    required this.preview,
+    required this.isDark,
+    required this.accent,
+    required this.usedClaudeAI,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final noteAccent = preview.color.accent(isDark);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surfBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // AI badge + edit button
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: usedClaudeAI
+                      ? const Color(0xFF7C3AED).withValues(alpha: 0.1)
+                      : Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  usedClaudeAI ? '✨ Claude AI' : '🔍 Local NLP',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: usedClaudeAI
+                        ? const Color(0xFF7C3AED)
+                        : Colors.orange,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: onEdit,
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 12, color: sub),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Edit',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700,
+                        color: sub,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Color + type + pin chips
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: noteAccent,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                preview.color.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w600,
+                  color: sub,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Icon(preview.type.icon, size: 12, color: sub),
+              const SizedBox(width: 4),
+              Text(
+                preview.type.label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w600,
+                  color: sub,
+                ),
+              ),
+              if (preview.isPinned) ...[
+                const SizedBox(width: 12),
+                Icon(Icons.push_pin_rounded, size: 12, color: sub),
+                const SizedBox(width: 4),
+                Text(
+                  'Pinned',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w600,
+                    color: sub,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Title
+          if (preview.title.isNotEmpty) ...[
+            Text(
+              preview.title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: tc,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+
+          // Content preview
+          if (preview.content.isNotEmpty)
+            Text(
+              preview.type == NoteType.secret
+                  ? '🔒 ••••••••••••'
+                  : preview.content.length > 120
+                      ? '${preview.content.substring(0, 120)}…'
+                      : preview.content,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'Nunito',
+                color: sub,
+                height: 1.45,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NoteExamples extends StatelessWidget {
+  final bool isDark;
+  final Color accent;
+  final void Function(String) onTap;
+
+  const _NoteExamples({
+    required this.isDark,
+    required this.accent,
+    required this.onTap,
+  });
+
+  static const _examples = [
+    'Team meeting today — action items: update landing page, call vendor, send report',
+    'Groceries: milk, eggs, bread, tomatoes, onions, coriander',
+    'https://github.com/flutter/flutter — good reference for animations',
+    'Password for bank account login PIN important',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'TRY AN EXAMPLE',
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Nunito',
+            color: sub,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ..._examples.map(
+          (ex) => GestureDetector(
+            onTap: () => onTap(ex),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: accent.withValues(alpha: 0.15)),
+              ),
+              child: Text(
+                '"$ex"',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'Nunito',
+                  fontStyle: FontStyle.italic,
+                  color: sub,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
