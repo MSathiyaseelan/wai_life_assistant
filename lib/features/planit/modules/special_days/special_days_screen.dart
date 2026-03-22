@@ -258,6 +258,7 @@ class SpecialDaysScreen extends StatefulWidget {
   final String walletEmoji;
   final List<PlanMember> members;
   final List<SpecialDayModel> days;
+  final bool openAdd;
   const SpecialDaysScreen({
     super.key,
     required this.walletId,
@@ -265,6 +266,7 @@ class SpecialDaysScreen extends StatefulWidget {
     this.walletEmoji = '👤',
     this.members = const [],
     required this.days,
+    this.openAdd = false,
   });
   @override
   State<SpecialDaysScreen> createState() => _SpecialDaysScreenState();
@@ -336,6 +338,14 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
     _loadDays();
+    if (widget.openAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+        _openAddSheet(context, isDark, surfBg);
+      });
+    }
   }
 
   @override

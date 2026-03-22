@@ -14,6 +14,7 @@ class MyTasksScreen extends StatefulWidget {
   final String walletEmoji;
   final List<PlanMember> members;
   final List<TaskModel> tasks; // kept for PlanItScreen's _pendingTasks count
+  final bool openAdd;
   const MyTasksScreen({
     super.key,
     required this.walletId,
@@ -21,6 +22,7 @@ class MyTasksScreen extends StatefulWidget {
     this.walletEmoji = '👤',
     this.members = const [],
     required this.tasks,
+    this.openAdd = false,
   });
   @override
   State<MyTasksScreen> createState() => _MyTasksScreenState();
@@ -65,6 +67,14 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
     _loadTasks();
+    if (widget.openAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+        _openAddSheet(context, isDark, surfBg);
+      });
+    }
   }
 
   @override

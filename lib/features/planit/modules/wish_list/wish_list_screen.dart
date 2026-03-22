@@ -13,6 +13,7 @@ class WishListScreen extends StatefulWidget {
   final String walletEmoji;
   final List<PlanMember> members;
   final List<WishModel> wishes;
+  final bool openAdd;
   const WishListScreen({
     super.key,
     required this.walletId,
@@ -20,6 +21,7 @@ class WishListScreen extends StatefulWidget {
     this.walletEmoji = '👤',
     this.members = const [],
     required this.wishes,
+    this.openAdd = false,
   });
   @override
   State<WishListScreen> createState() => _WishListScreenState();
@@ -60,6 +62,14 @@ class _WishListScreenState extends State<WishListScreen>
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
     _loadWishes();
+    if (widget.openAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+        _openAddSheet(context, isDark, surfBg);
+      });
+    }
   }
 
   @override

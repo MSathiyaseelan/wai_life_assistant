@@ -15,6 +15,8 @@ class AlertMeScreen extends StatefulWidget {
   final String walletEmoji;
   final List<PlanMember> members;
   final bool isPersonal;
+  final List<ReminderModel> reminders; // lifted state for PlanIt summary
+  final bool openAdd;
   const AlertMeScreen({
     super.key,
     required this.walletId,
@@ -22,6 +24,8 @@ class AlertMeScreen extends StatefulWidget {
     this.walletEmoji = '👤',
     this.members = const [],
     this.isPersonal = true,
+    required this.reminders,
+    this.openAdd = false,
   });
   @override
   State<AlertMeScreen> createState() => _AlertMeScreenState();
@@ -60,6 +64,14 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.instance.requestPermissions();
     });
+    if (widget.openAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+        _openAddSheet(context, isDark, surfBg);
+      });
+    }
   }
 
   @override
@@ -81,6 +93,9 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       final loaded = rows.map(ReminderModel.fromRow).toList();
       setState(() {
         _reminders = loaded;
+        widget.reminders
+          ..clear()
+          ..addAll(loaded);
         _loading = false;
       });
       // Reschedule all active reminders on load

@@ -50,6 +50,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
   void _switchWallet(String id) => widget.onWalletChange(id);
 
   // ── Lifted state — persists across navigation ─────────────────────────────
+  final List<ReminderModel> _reminders = [];
   final List<TaskModel> _tasksList = [];
   final List<SpecialDayModel> _days = [];
   final List<WishModel> _wishes = [];
@@ -76,7 +77,9 @@ class _PlanItScreenState extends State<PlanItScreen> {
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  int get _dueReminders => 0; // AlertMeScreen loads from DB independently
+  int get _dueReminders => _reminders
+      .where((r) => r.walletId == widget.activeWalletId && !r.done)
+      .length;
 
   int get _pendingTasks => _tasksList
       .where(
@@ -113,20 +116,14 @@ class _PlanItScreenState extends State<PlanItScreen> {
           // ── Stats summary bar ─────────────────────────────────────────────
           SliverToBoxAdapter(child: _buildStatsBar(isDark, cardBg, subColor)),
 
-          // ── Module grid ───────────────────────────────────────────────────
+          // ── Module list ───────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.85,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _buildModuleTile(context, isDark, _modules[i]),
-                childCount: _modules.length,
-              ),
+            sliver: SliverList.separated(
+              itemCount: _modules.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (ctx, i) =>
+                  _buildModuleRow(ctx, isDark, _modules[i]),
             ),
           ),
         ],
@@ -264,142 +261,338 @@ class _PlanItScreenState extends State<PlanItScreen> {
     );
   }
 
-  // ── Module tile ───────────────────────────────────────────────────────────
-  Widget _buildModuleTile(BuildContext context, bool isDark, _ModuleInfo m) {
+  // ── Module row (full-width card with summary + quick-add) ────────────────
+  Widget _buildModuleRow(BuildContext context, bool isDark, _ModuleInfo m) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final textColor = isDark ? AppColors.textDark : AppColors.textLight;
     final subColor = isDark ? AppColors.subDark : AppColors.subLight;
+    final summary = _getSummary(m);
+    final count = _getCount(m);
 
     return GestureDetector(
-      onTap: () {
-        HapticFeedback.selectionClick();
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, anim, __) =>
-                m.builder(context, widget.activeWalletId),
-            transitionsBuilder: (_, anim, __, child) => FadeTransition(
-              opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-              child: SlideTransition(
-                position:
-                    Tween<Offset>(
-                      begin: const Offset(0, 0.05),
-                      end: Offset.zero,
-                    ).animate(
-                      CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
-                    ),
-                child: child,
-              ),
-            ),
-            transitionDuration: const Duration(milliseconds: 320),
-          ),
-        );
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+      onTap: () => _navigate(context, m.builder),
+      child: Container(
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: m.color.withOpacity(0.2)),
+          border: Border.all(color: m.color.withOpacity(0.18)),
           boxShadow: [
             BoxShadow(
-              color: m.color.withOpacity(isDark ? 0.08 : 0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: m.color.withOpacity(isDark ? 0.07 : 0.09),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: Stack(
-          children: [
-            // Subtle gradient top strip
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 4,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left colour bar
+              Container(
+                width: 4,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [m.color, m.color.withOpacity(0.5)],
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(20),
-                  ),
+                  color: m.color,
+                  borderRadius:
+                      const BorderRadius.horizontal(left: Radius.circular(20)),
                 ),
               ),
-            ),
-
-            // Badge (if non-zero count)
-            if (m.badge != null && m.badge! > 0)
-              Positioned(
-                top: 8,
-                right: 8,
+              const SizedBox(width: 14),
+              // Icon
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Container(
-                  width: 18,
-                  height: 18,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: m.color,
-                    shape: BoxShape.circle,
+                    color: m.color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    '${m.badge}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
+                  child: Text(m.emoji,
+                      style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Content
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title + count chip
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              m.title,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: textColor,
+                              ),
+                            ),
+                          ),
+                          if (count > 0)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: m.color.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: m.color,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        m.subtitle,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'Nunito',
+                          color: subColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Divider(
+                          height: 1,
+                          color: m.color.withOpacity(0.15)),
+                      const SizedBox(height: 6),
+                      if (summary.isNotEmpty)
+                        ...summary.take(2).map(
+                              (s) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 5,
+                                      height: 5,
+                                      margin: const EdgeInsets.only(
+                                          right: 7, top: 1),
+                                      decoration: BoxDecoration(
+                                        color: m.color.withOpacity(0.55),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        s,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontFamily: 'Nunito',
+                                          color: textColor,
+                                          height: 1.3,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                      else
+                        Text(
+                          _emptyLabel(m),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            color: subColor,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // Quick-add button
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: GestureDetector(
+                    onTap: () =>
+                        _navigate(context, m.quickAddBuilder ?? m.builder),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: m.color.withOpacity(0.13),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child:
+                          Icon(Icons.add_rounded, color: m.color, size: 20),
                     ),
                   ),
                 ),
               ),
-
-            // Content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 20, 8, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: m.color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(m.emoji, style: const TextStyle(fontSize: 22)),
-                  ),
-                  const Spacer(),
-                  Text(
-                    m.title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      color: isDark ? AppColors.textDark : AppColors.textLight,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    m.subtitle,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontFamily: 'Nunito',
-                      color: subColor,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
+  void _navigate(
+      BuildContext context, Widget Function(BuildContext, String) builder) {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, anim, __) => builder(context, widget.activeWalletId),
+        transitionsBuilder: (_, anim, __, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.05),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+                parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
+  }
+
+  // ── Summary helpers ───────────────────────────────────────────────────────
+  List<String> _getSummary(_ModuleInfo m) {
+    final wid = widget.activeWalletId;
+    switch (m.title) {
+      case 'Alert Me':
+        return _reminders
+            .where((r) => r.walletId == wid && !r.done)
+            .take(2)
+            .map((r) {
+          final days = r.dueDate.difference(DateTime.now()).inDays;
+          final when =
+              days <= 0 ? 'Today' : days == 1 ? 'Tomorrow' : 'in $days days';
+          return '${r.emoji} ${r.title} · $when';
+        }).toList();
+      case 'My Tasks':
+        return _tasksList
+            .where((t) =>
+                t.walletId == wid && t.status != TaskStatus.done)
+            .take(2)
+            .map((t) => t.title)
+            .toList();
+      case 'Special Days':
+        final now = DateTime.now();
+        final flat = DateTime(now.year, now.month, now.day);
+        final pairs = _days
+            .where((d) => d.walletId == wid)
+            .map((d) {
+              DateTime next =
+                  DateTime(now.year, d.date.month, d.date.day);
+              if (next.isBefore(flat)) {
+                next = DateTime(now.year + 1, d.date.month, d.date.day);
+              }
+              return (d, next);
+            })
+            .where((p) => p.$2.difference(flat).inDays <= 90)
+            .toList()
+          ..sort((a, b) => a.$2.compareTo(b.$2));
+        return pairs.take(2).map((p) {
+          final days = p.$2.difference(flat).inDays;
+          final when = days == 0
+              ? 'Today!'
+              : days == 1
+                  ? 'Tomorrow'
+                  : 'in $days days';
+          return '${p.$1.emoji} ${p.$1.title} · $when';
+        }).toList();
+      case 'Wish List':
+        return _wishes
+            .where((w) => w.walletId == wid && !w.purchased)
+            .take(2)
+            .map((w) => '${w.emoji} ${w.title}')
+            .toList();
+      case 'Notes':
+        return _notes
+            .where((n) => n.walletId == wid)
+            .take(2)
+            .map((n) => n.title.isNotEmpty
+                ? n.title
+                : n.content.split('\n').first.trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+      default:
+        return [];
+    }
+  }
+
+  int _getCount(_ModuleInfo m) {
+    final wid = widget.activeWalletId;
+    switch (m.title) {
+      case 'Alert Me':
+        return _reminders
+            .where((r) => r.walletId == wid && !r.done)
+            .length;
+      case 'My Tasks':
+        return _tasksList
+            .where(
+                (t) => t.walletId == wid && t.status != TaskStatus.done)
+            .length;
+      case 'Special Days':
+        return _days.where((d) => d.walletId == wid).length;
+      case 'Wish List':
+        return _wishes
+            .where((w) => w.walletId == wid && !w.purchased)
+            .length;
+      case 'Notes':
+        return _notes.where((n) => n.walletId == wid).length;
+      default:
+        return 0;
+    }
+  }
+
+  String _emptyLabel(_ModuleInfo m) {
+    switch (m.title) {
+      case 'Alert Me':
+        return 'No active reminders';
+      case 'My Tasks':
+        return 'No pending tasks';
+      case 'Special Days':
+        return 'No upcoming events';
+      case 'Wish List':
+        return 'No wishes yet';
+      case 'Notes':
+        return 'No notes yet';
+      default:
+        return 'No items yet';
+    }
+  }
+
+  // ── V1 visible modules — others are defined below but hidden until V2 ──────
+  static const _kV1Modules = {
+    'Alert Me',
+    'My Tasks',
+    'Special Days',
+    'Wish List',
+    'Notes',
+  };
+
   // ── Module definitions ────────────────────────────────────────────────────
-  List<_ModuleInfo> get _modules => [
+  List<_ModuleInfo> get _modules =>
+      _allModules.where((m) => _kV1Modules.contains(m.title)).toList();
+
+  // TODO(v2): Rename back to _modules when all modules are ready for release.
+  List<_ModuleInfo> get _allModules => [
     _ModuleInfo(
       emoji: '🔔',
       title: 'Alert Me',
@@ -412,6 +605,16 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         isPersonal: _currentWallet.isPersonal,
+        reminders: _reminders,
+      ),
+      quickAddBuilder: (ctx, wid) => AlertMeScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        isPersonal: _currentWallet.isPersonal,
+        reminders: _reminders,
+        openAdd: true,
       ),
     ),
     _ModuleInfo(
@@ -427,6 +630,14 @@ class _PlanItScreenState extends State<PlanItScreen> {
         members: _members,
         tasks: _tasksList,
       ),
+      quickAddBuilder: (ctx, wid) => MyTasksScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        tasks: _tasksList,
+        openAdd: true,
+      ),
     ),
     _ModuleInfo(
       emoji: '🎂',
@@ -441,6 +652,14 @@ class _PlanItScreenState extends State<PlanItScreen> {
         members: _members,
         days: _days,
       ),
+      quickAddBuilder: (ctx, wid) => SpecialDaysScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        days: _days,
+        openAdd: true,
+      ),
     ),
     _ModuleInfo(
       emoji: '🎁',
@@ -454,6 +673,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         wishes: _wishes,
       ),
+      quickAddBuilder: (ctx, wid) => WishListScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        wishes: _wishes,
+        openAdd: true,
+      ),
     ),
     _ModuleInfo(
       emoji: '🗒️',
@@ -465,6 +691,12 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
+      ),
+      quickAddBuilder: (ctx, wid) => NotesScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        openAdd: true,
       ),
     ),
     _ModuleInfo(
@@ -517,6 +749,8 @@ class _ModuleInfo {
   final Color color;
   final int? badge;
   final Widget Function(BuildContext, String) builder;
+  // Opens the screen with the add sheet pre-triggered (V2 modules may omit this)
+  final Widget Function(BuildContext, String)? quickAddBuilder;
 
   const _ModuleInfo({
     required this.emoji,
@@ -525,5 +759,6 @@ class _ModuleInfo {
     required this.color,
     required this.badge,
     required this.builder,
+    this.quickAddBuilder,
   });
 }

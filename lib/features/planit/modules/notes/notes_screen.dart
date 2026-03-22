@@ -115,11 +115,13 @@ class NotesScreen extends StatefulWidget {
   final String walletName;
   final String walletEmoji;
 
+  final bool openAdd;
   const NotesScreen({
     super.key,
     required this.walletId,
     this.walletName = 'Personal',
     this.walletEmoji = '🗒️',
+    this.openAdd = false,
   });
 
   @override
@@ -160,6 +162,11 @@ class _NotesScreenState extends State<NotesScreen> {
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _loadNotes();
+    if (widget.openAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openNoteSheet();
+      });
+    }
   }
 
   @override
