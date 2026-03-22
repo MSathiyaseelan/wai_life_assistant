@@ -94,10 +94,10 @@ class _WalletScreenState extends State<WalletScreen>
     _splitGroups = [];
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
-    _tabCtrl = TabController(length: WalletTab.values.length, vsync: this);
+    _tabCtrl = TabController(length: kV1WalletTabs.length, vsync: this);
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
-        final tab = WalletTab.values[_tabCtrl.index];
+        final tab = kV1WalletTabs[_tabCtrl.index];
         setState(() => _activeTab = tab);
         _autoSwitchWalletForTab(tab);
       }
@@ -691,11 +691,16 @@ class _WalletScreenState extends State<WalletScreen>
               ],
               body: TabBarView(
                 controller: _tabCtrl,
-                children: [
-                  _buildWalletBody(isDark),
-                  _buildSplitsBody(isDark),
-                  _buildBillWatchBody(isDark, context),
-                ],
+                children: kV1WalletTabs.map((t) {
+                  switch (t) {
+                    case WalletTab.wallet:
+                      return _buildWalletBody(isDark);
+                    case WalletTab.splits:
+                      return _buildSplitsBody(isDark);
+                    case WalletTab.billWatch: // V2 — not reachable in V1
+                      return _buildBillWatchBody(isDark, context);
+                  }
+                }).toList(),
               ),
             ),
           ),
@@ -1551,7 +1556,7 @@ class _WalletScreenState extends State<WalletScreen>
             fontFamily: 'Nunito',
           ),
           padding: EdgeInsets.zero,
-          tabs: WalletTab.values.map((t) {
+          tabs: kV1WalletTabs.map((t) {
             final label = t == WalletTab.wallet
                 ? (_currentWallet.isPersonal ? 'Personal' : _currentWallet.name)
                 : t.label;

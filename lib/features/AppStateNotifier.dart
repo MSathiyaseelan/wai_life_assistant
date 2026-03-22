@@ -3,6 +3,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/core/supabase/app_config_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP STATE — single source of truth for active wallet across all tabs
@@ -13,10 +14,14 @@ class AppStateNotifier extends ChangeNotifier {
   List<FamilyModel> _families = [];
   bool _loading = false;
   String _activeWalletId = '';
+  int _maxFamilyGroups = 1; // V1 safe default
 
   List<WalletModel> get wallets => _wallets;
   List<FamilyModel> get families => _families;
   bool get loading => _loading;
+
+  /// Server-controlled limit on how many family/group wallets a user can create.
+  int get maxFamilyGroups => _maxFamilyGroups;
 
   String get activeWalletId => _activeWalletId;
 
@@ -50,6 +55,8 @@ class AppStateNotifier extends ChangeNotifier {
     try {
       final loggedIn = AuthService.instance.isLoggedIn;
       debugPrint('[AppState] init — isLoggedIn=$loggedIn');
+      _maxFamilyGroups = await AppConfigService.instance.fetchMaxFamilyGroups();
+
       if (!loggedIn) {
         // OTP bypassed — use mock data
         _wallets = [personalWallet, ...familyWallets];

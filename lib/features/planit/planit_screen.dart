@@ -10,8 +10,8 @@ import 'package:wai_life_assistant/features/planit/modules/alert_me/alert_me_scr
 import 'package:wai_life_assistant/features/planit/modules/my_tasks/my_tasks_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/special_days/special_days_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/wish_list/wish_list_screen.dart';
-import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/travel_board/travel_board_screen.dart';
+import 'package:wai_life_assistant/features/planit/modules/notes/notes_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/plan_party/plan_party_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_schedule/my_schedule_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/health_vault/health_vault_screen.dart';
@@ -53,7 +53,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
   final List<TaskModel> _tasksList = [];
   final List<SpecialDayModel> _days = [];
   final List<WishModel> _wishes = [];
-  final List<BillModel> _bills = List.from(mockBills);
+  final List<NoteModel> _notes = [];
   final List<TripModel> _trips = List.from(mockTrips);
 
   // ── Family members for current wallet — converted to PlanMember ───────────
@@ -83,10 +83,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
         (t) =>
             t.walletId == widget.activeWalletId && t.status != TaskStatus.done,
       )
-      .length;
-
-  int get _overdueBills => _bills
-      .where((b) => b.walletId == widget.activeWalletId && b.isOverdue)
       .length;
 
   int get _upcomingDays => _days
@@ -209,10 +205,10 @@ class _PlanItScreenState extends State<PlanItScreen> {
         color: AppColors.primary,
       ),
       (
-        emoji: '🧾',
-        value: '$_overdueBills',
-        label: 'Overdue\nBills',
-        color: AppColors.lend,
+        emoji: '🗒️',
+        value: '${_notes.length}',
+        label: 'Notes',
+        color: const Color(0xFFF9A825),
       ),
     ];
     return Container(
@@ -460,16 +456,15 @@ class _PlanItScreenState extends State<PlanItScreen> {
       ),
     ),
     _ModuleInfo(
-      emoji: '🧾',
-      title: 'Bill Watch',
-      subtitle: 'Never miss a bill',
-      color: AppColors.borrow,
-      badge: _overdueBills,
-      builder: (ctx, wid) => BillWatchScreen(
+      emoji: '🗒️',
+      title: 'Notes',
+      subtitle: 'Sticky notes & ideas',
+      color: const Color(0xFFF9A825),
+      badge: null,
+      builder: (ctx, wid) => NotesScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
-        bills: _bills,
       ),
     ),
     _ModuleInfo(

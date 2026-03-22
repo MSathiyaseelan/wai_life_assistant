@@ -8,7 +8,11 @@ enum TxType { income, expense, split, lend, borrow, request }
 
 enum PayMode { cash, online }
 
+// TODO(v2): billWatch is planned for V2 — keep the enum value but exclude from kV1WalletTabs
 enum WalletTab { wallet, splits, billWatch }
+
+/// Tabs shown in V1. Bill Watch is hidden until V2.
+const kV1WalletTabs = [WalletTab.wallet, WalletTab.splits];
 
 extension TxTypeExt on TxType {
   String get label {

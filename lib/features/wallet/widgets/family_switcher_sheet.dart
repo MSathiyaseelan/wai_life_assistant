@@ -165,7 +165,8 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                       ),
                     );
                   }).toList(),
-                  if (!widget.isDashboard) ...[
+                  if (!widget.isDashboard &&
+                      familyList.length < widget.appState.maxFamilyGroups) ...[
                     const SizedBox(height: 4),
                     GestureDetector(
                       onTap: () async {
