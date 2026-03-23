@@ -10,7 +10,6 @@ import '../lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
 import '../lifestyle/modules/my_devices/my_devices_screen.dart';
 import '../lifestyle/modules/around_the_house/around_house_screen.dart';
 import '../lifestyle/modules/document_vault/document_vault_screen.dart';
-import '../lifestyle/modules/my_functions/my_functions_screen.dart';
 import '../lifestyle/modules/item_locator/itemLocatorScreen.dart';
 
 class LifeStyleScreen extends StatefulWidget {
@@ -145,13 +144,6 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                   gradientEnd: const Color(0xFF4B44CC),
                   onTap: () =>
                       _push(ItemLocatorScreen(walletId: widget.activeWalletId)),
-                ),
-                const SizedBox(height: 12),
-
-                // ── Row 4: Full-width functions banner ───────────────────────
-                _FunctionsBannerTile(
-                  onTap: () =>
-                      _push(MyFunctionsScreen(walletId: widget.activeWalletId)),
                 ),
               ]),
             ),
@@ -443,88 +435,6 @@ class _SquareModuleTile extends StatelessWidget {
   }
 }
 
-// ── Functions banner tile ─────────────────────────────────────────────────────
-class _FunctionsBannerTile extends StatelessWidget {
-  final VoidCallback onTap;
-  const _FunctionsBannerTile({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 90,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6C63FF), Color(0xFFFF5CA8), Color(0xFFFFAA2C)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF6C63FF).withOpacity(0.35),
-              blurRadius: 18,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -10,
-              top: -10,
-              child: Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.07),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-              child: Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        '🎊 My Functions',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                      const Text(
-                        'Events · Gifts Received · Gifted · Planning',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: Colors.white70,
-                    size: 18,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // import 'package:flutter/material.dart';
 // import 'package:provider/provider.dart';

@@ -561,14 +561,15 @@ final List<VaultDocument> mockDocuments = [
 
 enum FunctionType {
   wedding('💒', 'Wedding'),
-  birthday('🎂', 'Birthday'),
-  houseWarming('🏠', 'House Warming'),
   naming('👶', 'Naming Ceremony'),
-  graduation('🎓', 'Graduation'),
-  anniversary('💑', 'Anniversary'),
+  earPiercing('👂', 'Ear Piercing'),
   engagement('💍', 'Engagement'),
+  houseWarming('🏠', 'Housewarming'),
+  birthday('🎂', 'Birthday'),
+  anniversary('💑', 'Anniversary'),
+  graduation('🎓', 'Graduation'),
   puberty('🌸', 'Puberty Ceremony'),
-  other('🎊', 'Other');
+  other('🎊', 'Others');
 
   final String emoji, label;
   const FunctionType(this.emoji, this.label);
@@ -706,6 +707,7 @@ class FunctionModel {
   String id, walletId;
   FunctionType type;
   String title, whoFunction;
+  String? customType;
   DateTime? functionDate;
   String? venue, address, notes;
   List<GiftEntry> gifts;
@@ -719,7 +721,8 @@ class FunctionModel {
     required this.walletId,
     required this.type,
     required this.title,
-    required this.whoFunction,
+    this.whoFunction = '',
+    this.customType,
     this.functionDate,
     this.venue,
     this.address,

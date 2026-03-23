@@ -12,6 +12,7 @@ import 'package:wai_life_assistant/features/planit/modules/special_days/special_
 import 'package:wai_life_assistant/features/planit/modules/wish_list/wish_list_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/travel_board/travel_board_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/notes/notes_screen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/my_functions/my_functions_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/plan_party/plan_party_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_schedule/my_schedule_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/health_vault/health_vault_screen.dart';
@@ -581,8 +582,9 @@ class _PlanItScreenState extends State<PlanItScreen> {
   // ── V1 visible modules — others are defined below but hidden until V2 ──────
   static const _kV1Modules = {
     'Alert Me',
-    'My Tasks',
     'Special Days',
+    'Functions',
+    'My Tasks',
     'Wish List',
     'Notes',
   };
@@ -618,28 +620,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
       ),
     ),
     _ModuleInfo(
-      emoji: '✅',
-      title: 'My Tasks',
-      subtitle: 'To-Do & projects',
-      color: AppColors.split,
-      badge: _pendingTasks,
-      builder: (ctx, wid) => MyTasksScreen(
-        walletId: wid,
-        walletName: _currentWallet.name,
-        walletEmoji: _currentWallet.emoji,
-        members: _members,
-        tasks: _tasksList,
-      ),
-      quickAddBuilder: (ctx, wid) => MyTasksScreen(
-        walletId: wid,
-        walletName: _currentWallet.name,
-        walletEmoji: _currentWallet.emoji,
-        members: _members,
-        tasks: _tasksList,
-        openAdd: true,
-      ),
-    ),
-    _ModuleInfo(
       emoji: '🎂',
       title: 'Special Days',
       subtitle: 'Birthdays & events',
@@ -658,6 +638,46 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         days: _days,
+        openAdd: true,
+      ),
+    ),
+    _ModuleInfo(
+      emoji: '🎊',
+      title: 'Functions',
+      subtitle: 'Celebrations & gifting',
+      color: const Color(0xFF6C63FF),
+      badge: null,
+      builder: (ctx, wid) => MyFunctionsScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+      ),
+      quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        openAdd: true,
+      ),
+    ),
+    _ModuleInfo(
+      emoji: '✅',
+      title: 'My Tasks',
+      subtitle: 'To-Do & projects',
+      color: AppColors.split,
+      badge: _pendingTasks,
+      builder: (ctx, wid) => MyTasksScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        tasks: _tasksList,
+      ),
+      quickAddBuilder: (ctx, wid) => MyTasksScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        tasks: _tasksList,
         openAdd: true,
       ),
     ),

@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import '../../widgets/life_widgets.dart';
+import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 
 const _funcColor = Color(0xFF6C63FF);
 
 class MyFunctionsScreen extends StatefulWidget {
   final String walletId;
-  const MyFunctionsScreen({super.key, required this.walletId});
+  final String walletName;
+  final String walletEmoji;
+  final bool openAdd;
+  const MyFunctionsScreen({
+    super.key,
+    required this.walletId,
+    this.walletName = 'Personal',
+    this.walletEmoji = '🎊',
+    this.openAdd = false,
+  });
   @override
   State<MyFunctionsScreen> createState() => _MyFunctionsScreenState();
 }
@@ -15,9 +26,9 @@ class MyFunctionsScreen extends StatefulWidget {
 class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  final List<FunctionModel> _functions = List.from(mockFunctions);
-  final List<GiftedItem> _gifted = List.from(mockGifted);
-  final List<UpcomingFunction> _upcoming = List.from(mockUpcoming);
+  final List<FunctionModel> _functions = [];
+  final List<GiftedItem> _gifted = [];
+  final List<UpcomingFunction> _upcoming = [];
 
   List<FunctionModel> get _myFuncs =>
       _functions.where((f) => f.walletId == widget.walletId).toList();
@@ -30,6 +41,14 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: 4, vsync: this);
+    if (widget.openAdd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+        _showAdd(context, isDark, surfBg);
+      });
+    }
   }
 
   @override
@@ -56,12 +75,12 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Text('🎊', style: TextStyle(fontSize: 20)),
-            SizedBox(width: 8),
-            Text(
-              'My Functions',
+            const Text('🎊', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 8),
+            const Text(
+              'Functions',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
@@ -70,6 +89,37 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
             ),
           ],
         ),
+        actions: [
+          if (widget.walletName != 'Personal')
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              constraints: const BoxConstraints(maxWidth: 110),
+              decoration: BoxDecoration(
+                color: _funcColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(widget.walletEmoji, style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      widget.walletName,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: _funcColor,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
         bottom: TabBar(
           controller: _tab,
           dividerColor: Colors.transparent,
@@ -83,25 +133,33 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           indicatorColor: _funcColor,
           labelColor: _funcColor,
           unselectedLabelColor: sub,
-          tabs: const [
-            Tab(text: 'My Functions'),
-            Tab(text: 'Gifts Received'),
-            Tab(text: 'Gifted'),
-            Tab(text: 'Upcoming'),
+          tabs: [
+            Tab(text: 'Functions (${_myFuncs.length})'),
+            const Tab(text: 'Gifts Received'),
+            Tab(text: 'Gifted (${_myGifted.length})'),
+            Tab(text: 'Upcoming (${_myUpcoming.length})'),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAdd(context, isDark, surfBg),
         backgroundColor: _funcColor,
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text(
+          'Add',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Nunito',
+            color: Colors.white,
+          ),
+        ),
       ),
       body: TabBarView(
         controller: _tab,
         children: [
           // MY FUNCTIONS tab
           _myFuncs.isEmpty
-              ? const LifeEmptyState(
+              ? const PlanEmptyState(
                   emoji: '🎊',
                   title: 'No functions yet',
                   subtitle: 'Record your family celebrations',
@@ -111,16 +169,22 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   itemCount: _myFuncs.length,
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
-                    child: _FunctionCard(
-                      fn: _myFuncs[i],
-                      isDark: isDark,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => _FunctionDetail(
-                            fn: _myFuncs[i],
-                            isDark: isDark,
-                            onUpdate: () => setState(() {}),
+                    child: SwipeTile(
+                      onDelete: () => setState(() {
+                        HapticFeedback.mediumImpact();
+                        _functions.remove(_myFuncs[i]);
+                      }),
+                      child: _FunctionCard(
+                        fn: _myFuncs[i],
+                        isDark: isDark,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _FunctionDetail(
+                              fn: _myFuncs[i],
+                              isDark: isDark,
+                              onUpdate: () => setState(() {}),
+                            ),
                           ),
                         ),
                       ),
@@ -138,7 +202,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
 
           // GIFTED tab
           _myGifted.isEmpty
-              ? const LifeEmptyState(
+              ? const PlanEmptyState(
                   emoji: '🎁',
                   title: 'No gifted items recorded',
                   subtitle: 'Track what you\'ve given at others\' functions',
@@ -148,14 +212,20 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   itemCount: _myGifted.length,
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _GiftedCard(
-                      item: _myGifted[i],
-                      isDark: isDark,
-                      onEdit: () => _showEditGifted(
-                        context,
-                        isDark,
-                        surfBg,
-                        _myGifted[i],
+                    child: SwipeTile(
+                      onDelete: () => setState(() {
+                        HapticFeedback.mediumImpact();
+                        _gifted.remove(_myGifted[i]);
+                      }),
+                      child: _GiftedCard(
+                        item: _myGifted[i],
+                        isDark: isDark,
+                        onEdit: () => _showEditGifted(
+                          context,
+                          isDark,
+                          surfBg,
+                          _myGifted[i],
+                        ),
                       ),
                     ),
                   ),
@@ -163,7 +233,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
 
           // UPCOMING tab
           _myUpcoming.isEmpty
-              ? const LifeEmptyState(
+              ? const PlanEmptyState(
                   emoji: '📅',
                   title: 'No upcoming functions',
                   subtitle: 'Plan for functions you\'re attending',
@@ -173,16 +243,22 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   itemCount: _myUpcoming.length,
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
-                    child: _UpcomingCard(
-                      item: _myUpcoming[i],
-                      isDark: isDark,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => _UpcomingDetail(
-                            item: _myUpcoming[i],
-                            isDark: isDark,
-                            onUpdate: () => setState(() {}),
+                    child: SwipeTile(
+                      onDelete: () => setState(() {
+                        HapticFeedback.mediumImpact();
+                        _upcoming.remove(_myUpcoming[i]);
+                      }),
+                      child: _UpcomingCard(
+                        item: _myUpcoming[i],
+                        isDark: isDark,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _UpcomingDetail(
+                              item: _myUpcoming[i],
+                              isDark: isDark,
+                              onUpdate: () => setState(() {}),
+                            ),
                           ),
                         ),
                       ),
@@ -196,12 +272,12 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
 
   void _showAdd(BuildContext ctx, bool isDark, Color surfBg) {
     final titleCtrl = TextEditingController();
-    final whoCtrl = TextEditingController();
+    final customTypeCtrl = TextEditingController();
     final venueCtrl = TextEditingController();
     DateTime? date;
     var type = FunctionType.wedding;
     final tabIdx = _tab.index;
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: StatefulBuilder(
         builder: (ctx2, ss) => Padding(
@@ -222,7 +298,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   fontFamily: 'Nunito',
                 ),
               ),
-              const LifeLabel(text: 'FUNCTION TYPE'),
+              const SheetLabel(text: 'FUNCTION TYPE'),
               SizedBox(
                 height: 44,
                 child: ListView(
@@ -278,14 +354,16 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: titleCtrl, hint: 'Function title *'),
+              PlanInputField(controller: titleCtrl, hint: 'Function title *'),
+              if (type == FunctionType.other) ...[
+                const SizedBox(height: 8),
+                PlanInputField(
+                  controller: customTypeCtrl,
+                  hint: 'Enter function type',
+                ),
+              ],
               const SizedBox(height: 8),
-              LifeInput(
-                controller: whoCtrl,
-                hint: 'Whose function? (e.g. Arjun\'s)',
-              ),
-              const SizedBox(height: 8),
-              LifeInput(controller: venueCtrl, hint: 'Venue / Location'),
+              PlanInputField(controller: venueCtrl, hint: 'Venue / Location'),
               const SizedBox(height: 8),
               LifeDateTile(
                 date: date,
@@ -301,7 +379,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   if (d != null) ss(() => date = d);
                 },
               ),
-              LifeSaveButton(
+              SaveButton(
                 label: 'Save',
                 color: _funcColor,
                 onTap: () {
@@ -314,9 +392,10 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           walletId: widget.walletId,
                           type: type,
                           title: titleCtrl.text.trim(),
-                          whoFunction: whoCtrl.text.trim().isEmpty
-                              ? 'Family'
-                              : whoCtrl.text.trim(),
+                          customType: type == FunctionType.other &&
+                                  customTypeCtrl.text.trim().isNotEmpty
+                              ? customTypeCtrl.text.trim()
+                              : null,
                           functionDate: date,
                           venue: venueCtrl.text.trim().isEmpty
                               ? null
@@ -332,9 +411,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           walletId: widget.walletId,
                           memberId: 'me',
                           type: type,
-                          personName: whoCtrl.text.trim().isEmpty
-                              ? 'Unknown'
-                              : whoCtrl.text.trim(),
+                          personName: 'Unknown',
                           functionTitle: titleCtrl.text.trim(),
                           date: date,
                           venue: venueCtrl.text.trim().isEmpty
@@ -374,7 +451,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           '',
     );
     var giftType = gift.giftType;
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: StatefulBuilder(
         builder: (ctx2, ss) => Padding(
@@ -391,7 +468,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   fontFamily: 'Nunito',
                 ),
               ),
-              const LifeLabel(text: 'GIFT TYPE'),
+              const SheetLabel(text: 'GIFT TYPE'),
               SizedBox(
                 height: 44,
                 child: ListView(
@@ -440,17 +517,17 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: nameCtrl, hint: 'Guest name *'),
+              PlanInputField(controller: nameCtrl, hint: 'Guest name *'),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  Expanded(child: PlanInputField(controller: placeCtrl, hint: 'Place')),
                   const SizedBox(width: 8),
-                  Expanded(child: LifeInput(controller: relationCtrl, hint: 'Relation')),
+                  Expanded(child: PlanInputField(controller: relationCtrl, hint: 'Relation')),
                 ],
               ),
               const SizedBox(height: 8),
-              LifeInput(
+              PlanInputField(
                 controller: amtCtrl,
                 hint: giftType == GiftType.cash ? 'Cash amount (₹)' : 'Value / description',
                 inputType: (giftType == GiftType.cash ||
@@ -460,8 +537,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     : TextInputType.text,
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: notesCtrl, hint: 'Notes'),
-              LifeSaveButton(
+              PlanInputField(controller: notesCtrl, hint: 'Notes'),
+              SaveButton(
                 label: 'Save Changes',
                 color: _funcColor,
                 onTap: () {
@@ -514,7 +591,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     var giftType = item.giftType;
     var funcType = item.functionType;
     DateTime? funcDate = item.functionDate;
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: StatefulBuilder(
         builder: (ctx2, ss) => Padding(
@@ -531,7 +608,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   fontFamily: 'Nunito',
                 ),
               ),
-              const LifeLabel(text: 'GIFT TYPE'),
+              const SheetLabel(text: 'GIFT TYPE'),
               SizedBox(
                 height: 44,
                 child: ListView(
@@ -580,19 +657,19 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: toNameCtrl, hint: 'Given to *'),
+              PlanInputField(controller: toNameCtrl, hint: 'Given to *'),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: LifeInput(controller: titleCtrl, hint: 'Function name')),
+                  Expanded(child: PlanInputField(controller: titleCtrl, hint: 'Function name')),
                   const SizedBox(width: 8),
-                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  Expanded(child: PlanInputField(controller: placeCtrl, hint: 'Place')),
                 ],
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: relationCtrl, hint: 'Relation'),
+              PlanInputField(controller: relationCtrl, hint: 'Relation'),
               const SizedBox(height: 8),
-              LifeInput(
+              PlanInputField(
                 controller: amtCtrl,
                 hint: giftType == GiftType.cash ? 'Cash amount (₹)' : 'Value / description',
                 inputType: (giftType == GiftType.cash ||
@@ -602,7 +679,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     : TextInputType.text,
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              PlanInputField(controller: notesCtrl, hint: 'Notes'),
               LifeDateTile(
                 date: funcDate,
                 hint: 'Function date',
@@ -617,7 +694,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   if (d != null) ss(() => funcDate = d);
                 },
               ),
-              LifeSaveButton(
+              SaveButton(
                 label: 'Save Changes',
                 color: AppColors.income,
                 onTap: () {
@@ -662,120 +739,240 @@ class _FunctionCard extends StatelessWidget {
     required this.isDark,
     required this.onTap,
   });
+
+  String get _typeLabel =>
+      fn.type == FunctionType.other && fn.customType != null
+          ? fn.customType!
+          : fn.type.label;
+
+  String _countdown(Color sub) {
+    if (fn.functionDate == null) return '';
+    final today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    final d = DateTime(
+      fn.functionDate!.year,
+      fn.functionDate!.month,
+      fn.functionDate!.day,
+    );
+    final diff = d.difference(today).inDays;
+    if (diff == 0) return '🎉 Today!';
+    if (diff == 1) return 'Tomorrow';
+    if (diff > 1) return 'In $diff days';
+    if (diff == -1) return 'Yesterday';
+    return '${diff.abs()} days ago';
+  }
+
+  Color _countdownColor(bool isDark) {
+    if (fn.functionDate == null) return Colors.transparent;
+    final today = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    final d = DateTime(
+      fn.functionDate!.year,
+      fn.functionDate!.month,
+      fn.functionDate!.day,
+    );
+    final diff = d.difference(today).inDays;
+    if (diff == 0) return AppColors.income;
+    if (diff == 1 || (diff < 0 && diff >= -1)) return AppColors.expense;
+    if (diff > 0 && diff <= 7) return AppColors.expense;
+    if (diff > 7 && diff <= 30) return AppColors.lend;
+    if (diff < 0) return isDark ? AppColors.subDark : AppColors.subLight;
+    return isDark ? AppColors.subDark : AppColors.subLight;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    const _months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _funcColor.withOpacity(0.2)),
-        ),
-        child: Column(
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Left color strip
             Container(
-              padding: const EdgeInsets.all(16),
+              width: 5,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_funcColor, Color(0xFF9C27B0)],
+                color: _funcColor,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(20),
                 ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(22),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Text(fn.type.emoji, style: const TextStyle(fontSize: 28)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fn.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                            fontFamily: 'Nunito',
-                          ),
-                        ),
-                        Text(
-                          fn.whoFunction,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontFamily: 'Nunito',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (fn.functionDate != null)
-                    Text(
-                      '${fn.functionDate!.day} ${_months[fn.functionDate!.month]}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Nunito',
-                      ),
-                    ),
-                ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-              child: Row(
-                children: [
-                  if (fn.venue != null)
-                    Expanded(
-                      child: LifeInfoRow(
-                        icon: Icons.location_on_rounded,
-                        label: fn.venue!,
+            // Card body
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: const BorderRadius.horizontal(
+                    right: Radius.circular(20),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.18 : 0.05,
+                      ),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    // Emoji badge
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: _funcColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        fn.type.emoji,
+                        style: const TextStyle(fontSize: 22),
                       ),
                     ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '🎁 ${fn.gifts.length} gifts  •  ₹${fn.totalCash.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontFamily: 'Nunito',
-                          color: sub,
-                        ),
-                      ),
-                      if (fn.moi.isNotEmpty)
-                        Text(
-                          '💰 ${fn.moi.length} moi  •  ${fn.moiPending} pending',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'Nunito',
-                            color: _moiColor,
+                    const SizedBox(width: 12),
+                    // Middle info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fn.title,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: tc,
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 3,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _funcColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  _typeLabel,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: _funcColor,
+                                  ),
+                                ),
+                              ),
+                              if (fn.functionDate != null)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_today_rounded,
+                                      size: 11,
+                                      color: sub,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      fmtDateShort(fn.functionDate!),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                          if (fn.venue != null) ...[
+                            const SizedBox(height: 3),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on_rounded,
+                                  size: 11,
+                                  color: sub,
+                                ),
+                                const SizedBox(width: 3),
+                                Expanded(
+                                  child: Text(
+                                    fn.venue!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    // Right: countdown + summary
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (fn.functionDate != null)
+                          Text(
+                            _countdown(sub),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: _countdownColor(isDark),
+                            ),
+                          ),
+                        if (fn.gifts.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '🎁 ${fn.gifts.length}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                        ],
+                        if (fn.moi.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '💰 ${fn.moi.length}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Nunito',
+                              color: _moiColor,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -903,7 +1100,10 @@ class _FunctionDetailState extends State<_FunctionDetail>
                               ),
                             ),
                             Text(
-                              fn.type.label,
+                              fn.type == FunctionType.other &&
+                                      fn.customType != null
+                                  ? fn.customType!
+                                  : fn.type.label,
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -1049,7 +1249,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
               ),
               Expanded(
                 child: fn.gifts.isEmpty
-                    ? const LifeEmptyState(
+                    ? const PlanEmptyState(
                         emoji: '🎁',
                         title: 'No gifts recorded',
                         subtitle: 'Tap Add Gift to record',
@@ -1123,12 +1323,12 @@ class _FunctionDetailState extends State<_FunctionDetail>
   void _showEditFunction(BuildContext ctx, bool isDark, Color surfBg) {
     final fn = widget.fn;
     final titleCtrl = TextEditingController(text: fn.title);
-    final whoCtrl = TextEditingController(text: fn.whoFunction);
+    final customTypeCtrl = TextEditingController(text: fn.customType ?? '');
     final venueCtrl = TextEditingController(text: fn.venue ?? '');
     final notesCtrl = TextEditingController(text: fn.notes ?? '');
     DateTime? date = fn.functionDate;
     var type = fn.type;
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: StatefulBuilder(
         builder: (ctx2, ss) => Padding(
@@ -1145,7 +1345,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   fontFamily: 'Nunito',
                 ),
               ),
-              const LifeLabel(text: 'FUNCTION TYPE'),
+              const SheetLabel(text: 'FUNCTION TYPE'),
               SizedBox(
                 height: 44,
                 child: ListView(
@@ -1196,13 +1396,18 @@ class _FunctionDetailState extends State<_FunctionDetail>
                 ),
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: titleCtrl, hint: 'Function title *'),
+              PlanInputField(controller: titleCtrl, hint: 'Function title *'),
+              if (type == FunctionType.other) ...[
+                const SizedBox(height: 8),
+                PlanInputField(
+                  controller: customTypeCtrl,
+                  hint: 'Enter function type',
+                ),
+              ],
               const SizedBox(height: 8),
-              LifeInput(controller: whoCtrl, hint: 'Whose function?'),
+              PlanInputField(controller: venueCtrl, hint: 'Venue / Location'),
               const SizedBox(height: 8),
-              LifeInput(controller: venueCtrl, hint: 'Venue / Location'),
-              const SizedBox(height: 8),
-              LifeInput(controller: notesCtrl, hint: 'Notes'),
+              PlanInputField(controller: notesCtrl, hint: 'Notes'),
               const SizedBox(height: 8),
               LifeDateTile(
                 date: date,
@@ -1218,7 +1423,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   if (d != null) ss(() => date = d);
                 },
               ),
-              LifeSaveButton(
+              SaveButton(
                 label: 'Save Changes',
                 color: _funcColor,
                 onTap: () {
@@ -1226,7 +1431,10 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   setState(() {
                     fn.type = type;
                     fn.title = titleCtrl.text.trim();
-                    fn.whoFunction = whoCtrl.text.trim();
+                    fn.customType = type == FunctionType.other &&
+                            customTypeCtrl.text.trim().isNotEmpty
+                        ? customTypeCtrl.text.trim()
+                        : null;
                     fn.functionDate = date;
                     fn.venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
                     fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
@@ -1254,7 +1462,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
     final amtCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     var giftType = GiftType.cash;
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: StatefulBuilder(
         builder: (ctx2, ss) => Padding(
@@ -1271,7 +1479,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   fontFamily: 'Nunito',
                 ),
               ),
-              const LifeLabel(text: 'GIFT TYPE'),
+              const SheetLabel(text: 'GIFT TYPE'),
               SizedBox(
                 height: 44,
                 child: ListView(
@@ -1320,17 +1528,17 @@ class _FunctionDetailState extends State<_FunctionDetail>
                 ),
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: nameCtrl, hint: 'Guest name *'),
+              PlanInputField(controller: nameCtrl, hint: 'Guest name *'),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  Expanded(child: PlanInputField(controller: placeCtrl, hint: 'Place')),
                   const SizedBox(width: 8),
-                  Expanded(child: LifeInput(controller: relationCtrl, hint: 'Relation')),
+                  Expanded(child: PlanInputField(controller: relationCtrl, hint: 'Relation')),
                 ],
               ),
               const SizedBox(height: 8),
-              LifeInput(
+              PlanInputField(
                 controller: amtCtrl,
                 hint: giftType == GiftType.cash
                     ? 'Cash amount (₹) *'
@@ -1346,8 +1554,8 @@ class _FunctionDetailState extends State<_FunctionDetail>
                     : TextInputType.text,
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: notesCtrl, hint: 'Notes'),
-              LifeSaveButton(
+              PlanInputField(controller: notesCtrl, hint: 'Notes'),
+              SaveButton(
                 label: 'Add Gift',
                 color: _funcColor,
                 onTap: () {
@@ -1403,7 +1611,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
           '',
     );
     var giftType = gift.giftType;
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: StatefulBuilder(
         builder: (ctx2, ss) => Padding(
@@ -1420,7 +1628,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   fontFamily: 'Nunito',
                 ),
               ),
-              const LifeLabel(text: 'GIFT TYPE'),
+              const SheetLabel(text: 'GIFT TYPE'),
               SizedBox(
                 height: 44,
                 child: ListView(
@@ -1469,17 +1677,17 @@ class _FunctionDetailState extends State<_FunctionDetail>
                 ),
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: nameCtrl, hint: 'Guest name *'),
+              PlanInputField(controller: nameCtrl, hint: 'Guest name *'),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: LifeInput(controller: placeCtrl, hint: 'Place')),
+                  Expanded(child: PlanInputField(controller: placeCtrl, hint: 'Place')),
                   const SizedBox(width: 8),
-                  Expanded(child: LifeInput(controller: relationCtrl, hint: 'Relation')),
+                  Expanded(child: PlanInputField(controller: relationCtrl, hint: 'Relation')),
                 ],
               ),
               const SizedBox(height: 8),
-              LifeInput(
+              PlanInputField(
                 controller: amtCtrl,
                 hint: giftType == GiftType.cash
                     ? 'Cash amount (₹)'
@@ -1495,8 +1703,8 @@ class _FunctionDetailState extends State<_FunctionDetail>
                     : TextInputType.text,
               ),
               const SizedBox(height: 8),
-              LifeInput(controller: notesCtrl, hint: 'Notes'),
-              LifeSaveButton(
+              PlanInputField(controller: notesCtrl, hint: 'Notes'),
+              SaveButton(
                 label: 'Save Changes',
                 color: _funcColor,
                 onTap: () {
@@ -1538,7 +1746,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
     final serviceCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final amtCtrl = TextEditingController();
-    showLifeSheet(
+    showPlanSheet(
       ctx,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
@@ -1555,18 +1763,18 @@ class _FunctionDetailState extends State<_FunctionDetail>
               ),
             ),
             const SizedBox(height: 12),
-            LifeInput(controller: vendorCtrl, hint: 'Vendor name *'),
+            PlanInputField(controller: vendorCtrl, hint: 'Vendor name *'),
             const SizedBox(height: 8),
-            LifeInput(controller: serviceCtrl, hint: 'Service description'),
+            PlanInputField(controller: serviceCtrl, hint: 'Service description'),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: LifeInput(controller: phoneCtrl, hint: 'Phone'),
+                  child: PlanInputField(controller: phoneCtrl, hint: 'Phone'),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: LifeInput(
+                  child: PlanInputField(
                     controller: amtCtrl,
                     hint: 'Quoted amount (₹)',
                     inputType: TextInputType.number,
@@ -1574,7 +1782,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                 ),
               ],
             ),
-            LifeSaveButton(
+            SaveButton(
               label: 'Add Quote',
               color: _funcColor,
               onTap: () {
@@ -1785,7 +1993,7 @@ class _VendorTab extends StatelessWidget {
       ),
       Expanded(
         child: quotes.isEmpty
-            ? LifeEmptyState(
+            ? PlanEmptyState(
                 emoji: '📝',
                 title: 'No quotes yet',
                 subtitle: 'Add vendor quotes to compare',
@@ -1884,7 +2092,7 @@ class _GiftsReceivedTab extends StatelessWidget {
         .expand((f) => f.gifts.map((g) => (g, f.title)))
         .toList();
     if (allGifts.isEmpty) {
-      return const LifeEmptyState(
+      return const PlanEmptyState(
         emoji: '🎁',
         title: 'No gifts yet',
         subtitle: 'Gifts from all functions appear here',
@@ -2172,7 +2380,7 @@ class _UpcomingCard extends StatelessWidget {
                 children: [
                   if (item.venue != null)
                     Expanded(
-                      child: LifeInfoRow(
+                      child: InfoRow(
                         icon: Icons.location_on_rounded,
                         label: item.venue!,
                       ),
@@ -2269,22 +2477,22 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                LifeInfoRow(
+                InfoRow(
                   icon: Icons.person_rounded,
                   label: 'Person: ${item.personName}',
                 ),
-                LifeInfoRow(
+                InfoRow(
                   icon: Icons.celebration_rounded,
                   label: 'Event: ${item.functionTitle}',
                 ),
                 if (item.date != null)
-                  LifeInfoRow(
+                  InfoRow(
                     icon: Icons.calendar_today_rounded,
                     label:
                         'Date: ${item.date!.day}/${item.date!.month}/${item.date!.year}',
                   ),
                 if (item.venue != null)
-                  LifeInfoRow(
+                  InfoRow(
                     icon: Icons.location_on_rounded,
                     label: item.venue!,
                   ),
@@ -2554,7 +2762,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
         // ── List ─────────────────────────────────────────────────────────────
         Expanded(
           child: listToShow.isEmpty
-              ? LifeEmptyState(
+              ? PlanEmptyState(
                   emoji: '💰',
                   title: _search.isNotEmpty ? 'No results for "$_search"' : 'No moi entries',
                   subtitle: _search.isNotEmpty ? 'Try a different search' : 'Tap + to record moi received at this function',
@@ -2748,9 +2956,9 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
 
                           // Fields
                           _SheetLabel(text: 'PERSON DETAILS'),
-                          LifeInput(controller: nameCtrl, hint: 'Name *'),
+                          PlanInputField(controller: nameCtrl, hint: 'Name *'),
                           const SizedBox(height: 8),
-                          LifeInput(
+                          PlanInputField(
                             controller: familyNameCtrl,
                             hint: 'Family name / Surname',
                           ),
@@ -2758,14 +2966,14 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           Row(
                             children: [
                               Expanded(
-                                child: LifeInput(
+                                child: PlanInputField(
                                   controller: placeCtrl,
                                   hint: 'Place / Town',
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
-                                child: LifeInput(
+                                child: PlanInputField(
                                   controller: relationCtrl,
                                   hint: 'Relation',
                                 ),
@@ -2773,7 +2981,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          LifeInput(
+                          PlanInputField(
                             controller: phoneCtrl,
                             hint: 'Phone number',
                             inputType: TextInputType.phone,
@@ -2781,7 +2989,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           const SizedBox(height: 14),
 
                           const _SheetLabel(text: 'MOI AMOUNT'),
-                          LifeInput(
+                          PlanInputField(
                             controller: amountCtrl,
                             hint: 'Amount received (₹) *',
                             inputType: const TextInputType.numberWithOptions(
@@ -2789,14 +2997,14 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          LifeInput(
+                          PlanInputField(
                             controller: notesCtrl,
                             hint: 'Notes (optional)',
                             maxLines: 2,
                           ),
                           const SizedBox(height: 16),
 
-                          LifeSaveButton(
+                          SaveButton(
                             label: 'Save Moi Entry',
                             color: kind.color,
                             onTap: () {
@@ -2963,7 +3171,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           const SizedBox(height: 14),
 
                           const _SheetLabel(text: 'AMOUNT YOU ARE RETURNING'),
-                          LifeInput(
+                          PlanInputField(
                             controller: amountCtrl,
                             hint: 'Return amount (₹)',
                             inputType: const TextInputType.numberWithOptions(
@@ -2989,7 +3197,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           ),
                           const SizedBox(height: 16),
 
-                          LifeSaveButton(
+                          SaveButton(
                             label: 'Mark as Returned ✓',
                             color: AppColors.income,
                             onTap: () {
