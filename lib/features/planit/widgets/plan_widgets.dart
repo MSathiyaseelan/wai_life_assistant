@@ -14,33 +14,41 @@ void showPlanSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: isScrollControlled,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : AppColors.cardLight,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
+    builder: (builderCtx) {
+      final topPadding = MediaQuery.of(builderCtx).viewPadding.top;
+      final screenHeight = MediaQuery.of(builderCtx).size.height;
+      final keyboardHeight = MediaQuery.of(builderCtx).viewInsets.bottom;
+      return Padding(
+        padding: EdgeInsets.only(bottom: keyboardHeight),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: screenHeight - topPadding - 24,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            Flexible(child: SingleChildScrollView(child: child)),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Flexible(child: SingleChildScrollView(child: child)),
+              ],
+            ),
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
 

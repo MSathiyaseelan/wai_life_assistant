@@ -241,7 +241,7 @@ serve(async (req: Request) => {
     return errorResponse("Missing required fields: feature, sub_feature, input_type");
   }
 
-  const validFeatures = ["wallet", "pantry", "planit", "mylife"];
+  const validFeatures = ["wallet", "pantry", "planit", "mylife", "functions", "lifestyle"];
   if (!validFeatures.includes(feature)) {
     return errorResponse(`Invalid feature. Must be one of: ${validFeatures.join(", ")}`);
   }
@@ -312,14 +312,21 @@ serve(async (req: Request) => {
   // ── Parse JSON response
   let parsed: Record<string, unknown>;
   try {
-    // Strip any accidental markdown backticks
-    const cleanText = geminiResult.text
+    // 1) Strip markdown code fences
+    let cleanText = geminiResult.text
       .replace(/^```json\s*/i, "")
       .replace(/^```\s*/i, "")
       .replace(/\s*```$/i, "")
       .trim();
 
-    parsed = JSON.parse(cleanText);
+    // 2) If still not parseable, extract the first {...} block
+    try {
+      parsed = JSON.parse(cleanText);
+    } catch {
+      const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON object found in response");
+      parsed = JSON.parse(jsonMatch[0]);
+    }
   } catch {
     await logParse(supabase, userId, body, promptRow.id,
                    null, geminiResult.tokens, geminiResult.latencyMs,

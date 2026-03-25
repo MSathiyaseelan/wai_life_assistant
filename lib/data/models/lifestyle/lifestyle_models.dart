@@ -576,13 +576,13 @@ enum FunctionType {
 }
 
 enum GiftType {
-  cash('💵', 'Cash'),
   gold('🥇', 'Gold'),
   silver('🥈', 'Silver'),
-  giftCard('🎁', 'Gift Card'),
-  item('📦', 'Gift Item'),
-  property('🏡', 'Property'),
-  other('✨', 'Other');
+  household('🏠', 'Household'),
+  clothing('👗', 'Clothing'),
+  giftItem('🎁', 'Gift Item'),
+  giftCard('🎴', 'Gift Card'),
+  other('✨', 'Others');
 
   final String emoji, label;
   const GiftType(this.emoji, this.label);
@@ -612,39 +612,60 @@ class GiftEntry {
 
   String get summary {
     switch (giftType) {
-      case GiftType.cash:
-        return cashAmount != null
-            ? '₹${cashAmount!.toStringAsFixed(0)}'
-            : 'Cash';
       case GiftType.gold:
         return goldGrams != null ? '${goldGrams}g Gold' : 'Gold';
       case GiftType.silver:
         return silverGrams != null ? '${silverGrams}g Silver' : 'Silver';
       case GiftType.giftCard:
-        return giftCardValue ?? 'Gift Card';
-      case GiftType.item:
-        return itemDescription ?? 'Gift Item';
+        return giftCardValue != null ? '₹$giftCardValue Card' : 'Gift Card';
       default:
         return itemDescription ?? giftType.label;
     }
   }
 }
 
-class ServiceQuote {
-  String id, vendor, service;
-  double quotedAmount;
-  bool approved;
-  String? phone, address, notes;
-  ServiceQuote({
+enum VendorCategory {
+  catering('🍽️', 'Catering'),
+  venue('🏛️', 'Venue'),
+  decoration('🎪', 'Decoration'),
+  photography('📸', 'Photography & Videography'),
+  entertainment('🎵', 'Entertainment'),
+  clothing('👗', 'Clothing'),
+  makeup('💄', 'Makeup'),
+  jewelry('💍', 'Jewelry'),
+  accessories('👜', 'Accessories'),
+  ritualServices('🪔', 'Ritual Services'),
+  accommodation('🏨', 'Accommodation'),
+  invitations('✉️', 'Invitations'),
+  returnGifts('🎁', 'Return Gifts'),
+  supportServices('🤝', 'Support Services');
+
+  final String emoji, label;
+  const VendorCategory(this.emoji, this.label);
+}
+
+class FunctionVendor {
+  String id, name;
+  VendorCategory category;
+  String? phone, email, address;
+  double? totalCost, advancePaid;
+  String? eventLinked;
+  String? notes;
+
+  FunctionVendor({
     required this.id,
-    required this.vendor,
-    required this.service,
-    required this.quotedAmount,
-    this.approved = false,
+    required this.name,
+    required this.category,
     this.phone,
+    this.email,
     this.address,
+    this.totalCost,
+    this.advancePaid,
+    this.eventLinked,
     this.notes,
   });
+
+  double get balance => (totalCost ?? 0) - (advancePaid ?? 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -674,6 +695,7 @@ class MoiEntry {
   bool returned; // have we returned this moi yet?
   double? returnedAmount; // how much we returned (if returned)
   DateTime? returnedOn; // when we returned
+  String? returnedForFunction; // which function we returned this moi at
   String? notes;
 
   MoiEntry({
@@ -688,6 +710,7 @@ class MoiEntry {
     this.returned = false,
     this.returnedAmount,
     this.returnedOn,
+    this.returnedForFunction,
     this.notes,
   });
 }
@@ -712,8 +735,7 @@ class FunctionModel {
   String? venue, address, notes;
   List<GiftEntry> gifts;
   List<MoiEntry> moi;
-  List<ServiceQuote> catering, decoration, returnGifts, hall, photography;
-  List<ServiceQuote> otherVendors;
+  List<FunctionVendor> vendors;
   List<FunctionChatMessage> chat;
   List<String> memberIds;
   FunctionModel({
@@ -729,31 +751,22 @@ class FunctionModel {
     this.notes,
     List<GiftEntry>? gifts,
     List<MoiEntry>? moi,
-    List<ServiceQuote>? catering,
-    List<ServiceQuote>? decoration,
-    List<ServiceQuote>? returnGifts,
-    List<ServiceQuote>? hall,
-    List<ServiceQuote>? photography,
-    List<ServiceQuote>? otherVendors,
+    List<FunctionVendor>? vendors,
     List<FunctionChatMessage>? chat,
     List<String>? memberIds,
   }) : gifts = gifts ?? [],
        moi = moi ?? [],
-       catering = catering ?? [],
-       decoration = decoration ?? [],
-       returnGifts = returnGifts ?? [],
-       hall = hall ?? [],
-       photography = photography ?? [],
-       otherVendors = otherVendors ?? [],
+       vendors = vendors ?? [],
        chat = chat ?? [],
        memberIds = memberIds ?? ['me'];
 
-  double get totalCash => gifts
-      .where((g) => g.giftType == GiftType.cash)
-      .fold(0, (s, g) => s + (g.cashAmount ?? 0));
+  double get totalCash => moi.fold(0.0, (s, m) => s + m.amount);
   double get totalGold => gifts
       .where((g) => g.giftType == GiftType.gold)
       .fold(0, (s, g) => s + (g.goldGrams ?? 0));
+  double get totalSilver => gifts
+      .where((g) => g.giftType == GiftType.silver)
+      .fold(0, (s, g) => s + (g.silverGrams ?? 0));
 
   // Moi totals
   double get totalMoiReceived => moi.fold(0.0, (s, m) => s + m.amount);
@@ -761,6 +774,36 @@ class FunctionModel {
       .where((m) => m.returned)
       .fold(0.0, (s, m) => s + (m.returnedAmount ?? m.amount));
   int get moiPending => moi.where((m) => !m.returned).length;
+
+  factory FunctionModel.fromJson(Map<String, dynamic> json) => FunctionModel(
+    id: json['id'] as String,
+    walletId: json['wallet_id'] as String,
+    type: FunctionType.values.firstWhere(
+      (e) => e.name == json['type'],
+      orElse: () => FunctionType.other,
+    ),
+    title: json['title'] as String? ?? '',
+    whoFunction: json['who_function'] as String? ?? '',
+    customType: json['custom_type'] as String?,
+    functionDate: json['function_date'] != null
+        ? DateTime.parse(json['function_date'] as String)
+        : null,
+    venue: json['venue'] as String?,
+    address: json['address'] as String?,
+    notes: json['notes'] as String?,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'type': type.name,
+    'title': title,
+    'who_function': whoFunction,
+    if (customType != null) 'custom_type': customType,
+    if (functionDate != null) 'function_date': functionDate!.toIso8601String().split('T')[0],
+    if (venue != null) 'venue': venue,
+    if (address != null) 'address': address,
+    if (notes != null) 'notes': notes,
+  };
 }
 
 class GiftedItem {
@@ -796,31 +839,36 @@ class GiftedItem {
 
   String get giftSummary {
     switch (giftType) {
-      case GiftType.cash:
-        return cashAmount != null
-            ? '₹${cashAmount!.toStringAsFixed(0)}'
-            : 'Cash';
       case GiftType.gold:
         return goldGrams != null ? '${goldGrams}g Gold' : 'Gold';
       case GiftType.silver:
         return silverGrams != null ? '${silverGrams}g Silver' : 'Silver';
-      case GiftType.giftCard:
-        return giftCardValue ?? 'Gift Card';
-      case GiftType.item:
-        return itemDescription ?? 'Gift Item';
       default:
         return giftType.label;
     }
   }
 }
 
+class PlannedGiftItem {
+  String category; // e.g. 'Cash', 'Gold'
+  String? notes;
+  PlannedGiftItem({required this.category, this.notes});
+
+  factory PlannedGiftItem.fromJson(Map<String, dynamic> json) =>
+      PlannedGiftItem(category: json['category'] ?? '', notes: json['notes'] as String?);
+
+  Map<String, dynamic> toJson() => {'category': category, if (notes != null) 'notes': notes};
+}
+
 class UpcomingFunction {
   String id, walletId, personName, functionTitle, memberId;
   FunctionType type;
   DateTime? date;
-  String? venue, notes, plannedGift, plannedGiftNotes;
+  String? venue, notes;
+  List<PlannedGiftItem> plannedGifts;
   List<FunctionChatMessage> chat;
   List<String> memberIds;
+  Map<String, String> votes; // memberId → gift category label
   UpcomingFunction({
     required this.id,
     required this.walletId,
@@ -831,15 +879,92 @@ class UpcomingFunction {
     this.date,
     this.venue,
     this.notes,
-    this.plannedGift,
-    this.plannedGiftNotes,
+    List<PlannedGiftItem>? plannedGifts,
     List<FunctionChatMessage>? chat,
     List<String>? memberIds,
-  }) : chat = chat ?? [],
-       memberIds = memberIds ?? ['me'];
+    Map<String, String>? votes,
+  }) : plannedGifts = plannedGifts ?? [],
+       chat = chat ?? [],
+       memberIds = memberIds ?? ['me'],
+       votes = votes ?? {};
+
+  factory UpcomingFunction.fromJson(Map<String, dynamic> json) => UpcomingFunction(
+    id: json['id'] as String,
+    walletId: json['wallet_id'] as String,
+    personName: json['person_name'] as String? ?? '',
+    functionTitle: json['function_title'] as String? ?? '',
+    memberId: 'me',
+    type: FunctionType.values.firstWhere(
+      (e) => e.name == json['type'],
+      orElse: () => FunctionType.other,
+    ),
+    date: json['date'] != null ? DateTime.parse(json['date'] as String) : null,
+    venue: json['venue'] as String?,
+    notes: json['notes'] as String?,
+    plannedGifts: (json['planned_gifts'] as List<dynamic>? ?? [])
+        .map((g) => PlannedGiftItem.fromJson(g as Map<String, dynamic>))
+        .toList(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'type': type.name,
+    'person_name': personName,
+    'function_title': functionTitle,
+    if (date != null) 'date': date!.toIso8601String().split('T')[0],
+    if (venue != null) 'venue': venue,
+    if (notes != null) 'notes': notes,
+    'planned_gifts': plannedGifts.map((g) => g.toJson()).toList(),
+  };
+}
+
+class AttendedFunction {
+  String id, walletId, functionName;
+  FunctionType type;
+  DateTime? date;
+  String? venue, notes;
+  List<PlannedGiftItem> gifts; // what was given
+  AttendedFunction({
+    required this.id,
+    required this.walletId,
+    required this.functionName,
+    required this.type,
+    this.date,
+    this.venue,
+    this.notes,
+    List<PlannedGiftItem>? gifts,
+  }) : gifts = gifts ?? [];
+
+  factory AttendedFunction.fromJson(Map<String, dynamic> json) => AttendedFunction(
+    id: json['id'] as String,
+    walletId: json['wallet_id'] as String,
+    functionName: json['function_name'] as String? ?? '',
+    type: FunctionType.values.firstWhere(
+      (e) => e.name == json['type'],
+      orElse: () => FunctionType.other,
+    ),
+    date: json['date'] != null ? DateTime.parse(json['date'] as String) : null,
+    venue: json['venue'] as String?,
+    notes: json['notes'] as String?,
+    gifts: (json['gifts'] as List<dynamic>? ?? [])
+        .map((g) => PlannedGiftItem.fromJson(g as Map<String, dynamic>))
+        .toList(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'type': type.name,
+    'function_name': functionName,
+    if (date != null) 'date': date!.toIso8601String().split('T')[0],
+    if (venue != null) 'venue': venue,
+    if (notes != null) 'notes': notes,
+    'gifts': gifts.map((g) => g.toJson()).toList(),
+  };
 }
 
 // Mock data
+final List<AttendedFunction> mockAttended = [];
+
 final List<FunctionModel> mockFunctions = [
   FunctionModel(
     id: 'f1',
@@ -855,8 +980,8 @@ final List<FunctionModel> mockFunctions = [
         id: 'g1',
         guestName: 'Ramesh Kumar',
         guestPlace: 'Coimbatore',
-        giftType: GiftType.cash,
-        cashAmount: 5000,
+        giftType: GiftType.gold,
+        goldGrams: 8,
         relation: 'Uncle',
       ),
       GiftEntry(
@@ -871,34 +996,27 @@ final List<FunctionModel> mockFunctions = [
         id: 'g3',
         guestName: 'Vijay & Family',
         guestPlace: 'Chennai',
-        giftType: GiftType.cash,
-        cashAmount: 11000,
+        giftType: GiftType.silver,
+        silverGrams: 50,
       ),
     ],
-    catering: [
-      ServiceQuote(
-        id: 'c1',
-        vendor: 'Sri Krishna Catering',
-        service: 'Full Vegetarian',
-        quotedAmount: 180000,
-        approved: true,
+    vendors: [
+      FunctionVendor(
+        id: 'v1',
+        name: 'Sri Krishna Catering',
+        category: VendorCategory.catering,
         phone: '9876543210',
+        totalCost: 180000,
+        advancePaid: 50000,
+        notes: 'Full Vegetarian',
       ),
-      ServiceQuote(
-        id: 'c2',
-        vendor: 'Royal Feast',
-        service: 'Veg + Non-Veg',
-        quotedAmount: 220000,
-        phone: '9876543211',
-      ),
-    ],
-    hall: [
-      ServiceQuote(
-        id: 'h1',
-        vendor: 'Grand Palace Hall',
-        service: 'AC Hall 500 pax',
-        quotedAmount: 150000,
-        approved: true,
+      FunctionVendor(
+        id: 'v2',
+        name: 'Grand Palace Hall',
+        category: VendorCategory.venue,
+        totalCost: 150000,
+        advancePaid: 75000,
+        notes: 'AC Hall 500 pax',
       ),
     ],
     memberIds: ['me', 'dad', 'mom'],
@@ -951,8 +1069,8 @@ final List<GiftedItem> mockGifted = [
     memberId: 'me',
     functionTitle: 'House Warming',
     functionType: FunctionType.houseWarming,
-    giftType: GiftType.cash,
-    cashAmount: 2100,
+    giftType: GiftType.gold,
+    goldGrams: 4,
     functionDate: DateTime(2024, 8, 15),
     venue: 'Porur, Chennai',
     toPlace: 'Chennai',
@@ -970,7 +1088,10 @@ final List<UpcomingFunction> mockUpcoming = [
     type: FunctionType.wedding,
     date: DateTime(2025, 5, 20),
     venue: 'Kalyanam Matrimony Hall',
-    plannedGift: '₹5000 Cash or Gold',
+    plannedGifts: [
+      PlannedGiftItem(category: 'Cash', notes: '₹5000'),
+      PlannedGiftItem(category: 'Gold'),
+    ],
     memberIds: ['me', 'dad', 'mom'],
   ),
 ];
