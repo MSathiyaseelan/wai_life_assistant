@@ -14,12 +14,14 @@ class MyFunctionsScreen extends StatefulWidget {
   final String walletName;
   final String walletEmoji;
   final bool openAdd;
+  final int initialTab;
   const MyFunctionsScreen({
     super.key,
     required this.walletId,
     this.walletName = 'Personal',
     this.walletEmoji = '🎊',
     this.openAdd = false,
+    this.initialTab = 0,
   });
   @override
   State<MyFunctionsScreen> createState() => _MyFunctionsScreenState();
@@ -44,7 +46,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
     _loadData();
     if (widget.openAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -368,27 +370,28 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
         isDark: isDark,
         surfBg: surfBg,
         walletId: widget.walletId,
-        onSave: (title, type, customType, venue, date, personName) async {
+        onSave: (title, type, customType, venue, date, personName, familyName) async {
           final svc = FunctionsService.instance;
           try {
             if (tabIdx == 0) {
               final row = await svc.addMyFunction(FunctionModel(
                 id: '', walletId: widget.walletId, type: type, title: title,
-                whoFunction: personName ?? '', customType: customType,
+                whoFunction: '', customType: customType,
                 functionDate: date, venue: venue,
               ).toJson());
               if (mounted) setState(() => _functions.insert(0, FunctionModel.fromJson(row)));
             } else if (tabIdx == 1) {
               final row = await svc.addUpcoming(UpcomingFunction(
                 id: '', walletId: widget.walletId, memberId: 'me', type: type,
-                personName: personName ?? '', functionTitle: title,
-                date: date, venue: venue,
+                personName: personName ?? '', familyName: familyName,
+                functionTitle: title, date: date, venue: venue,
               ).toJson());
               if (mounted) setState(() => _upcoming.insert(0, UpcomingFunction.fromJson(row)));
             } else if (tabIdx == 2) {
               final row = await svc.addAttended(AttendedFunction(
                 id: '', walletId: widget.walletId, type: type,
-                functionName: title, date: date, venue: venue,
+                functionName: title, personName: personName,
+                familyName: familyName, date: date, venue: venue,
               ).toJson());
               if (mounted) setState(() => _attended.insert(0, AttendedFunction.fromJson(row)));
             }
@@ -406,6 +409,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     AttendedFunction item,
   ) {
     final nameCtrl = TextEditingController(text: item.functionName);
+    final personCtrl = TextEditingController(text: item.personName ?? '');
+    final familyNameCtrl = TextEditingController(text: item.familyName ?? '');
     final venueCtrl = TextEditingController(text: item.venue ?? '');
     var type = item.type;
     DateTime? date = item.date;
@@ -460,6 +465,10 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     )).toList(),
                   ),
                 ),
+                const SizedBox(height: 8),
+                PlanInputField(controller: personCtrl, hint: 'Person name (e.g. Priya)'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: familyNameCtrl, hint: 'Family name (e.g. Sharma family)'),
                 const SizedBox(height: 8),
                 PlanInputField(controller: nameCtrl, hint: 'Function name *'),
                 const SizedBox(height: 8),
@@ -567,6 +576,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     if (nameCtrl.text.trim().isEmpty) return;
                     setState(() {
                       item.functionName = nameCtrl.text.trim();
+                      item.personName = personCtrl.text.trim().isEmpty ? null : personCtrl.text.trim();
+                      item.familyName = familyNameCtrl.text.trim().isEmpty ? null : familyNameCtrl.text.trim();
                       item.type = type;
                       item.date = date;
                       item.venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
@@ -4561,7 +4572,8 @@ class _FunctionAddSheet extends StatefulWidget {
   final bool isDark;
   final Color surfBg;
   final String walletId;
-  final void Function(String, FunctionType, String?, String?, DateTime?, String?) onSave;
+  final void Function(String, FunctionType, String?, String?, DateTime?, String?, String?) onSave;
+  // (title, type, customType, venue, date, personName, familyName)
 
   const _FunctionAddSheet({
     required this.tabIdx,
@@ -4588,6 +4600,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
   final _customTypeCtrl = TextEditingController();
   final _venueCtrl = TextEditingController();
   final _personCtrl = TextEditingController();
+  final _familyNameCtrl = TextEditingController();
   var _type = FunctionType.wedding;
   DateTime? _date;
 
@@ -4606,6 +4619,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
     _customTypeCtrl.dispose();
     _venueCtrl.dispose();
     _personCtrl.dispose();
+    _familyNameCtrl.dispose();
     super.dispose();
   }
 
@@ -4629,6 +4643,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
       _titleCtrl.text = result!.title;
       _venueCtrl.text = result.venue ?? '';
       _personCtrl.text = result.personName ?? '';
+      _familyNameCtrl.text = result.familyName ?? '';
       _type = result.type;
       _date = result.date;
     });
@@ -4647,7 +4662,10 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
           ? _customTypeCtrl.text.trim() : null,
       _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
       _date,
-      widget.tabIdx == 1 ? (_personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim()) : null,
+      (widget.tabIdx == 1 || widget.tabIdx == 2)
+          ? (_personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim()) : null,
+      (widget.tabIdx == 1 || widget.tabIdx == 2)
+          ? (_familyNameCtrl.text.trim().isEmpty ? null : _familyNameCtrl.text.trim()) : null,
     );
   }
 
@@ -4861,8 +4879,10 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
             ),
           ),
           const SizedBox(height: 8),
-          if (widget.tabIdx == 1) ...[
+          if (widget.tabIdx == 1 || widget.tabIdx == 2) ...[
             PlanInputField(controller: _personCtrl, hint: 'Person name (e.g. Priya)'),
+            const SizedBox(height: 8),
+            PlanInputField(controller: _familyNameCtrl, hint: 'Family name (e.g. Sharma family)'),
             const SizedBox(height: 8),
           ],
           PlanInputField(controller: _titleCtrl, hint: 'Function title *'),
@@ -4919,9 +4939,9 @@ class _FuncPreviewChip extends StatelessWidget {
 class _ParsedFunction {
   final String title;
   final FunctionType type;
-  final String? venue, personName;
+  final String? venue, personName, familyName;
   final DateTime? date;
-  const _ParsedFunction({required this.title, required this.type, this.venue, this.date, this.personName});
+  const _ParsedFunction({required this.title, required this.type, this.venue, this.date, this.personName, this.familyName});
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4975,6 +4995,8 @@ class _FunctionAIParser {
     // upcoming_function prompt returns 'contact_name'; others return 'person_name'
     String? personName = (data['person_name'] ?? data['contact_name'] ?? data['host_name'] ?? data['person']) as String?;
     if (personName == 'null' || personName == '') personName = null;
+    String? familyName = (data['family_name'] ?? data['contact_family'] ?? data['family']) as String?;
+    if (familyName == 'null' || familyName == '') familyName = null;
 
     return _ParsedFunction(
       title: (data['function_name'] ?? data['title']) as String? ?? text,
@@ -4982,6 +5004,7 @@ class _FunctionAIParser {
       venue: venue,
       date: date,
       personName: personName,
+      familyName: familyName,
     );
   }
 }

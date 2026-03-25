@@ -862,6 +862,7 @@ class PlannedGiftItem {
 
 class UpcomingFunction {
   String id, walletId, personName, functionTitle, memberId;
+  String? familyName;
   FunctionType type;
   DateTime? date;
   String? venue, notes;
@@ -876,6 +877,7 @@ class UpcomingFunction {
     required this.functionTitle,
     required this.memberId,
     required this.type,
+    this.familyName,
     this.date,
     this.venue,
     this.notes,
@@ -892,6 +894,7 @@ class UpcomingFunction {
     id: json['id'] as String,
     walletId: json['wallet_id'] as String,
     personName: json['person_name'] as String? ?? '',
+    familyName: json['family_name'] as String?,
     functionTitle: json['function_title'] as String? ?? '',
     memberId: 'me',
     type: FunctionType.values.firstWhere(
@@ -910,6 +913,7 @@ class UpcomingFunction {
     'wallet_id': walletId,
     'type': type.name,
     'person_name': personName,
+    if (familyName != null) 'family_name': familyName,
     'function_title': functionTitle,
     if (date != null) 'date': date!.toIso8601String().split('T')[0],
     if (venue != null) 'venue': venue,
@@ -920,6 +924,7 @@ class UpcomingFunction {
 
 class AttendedFunction {
   String id, walletId, functionName;
+  String? personName, familyName;
   FunctionType type;
   DateTime? date;
   String? venue, notes;
@@ -929,6 +934,8 @@ class AttendedFunction {
     required this.walletId,
     required this.functionName,
     required this.type,
+    this.personName,
+    this.familyName,
     this.date,
     this.venue,
     this.notes,
@@ -939,6 +946,8 @@ class AttendedFunction {
     id: json['id'] as String,
     walletId: json['wallet_id'] as String,
     functionName: json['function_name'] as String? ?? '',
+    personName: json['person_name'] as String?,
+    familyName: json['family_name'] as String?,
     type: FunctionType.values.firstWhere(
       (e) => e.name == json['type'],
       orElse: () => FunctionType.other,
@@ -955,6 +964,8 @@ class AttendedFunction {
     'wallet_id': walletId,
     'type': type.name,
     'function_name': functionName,
+    if (personName != null) 'person_name': personName,
+    if (familyName != null) 'family_name': familyName,
     if (date != null) 'date': date!.toIso8601String().split('T')[0],
     if (venue != null) 'venue': venue,
     if (notes != null) 'notes': notes,

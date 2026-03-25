@@ -657,6 +657,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         openAdd: true,
+        initialTab: 2,
       ),
     ),
     _ModuleInfo(
