@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 
@@ -306,6 +307,34 @@ class WalletService {
       if (extensionDate != null)   'extension_date': extensionDate.toIso8601String(),
       if (extensionReason != null) 'extension_reason': extensionReason,
     }).eq('id', shareId);
+  }
+
+  /// Upload a payment proof image to Supabase Storage and return a signed URL
+  /// valid for 10 years (proof images are long-lived).
+  Future<String> uploadProofImage({
+    required String groupId,
+    required List<int> imageBytes,
+    String extension = 'jpg',
+  }) async {
+    final path =
+        'proofs/$groupId/${DateTime.now().millisecondsSinceEpoch}.$extension';
+    await _db.storage
+        .from('split-proof')
+        .uploadBinary(path, Uint8List.fromList(imageBytes));
+    return _db.storage.from('split-proof').getPublicUrl(path);
+  }
+
+  /// Atomically increment the reminder count for a share.
+  Future<void> recordReminderSent({
+    required String transactionId,
+    required String participantId,
+    required String sentBy,
+  }) async {
+    await _db.rpc('increment_split_reminder', params: {
+      'p_transaction_id': transactionId,
+      'p_participant_id': participantId,
+      'p_sent_by': sentBy,
+    });
   }
 
   // ── Split Group Chat ──────────────────────────────────────────────────────

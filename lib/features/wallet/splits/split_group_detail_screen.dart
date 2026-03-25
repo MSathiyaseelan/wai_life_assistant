@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/emoji_or_image.dart';
 
@@ -244,6 +245,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _ProofSheet(
+        groupId: _group.id,
         totalAmount: totalAmt,
         pendingLabels: pending
             .map((e) => '${e.tx.title}  ₹${e.share.amount.toStringAsFixed(0)}')
@@ -288,146 +290,172 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final totalAmt = pending.fold(0.0, (s, e) => s + e.share.amount);
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
           ),
-          title: const Text(
-            'Request Extension',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
             ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'For ₹${totalAmt.toStringAsFixed(0)} across ${pending.length} payment${pending.length > 1 ? 's' : ''}.',
-                style: const TextStyle(fontFamily: 'Nunito', fontSize: 12),
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () async {
-                  final d = await showDatePicker(
-                    context: ctx,
-                    initialDate: pickedDate,
-                    firstDate: DateTime.now().add(const Duration(days: 1)),
-                    lastDate: DateTime.now().add(const Duration(days: 90)),
-                  );
-                  if (d != null) setSt(() => pickedDate = d);
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF9C27B0).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF9C27B0).withValues(alpha: 0.3),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.calendar_today_rounded,
-                        size: 16,
-                        color: Color(0xFF9C27B0),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Pay by: ${_fmtDate(pickedDate)}',
-                        style: const TextStyle(
+                ),
+                // Header
+                Row(children: [
+                  Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C27B0).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text('📅', style: TextStyle(fontSize: 20)),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Request Extension',
+                        style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w900,
                           fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF9C27B0),
-                        ),
+                          color: isDark ? AppColors.textDark : AppColors.textLight,
+                        )),
+                    Text(
+                      'For ₹${totalAmt.toStringAsFixed(0)} across ${pending.length} payment${pending.length > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontSize: 12, fontFamily: 'Nunito',
+                        color: isDark ? AppColors.subDark : AppColors.subLight,
                       ),
-                    ],
+                    ),
+                  ]),
+                ]),
+                const SizedBox(height: 20),
+                // Date picker
+                GestureDetector(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: pickedDate,
+                      firstDate: DateTime.now().add(const Duration(days: 1)),
+                      lastDate: DateTime.now().add(const Duration(days: 90)),
+                    );
+                    if (d != null) setSt(() => pickedDate = d);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C27B0).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF9C27B0)),
+                      const SizedBox(width: 8),
+                      Text('Pay by: ${_fmtDate(pickedDate)}',
+                          style: const TextStyle(
+                            fontFamily: 'Nunito', fontWeight: FontWeight.w700,
+                            color: Color(0xFF9C27B0),
+                          )),
+                      const Spacer(),
+                      const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF9C27B0)),
+                    ]),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctrl,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'Reason e.g. salary credit on 5th',
-                  hintStyle: const TextStyle(
-                    fontFamily: 'Nunito',
-                    fontSize: 12,
+                const SizedBox(height: 12),
+                // Reason
+                TextField(
+                  controller: ctrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: 'Reason e.g. salary credit on 5th',
+                    hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12,
+                        color: isDark ? AppColors.subDark : AppColors.subLight),
+                    filled: true,
+                    fillColor: isDark ? AppColors.surfDark : const Color(0xFFEDEEF5),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(14),
                   ),
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.all(12),
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                // Buttons
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        if (ctrl.text.trim().isEmpty) return;
+                        for (final e in pending) {
+                          e.share.status = SettleStatus.extensionRequested;
+                          e.share.extensionDate = pickedDate;
+                          e.share.extensionReason = ctrl.text.trim();
+                        }
+                        Navigator.pop(ctx);
+                        _group.messages.add(SplitGroupMsg(
+                          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+                          groupId: _group.id,
+                          senderId: _myId,
+                          senderName: _participantName(_myId),
+                          senderEmoji: _participantEmoji(_myId),
+                          text: 'Requested extension till ${_fmtDate(pickedDate)}: ${ctrl.text.trim()}',
+                          time: DateTime.now(),
+                          type: MsgType.extensionReq,
+                        ));
+                        _update();
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF9C27B0),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('Request',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontFamily: 'Nunito'),
-              ),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (ctrl.text.trim().isEmpty) return;
-                for (final e in pending) {
-                  e.share.status = SettleStatus.extensionRequested;
-                  e.share.extensionDate = pickedDate;
-                  e.share.extensionReason = ctrl.text.trim();
-                }
-                Navigator.pop(ctx);
-                _group.messages.add(
-                  SplitGroupMsg(
-                    id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-                    groupId: _group.id,
-                    senderId: _myId,
-                    senderName: _participantName(_myId),
-                    senderEmoji: _participantEmoji(_myId),
-                    text:
-                        'Requested extension till ${_fmtDate(pickedDate)}: ${ctrl.text.trim()}',
-                    time: DateTime.now(),
-                    type: MsgType.extensionReq,
-                  ),
-                );
-                _update();
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF9C27B0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'Request',
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
   // ── Send reminder ──────────────────────────────────────────────────────────
-  void _showReminderSheet(SplitParticipant p, double owedAmount) {
+  void _showReminderSheet(SplitParticipant p, double owedAmount, {VoidCallback? onReminderSent}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
@@ -573,6 +601,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                       final nav = Navigator.of(context);
                       final messenger = ScaffoldMessenger.of(context);
                       await Clipboard.setData(ClipboardData(text: message));
+                      onReminderSent?.call();
                       nav.pop();
                       messenger.showSnackBar(
                         SnackBar(
@@ -628,6 +657,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                         final encoded = Uri.encodeComponent(message);
                         final waUrl = 'https://wa.me/91$phone?text=$encoded';
                         await Clipboard.setData(ClipboardData(text: waUrl));
+                        onReminderSent?.call();
                         nav.pop();
                         messenger.showSnackBar(
                           SnackBar(
@@ -848,7 +878,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                       children: [
                         const Text('💸 '),
                         const Text('Expenses'),
-                        if (_group.pendingCount > 0) ...[
+                        if (_group.transactions.isNotEmpty) ...[
                           const SizedBox(width: 4),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -860,7 +890,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              '${_group.pendingCount}',
+                              '${_group.transactions.length}',
                               style: const TextStyle(
                                 fontSize: 9,
                                 color: Colors.white,
@@ -1486,96 +1516,6 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           );
         }),
 
-        const SizedBox(height: 20),
-        // Expenses summary
-        Text(
-          'EXPENSE BREAKDOWN',
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-            fontFamily: 'Nunito',
-            color: sub,
-          ),
-        ),
-        const SizedBox(height: 10),
-
-        ..._group.transactions.map(
-          (tx) => Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: tx.splitType.color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    tx.splitType.emoji,
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tx.title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                          color: tc,
-                        ),
-                      ),
-                      Text(
-                        'by ${_participantName(tx.addedById)} · ${_fmtDate(tx.date)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: sub,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '₹${tx.totalAmount.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'DM Mono',
-                        color: tc,
-                      ),
-                    ),
-                    Text(
-                      '${tx.settledCount}/${tx.shares.length} settled',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'Nunito',
-                        color: tx.isFullySettled
-                            ? AppColors.income
-                            : AppColors.expense,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
         const SizedBox(height: 80),
       ],
     );
@@ -1646,6 +1586,31 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               ),
             );
             _update();
+          },
+          onSendReminder: (share, tx) {
+            final p = _group.participantById(share.participantId);
+            if (p == null) return;
+            _showReminderSheet(p, share.amount, onReminderSent: () {
+              share.reminderCount = (share.reminderCount ?? 0) + 1;
+              share.lastReminderAt = DateTime.now();
+              share.lastReminderBy = _participantName(_myId);
+              _group.messages.add(SplitGroupMsg(
+                id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+                groupId: _group.id,
+                senderId: _myId,
+                senderName: _participantName(_myId),
+                senderEmoji: _participantEmoji(_myId),
+                text: 'Sent a payment reminder to ${p.name} for ₹${share.amount.toStringAsFixed(0)} 🔔',
+                time: DateTime.now(),
+                type: MsgType.reminder,
+              ));
+              _update();
+              WalletService.instance.recordReminderSent(
+                transactionId: tx.id,
+                participantId: share.participantId,
+                sentBy: _participantName(_myId),
+              ).catchError((_) {});
+            });
           },
         );
       },
@@ -1797,6 +1762,7 @@ class _ExpenseTile extends StatefulWidget {
   final Color cardBg, surfBg, tc, sub;
   final VoidCallback onShareUpdated;
   final void Function(String) onAddChatMsg;
+  final void Function(SplitShare, SplitGroupTx) onSendReminder;
 
   const _ExpenseTile({
     required this.tx,
@@ -1809,6 +1775,7 @@ class _ExpenseTile extends StatefulWidget {
     required this.sub,
     required this.onShareUpdated,
     required this.onAddChatMsg,
+    required this.onSendReminder,
   });
 
   @override
@@ -2042,6 +2009,7 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                   widget.onShareUpdated();
                 },
                 onAddChatMsg: widget.onAddChatMsg,
+                onSendReminder: () => widget.onSendReminder(share, widget.tx),
               ),
             ),
             const SizedBox(height: 8),
@@ -2064,6 +2032,7 @@ class _ShareRow extends StatelessWidget {
   final Color surfBg, tc, sub;
   final VoidCallback onUpdate;
   final void Function(String) onAddChatMsg;
+  final VoidCallback? onSendReminder;
 
   const _ShareRow({
     required this.share,
@@ -2080,6 +2049,7 @@ class _ShareRow extends StatelessWidget {
     required this.sub,
     required this.onUpdate,
     required this.onAddChatMsg,
+    this.onSendReminder,
   });
 
   bool get _iAmPayer => addedById == myId; // I paid the bill
@@ -2220,12 +2190,37 @@ class _ShareRow extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.file(
-                    File(share.proofImagePath!),
-                    height: 110,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+                  child: share.proofImagePath!.startsWith('http')
+                      ? Image.network(
+                          share.proofImagePath!,
+                          height: 110,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 110,
+                            color: const Color(0xFF2196F3).withValues(alpha: 0.07),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Color(0xFF2196F3),
+                            ),
+                          ),
+                        )
+                      : Image.file(
+                          File(share.proofImagePath!),
+                          height: 110,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 110,
+                            color: const Color(0xFF2196F3).withValues(alpha: 0.07),
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Color(0xFF2196F3),
+                            ),
+                          ),
+                        ),
                 ),
               ),
             if (share.proofNote != null)
@@ -2263,6 +2258,28 @@ class _ShareRow extends StatelessWidget {
                 ),
               ),
           ],
+
+          // Reminder history
+          if ((share.reminderCount ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.notifications_rounded, size: 11, color: AppColors.lend),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${share.reminderCount} reminder${(share.reminderCount ?? 0) > 1 ? 's' : ''} sent'
+                    '${share.lastReminderBy != null ? ' by ${share.lastReminderBy}' : ''}'
+                    '${share.lastReminderAt != null ? ' · ${_fmtDate(share.lastReminderAt!)}' : ''}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'Nunito',
+                      color: AppColors.lend.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Action buttons
           _buildActions(context, st),
@@ -2314,29 +2331,7 @@ class _ShareRow extends StatelessWidget {
     // Reminder button (payer can send to pending shares)
     if (_iAmPayer && !_isMyShare && st == SettleStatus.pending) {
       actions.add(
-        _ActionBtn('🔔 Send Reminder', AppColors.lend, () {
-          onAddChatMsg(
-            'Hey $personName, gentle reminder to settle ₹${share.amount.toStringAsFixed(0)} 🙏',
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Reminder sent to $personName',
-                style: const TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              backgroundColor: AppColors.lend,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              margin: const EdgeInsets.all(16),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }),
+        _ActionBtn('🔔 Send Reminder', AppColors.lend, onSendReminder ?? () {}),
       );
     }
 
@@ -2361,13 +2356,15 @@ class _ShareRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ProofSheet extends StatefulWidget {
+  final String groupId;
   final double totalAmount;
   final List<String> pendingLabels;
   final bool isDark;
   final Color surfBg, tc, sub;
-  final void Function(String note, String? imagePath) onSubmit;
+  final void Function(String note, String? imageUrl) onSubmit;
 
   const _ProofSheet({
+    required this.groupId,
     required this.totalAmount,
     required this.pendingLabels,
     required this.isDark,
@@ -2398,11 +2395,26 @@ class _ProofSheetState extends State<_ProofSheet> {
     if (img != null) setState(() => _pickedImage = img);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (_noteCtrl.text.trim().isEmpty && _pickedImage == null) return;
     setState(() => _submitting = true);
-    widget.onSubmit(_noteCtrl.text.trim(), _pickedImage?.path);
-    Navigator.pop(context);
+    String? imageUrl;
+    if (_pickedImage != null) {
+      try {
+        final bytes = await _pickedImage!.readAsBytes();
+        final ext = _pickedImage!.path.split('.').last.toLowerCase();
+        imageUrl = await WalletService.instance.uploadProofImage(
+          groupId: widget.groupId,
+          imageBytes: bytes,
+          extension: ext.isEmpty ? 'jpg' : ext,
+        );
+      } catch (_) {
+        // fallback: store local path if upload fails
+        imageUrl = _pickedImage!.path;
+      }
+    }
+    widget.onSubmit(_noteCtrl.text.trim(), imageUrl);
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -2746,7 +2758,16 @@ class _AddExpenseSheet extends StatefulWidget {
   State<_AddExpenseSheet> createState() => _AddExpenseSheetState();
 }
 
-class _AddExpenseSheetState extends State<_AddExpenseSheet> {
+class _AddExpenseSheetState extends State<_AddExpenseSheet>
+    with SingleTickerProviderStateMixin {
+  late TabController _mode;
+
+  // AI Parse state
+  final _aiCtrl = TextEditingController();
+  bool _aiLoading = false;
+  String? _aiError;
+
+  // Manual form state
   final _titleCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
@@ -2758,6 +2779,8 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
   @override
   void initState() {
     super.initState();
+    _mode = TabController(length: 2, vsync: this);
+    _mode.addListener(() => setState(() {}));
     // Default payer = current user; resolve via isMe flag for real DB IDs.
     try {
       _paidById = widget.group.participants.firstWhere((p) => p.isMe).id;
@@ -2773,11 +2796,72 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
 
   @override
   void dispose() {
+    _mode.dispose();
+    _aiCtrl.dispose();
     _titleCtrl.dispose();
     _amountCtrl.dispose();
     _noteCtrl.dispose();
     for (final c in _shareCtrl.values) c.dispose();
     super.dispose();
+  }
+
+  Future<void> _parseAI() async {
+    final text = _aiCtrl.text.trim();
+    if (text.isEmpty) return;
+    setState(() { _aiLoading = true; _aiError = null; });
+    try {
+      final membersList = widget.group.participants
+          .map((p) => p.isMe ? 'You' : p.name.split(' ')[0])
+          .toList();
+      final result = await AIParser.parseText(
+        feature: 'wallet',
+        subFeature: 'split_expense',
+        text: text,
+        context: {'members': membersList},
+      );
+      if (!mounted) return;
+      if (!result.success || result.data == null) {
+        setState(() {
+          _aiLoading = false;
+          _aiError = result.error ?? 'Could not understand. Try rephrasing.';
+        });
+        return;
+      }
+      final data = result.data!;
+
+      // Pre-fill title
+      _titleCtrl.text = data['description'] as String? ?? '';
+
+      // Pre-fill amount
+      final rawAmount = data['amount'];
+      if (rawAmount != null) {
+        final amt = (rawAmount as num).toDouble();
+        _amountCtrl.text = amt == amt.roundToDouble()
+            ? amt.toInt().toString()
+            : amt.toStringAsFixed(2);
+      }
+
+      // Match paid_by to a participant
+      final rawPaidBy = (data['paid_by'] as String? ?? '').toLowerCase();
+      if (rawPaidBy.isNotEmpty && rawPaidBy != 'null') {
+        final match = widget.group.participants.where((p) {
+          final name = (p.isMe ? 'you' : p.name.toLowerCase());
+          return name.contains(rawPaidBy) || rawPaidBy.contains(name.split(' ')[0]);
+        }).firstOrNull;
+        if (match != null) _paidById = match.id;
+      }
+
+      // Split type
+      final rawSplit = (data['split_type'] as String? ?? 'equally').toLowerCase();
+      _splitType = rawSplit.contains('unequal') ? SplitType.unequal
+                 : rawSplit.contains('percent') ? SplitType.percentage
+                 : SplitType.equal;
+
+      setState(() => _aiLoading = false);
+      _mode.animateTo(1);
+    } catch (e) {
+      if (mounted) setState(() { _aiLoading = false; _aiError = 'Parse failed. Fill manually.'; });
+    }
   }
 
   void _save() {
@@ -2920,23 +3004,135 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-              child: Text(
-                '💸  Add Expense',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                  color: tc,
-                ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '💸  Add Expense',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                      color: tc,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // ── Mode switcher ────────────────────────────────────────
+                  Container(
+                    decoration: BoxDecoration(
+                      color: surfBg,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.all(3),
+                    child: TabBar(
+                      controller: _mode,
+                      indicator: BoxDecoration(
+                        color: AppColors.split,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: sub,
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                      ),
+                      padding: EdgeInsets.zero,
+                      tabs: const [
+                        Tab(height: 36, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Text('✨', style: TextStyle(fontSize: 14)), SizedBox(width: 6), Text('AI Parse'),
+                        ])),
+                        Tab(height: 36, child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          Icon(Icons.edit_outlined, size: 14), SizedBox(width: 6), Text('Manual'),
+                        ])),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+
+                    // ── AI Parse tab ────────────────────────────────────
+                    if (_mode.index == 0) ...[
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.split.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.split.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Text('✨', style: TextStyle(fontSize: 15)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(
+                            'Describe the expense — e.g. "Ravi paid ₹1200 for dinner, split equally"',
+                            style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub, height: 1.4),
+                          )),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        child: TextField(
+                          controller: _aiCtrl,
+                          maxLines: 3,
+                          minLines: 2,
+                          style: TextStyle(fontSize: 14, fontFamily: 'Nunito', color: tc),
+                          decoration: InputDecoration.collapsed(
+                            hintText: 'e.g. "Lunch ₹840, Priya paid, split equally"',
+                            hintStyle: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+                          ),
+                        ),
+                      ),
+                      if (_aiError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(_aiError!, style: const TextStyle(fontSize: 12, fontFamily: 'Nunito', color: AppColors.expense)),
+                      ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: ElevatedButton.icon(
+                          onPressed: _aiLoading ? null : _parseAI,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.split,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: _aiLoading
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Text('✨', style: TextStyle(fontSize: 16)),
+                          label: Text(
+                            _aiLoading ? 'Parsing…' : 'Parse & Fill',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito', fontSize: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => _mode.animateTo(1),
+                          child: Text('Fill manually instead',
+                              style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
+                        ),
+                      ),
+                    ],
+
+                    // ── Manual tab ──────────────────────────────────────
+                    if (_mode.index == 1) ...[
                     // Title
                     _Lbl('EXPENSE TITLE', sub),
                     _F(_titleCtrl, 'e.g. Dinner at Beach Shack', surfBg, tc),
@@ -3254,6 +3450,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet> {
                         ),
                       ),
                     ),
+                    ], // end if (_mode.index == 1)
                   ],
                 ),
               ),

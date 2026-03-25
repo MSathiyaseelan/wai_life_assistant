@@ -13,17 +13,21 @@ import 'package:flutter/services.dart';
 class ChatInputBar extends StatefulWidget {
   final void Function(String text) onSubmit; // NLP parse this text
   final VoidCallback onMicTap; // wallet_screen drives mic state
+  final VoidCallback? onMicLongPress; // long-press → language picker
   final VoidCallback onAddTap; // opens flow selector
   final bool isListening;
   final String? hintText; // optional override for the placeholder text
+  final String speechLocale; // e.g. 'en-IN', 'hi-IN', 'ta-IN'
 
   const ChatInputBar({
     super.key,
     required this.onSubmit,
     required this.onMicTap,
     required this.onAddTap,
+    this.onMicLongPress,
     this.isListening = false,
     this.hintText,
+    this.speechLocale = 'en-IN',
   });
 
   @override
@@ -85,6 +89,12 @@ class ChatInputBarState extends State<ChatInputBar>
     _focus.unfocus();
   }
 
+  /// Returns 2-letter display code from a locale id like 'ta-IN' → 'TA'
+  String _localeCode(String localeId) {
+    final lang = localeId.split(RegExp(r'[-_]')).first.toUpperCase();
+    return lang.length > 2 ? lang.substring(0, 2) : lang;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -117,37 +127,67 @@ class ChatInputBarState extends State<ChatInputBar>
                 HapticFeedback.selectionClick();
                 widget.onMicTap();
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: listening
-                      ? AppColors.expense.withOpacity(0.12)
-                      : AppColors.primary.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: listening
-                        ? AppColors.expense.withOpacity(0.5)
-                        : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: listening
-                    ? ScaleTransition(
-                        scale: _pulseScale,
-                        child: const Icon(
-                          Icons.mic_rounded,
-                          color: AppColors.expense,
-                          size: 22,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.mic_none_rounded,
-                        color: AppColors.primary,
-                        size: 22,
+              onLongPress: () {
+                HapticFeedback.mediumImpact();
+                widget.onMicLongPress?.call();
+              },
+              child: Stack(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: listening
+                          ? AppColors.expense.withOpacity(0.12)
+                          : AppColors.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: listening
+                            ? AppColors.expense.withOpacity(0.5)
+                            : Colors.transparent,
+                        width: 1.5,
                       ),
+                    ),
+                    alignment: Alignment.center,
+                    child: listening
+                        ? ScaleTransition(
+                            scale: _pulseScale,
+                            child: const Icon(
+                              Icons.mic_rounded,
+                              color: AppColors.expense,
+                              size: 22,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.mic_none_rounded,
+                            color: AppColors.primary,
+                            size: 22,
+                          ),
+                  ),
+                  // Language badge (bottom-right corner)
+                  if (!listening)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          _localeCode(widget.speechLocale),
+                          style: const TextStyle(
+                            fontSize: 7,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito',
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(width: 10),

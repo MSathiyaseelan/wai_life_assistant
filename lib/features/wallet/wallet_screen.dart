@@ -24,6 +24,7 @@ import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 class WalletScreen extends StatefulWidget {
   final String activeWalletId;
@@ -46,9 +47,11 @@ class _WalletScreenState extends State<WalletScreen>
   // Calendar
   MonthRange _selectedRange = MonthRange.thisMonth();
 
-  // Voice + speech simulation
+  // Voice / speech-to-text
   bool _isListening = false;
+  String _speechLocale = 'en-IN';
   final _chatBarKey = GlobalKey<ChatInputBarState>();
+  final SpeechToText _speech = SpeechToText();
 
   // Live transaction list (loaded async)
   List<TxModel> _transactions = [];
@@ -224,6 +227,7 @@ class _WalletScreenState extends State<WalletScreen>
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     _tabCtrl.dispose();
     _familyPageCtrl?.dispose();
+    _speech.stop();
     super.dispose();
   }
 
@@ -522,26 +526,147 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  void _onMicTap() {
+  Future<void> _onMicTap() async {
     HapticFeedback.mediumImpact();
     if (_isListening) {
+      await _speech.stop();
       setState(() => _isListening = false);
-    } else {
-      setState(() => _isListening = true);
-      Future.delayed(const Duration(seconds: 3), () {
-        if (!mounted || !_isListening) return;
-        setState(() => _isListening = false);
-        const _sttSamples = [
-          'paid 500 for lunch via cash',
-          'received 45000 salary online',
-          'lent 2000 to Rahul',
-          'spent 320 on auto travel',
-          'split 1200 dinner with Priya',
-        ];
-        final sample = (_sttSamples.toList()..shuffle()).first;
-        _chatBarKey.currentState?.setTextFromSpeech(sample);
-      });
+      return;
     }
+    final available = await _speech.initialize(
+      onStatus: (s) {
+        if ((s == 'done' || s == 'notListening') && mounted) {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (e) {
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+    if (!available || !mounted) return;
+    setState(() => _isListening = true);
+    await _speech.listen(
+      localeId: _speechLocale,
+      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+      ),
+      onResult: (result) {
+        if (!mounted) return;
+        if (result.finalResult) {
+          setState(() => _isListening = false);
+          if (result.recognizedWords.trim().isNotEmpty) {
+            _chatBarKey.currentState?.setTextFromSpeech(result.recognizedWords);
+          }
+        }
+      },
+    );
+  }
+
+  Future<void> _onMicLongPress() => _showLanguagePicker();
+
+  static const _indianLanguages = [
+    ('en-IN', 'English', '🇮🇳'),
+    ('hi-IN', 'Hindi',   '🇮🇳'),
+    ('ta-IN', 'Tamil',   '🇮🇳'),
+    ('te-IN', 'Telugu',  '🇮🇳'),
+    ('kn-IN', 'Kannada', '🇮🇳'),
+    ('ml-IN', 'Malayalam','🇮🇳'),
+    ('bn-IN', 'Bengali', '🇮🇳'),
+    ('mr-IN', 'Marathi', '🇮🇳'),
+    ('gu-IN', 'Gujarati','🇮🇳'),
+    ('pa-IN', 'Punjabi', '🇮🇳'),
+  ];
+
+  Future<void> _showLanguagePicker() async {
+    // Initialise STT to get available device locales
+    final available = await _speech.initialize();
+    final supported = available
+        ? (await _speech.locales()).map((l) => l.localeId).toSet()
+        : <String>{};
+
+    if (!mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Text('🎤', style: TextStyle(fontSize: 18)),
+                const SizedBox(width: 8),
+                Text('Speech Language',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito', color: tc)),
+              ]),
+              const SizedBox(height: 4),
+              Text('Long-press mic anytime to change',
+                  style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: _indianLanguages.map((lang) {
+                  final localeId = lang.$1;
+                  final name = lang.$2;
+                  final isSelected = _speechLocale == localeId;
+                  // Locale is either confirmed supported, or STT wasn't available to check
+                  final isSupported = !available || supported.contains(localeId);
+                  return GestureDetector(
+                    onTap: isSupported ? () {
+                      setState(() => _speechLocale = localeId);
+                      Navigator.pop(ctx);
+                    } : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary.withValues(alpha: 0.12)
+                            : isSupported ? surfBg : surfBg.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? AppColors.primary : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text(name, style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                          color: isSelected ? AppColors.primary
+                              : isSupported ? tc : sub,
+                        )),
+                        if (!isSupported) ...[
+                          const SizedBox(height: 2),
+                          Text('unavailable', style: TextStyle(
+                            fontSize: 9, fontFamily: 'Nunito', color: sub)),
+                        ],
+                      ]),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── Split Group handlers ─────────────────────────────────────────────────
@@ -701,22 +826,23 @@ class _WalletScreenState extends State<WalletScreen>
             ),
           ),
 
-          ChatInputBar(
-            key: _chatBarKey,
-            onSubmit: _onChatSubmit,
-            onMicTap: _onMicTap,
-            onAddTap: _activeTab == WalletTab.splits
-                ? _openCreateGroup
-                : _activeTab == WalletTab.billWatch
-                    ? () {
-                        final ctx = context;
-                        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-                        final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-                        _billWatchKey.currentState?.openAddSheet(ctx, isDark, surfBg);
-                      }
-                    : _openFlowSelector,
-            isListening: _isListening,
-          ),
+          if (_activeTab != WalletTab.splits)
+            ChatInputBar(
+              key: _chatBarKey,
+              onSubmit: _onChatSubmit,
+              onMicTap: _onMicTap,
+              onAddTap: _activeTab == WalletTab.billWatch
+                  ? () {
+                      final ctx = context;
+                      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+                      _billWatchKey.currentState?.openAddSheet(ctx, isDark, surfBg);
+                    }
+                  : _openFlowSelector,
+              isListening: _isListening,
+              speechLocale: _speechLocale,
+              onMicLongPress: _onMicLongPress,
+            ),
         ],
       ),
     );

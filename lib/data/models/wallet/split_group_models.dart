@@ -132,6 +132,9 @@ class SplitShare {
   DateTime? proofDate;
   DateTime? extensionDate;
   String? extensionReason;
+  int? reminderCount;
+  DateTime? lastReminderAt;
+  String? lastReminderBy;
 
   SplitShare({
     required this.participantId,
@@ -143,6 +146,9 @@ class SplitShare {
     this.proofDate,
     this.extensionDate,
     this.extensionReason,
+    this.reminderCount,
+    this.lastReminderAt,
+    this.lastReminderBy,
   });
 }
 
