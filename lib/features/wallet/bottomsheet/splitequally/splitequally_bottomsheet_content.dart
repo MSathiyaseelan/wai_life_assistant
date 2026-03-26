@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/data/models/wallet/SplitGroup.dart';
 

@@ -351,7 +351,9 @@ class PantryNlpParser {
   // ─────────────────────────────────────────────────────────────────────────
   static PantryIntent _parseRecipe(String text, String lower, int baseScore) {
     var name = lower;
-    for (final w in _recipeTriggers) name = name.replaceAll(w, ' ');
+    for (final w in _recipeTriggers) {
+      name = name.replaceAll(w, ' ');
+    }
     name = name.trim().replaceAll(RegExp(r'\s+'), ' ').trim();
     if (name.isNotEmpty) {
       name = name
@@ -399,7 +401,9 @@ class PantryNlpParser {
 
     // Strip trigger/qty/unit words to get item name
     var name = lower;
-    for (final w in _basketTriggers) name = name.replaceAll(w, ' ');
+    for (final w in _basketTriggers) {
+      name = name.replaceAll(w, ' ');
+    }
     // remove number+unit
     name = name.replaceAll(
       RegExp(

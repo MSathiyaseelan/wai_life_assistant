@@ -697,7 +697,7 @@ class _MealTimeRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  mealTime.emoji + '  ' + mealTime.label,
+                  '${mealTime.emoji}  ${mealTime.label}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,

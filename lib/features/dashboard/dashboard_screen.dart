@@ -304,7 +304,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     // Read walletId from global state — updates whenever any tab switches view
     final appState = AppStateScope.of(context);
-    final _walletId = appState.activeWalletId;
+    final walletId = appState.activeWalletId;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -373,7 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         EmojiOrImage(
-                          value: _wallet(_walletId, appState.wallets).emoji,
+                          value: _wallet(walletId, appState.wallets).emoji,
                           size: 18,
                           borderRadius: 4,
                         ),
@@ -381,7 +381,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         SizedBox(
                           width: 75,
                           child: Text(
-                            _wallet(_walletId, appState.wallets).name,
+                            _wallet(walletId, appState.wallets).name,
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
                             style: const TextStyle(
@@ -441,9 +441,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 10),
                   _MoneyPulseCard(
-                    wallet: _wallet(_walletId, appState.wallets),
+                    wallet: _wallet(walletId, appState.wallets),
                     isDark: isDark,
-                    todayTx: _todayTx(_walletId),
+                    todayTx: _todayTx(walletId),
                     hidden: _balanceHidden,
                     onToggleHide: () =>
                         setState(() => _balanceHidden = !_balanceHidden),
@@ -452,7 +452,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const SizedBox(height: 10),
 
                   // ①b  SPLIT ACTIVITY (if any active splits) ─────────────
-                  if (_activeSplits(_walletId).isNotEmpty) ...[
+                  if (_activeSplits(walletId).isNotEmpty) ...[
                     _SectionHeader(
                       emoji: '⚖️',
                       title: 'Split Activity',
@@ -461,7 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onAction: () {},
                     ),
                     const SizedBox(height: 8),
-                    ..._activeSplits(_walletId).map(
+                    ..._activeSplits(walletId).map(
                       (s) => _SplitNudgeCard(
                         tx: s,
                         isDark: isDark,
@@ -2315,7 +2315,7 @@ class _NudgesCard extends StatelessWidget {
                   ),
               ],
             );
-          }).toList(),
+          }),
           if (nudges.length > 5)
             Container(
               width: double.infinity,
@@ -2560,9 +2560,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: all.map((f) {
-          final daysLeft = f.date != null
-              ? f.date!.difference(DateTime.now()).inDays
-              : null;
+          final daysLeft = f.date?.difference(DateTime.now()).inDays;
           final isLast = all.indexOf(f) == all.length - 1;
 
           return Column(

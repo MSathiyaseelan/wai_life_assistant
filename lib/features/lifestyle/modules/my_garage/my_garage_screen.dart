@@ -1994,7 +1994,7 @@ class _DetailsTab extends StatelessWidget {
                           ],
                         ),
                       )
-                      .toList(),
+                      ,
                   const SizedBox(height: 4),
                 ],
               ),

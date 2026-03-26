@@ -732,7 +732,7 @@ class _AddPartySheetState extends State<_AddPartySheet> {
   final _venueCtrl = TextEditingController();
   final _budgetCtrl = TextEditingController();
   DateTime? _date;
-  List<String> _guests = ['me'];
+  final List<String> _guests = ['me'];
 
   @override
   void dispose() {

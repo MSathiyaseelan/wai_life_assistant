@@ -1501,7 +1501,7 @@ class _ShelfMapView extends StatelessWidget {
                                         ),
                                       ),
                                     )
-                                    .toList(),
+                                    ,
                                 if (its.length > 3)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
@@ -1559,11 +1559,11 @@ class _ShelfMapView extends StatelessWidget {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
               const SizedBox(height: 6),
             ],
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -2348,7 +2348,7 @@ class _HighlightText extends StatelessWidget {
     final lower = text.toLowerCase();
     final q = query.toLowerCase();
     final idx = lower.indexOf(q);
-    if (idx < 0)
+    if (idx < 0) {
       return Text(
         text,
         style: TextStyle(
@@ -2358,6 +2358,7 @@ class _HighlightText extends StatelessWidget {
           color: tc,
         ),
       );
+    }
     return RichText(
       text: TextSpan(
         style: TextStyle(

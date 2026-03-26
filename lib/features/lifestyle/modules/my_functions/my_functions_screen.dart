@@ -4633,10 +4633,6 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
       result = _FunctionNlpParser.parse(text.trim(), widget.tabIdx);
     }
     if (!mounted) return;
-    if (result == null) {
-      setState(() { _aiParsing = false; _aiError = 'Could not understand — try filling manually.'; });
-      return;
-    }
     setState(() {
       _aiPreview = result;
       _aiParsing = false;

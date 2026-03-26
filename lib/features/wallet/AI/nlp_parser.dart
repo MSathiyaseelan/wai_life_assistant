@@ -267,9 +267,9 @@ class NlpParser {
     }
     // For income flows default category
     if (category == null && flowType == FlowType.income) {
-      if (lower.contains('salary') || lower.contains('bonus'))
+      if (lower.contains('salary') || lower.contains('bonus')) {
         category = 'Salary';
-      else if (lower.contains('freelance'))
+      } else if (lower.contains('freelance'))
         category = 'Freelance';
       else
         category = 'Income';

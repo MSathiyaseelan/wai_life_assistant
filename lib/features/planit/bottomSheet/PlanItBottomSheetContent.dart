@@ -4,7 +4,7 @@ import 'package:wai_life_assistant/features/pantry/mealmasterpage.dart';
 import 'package:wai_life_assistant/features/planit/ToDo/todoPage.dart';
 
 class PlanItBottomSheetContent extends StatelessWidget {
-  const PlanItBottomSheetContent();
+  const PlanItBottomSheetContent({super.key});
 
   @override
   Widget build(BuildContext context) {

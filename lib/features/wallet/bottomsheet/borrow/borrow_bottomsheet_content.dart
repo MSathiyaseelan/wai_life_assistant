@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import '../../../../data/enum/borrowfields.dart';
-import 'borrowfocusnodes.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/borrow/voiceformnavigator.dart';
-import 'package:wai_life_assistant/features/wallet/bottomsheet/borrow/voicenavigatorbar.dart';
 
 class BorrowFormContent extends StatefulWidget {
   const BorrowFormContent({super.key});

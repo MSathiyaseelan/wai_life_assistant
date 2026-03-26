@@ -225,7 +225,7 @@ class _VehicleExtraFields extends StatelessWidget {
 
         /// 🚘 Vehicle Type
         DropdownButtonFormField<String>(
-          value: vehicleType,
+          initialValue: vehicleType,
           decoration: const InputDecoration(labelText: 'Vehicle Type'),
           items: const [
             DropdownMenuItem(value: 'Car', child: Text('Car')),
@@ -251,7 +251,7 @@ class _VehicleExtraFields extends StatelessWidget {
 
         /// 👤 Owner
         DropdownButtonFormField<String>(
-          value: owner,
+          initialValue: owner,
           decoration: const InputDecoration(labelText: 'Owner'),
           items: const [
             DropdownMenuItem(value: 'Self', child: Text('Self')),
@@ -351,7 +351,7 @@ class _GadgetExtraFields extends StatelessWidget {
         SizedBox(height: 12),
         TextField(
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Warranty (years)'),
+          decoration: InputDecoration(labelText: 'Warranty (years)'),
         ),
 
         SizedBox(height: 12),

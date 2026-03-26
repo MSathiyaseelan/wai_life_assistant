@@ -6,7 +6,7 @@ import 'package:wai_life_assistant/features/pantry/mealmasterpage.dart';
 import 'package:wai_life_assistant/features/pantry/groceries/groceriespage.dart';
 
 class PantryBottomSheetContent extends StatelessWidget {
-  const PantryBottomSheetContent();
+  const PantryBottomSheetContent({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:wai_life_assistant/data/enum/wallet_enums.dart';
-import 'package:wai_life_assistant/features/wallet/bottomsheet/wallet_transaction_bottom_sheet.dart';
-import 'package:wai_life_assistant/features/wallet/bottomsheet/wallet_features_bottomsheet.dart';
-import '../featurelistdata.dart';
 import 'package:flutter/services.dart';
 
 class WalletFloatingRail extends StatelessWidget {

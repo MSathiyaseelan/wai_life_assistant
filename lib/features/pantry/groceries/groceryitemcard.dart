@@ -5,7 +5,7 @@ class GroceryItemCard extends StatelessWidget {
   final GroceryItem item;
   final VoidCallback onUpdate;
 
-  const GroceryItemCard({required this.item, required this.onUpdate});
+  const GroceryItemCard({super.key, required this.item, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {

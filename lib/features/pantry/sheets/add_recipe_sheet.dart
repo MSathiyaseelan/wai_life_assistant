@@ -390,10 +390,11 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
                       return Expanded(
                         child: GestureDetector(
                           onTap: () => setState(() {
-                            if (sel)
+                            if (sel) {
                               _suitableFor.remove(mt);
-                            else
+                            } else {
                               _suitableFor.add(mt);
+                            }
                           }),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),

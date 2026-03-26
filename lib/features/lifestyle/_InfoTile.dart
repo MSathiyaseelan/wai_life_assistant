@@ -4,7 +4,7 @@ class InfoTile extends StatelessWidget {
   final String label;
   final String? value;
 
-  const InfoTile(this.label, this.value);
+  const InfoTile(this.label, this.value, {super.key});
   @override
   Widget build(BuildContext context) {
     if (value == null || value!.isEmpty) return const SizedBox.shrink();

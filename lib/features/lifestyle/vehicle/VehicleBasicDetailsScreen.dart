@@ -212,7 +212,7 @@ class _VehicleBasicDetailsScreenState extends State<VehicleBasicDetailsScreen> {
     return _field(
       label: label,
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         items: items
             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
             .toList(),

@@ -26,7 +26,7 @@ class _GroceriesPageState extends State<GroceriesPage> {
         ? dummyGroceries
         : dummyGroceries.where((g) => g.category == _selectedCategory).toList();
 
-    final List<GroceryCategory> _categories = [
+    final List<GroceryCategory> categories = [
       GroceryCategory.all,
       GroceryCategory.vegetables,
       GroceryCategory.fruits,
@@ -57,7 +57,7 @@ class _GroceriesPageState extends State<GroceriesPage> {
           /// 3️⃣ Category filter
           GroceryCategoryFilter(
             selectedCategory: _selectedCategory,
-            categories: _categories,
+            categories: categories,
             onSelected: (c) {
               setState(() => _selectedCategory = c);
             },

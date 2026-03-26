@@ -42,7 +42,7 @@ class _AddPolicyBottomSheetState extends State<AddPolicyBottomSheet> {
           const SizedBox(height: 12),
 
           DropdownButtonFormField<InsuranceType>(
-            value: type,
+            initialValue: type,
             items: InsuranceType.values
                 .map((e) => DropdownMenuItem(value: e, child: Text(e.name)))
                 .toList(),

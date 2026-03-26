@@ -18,10 +18,12 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
 
   List<VaultDocument> get _filtered {
     var list = _docs.where((d) => d.walletId == widget.walletId).toList();
-    if (_selectedMember != 'all')
+    if (_selectedMember != 'all') {
       list = list.where((d) => d.memberId == _selectedMember).toList();
-    if (_filter != null)
+    }
+    if (_filter != null) {
       list = list.where((d) => d.category == _filter).toList();
+    }
     if (_search.isNotEmpty) {
       final q = _search.toLowerCase();
       list = list

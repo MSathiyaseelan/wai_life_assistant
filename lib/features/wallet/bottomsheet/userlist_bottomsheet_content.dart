@@ -6,7 +6,7 @@ class UsersBottomSheetContent extends StatelessWidget {
   final String? selectedValue;
   final ValueChanged<String> onSelected;
 
-  const UsersBottomSheetContent({
+  const UsersBottomSheetContent({super.key, 
     required this.users,
     required this.selectedValue,
     required this.onSelected,

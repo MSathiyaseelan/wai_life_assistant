@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_groupdetails_bottomsheet.dart';
-import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/splitequally_groupdetails_options.dart';
 import 'package:wai_life_assistant/features/wallet/bottomsheet/splitequally/settleuppage.dart';
 import 'package:wai_life_assistant/data/models/wallet/SplitGroup.dart';
 import 'package:wai_life_assistant/data/models/wallet/SplitExpense.dart';

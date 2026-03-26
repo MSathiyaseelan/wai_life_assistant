@@ -37,8 +37,9 @@ class _MyTasksScreenState extends State<MyTasksScreen>
 
   List<TaskModel> get _filtered {
     var list = List<TaskModel>.from(_tasks);
-    if (_filterProject != null)
+    if (_filterProject != null) {
       list = list.where((t) => t.project == _filterProject).toList();
+    }
     return list;
   }
 
@@ -1233,11 +1234,12 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
         result = _TaskNlpParser.parse(text.trim(), widget.walletId);
         _usingClaudeAI = false;
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _aiParsing = false;
             _aiError = 'Could not understand — try again or fill manually.';
           });
+        }
         return;
       }
     }
@@ -2146,7 +2148,7 @@ class _TaskManualForm extends StatelessWidget {
                   children: (members.isNotEmpty ? members : mockMembers)
                       .take(5)
                       .map((m_) {
-                        final m = m_ as PlanMember;
+                        final m = m_;
                         return GestureDetector(
                           onTap: () => onAssignedChanged(m.id),
                           child: AnimatedContainer(
@@ -2378,8 +2380,9 @@ class _TaskNlpParser {
       } else if (onDay != null) {
         final day = int.parse(onDay.group(1)!);
         dueDate = DateTime(now.year, now.month, day);
-        if (dueDate.isBefore(now))
+        if (dueDate.isBefore(now)) {
           dueDate = DateTime(now.year, now.month + 1, day);
+        }
       } else {
         for (int i = 0; i < wdNames.length; i++) {
           if (lower.contains(wdNames[i])) {
@@ -2394,9 +2397,9 @@ class _TaskNlpParser {
 
     // Priority
     Priority priority = Priority.medium;
-    if (lower.contains('urgent') || lower.contains('asap'))
+    if (lower.contains('urgent') || lower.contains('asap')) {
       priority = Priority.urgent;
-    else if (lower.contains('high') || lower.contains('important'))
+    } else if (lower.contains('high') || lower.contains('important'))
       priority = Priority.high;
     else if (lower.contains('low') || lower.contains('someday'))
       priority = Priority.low;
@@ -2419,9 +2422,9 @@ class _TaskNlpParser {
 
     // Emoji
     String emoji = '✅';
-    if (lower.contains('bug') || lower.contains('fix'))
+    if (lower.contains('bug') || lower.contains('fix')) {
       emoji = '🔧';
-    else if (lower.contains('design') || lower.contains('ui'))
+    } else if (lower.contains('design') || lower.contains('ui'))
       emoji = '🎨';
     else if (lower.contains('meeting') || lower.contains('call'))
       emoji = '📅';

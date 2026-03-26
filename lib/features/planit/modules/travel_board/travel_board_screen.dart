@@ -41,8 +41,9 @@ class _TravelBoardScreenState extends State<TravelBoardScreen>
 
   List<TripModel> get _filtered {
     var list = _allTrips;
-    if (_filterStatus != null)
+    if (_filterStatus != null) {
       list = list.where((t) => t.status == _filterStatus).toList();
+    }
     list.sort((a, b) {
       if (a.startDate == null && b.startDate == null) return 0;
       if (a.startDate == null) return 1;
@@ -442,9 +443,7 @@ class _TripCard extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final statusColor = _statusColor(trip.status);
 
-    final daysLeft = trip.startDate != null
-        ? trip.startDate!.difference(DateTime.now()).inDays
-        : null;
+    final daysLeft = trip.startDate?.difference(DateTime.now()).inDays;
     final budgetPct = (trip.budget != null && trip.budget! > 0)
         ? (trip.totalSpent / trip.budget!).clamp(0.0, 1.0)
         : 0.0;
@@ -2288,12 +2287,13 @@ class _ChatTabState extends State<_ChatTab> {
     _ctrl.clear();
     widget.onUpdate();
     Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scroll.hasClients)
+      if (_scroll.hasClients) {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
+      }
     });
   }
 
@@ -2664,11 +2664,13 @@ class _AddTripSheetState extends State<_AddTripSheet>
       _budget = e.budget;
       _budgetCtrl.text = e.budget != null ? e.budget!.toStringAsFixed(0) : '';
       _destinations = List.from(e.destinations);
-      if (_destinations.isEmpty)
+      if (_destinations.isEmpty) {
         _destinations = [TripDestination(name: '', orderIndex: 0)];
+      }
       _destCtrls.clear();
-      for (final d in _destinations)
+      for (final d in _destinations) {
         _destCtrls.add(TextEditingController(text: d.name));
+      }
       if (_destCtrls.isEmpty) _destCtrls.add(TextEditingController());
       _memberIds = List.from(e.memberIds);
     }
@@ -2681,7 +2683,9 @@ class _AddTripSheetState extends State<_AddTripSheet>
     _titleCtrl.dispose();
     _notesCtrl.dispose();
     _budgetCtrl.dispose();
-    for (final c in _destCtrls) c.dispose();
+    for (final c in _destCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -2725,8 +2729,9 @@ class _AddTripSheetState extends State<_AddTripSheet>
           ? p.destinations
           : [TripDestination(name: p.destination, orderIndex: 0)];
       _destCtrls.clear();
-      for (final d in _destinations)
+      for (final d in _destinations) {
         _destCtrls.add(TextEditingController(text: d.name));
+      }
       if (_destCtrls.isEmpty) _destCtrls.add(TextEditingController());
       _memberIds = p.memberIds.isNotEmpty ? p.memberIds : ['me'];
       _aiPreview = null;
@@ -3090,8 +3095,9 @@ class _AddTripSheetState extends State<_AddTripSheet>
         const SizedBox(height: 6),
         ..._destinations.asMap().entries.map((entry) {
           // Ensure _destCtrls is large enough
-          while (_destCtrls.length <= entry.key)
+          while (_destCtrls.length <= entry.key) {
             _destCtrls.add(TextEditingController());
+          }
           final ctrl = _destCtrls[entry.key];
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -3150,8 +3156,9 @@ class _AddTripSheetState extends State<_AddTripSheet>
                         ),
                       ),
                       onChanged: (v) {
-                        if (entry.key < _destinations.length)
+                        if (entry.key < _destinations.length) {
                           _destinations[entry.key].name = v;
+                        }
                       },
                     ),
                   ),
@@ -4018,8 +4025,9 @@ User text: "$text"''';
 
       DateTime? start, end;
       try {
-        if (data['startDate'] != null)
+        if (data['startDate'] != null) {
           start = DateTime.parse(data['startDate']);
+        }
       } catch (_) {}
       try {
         if (data['endDate'] != null) end = DateTime.parse(data['endDate']);
@@ -4076,8 +4084,9 @@ class _TripNlpParser {
     if (destinations.isEmpty) {
       final simple = RegExp(r'\b([A-Z][a-z]+(?: [A-Z][a-z]+)?)\b');
       final m2 = simple.firstMatch(text);
-      if (m2 != null)
+      if (m2 != null) {
         destinations.add(TripDestination(name: m2.group(0)!, orderIndex: 0));
+      }
     }
 
     // ── Travel mode ───────────────────────────────────────────────────────
@@ -4158,13 +4167,15 @@ class _TripNlpParser {
     if (lower.contains('mountain') || lower.contains('hill')) emoji = '🏔️';
     if (lower.contains('beach') ||
         lower.contains('goa') ||
-        lower.contains('coastal'))
+        lower.contains('coastal')) {
       emoji = '🏖️';
+    }
     if (lower.contains('temple') || lower.contains('heritage')) emoji = '🛕';
     if (lower.contains('jungle') ||
         lower.contains('forest') ||
-        lower.contains('coorg'))
+        lower.contains('coorg')) {
       emoji = '🌿';
+    }
 
     final destStr = destinations.isNotEmpty
         ? destinations.map((d) => d.name).join(' & ')

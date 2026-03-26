@@ -185,13 +185,8 @@ class _CreatePollFormContentState extends State<CreatePollFormContent> {
 class _PollQuestionDraft {
   final String question;
   final PollQuestionType type;
-  final List<String>? options;
 
-  _PollQuestionDraft({
-    required this.question,
-    required this.type,
-    this.options,
-  });
+  _PollQuestionDraft({required this.question, required this.type});
 }
 
 class _QuestionPreviewTile extends StatelessWidget {

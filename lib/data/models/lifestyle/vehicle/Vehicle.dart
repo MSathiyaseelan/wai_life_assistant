@@ -7,8 +7,10 @@ enum VehicleOwner { self, family }
 
 class Vehicle extends LifestyleItem {
   final VehicleType vehicleTypes;
+  @override
   final String vehicleNumber;
   final VehicleOwner owners;
+  @override
   final String model;
 
   // Identity

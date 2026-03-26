@@ -164,7 +164,7 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                         },
                       ),
                     );
-                  }).toList(),
+                  }),
                   if (!widget.isDashboard &&
                       familyList.length < widget.appState.maxFamilyGroups) ...[
                     const SizedBox(height: 4),
@@ -733,7 +733,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                                   ),
                           ),
                         )
-                        .toList(),
+                        ,
 
                     const SizedBox(height: 8),
                     GestureDetector(

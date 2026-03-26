@@ -37,8 +37,9 @@ class _WishListScreenState extends State<WishListScreen>
 
   List<WishModel> get _filtered {
     var list = List<WishModel>.from(_wishes);
-    if (_filterCat != null)
+    if (_filterCat != null) {
       list = list.where((w) => w.category == _filterCat).toList();
+    }
     return list;
   }
 
@@ -620,7 +621,7 @@ class _WishList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (wishes.isEmpty)
+    if (wishes.isEmpty) {
       return PlanEmptyState(
         emoji: showPurchasedBadge ? '🛍️' : '🌟',
         title: showPurchasedBadge ? 'No purchases yet' : 'No wishes yet',
@@ -628,6 +629,7 @@ class _WishList extends StatelessWidget {
             ? 'Mark items as purchased'
             : 'Add things you want to save for',
       );
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: wishes.length,
@@ -1686,7 +1688,7 @@ class _AddWishSheetState extends State<_AddWishSheet>
     } catch (_) {
       result = _WishNlpParser.parse(text.trim());
     }
-    debugPrint('[WishList] parse result: title=${result?.title} price=${result?.targetPrice} usingAI=$_usingClaude');
+    debugPrint('[WishList] parse result: title=${result.title} price=${result.targetPrice} usingAI=$_usingClaude');
     if (!mounted) return;
     setState(() {
       _aiParsing = false;
@@ -2725,9 +2727,9 @@ class _WishNlpParser {
         lower.contains('headphone') ||
         lower.contains('camera') ||
         lower.contains('iphone') ||
-        lower.contains('tablet'))
+        lower.contains('tablet')) {
       cat = WishCategory.electronics;
-    else if (lower.contains('trip') ||
+    } else if (lower.contains('trip') ||
         lower.contains('travel') ||
         lower.contains('goa') ||
         lower.contains('bali') ||
@@ -2767,9 +2769,9 @@ class _WishNlpParser {
       WishCategory.other: '🎁',
     };
     String emoji = em[cat]!;
-    if (lower.contains('macbook') || lower.contains('laptop'))
+    if (lower.contains('macbook') || lower.contains('laptop')) {
       emoji = '💻';
-    else if (lower.contains('iphone') || lower.contains('phone'))
+    } else if (lower.contains('iphone') || lower.contains('phone'))
       emoji = '📱';
     else if (lower.contains('headphone'))
       emoji = '🎧';
@@ -2781,9 +2783,9 @@ class _WishNlpParser {
       emoji = '🛋️';
 
     Priority priority = Priority.medium;
-    if (lower.contains('urgent'))
+    if (lower.contains('urgent')) {
       priority = Priority.urgent;
-    else if (lower.contains('high priority') || lower.contains('important'))
+    } else if (lower.contains('high priority') || lower.contains('important'))
       priority = Priority.high;
     else if (lower.contains('low priority') || lower.contains('someday'))
       priority = Priority.low;
@@ -2797,8 +2799,9 @@ class _WishNlpParser {
     if (pm != null) {
       final n = pm.group(1)!.replaceAll(',', '');
       price = double.tryParse(n);
-      if (price != null && pm.group(0)!.toLowerCase().contains('k'))
+      if (price != null && pm.group(0)!.toLowerCase().contains('k')) {
         price *= 1000;
+      }
     }
     // 2. "180k" or "50k" — shorthand thousands
     if (price == null) {
@@ -2838,9 +2841,9 @@ class _WishNlpParser {
         break;
       }
     }
-    if (date == null && lower.contains('next month'))
+    if (date == null && lower.contains('next month')) {
       date = DateTime(DateTime.now().year, DateTime.now().month + 1, 1);
-    else if (date == null && lower.contains('next year'))
+    } else if (date == null && lower.contains('next year'))
       date = DateTime(DateTime.now().year + 1, 1, 1);
 
     String title = raw

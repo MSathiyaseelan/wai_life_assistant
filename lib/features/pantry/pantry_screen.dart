@@ -218,7 +218,9 @@ class _PantryScreenState extends State<PantryScreen>
       if (_meals.any((e) =>
           e.walletId == widget.activeWalletId &&
           e.name == m.name && e.mealTime == m.mealTime &&
-          e.date.year == td.year && e.date.month == td.month && e.date.day == td.day)) continue;
+          e.date.year == td.year && e.date.month == td.month && e.date.day == td.day)) {
+        continue;
+      }
       toInsert.add((meal: m, targetDate: td));
     }
     if (toInsert.isEmpty) { _showCopiedSnack('All meals already exist in this week'); return; }

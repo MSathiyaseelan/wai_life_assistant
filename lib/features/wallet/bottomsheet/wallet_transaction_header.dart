@@ -5,7 +5,7 @@ class Header extends StatelessWidget {
   final WalletType walletType;
   final WalletAction action;
 
-  const Header(this.walletType, this.action);
+  const Header(this.walletType, this.action, {super.key});
 
   @override
   Widget build(BuildContext context) {

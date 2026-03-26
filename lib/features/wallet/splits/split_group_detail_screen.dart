@@ -2801,7 +2801,9 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
     _titleCtrl.dispose();
     _amountCtrl.dispose();
     _noteCtrl.dispose();
-    for (final c in _shareCtrl.values) c.dispose();
+    for (final c in _shareCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 

@@ -49,7 +49,7 @@ class UpiFields extends StatelessWidget {
 
         // Category
         DropdownButtonFormField<String>(
-          value: selectedCategory,
+          initialValue: selectedCategory,
           decoration: const InputDecoration(labelText: 'Category'),
           items: const [
             DropdownMenuItem(value: 'Food', child: Text('Food')),

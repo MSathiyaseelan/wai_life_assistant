@@ -284,8 +284,9 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
 
   List<SpecialDayModel> get _filtered {
     var list = _mine;
-    if (_filterType != null)
+    if (_filterType != null) {
       list = list.where((d) => d.type == _filterType).toList();
+    }
     return list;
   }
 
@@ -716,12 +717,13 @@ class _DayList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (days.isEmpty)
+    if (days.isEmpty) {
       return const PlanEmptyState(
         emoji: '📅',
         title: 'Nothing here',
         subtitle: 'Add your special days',
       );
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: days.length,
@@ -2651,9 +2653,9 @@ class _DayNlpParser {
     SpecialDayType type = SpecialDayType.custom;
     if (lower.contains('birthday') ||
         lower.contains('bday') ||
-        lower.contains('born'))
+        lower.contains('born')) {
       type = SpecialDayType.birthday;
-    else if (lower.contains('anniversary') || lower.contains('wedding'))
+    } else if (lower.contains('anniversary') || lower.contains('wedding'))
       type = SpecialDayType.anniversary;
     else if (lower.contains('festival') ||
         lower.contains('diwali') ||
@@ -2697,9 +2699,9 @@ class _DayNlpParser {
       default:
         emoji = '📅';
     }
-    if (lower.contains('diwali'))
+    if (lower.contains('diwali')) {
       emoji = '🪔';
-    else if (lower.contains('christmas'))
+    } else if (lower.contains('christmas'))
       emoji = '🎄';
     else if (lower.contains('holi'))
       emoji = '🎨';
@@ -2713,9 +2715,9 @@ class _DayNlpParser {
     // Remind days
     int remindDays = 1;
     final rdMatch = RegExp(r'remind[^\d]*(\d+)\s*days?').firstMatch(lower);
-    if (rdMatch != null)
+    if (rdMatch != null) {
       remindDays = int.parse(rdMatch.group(1)!);
-    else if (lower.contains('week before'))
+    } else if (lower.contains('week before'))
       remindDays = 7;
     else if (lower.contains('month before'))
       remindDays = 30;

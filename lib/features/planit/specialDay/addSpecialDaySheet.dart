@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wai_life_assistant/data/models/planit/specialDay.dart';
 import 'package:wai_life_assistant/data/enum/specialDayType.dart';
-import 'package:intl/intl.dart';
 import 'specialDaysController.dart';
 
 class AddSpecialDaySheet extends StatefulWidget {
@@ -68,7 +67,7 @@ class _AddSpecialDaySheetState extends State<AddSpecialDaySheet> {
           ),
 
           DropdownButtonFormField<int>(
-            value: reminderDays,
+            initialValue: reminderDays,
             items: const [
               DropdownMenuItem(value: 0, child: Text('On the day')),
               DropdownMenuItem(value: 1, child: Text('1 day before')),

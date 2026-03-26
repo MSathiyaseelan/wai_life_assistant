@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_spacing.dart';
 
 class SettingsContent extends StatelessWidget {
-  const SettingsContent();
+  const SettingsContent({super.key});
 
   @override
   Widget build(BuildContext context) {

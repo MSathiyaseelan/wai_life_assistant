@@ -148,8 +148,9 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
   // ── Participants ──────────────────────────────────────────────────────────
 
   bool _alreadyAdded(String? phone, String name) {
-    if (phone != null && phone.isNotEmpty)
+    if (phone != null && phone.isNotEmpty) {
       return _participants.any((p) => p.phone == phone);
+    }
     return _participants.any((p) => p.name.toLowerCase() == name.toLowerCase());
   }
 
@@ -166,8 +167,9 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
   }
 
   void _addManual(String name, String emoji, String phone) {
-    if (name.isEmpty || _alreadyAdded(phone.isEmpty ? null : phone, name))
+    if (name.isEmpty || _alreadyAdded(phone.isEmpty ? null : phone, name)) {
       return;
+    }
     setState(() => _participants.add(
       SplitParticipant(
         id: 'u_${DateTime.now().millisecondsSinceEpoch}',

@@ -775,8 +775,9 @@ class _AddApptSheetState extends State<_AddApptSheet> {
             color: AppColors.income,
             onTap: () {
               if (_titleCtrl.text.trim().isEmpty ||
-                  _withCtrl.text.trim().isEmpty)
+                  _withCtrl.text.trim().isEmpty) {
                 return;
+              }
               widget.onSave(
                 AppointmentModel(
                   id: DateTime.now().millisecondsSinceEpoch.toString(),

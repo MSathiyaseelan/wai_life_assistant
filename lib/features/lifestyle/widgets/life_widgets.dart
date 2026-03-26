@@ -159,8 +159,8 @@ class LifeDateTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final _months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    String label = date != null ? '${date!.day} ${_months[date!.month]} ${date!.year}' : hint;
+    final months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    String label = date != null ? '${date!.day} ${months[date!.month]} ${date!.year}' : hint;
     return GestureDetector(
       onTap: onTap,
       child: Container(

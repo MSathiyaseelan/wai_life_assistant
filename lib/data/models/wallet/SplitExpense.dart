@@ -21,11 +21,11 @@ class SplitExpense {
     return SplitExpense(
       title: title ?? this.title,
       amount: amount ?? this.amount,
-      description: this.description,
-      paidBy: this.paidBy,
-      category: this.category,
-      createdAt: this.createdAt,
-      splitMap: this.splitMap,
+      description: description,
+      paidBy: paidBy,
+      category: category,
+      createdAt: createdAt,
+      splitMap: splitMap,
     );
   }
 }

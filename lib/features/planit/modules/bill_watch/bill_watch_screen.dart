@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
-import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import '../../widgets/plan_widgets.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -47,8 +46,9 @@ class BillWatchScreenState extends State<BillWatchScreen>
 
   List<BillModel> get _filtered {
     var list = _mine;
-    if (_filterCat != null)
+    if (_filterCat != null) {
       list = list.where((b) => b.category == _filterCat).toList();
+    }
     return list;
   }
 
@@ -146,8 +146,9 @@ class BillWatchScreenState extends State<BillWatchScreen>
             sm.clearSnackBars();
             setState(() {
               _replace(b); // restore original unpaid bill
-              if (nextId != null)
+              if (nextId != null) {
                 widget.bills.removeWhere((x) => x.id == nextId);
+              }
             });
           },
         ),
@@ -581,12 +582,13 @@ class _BillList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (bills.isEmpty)
+    if (bills.isEmpty) {
       return PlanEmptyState(
         emoji: isPaidTab ? '✅' : '🎉',
         title: isPaidTab ? 'No paid bills' : 'All clear!',
         subtitle: isPaidTab ? 'Paid bills appear here' : 'No pending bills',
       );
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: bills.length,
@@ -2539,9 +2541,9 @@ class _BillNlpParser {
     if (lower.contains('electric') ||
         lower.contains('bescom') ||
         lower.contains('tneb') ||
-        lower.contains('power'))
+        lower.contains('power')) {
       cat = BillCategory.electricity;
-    else if (lower.contains('water') || lower.contains('bwssb'))
+    } else if (lower.contains('water') || lower.contains('bwssb'))
       cat = BillCategory.water;
     else if (lower.contains('gas') ||
         lower.contains('lpg') ||
@@ -2578,9 +2580,9 @@ class _BillNlpParser {
       cat = BillCategory.emi;
 
     RepeatMode repeat = RepeatMode.monthly;
-    if (lower.contains('yearly') || lower.contains('annual'))
+    if (lower.contains('yearly') || lower.contains('annual')) {
       repeat = RepeatMode.yearly;
-    else if (lower.contains('weekly'))
+    } else if (lower.contains('weekly'))
       repeat = RepeatMode.weekly;
     else if (lower.contains('daily'))
       repeat = RepeatMode.daily;
@@ -2604,8 +2606,9 @@ class _BillNlpParser {
     if (dm != null) {
       final day = int.tryParse(dm.group(1)!) ?? 7;
       dueDate = DateTime(now.year, now.month, day);
-      if (dueDate.isBefore(now))
+      if (dueDate.isBefore(now)) {
         dueDate = DateTime(now.year, now.month + 1, day);
+      }
     }
 
     String? provider;

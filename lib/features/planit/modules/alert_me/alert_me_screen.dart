@@ -1099,11 +1099,12 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
         result = _NlpParser.parse(text.trim(), widget.walletId);
         _usingClaudeAI = false;
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _aiParsing = false;
             _aiError = 'Could not understand — try again or fill manually.';
           });
+        }
         return;
       }
     }

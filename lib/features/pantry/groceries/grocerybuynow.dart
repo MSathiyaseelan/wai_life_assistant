@@ -6,7 +6,7 @@ import 'grocerycontroller.dart';
 class GroceryBuyNow extends StatelessWidget {
   final List<GroceryItem> items;
 
-  const GroceryBuyNow({required this.items});
+  const GroceryBuyNow({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {

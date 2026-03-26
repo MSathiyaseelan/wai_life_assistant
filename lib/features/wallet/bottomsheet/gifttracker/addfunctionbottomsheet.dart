@@ -64,7 +64,7 @@ class _AddFunctionBottomSheetState extends State<AddFunctionBottomSheet> {
 
               /// Function Type
               DropdownButtonFormField<String>(
-                value: _functionType,
+                initialValue: _functionType,
                 items: functionTypes
                     .map(
                       (type) =>

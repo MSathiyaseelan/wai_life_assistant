@@ -160,7 +160,7 @@ class _DropdownField extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(labelText: label),
         items: items
             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
