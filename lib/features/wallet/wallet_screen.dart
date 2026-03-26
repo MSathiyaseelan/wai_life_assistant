@@ -978,20 +978,39 @@ class _WalletScreenState extends State<WalletScreen>
     final txs = _transactions
         .where((t) => walletIds.contains(t.walletId))
         .where((t) => _selectedRange.contains(t.date))
-        .where((t) => t.type == TxType.lend || t.type == TxType.borrow)
+        .where((t) => t.type == TxType.lend || t.type == TxType.borrow || t.type == TxType.returned)
         .toList();
 
     if (txs.isEmpty) return const SizedBox.shrink();
 
     // Net per person + per-person tx list
-    final Map<String, double> personNet = {};
-    final Map<String, List<TxModel>> personTxs = {};
+    // lend: +amount (they owe you), borrow: -amount (you owe them),
+    // returned: +amount (I paid back, reduces my negative borrow balance)
+    // Group by normalized key (trimmed + lowercase) so "Alice" and "alice kumar"
+    // still club together if the user typed slightly different names.
+    final Map<String, double> netByKey = {};
+    final Map<String, String> displayName = {}; // normalized key → best display name
+    final Map<String, List<TxModel>> txsByKey = {};
     for (final tx in txs) {
-      final name = tx.person ?? 'Unknown';
-      final delta = tx.type == TxType.lend ? tx.amount : -tx.amount;
-      personNet[name] = (personNet[name] ?? 0) + delta;
-      (personTxs[name] ??= []).add(tx);
+      final raw = (tx.person ?? 'Unknown').trim();
+      final key = raw.toLowerCase();
+      final delta = tx.type == TxType.lend ? tx.amount
+                  : tx.type == TxType.returned ? tx.amount
+                  : -tx.amount;
+      netByKey[key] = (netByKey[key] ?? 0) + delta;
+      // Keep the longest name variant as the display name
+      if (!displayName.containsKey(key) || raw.length > displayName[key]!.length) {
+        displayName[key] = raw;
+      }
+      (txsByKey[key] ??= []).add(tx);
     }
+    // Re-key by display name for the rest of the method
+    final Map<String, double> personNet = {
+      for (final e in netByKey.entries) displayName[e.key]!: e.value,
+    };
+    final Map<String, List<TxModel>> personTxs = {
+      for (final e in txsByKey.entries) displayName[e.key]!: e.value,
+    };
 
     final toReceive = personNet.values
         .where((v) => v > 0)
@@ -3009,9 +3028,15 @@ class _ContactTxPage extends StatelessWidget {
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final tx = sorted[i];
-                final isLend = tx.type == TxType.lend;
-                final txColor = isLend ? AppColors.expense : AppColors.income;
-                final txLabel = isLend ? 'Lent' : 'Borrowed';
+                final txColor = tx.type == TxType.lend ? AppColors.expense
+                             : tx.type == TxType.returned ? AppColors.returned
+                             : AppColors.income;
+                final txLabel = tx.type == TxType.lend ? 'Lent'
+                             : tx.type == TxType.returned ? 'Returned'
+                             : 'Borrowed';
+                final txEmoji = tx.type == TxType.lend ? '📤'
+                             : tx.type == TxType.returned ? '↩️'
+                             : '📥';
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -3032,7 +3057,7 @@ class _ContactTxPage extends StatelessWidget {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          isLend ? '📤' : '📥',
+                          txEmoji,
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),

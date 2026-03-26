@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
@@ -39,6 +40,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   late TabController _tab;
   final _chatCtrl = TextEditingController();
   final _chatScroll = ScrollController();
+  RealtimeChannel? _chatChannel;
+  bool _chatLoading = true;
 
   // Resolve current-user participant ID from the isMe flag (real DB IDs).
   // Falls back to 'me' for local/mock data.
@@ -56,6 +59,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     _group = widget.group;
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
+    _initChat();
     if (widget.autoOpenAddExpense) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _tab.animateTo(1); // jump to Expenses tab
@@ -66,10 +70,52 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
 
   @override
   void dispose() {
+    _chatChannel?.unsubscribe();
     _tab.dispose();
     _chatCtrl.dispose();
     _chatScroll.dispose();
     super.dispose();
+  }
+
+  // ── Chat: fetch history + subscribe to realtime ───────────────────────────
+  Future<void> _initChat() async {
+    try {
+      final rows = await WalletService.instance.fetchMessages(_group.id);
+      if (!mounted) return;
+      setState(() {
+        _group.messages
+          ..clear()
+          ..addAll(rows.map(SplitGroupMsg.fromRow));
+        _chatLoading = false;
+      });
+      _scrollToBottom();
+    } catch (_) {
+      if (mounted) setState(() => _chatLoading = false);
+    }
+
+    _chatChannel = WalletService.instance.subscribeToMessages(
+      _group.id,
+      (row) {
+        final msg = SplitGroupMsg.fromRow(row);
+        // Skip messages already added locally (e.g. own messages via postMessage)
+        if (_group.messages.any((m) => m.id == msg.id)) return;
+        if (!mounted) return;
+        setState(() => _group.messages.add(msg));
+        _scrollToBottom();
+      },
+    );
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatScroll.hasClients) {
+        _chatScroll.animateTo(
+          _chatScroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _update() {
@@ -793,34 +839,26 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   }
 
   // ── Send chat message ──────────────────────────────────────────────────────
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _chatCtrl.text.trim();
     if (text.isEmpty) return;
     HapticFeedback.lightImpact();
-    setState(() {
-      _group.messages.add(
-        SplitGroupMsg(
-          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-          groupId: _group.id,
-          senderId: _myId,
-          senderName: _participantName(_myId),
-          senderEmoji: _participantEmoji(_myId),
-          text: text,
-          time: DateTime.now(),
-        ),
-      );
-    });
     _chatCtrl.clear();
-    widget.onGroupUpdated(_group);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_chatScroll.hasClients) {
-        _chatScroll.animateTo(
-          _chatScroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    try {
+      final row = await WalletService.instance.postMessage(
+        groupId: _group.id,
+        senderId: _myId,
+        senderName: _participantName(_myId),
+        senderEmoji: _participantEmoji(_myId),
+        text: text,
+      );
+      if (!mounted) return;
+      setState(() => _group.messages.add(SplitGroupMsg.fromRow(row)));
+      widget.onGroupUpdated(_group);
+      _scrollToBottom();
+    } catch (_) {
+      // Realtime subscription will deliver the message if DB write eventually succeeds
+    }
   }
 
   @override
@@ -1629,7 +1667,9 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     return Column(
       children: [
         Expanded(
-          child: _group.messages.isEmpty
+          child: _chatLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _group.messages.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

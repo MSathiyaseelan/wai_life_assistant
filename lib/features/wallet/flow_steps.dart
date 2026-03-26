@@ -548,6 +548,10 @@ class PersonStep extends StatefulWidget {
 }
 
 class _PersonStepState extends State<PersonStep> {
+  // Static cache — loaded once per app session, reused on subsequent opens
+  static List<String>? _cachedNames;
+  static bool _cacheLoading = false;
+
   final Set<String> _selected = {};
   final _searchCtrl = TextEditingController();
 
@@ -559,8 +563,15 @@ class _PersonStepState extends State<PersonStep> {
   @override
   void initState() {
     super.initState();
-    _loadContacts();
     _searchCtrl.addListener(_onSearch);
+    if (_cachedNames != null) {
+      // Instant load from cache
+      _allNames = _cachedNames!;
+      _filtered = _cachedNames!;
+      _loading = false;
+    } else {
+      _loadContacts();
+    }
   }
 
   @override
@@ -570,27 +581,39 @@ class _PersonStepState extends State<PersonStep> {
   }
 
   Future<void> _loadContacts() async {
+    if (_cacheLoading) {
+      // Another instance is already loading — poll until done
+      while (_cacheLoading) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      if (mounted && _cachedNames != null) {
+        setState(() { _allNames = _cachedNames!; _filtered = _cachedNames!; _loading = false; });
+      } else if (mounted) {
+        setState(() { _loading = false; _denied = true; });
+      }
+      return;
+    }
+    _cacheLoading = true;
     try {
       final granted = await FlutterContacts.requestPermission(readonly: true);
       if (!granted) {
-        setState(() { _loading = false; _denied = true; });
+        _cacheLoading = false;
+        if (mounted) setState(() { _loading = false; _denied = true; });
         return;
       }
-      final contacts =
-          await FlutterContacts.getContacts(withProperties: false);
+      final contacts = await FlutterContacts.getContacts(withProperties: false);
       final names = contacts
           .map((c) => c.displayName.trim())
           .where((n) => n.isNotEmpty)
           .toSet()
           .toList()
         ..sort();
-      setState(() {
-        _allNames = names;
-        _filtered = names;
-        _loading = false;
-      });
+      _cachedNames = names;
+      _cacheLoading = false;
+      if (mounted) setState(() { _allNames = names; _filtered = names; _loading = false; });
     } catch (_) {
-      setState(() { _loading = false; _denied = true; });
+      _cacheLoading = false;
+      if (mounted) setState(() { _loading = false; _denied = true; });
     }
   }
 
@@ -681,100 +704,86 @@ class _PersonStepState extends State<PersonStep> {
           ),
           const SizedBox(height: 10),
 
-          // Contact chips
+          // Contact list — fixed height so it doesn't push parent scroll to bottom
           if (_filtered.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Center(
                 child: Text(
                   'No contacts found',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'Nunito',
-                    color: sub,
-                  ),
+                  style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
                 ),
               ),
             )
           else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _filtered.map((name) {
+            SizedBox(
+              height: 260,
+              child: ListView.builder(
+              itemCount: _filtered.length,
+              itemBuilder: (_, i) {
+                final name = _filtered[i];
                 final isSel = _selected.contains(name);
+                final tc = isDark ? AppColors.textDark : AppColors.textLight;
                 return GestureDetector(
                   onTap: () => _tap(name),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 9,
-                    ),
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: isSel
-                          ? widget.color.withValues(alpha: 0.15)
+                          ? widget.color.withValues(alpha: 0.12)
                           : (isDark ? AppColors.surfDark : AppColors.bgLight),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isSel ? widget.color : Colors.transparent,
                         width: 1.5,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.07),
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
                     ),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 28,
-                          height: 28,
+                          width: 34,
+                          height: 34,
                           decoration: BoxDecoration(
                             color: isSel
                                 ? widget.color.withValues(alpha: 0.25)
-                                : (isDark
-                                    ? AppColors.cardDark
-                                    : Colors.white),
+                                : (isDark ? AppColors.cardDark : Colors.white),
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             name[0].toUpperCase(),
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 14,
                               fontWeight: FontWeight.w900,
-                              color: isSel
-                                  ? widget.color
-                                  : (isDark
-                                      ? AppColors.subDark
-                                      : AppColors.subLight),
+                              color: isSel ? widget.color : sub,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: isSel
-                                ? widget.color
-                                : (isDark
-                                    ? AppColors.textDark
-                                    : AppColors.textLight),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: isSel ? widget.color : tc,
+                            ),
                           ),
                         ),
+                        if (isSel)
+                          Icon(Icons.check_circle_rounded, color: widget.color, size: 20),
                       ],
                     ),
                   ),
                 );
-              }).toList(),
+              },
             ),
+            ), // end SizedBox
 
           // Multi-select confirm
           if (widget.multiSelect && _selected.isNotEmpty) ...[

@@ -4,7 +4,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 
-enum TxType { income, expense, split, lend, borrow, request }
+enum TxType { income, expense, split, lend, borrow, request, returned }
 
 enum PayMode { cash, online }
 
@@ -29,6 +29,8 @@ extension TxTypeExt on TxType {
         return 'Borrowed';
       case TxType.request:
         return 'Request';
+      case TxType.returned:
+        return 'Returned';
     }
   }
 
@@ -46,6 +48,8 @@ extension TxTypeExt on TxType {
         return AppColors.borrow;
       case TxType.request:
         return AppColors.request;
+      case TxType.returned:
+        return AppColors.returned;
     }
   }
 
@@ -63,6 +67,8 @@ extension TxTypeExt on TxType {
         return AppColors.borrowBg;
       case TxType.request:
         return AppColors.requestBg;
+      case TxType.returned:
+        return AppColors.returnedBg;
     }
   }
 
@@ -80,6 +86,8 @@ extension TxTypeExt on TxType {
         return '📥';
       case TxType.request:
         return '🔔';
+      case TxType.returned:
+        return '↩️';
     }
   }
 

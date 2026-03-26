@@ -4,7 +4,7 @@ import '../../../../../core/theme/app_theme.dart';
 
 // ── Flow types ────────────────────────────────────────────────────────────────
 
-enum FlowType { expense, income, split, lend, borrow, request }
+enum FlowType { expense, income, split, lend, borrow, request, returned }
 
 extension FlowTypeExt on FlowType {
   String get label {
@@ -21,6 +21,8 @@ extension FlowTypeExt on FlowType {
         return 'Borrow';
       case FlowType.request:
         return 'Request Money';
+      case FlowType.returned:
+        return 'Returned Money';
     }
   }
 
@@ -38,6 +40,8 @@ extension FlowTypeExt on FlowType {
         return '📥';
       case FlowType.request:
         return '🔔';
+      case FlowType.returned:
+        return '↩️';
     }
   }
 
@@ -55,6 +59,8 @@ extension FlowTypeExt on FlowType {
         return AppColors.borrow;
       case FlowType.request:
         return AppColors.request;
+      case FlowType.returned:
+        return AppColors.returned;
     }
   }
 
@@ -110,6 +116,14 @@ extension FlowTypeExt on FlowType {
           FlowStep.note,
           FlowStep.confirm,
         ];
+      case FlowType.returned:
+        return [
+          FlowStep.amount,
+          FlowStep.person,
+          FlowStep.paymode,
+          FlowStep.date,
+          FlowStep.confirm,
+        ];
     }
   }
 
@@ -128,6 +142,8 @@ extension FlowTypeExt on FlowType {
         return TxType.borrow;
       case FlowType.request:
         return TxType.request;
+      case FlowType.returned:
+        return TxType.returned;
     }
   }
 }
@@ -165,6 +181,8 @@ extension FlowStepExt on FlowStep {
             return '📥 How much did you borrow?';
           case FlowType.request:
             return '🔔 How much do you want to request?';
+          case FlowType.returned:
+            return '↩️ How much was returned?';
         }
       case FlowStep.category:
         return flow == FlowType.income
@@ -188,6 +206,8 @@ extension FlowStepExt on FlowStep {
             return 'Who did you borrow from?';
           case FlowType.request:
             return 'Who are you requesting from?';
+          case FlowType.returned:
+            return 'Who returned the money?';
           default:
             return 'Who is the person?';
         }
@@ -230,11 +250,12 @@ class FlowData {
     if (paymode == 'Online') pm = PayMode.online;
 
     final cat = category ?? switch (flowType) {
-      FlowType.income  => 'Income',
-      FlowType.lend    => 'Lend',
-      FlowType.borrow  => 'Borrow',
-      FlowType.request => 'Request',
-      _                => 'Expense',
+      FlowType.income    => 'Income',
+      FlowType.lend      => 'Lend',
+      FlowType.borrow    => 'Borrow',
+      FlowType.request   => 'Request',
+      FlowType.returned  => 'Returned',
+      _                  => 'Expense',
     };
 
     return TxModel(

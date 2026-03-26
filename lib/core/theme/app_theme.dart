@@ -13,6 +13,7 @@ class AppColors {
   static const lend = Color(0xFFFFAA2C);
   static const borrow = Color(0xFF00D0D0);
   static const request = Color(0xFFFF7043);
+  static const returned = Color(0xFF7C4DFF);
 
   // Income/expense bg tints
   static const incomeBg = Color(0xFFE6FAF5);
@@ -21,6 +22,7 @@ class AppColors {
   static const lendBg = Color(0xFFFFF4E0);
   static const borrowBg = Color(0xFFE0FAFA);
   static const requestBg = Color(0xFFFFF0EB);
+  static const returnedBg = Color(0xFFF0EEFF);
 
   // Cash vs Online
   static const cash = Color(0xFF43A047);

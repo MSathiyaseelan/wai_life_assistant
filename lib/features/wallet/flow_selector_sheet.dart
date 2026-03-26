@@ -85,8 +85,9 @@ class FlowSelectorSheet extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 1.05,
+                childAspectRatio: 0.9,
                 children: FlowType.values
+                    .where((f) => f != FlowType.split) // Split Bill hidden — use Splits tab instead
                     .map(
                       (f) => _FlowCard(
                         flow: f,

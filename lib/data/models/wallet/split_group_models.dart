@@ -218,6 +218,30 @@ class SplitGroupMsg {
     required this.time,
     this.type = MsgType.text,
   });
+
+  factory SplitGroupMsg.fromRow(Map<String, dynamic> row) {
+    return SplitGroupMsg(
+      id: row['id'] as String,
+      groupId: row['group_id'] as String,
+      senderId: row['sender_id'] as String,
+      senderName: row['sender_name'] as String? ?? '',
+      senderEmoji: row['sender_emoji'] as String? ?? '👤',
+      text: row['text'] as String? ?? '',
+      time: DateTime.parse(row['created_at'] as String),
+      type: _msgTypeFromString(row['type'] as String? ?? 'text'),
+    );
+  }
+
+  static MsgType _msgTypeFromString(String s) {
+    switch (s) {
+      case 'txAdded':         return MsgType.txAdded;
+      case 'settled':         return MsgType.settled;
+      case 'extensionReq':    return MsgType.extensionReq;
+      case 'extensionGranted':return MsgType.extensionGranted;
+      case 'reminder':        return MsgType.reminder;
+      default:                return MsgType.text;
+    }
+  }
 }
 
 // ── Split Group ───────────────────────────────────────────────────────────────
