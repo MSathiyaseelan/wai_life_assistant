@@ -1901,10 +1901,71 @@ class _WalletScreenState extends State<WalletScreen>
             ],
           ),
         ),
-        ...entry.value.map(
-          (tx) => TxTile(tx: tx, onTap: () => _showDetail(tx)),
-        ),
+        ...entry.value.map((tx) {
+          // Show accept/reject only to the recipient — not the person who raised the request
+          final currentUid = AuthService.instance.currentUser?.id;
+          final isRecipient =
+              tx.type == TxType.request && tx.userId != currentUid;
+          return TxTile(
+            tx: tx,
+            onTap: () => _showDetail(tx),
+            onAccept: isRecipient
+                ? () => _handleRequestResponse(tx, accept: true)
+                : null,
+            onReject: isRecipient
+                ? () => _handleRequestResponse(tx, accept: false)
+                : null,
+          );
+        }),
       ],
+    );
+  }
+
+  // ── Request accept / reject ─────────────────────────────────────────────────
+  void _handleRequestResponse(TxModel tx, {required bool accept}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _RequestResponseSheet(
+        isAccept: accept,
+        personName: tx.person,
+        amount: tx.amount,
+        onConfirm: (comment) async {
+          final newStatus = accept ? 'Accepted' : 'Rejected';
+          try {
+            await WalletService.instance.updateTransaction(tx.id, {
+              'status': newStatus,
+              if (comment != null) 'note': comment,
+            });
+            final updated = TxModel(
+              id: tx.id,
+              type: tx.type,
+              amount: tx.amount,
+              category: tx.category,
+              date: tx.date,
+              walletId: tx.walletId,
+              payMode: tx.payMode,
+              note: comment ?? tx.note,
+              person: tx.person,
+              persons: tx.persons,
+              status: newStatus,
+              dueDate: tx.dueDate,
+              userId: tx.userId,
+            );
+            setState(() {
+              final idx = _transactions.indexWhere((t) => t.id == tx.id);
+              if (idx >= 0) _transactions[idx] = updated;
+            });
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to update: $e')),
+              );
+            }
+          }
+        },
+      ),
     );
   }
 
@@ -3145,4 +3206,170 @@ class _StickyTabDelegate extends SliverPersistentHeaderDelegate {
   Widget build(_, __, ___) => child;
   @override
   bool shouldRebuild(covariant _StickyTabDelegate o) => o.child != child;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REQUEST ACCEPT / REJECT SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RequestResponseSheet extends StatefulWidget {
+  final bool isAccept;
+  final String? personName;
+  final double amount;
+  final void Function(String? comment) onConfirm;
+
+  const _RequestResponseSheet({
+    required this.isAccept,
+    required this.amount,
+    this.personName,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_RequestResponseSheet> createState() => _RequestResponseSheetState();
+}
+
+class _RequestResponseSheetState extends State<_RequestResponseSheet> {
+  final _commentCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  String _fmtAmt(double v) =>
+      v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}K' : v.toStringAsFixed(0);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final isAccept = widget.isAccept;
+    final actionColor =
+        isAccept ? const Color(0xFF00C897) : const Color(0xFFFF5C7A);
+    final actionEmoji = isAccept ? '✅' : '❌';
+    final title = isAccept ? 'Accept Request?' : 'Reject Request?';
+    final hint = isAccept
+        ? 'Add a comment (optional)'
+        : 'Reason for rejection (optional)';
+    final buttonLabel = isAccept ? 'Confirm Accept' : 'Confirm Rejection';
+
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // Emoji + title
+            Text(actionEmoji, style: const TextStyle(fontSize: 36)),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito',
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+            ),
+
+            // Request summary
+            const SizedBox(height: 6),
+            Text(
+              '₹${_fmtAmt(widget.amount)}'
+              '${widget.personName != null ? ' from ${widget.personName}' : ''}',
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Nunito',
+                color: isDark ? AppColors.subDark : AppColors.subLight,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Comment / reason field
+            TextField(
+              controller: _commentCtrl,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: TextStyle(
+                  color: isDark ? AppColors.subDark : AppColors.subLight,
+                  fontSize: 14,
+                ),
+                filled: true,
+                fillColor: isDark
+                    ? const Color(0xFF242436)
+                    : const Color(0xFFF5F5F8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+              minLines: 2,
+              maxLines: 4,
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Nunito',
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Confirm button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  final comment = _commentCtrl.text.trim().isEmpty
+                      ? null
+                      : _commentCtrl.text.trim();
+                  Navigator.pop(context);
+                  widget.onConfirm(comment);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: actionColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Text(
+                  buttonLabel,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

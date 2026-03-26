@@ -458,6 +458,8 @@ class _PantryScreenState extends State<PantryScreen>
           walletId: widget.activeWalletId,
           recipes: _recipes,
           onSave: _addMeal,
+          onUpdate: _updateMeal,
+          dayMeals: _mealsForDate(_selectedDate),
         ),
         onOpenRecipeForm: () =>
             AddRecipeSheet.show(context, onSave: _addRecipe),
@@ -500,6 +502,8 @@ class _PantryScreenState extends State<PantryScreen>
           walletId: widget.activeWalletId,
           recipes: _recipes,
           onSave: _addMeal,
+          onUpdate: _updateMeal,
+          dayMeals: _mealsForDate(_selectedDate),
         );
       },
       onRecipe: () {
@@ -514,6 +518,14 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   // ── Meal handlers ──────────────────────────────────────────────────────────
+
+  List<MealEntry> _mealsForDate(DateTime date) => _meals
+      .where((m) =>
+          m.walletId == widget.activeWalletId &&
+          m.date.year == date.year &&
+          m.date.month == date.month &&
+          m.date.day == date.day)
+      .toList();
 
   // Adds a meal: optimistic insert → persist to DB → replace with real UUID row.
   Future<void> _addMeal(MealEntry m) async {
@@ -542,6 +554,35 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
+  Future<void> _updateMeal(MealEntry updated) async {
+    final original = _meals.firstWhere(
+      (e) => e.id == updated.id,
+      orElse: () => updated,
+    );
+    setState(() {
+      final idx = _meals.indexWhere((e) => e.id == updated.id);
+      if (idx >= 0) _meals[idx] = updated;
+    });
+    try {
+      await PantryService.instance.updateMealEntry(updated.id, {
+        'name': updated.name,
+        'emoji': updated.emoji,
+        'meal_time': updated.mealTime.name,
+        'date':
+            '${updated.date.year}-${updated.date.month.toString().padLeft(2, '0')}-${updated.date.day.toString().padLeft(2, '0')}',
+        'recipe_id': updated.recipeId,
+        'note': updated.note,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        final idx = _meals.indexWhere((e) => e.id == updated.id);
+        if (idx >= 0) _meals[idx] = original;
+      });
+      _showSavedSnack('Failed to update meal', AppColors.expense);
+    }
+  }
+
   void _showMealDetail(MealEntry m) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     _showHandleSheet(
@@ -560,31 +601,7 @@ class _PantryScreenState extends State<PantryScreen>
             recipes: _recipes,
             onSave: _addMeal,
             existing: m,
-            onUpdate: (updated) async {
-              // Optimistic update
-              setState(() {
-                final idx = _meals.indexWhere((e) => e.id == updated.id);
-                if (idx >= 0) _meals[idx] = updated;
-              });
-              try {
-                await PantryService.instance.updateMealEntry(updated.id, {
-                  'name': updated.name,
-                  'emoji': updated.emoji,
-                  'meal_time': updated.mealTime.name,
-                  'date': '${updated.date.year}-${updated.date.month.toString().padLeft(2,'0')}-${updated.date.day.toString().padLeft(2,'0')}',
-                  'recipe_id': updated.recipeId,
-                  'note': updated.note,
-                });
-              } catch (e) {
-                if (!mounted) return;
-                // Revert on failure
-                setState(() {
-                  final idx = _meals.indexWhere((e) => e.id == m.id);
-                  if (idx >= 0) _meals[idx] = m;
-                });
-                _showSavedSnack('Failed to update meal', AppColors.expense);
-              }
-            },
+            onUpdate: _updateMeal,
           );
         },
         onDelete: () async {
@@ -1098,6 +1115,7 @@ class _PantryScreenState extends State<PantryScreen>
             selectedDate: _selectedDate,
             walletId: widget.activeWalletId,
             onMealAdded: _addMeal,
+            onMealUpdated: _updateMeal,
             onMealTapped: _showMealDetail,
             clipboardMeals: _clipboardMeals,
             clipboardLabel: _clipboardLabel,
@@ -1184,6 +1202,8 @@ class _PantryScreenState extends State<PantryScreen>
           walletId: widget.activeWalletId,
           recipes: _recipes,
           onSave: _addMeal,
+          onUpdate: _updateMeal,
+          dayMeals: _mealsForDate(_selectedDate),
         );
       case 1:
         AddRecipeSheet.show(context, onSave: _addRecipe);

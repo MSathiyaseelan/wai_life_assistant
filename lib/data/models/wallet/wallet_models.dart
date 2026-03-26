@@ -123,6 +123,7 @@ class TxModel {
   final String? status;
   final String? dueDate;
   final String walletId; // 'personal' or family id
+  final String? userId;  // Supabase user_id of who created this transaction
 
   const TxModel({
     required this.id,
@@ -137,6 +138,7 @@ class TxModel {
     this.persons,
     this.status,
     this.dueDate,
+    this.userId,
   });
 
   factory TxModel.fromRow(Map<String, dynamic> row) {
@@ -163,6 +165,7 @@ class TxModel {
           : null,
       status: row['status'] as String?,
       dueDate: row['due_date'] as String?,
+      userId: row['user_id'] as String?,
     );
   }
 }

@@ -10,6 +10,7 @@ class MealMapSection extends StatefulWidget {
   final DateTime selectedDate;
   final String walletId;
   final void Function(MealEntry meal) onMealAdded;
+  final void Function(MealEntry meal)? onMealUpdated;
   final void Function(MealEntry meal) onMealTapped;
 
   // Copy / paste
@@ -31,6 +32,7 @@ class MealMapSection extends StatefulWidget {
     required this.walletId,
     required this.onMealAdded,
     required this.onMealTapped,
+    this.onMealUpdated,
     this.clipboardMeals,
     this.clipboardLabel = '',
     this.clipboardIsWeek = false,
@@ -252,6 +254,8 @@ class _MealMapSectionState extends State<MealMapSection> {
                     walletId: widget.walletId,
                     recipes: widget.recipes,
                     onSave: widget.onMealAdded,
+                    onUpdate: widget.onMealUpdated,
+                    dayMeals: dayMeals,
                   );
                 },
                 onMealTapped: widget.onMealTapped,

@@ -10,6 +10,8 @@ class AddMealSheet extends StatefulWidget {
   // Edit mode — provide existing meal + onUpdate
   final MealEntry? existing;
   final void Function(MealEntry)? onUpdate;
+  // Meals already logged for this day — used to pre-fill when slot occupied
+  final List<MealEntry> dayMeals;
 
   const AddMealSheet({
     super.key,
@@ -19,6 +21,7 @@ class AddMealSheet extends StatefulWidget {
     required this.onSave,
     this.existing,
     this.onUpdate,
+    this.dayMeals = const [],
   });
 
   static Future<void> show(
@@ -29,6 +32,7 @@ class AddMealSheet extends StatefulWidget {
     required void Function(MealEntry) onSave,
     MealEntry? existing,
     void Function(MealEntry)? onUpdate,
+    List<MealEntry> dayMeals = const [],
   }) {
     return showModalBottomSheet(
       context: context,
@@ -41,6 +45,7 @@ class AddMealSheet extends StatefulWidget {
         onSave: onSave,
         existing: existing,
         onUpdate: onUpdate,
+        dayMeals: dayMeals,
       ),
     );
   }
@@ -52,10 +57,13 @@ class AddMealSheet extends StatefulWidget {
 class _AddMealSheetState extends State<AddMealSheet> {
   final _nameCtrl = TextEditingController();
   MealTime _mealTime = MealTime.lunch;
-  String _emoji = '🍽️';
+  String _emoji = '🍛';
   String? _selectedRecipeId;
 
-  bool get _isEdit => widget.existing != null;
+  /// Set when user taps an already-occupied meal time slot (pre-fill mode).
+  MealEntry? _prefilledExisting;
+
+  bool get _isEdit => widget.existing != null || _prefilledExisting != null;
 
   // Recipes sorted: matching meal time first, then others
   List<RecipeModel> get _sortedRecipes {
@@ -63,6 +71,10 @@ class _AddMealSheetState extends State<AddMealSheet> {
     final rest = widget.recipes.where((r) => !r.suitableFor.contains(_mealTime)).toList();
     return [...matched, ...rest];
   }
+
+  /// Returns the existing meal for [mt] in dayMeals, if any.
+  MealEntry? _slotMeal(MealTime mt) =>
+      widget.dayMeals.where((m) => m.mealTime == mt).firstOrNull;
 
   void _pickRecipe(RecipeModel r) {
     setState(() {
@@ -76,44 +88,35 @@ class _AddMealSheetState extends State<AddMealSheet> {
     setState(() {
       _selectedRecipeId = null;
       _nameCtrl.clear();
-      _emoji = '🍽️';
+      _emoji = '🍛';
     });
   }
 
-  final _emojis = [
-    '🍽️',
-    '🍚',
-    '🫙',
-    '🍛',
-    '🥘',
-    '🫕',
-    '🍲',
-    '🥗',
-    '🍜',
-    '🥞',
-    '🫓',
-    '🥟',
-    '🍱',
-    '🥙',
-    '🌮',
-    '☕',
-    '🧃',
-    '🥤',
+  // Indian-food-relevant emoji palette
+  final _emojis = const [
+    '🍛', // Curry / biryani
+    '🫓', // Chapati / roti
+    '🥘', // Sabzi / dry curry
+    '🍲', // Dal / stew
+    '🫕', // Khichdi / one-pot
+    '🍚', // Plain rice
+    '🥗', // Salad / raita
+    '🍽️', // Generic plate
+    '☕', // Chai
+    '🧋', // Lassi / shake
+    '🍜', // Maggi / noodles
+    '🫙', // Pickle / chutney
+    '🥟', // Samosa
+    '🫔', // Kathi roll / wrap
+    '🍱', // Tiffin box
+    '🥞', // Dosa / uttapam
+    '🥛', // Milk / chaas
+    '🌶️', // Spicy / chilli
   ];
 
   static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
   static const _weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -125,6 +128,13 @@ class _AddMealSheetState extends State<AddMealSheet> {
       _mealTime = widget.existing!.mealTime;
       _emoji = widget.existing!.emoji;
       _selectedRecipeId = widget.existing!.recipeId;
+    } else {
+      // Auto-select the first unoccupied meal slot for the day
+      final occupiedTimes = widget.dayMeals.map((m) => m.mealTime).toSet();
+      final firstEmpty = MealTime.values
+          .where((mt) => !occupiedTimes.contains(mt))
+          .firstOrNull;
+      if (firstEmpty != null) _mealTime = firstEmpty;
     }
   }
 
@@ -141,14 +151,37 @@ class _AddMealSheetState extends State<AddMealSheet> {
         .inDays;
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Tomorrow';
-    final wd = widget.date.weekday - 1; // 0=Mon
+    final wd = widget.date.weekday - 1;
     return '${_weekDays[wd]}, ${_months[widget.date.month - 1]} ${widget.date.day}';
+  }
+
+  void _onMealTimeTap(MealTime mt) {
+    final slotMeal = _slotMeal(mt);
+    setState(() {
+      _mealTime = mt;
+      if (slotMeal != null) {
+        // Slot occupied — pre-fill with the existing meal for editing
+        _prefilledExisting = slotMeal;
+        _nameCtrl.text = slotMeal.name;
+        _emoji = slotMeal.emoji;
+        _selectedRecipeId = slotMeal.recipeId;
+      } else if (_prefilledExisting != null) {
+        // Switching from an occupied slot to an empty one — clear pre-fill
+        _prefilledExisting = null;
+        _nameCtrl.clear();
+        _emoji = '🍛';
+        _selectedRecipeId = null;
+      }
+      // Switching between two empty slots — keep whatever user has typed
+    });
   }
 
   void _save() {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
-    if (_isEdit) {
+
+    if (widget.existing != null) {
+      // Explicit edit mode (opened from meal detail sheet)
       widget.onUpdate!(
         widget.existing!.copyWith(
           name: name,
@@ -157,7 +190,18 @@ class _AddMealSheetState extends State<AddMealSheet> {
           recipeId: _selectedRecipeId,
         ),
       );
+    } else if (_prefilledExisting != null && widget.onUpdate != null) {
+      // Pre-fill mode — update the pre-existing meal in that slot
+      widget.onUpdate!(
+        _prefilledExisting!.copyWith(
+          name: name,
+          mealTime: _mealTime,
+          emoji: _emoji,
+          recipeId: _selectedRecipeId,
+        ),
+      );
     } else {
+      // New meal
       widget.onSave(
         MealEntry(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -199,7 +243,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
               height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 20),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.grey.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -222,7 +266,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
                     ),
                     Text(
                       _dateLabel,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.primary,
                         fontWeight: FontWeight.w700,
@@ -234,6 +278,70 @@ class _AddMealSheetState extends State<AddMealSheet> {
               ],
             ),
             const SizedBox(height: 16),
+
+            // ── Meal time selector ─────────────────────────────────────────
+            Row(
+              children: MealTime.values.map((mt) {
+                final sel = mt == _mealTime;
+                final occupied = _slotMeal(mt) != null && widget.existing == null;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => _onMealTimeTap(mt),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: sel ? mt.color : mt.color.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Text(
+                                  mt.emoji,
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                              ),
+                              if (occupied)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: sel ? Colors.white : mt.color,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: sel
+                                          ? mt.color
+                                          : (isDark ? AppColors.cardDark : AppColors.cardLight),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            mt.label,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                              color: sel ? Colors.white : mt.color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
 
             // ── Recipe picker ──────────────────────────────────────────────
             if (widget.recipes.isNotEmpty) ...[
@@ -267,20 +375,20 @@ class _AddMealSheetState extends State<AddMealSheet> {
               ),
               const SizedBox(height: 8),
               SizedBox(
-                height: 56,
+                height: 64,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _sortedRecipes.length,
                   itemBuilder: (_, i) {
                     final r = _sortedRecipes[i];
                     final sel = r.id == _selectedRecipeId;
-                    final matches = r.suitableFor.contains(_mealTime);
                     return GestureDetector(
                       onTap: () => _pickRecipe(r),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
                         margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: sel
                               ? AppColors.primary.withValues(alpha: 0.15)
@@ -296,7 +404,8 @@ class _AddMealSheetState extends State<AddMealSheet> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(r.emoji, style: const TextStyle(fontSize: 20)),
+                            Text(r.emoji,
+                                style: const TextStyle(fontSize: 20)),
                             const SizedBox(width: 6),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,13 +420,16 @@ class _AddMealSheetState extends State<AddMealSheet> {
                                     color: sel ? AppColors.primary : tc,
                                   ),
                                 ),
-                                if (!matches)
+                                // Always show 'suitable for' tags
+                                if (r.suitableFor.isNotEmpty)
                                   Text(
                                     r.suitableFor.map((m) => m.label).join(', '),
                                     style: TextStyle(
                                       fontSize: 9,
                                       fontFamily: 'Nunito',
-                                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                                      color: isDark
+                                          ? AppColors.subDark
+                                          : AppColors.subLight,
                                     ),
                                   ),
                               ],
@@ -350,7 +462,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
                         color: sel
-                            ? AppColors.primary.withOpacity(0.15)
+                            ? AppColors.primary.withValues(alpha: 0.15)
                             : surfBg,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
@@ -389,43 +501,6 @@ class _AddMealSheetState extends State<AddMealSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 14),
-
-            // Meal time selector
-            Row(
-              children: MealTime.values.map((mt) {
-                final sel = mt == _mealTime;
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _mealTime = mt),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: sel ? mt.color : mt.color.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        children: [
-                          Text(mt.emoji, style: const TextStyle(fontSize: 18)),
-                          const SizedBox(height: 3),
-                          Text(
-                            mt.label,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              fontFamily: 'Nunito',
-                              color: sel ? Colors.white : mt.color,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
             const SizedBox(height: 18),
 
             // Save button
@@ -437,14 +512,16 @@ class _AddMealSheetState extends State<AddMealSheet> {
                   backgroundColor: _mealTime.color,
                   foregroundColor: Colors.white,
                   elevation: 4,
-                  shadowColor: _mealTime.color.withOpacity(0.4),
+                  shadowColor: _mealTime.color.withValues(alpha: 0.4),
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
                 child: Text(
-                  _isEdit ? 'Update Meal →' : 'Save ${_mealTime.label} Meal →',
+                  _isEdit
+                      ? 'Update ${_mealTime.label} Meal →'
+                      : 'Save ${_mealTime.label} Meal →',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 15,

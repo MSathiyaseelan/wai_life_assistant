@@ -60,7 +60,7 @@ class _AppShellState extends State<AppShell> {
 
   static const _tabs = [
     (icon: '🏠', label: 'Dashboard'),
-    (icon: '💰', label: 'Wallet'),
+    (icon: '₹', label: 'Wallet'),
     (icon: '🥗', label: 'Pantry'),
     (icon: '📅', label: 'PlanIt'),
     (icon: '✨', label: 'MyLife'), // V2 — hidden from nav bar
@@ -153,6 +153,20 @@ class _AppShellState extends State<AppShell> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    // Wallet tab (index 1) uses a Material icon for correct color rendering
+                                    if (i == 1)
+                                      AnimatedScale(
+                                        duration: const Duration(milliseconds: 200),
+                                        scale: i == _idx ? 1.2 : 1.0,
+                                        child: Icon(
+                                          Icons.currency_rupee_rounded,
+                                          size: 22,
+                                          color: i == _idx
+                                              ? AppColors.primary
+                                              : (isDark ? AppColors.subDark : AppColors.subLight),
+                                        ),
+                                      )
+                                    else
                                     AnimatedDefaultTextStyle(
                                       duration: const Duration(milliseconds: 200),
                                       style: TextStyle(fontSize: i == _idx ? 24 : 20),

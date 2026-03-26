@@ -244,32 +244,112 @@ class _MemberPrefsSheetState extends State<_MemberPrefsSheet> {
 
   Future<void> _addItem(List<String> list, String hint) async {
     final ctrl = TextEditingController();
-    final result = await showDialog<String>(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : Colors.white;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    final result = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'Add $hint',
-          style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
         ),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: InputDecoration(hintText: hint),
-          textCapitalization: TextCapitalization.sentences,
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        child: Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Add $hint',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                  color: tc,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfDark : const Color(0xFFF5F5F8),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontFamily: 'Nunito',
+                    color: tc,
+                  ),
+                  decoration: InputDecoration.collapsed(
+                    hintText: hint,
+                    hintStyle: TextStyle(
+                      fontSize: 14,
+                      fontFamily: 'Nunito',
+                      color: sub,
+                    ),
+                  ),
+                  onSubmitted: (v) {
+                    final val = v.trim();
+                    if (val.isNotEmpty) Navigator.pop(ctx, val);
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final val = ctrl.text.trim();
+                    if (val.isNotEmpty) Navigator.pop(ctx, val);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Add →',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
+
     if (result != null && result.isNotEmpty) {
       setState(() {
         list.add(result);
@@ -288,135 +368,146 @@ class _MemberPrefsSheetState extends State<_MemberPrefsSheet> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.cardDark : Colors.white;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      padding: EdgeInsets.fromLTRB(
-        20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 32,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12, bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
 
-            // Member header
-            Row(
-              children: [
-                Text(
-                  widget.member.emoji,
-                  style: const TextStyle(fontSize: 32),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.member.name,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Nunito',
-                        color: tc,
+              // Member header
+              Row(
+                children: [
+                  Text(widget.member.emoji, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.member.name,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
+                        ),
+                        Text(
+                          widget.canEdit
+                              ? 'Allergies · Likes & Dislikes · Mandatory'
+                              : 'View only',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              _PrefsSection(
+                title: '🚫 Allergies',
+                subtitle: 'Foods this member must avoid',
+                items: _allergies,
+                canEdit: widget.canEdit,
+                accentColor: AppColors.expense,
+                onAdd: () => _addItem(_allergies, 'Allergy / intolerance'),
+                onRemove: (item) => _removeItem(_allergies, item),
+              ),
+              const SizedBox(height: 20),
+              _PrefsSection(
+                title: '❤️ Likes',
+                subtitle: 'Favourite foods',
+                items: _likes,
+                canEdit: widget.canEdit,
+                accentColor: const Color(0xFFE53935),
+                onAdd: () => _addItem(_likes, 'Favourite food'),
+                onRemove: (item) => _removeItem(_likes, item),
+              ),
+              const SizedBox(height: 20),
+              _PrefsSection(
+                title: '😑 Dislikes',
+                subtitle: 'Foods to avoid if possible',
+                items: _dislikes,
+                canEdit: widget.canEdit,
+                accentColor: const Color(0xFFFF7043),
+                onAdd: () => _addItem(_dislikes, 'Disliked food'),
+                onRemove: (item) => _removeItem(_dislikes, item),
+              ),
+              const SizedBox(height: 20),
+              _PrefsSection(
+                title: '📌 Mandatory',
+                subtitle: 'Must include in meals',
+                items: _mandatory,
+                canEdit: widget.canEdit,
+                accentColor: AppColors.primary,
+                onAdd: () => _addItem(_mandatory, 'e.g. Milk (morning)'),
+                onRemove: (item) => _removeItem(_mandatory, item),
+              ),
+
+              // Save button — only shown in edit mode, full-width at bottom
+              if (widget.canEdit) ...[
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _hasChanges ? _save : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor:
+                          AppColors.primary.withValues(alpha: 0.3),
+                      disabledForegroundColor: Colors.white60,
+                      elevation: _hasChanges ? 4 : 0,
+                      shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    if (!widget.canEdit)
-                      Text(
-                        'View only',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: sub,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                  ],
-                ),
-                const Spacer(),
-                if (_hasChanges)
-                  GestureDetector(
-                    onTap: _save,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        'Save',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                        ),
+                    child: const Text(
+                      'Save Changes →',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
                       ),
                     ),
                   ),
+                ),
               ],
-            ),
-            const SizedBox(height: 20),
-
-            _PrefsSection(
-              title: '🚫 Allergies',
-              subtitle: 'Foods this member must avoid',
-              items: _allergies,
-              canEdit: widget.canEdit,
-              accentColor: AppColors.expense,
-              onAdd: () => _addItem(_allergies, 'Allergy / intolerance'),
-              onRemove: (item) => _removeItem(_allergies, item),
-            ),
-            const SizedBox(height: 16),
-            _PrefsSection(
-              title: '❤️ Likes',
-              subtitle: 'Favourite foods',
-              items: _likes,
-              canEdit: widget.canEdit,
-              accentColor: const Color(0xFFE53935),
-              onAdd: () => _addItem(_likes, 'Favourite food'),
-              onRemove: (item) => _removeItem(_likes, item),
-            ),
-            const SizedBox(height: 16),
-            _PrefsSection(
-              title: '😑 Dislikes',
-              subtitle: 'Foods to avoid if possible',
-              items: _dislikes,
-              canEdit: widget.canEdit,
-              accentColor: Colors.orange,
-              onAdd: () => _addItem(_dislikes, 'Disliked food'),
-              onRemove: (item) => _removeItem(_dislikes, item),
-            ),
-            const SizedBox(height: 16),
-            _PrefsSection(
-              title: '📌 Mandatory',
-              subtitle: 'Must include in meals',
-              items: _mandatory,
-              canEdit: widget.canEdit,
-              accentColor: AppColors.primary,
-              onAdd: () => _addItem(_mandatory, 'e.g. Milk (morning)'),
-              onRemove: (item) => _removeItem(_mandatory, item),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -448,11 +539,12 @@ class _PrefsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFF5F5F8);
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section header row
         Row(
           children: [
             Expanded(
@@ -462,7 +554,7 @@ class _PrefsSection extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w900,
                       fontFamily: 'Nunito',
                       color: accentColor,
@@ -471,7 +563,7 @@ class _PrefsSection extends StatelessWidget {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontFamily: 'Nunito',
                       color: sub,
                     ),
@@ -483,7 +575,7 @@ class _PrefsSection extends StatelessWidget {
               GestureDetector(
                 onTap: onAdd,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -492,12 +584,12 @@ class _PrefsSection extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add_rounded, size: 13, color: accentColor),
-                      const SizedBox(width: 3),
+                      Icon(Icons.add_rounded, size: 14, color: accentColor),
+                      const SizedBox(width: 4),
                       Text(
                         'Add',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w800,
                           fontFamily: 'Nunito',
                           color: accentColor,
@@ -509,18 +601,21 @@ class _PrefsSection extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+
+        // Items or empty state
         if (items.isEmpty)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: surfBg,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Text(
-              canEdit ? 'None added — tap + Add' : 'None',
+              canEdit ? 'None added — tap + Add' : 'None added',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 fontFamily: 'Nunito',
                 color: sub,
               ),
@@ -528,8 +623,8 @@ class _PrefsSection extends StatelessWidget {
           )
         else
           Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: 8,
+            runSpacing: 8,
             children: items
                 .map((item) => _ItemChip(
                       item: item,
@@ -573,17 +668,17 @@ class _ItemChip extends StatelessWidget {
           Text(
             item,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: FontWeight.w700,
               fontFamily: 'Nunito',
               color: isDark ? AppColors.textDark : AppColors.textLight,
             ),
           ),
           if (canDelete) ...[
-            const SizedBox(width: 4),
+            const SizedBox(width: 5),
             GestureDetector(
               onTap: onDelete,
-              child: Icon(Icons.close_rounded, size: 14, color: accentColor),
+              child: Icon(Icons.close_rounded, size: 15, color: accentColor),
             ),
           ],
         ],
