@@ -4,7 +4,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import '../sheets/add_meal_sheet.dart';
 
-class MealMapSection extends StatelessWidget {
+class MealMapSection extends StatefulWidget {
   final List<MealEntry> meals;
   final List<RecipeModel> recipes;
   final DateTime selectedDate;
@@ -42,19 +42,54 @@ class MealMapSection extends StatelessWidget {
     this.onClearClipboard,
   });
 
+  @override
+  State<MealMapSection> createState() => _MealMapSectionState();
+}
+
+class _MealMapSectionState extends State<MealMapSection> {
+  final _scrollCtrl = ScrollController();
+  static const _columnWidth = 140.0; // 130 card + 10 margin
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToToday());
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _scrollToToday() {
+    if (!_scrollCtrl.hasClients) return;
+    // weekday: Mon=1 … Sun=7 → index 0…6
+    final todayIndex = widget.selectedDate.weekday - 1;
+    final offset = (todayIndex * _columnWidth).clamp(
+      0.0,
+      _scrollCtrl.position.maxScrollExtent,
+    );
+    _scrollCtrl.animateTo(
+      offset,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
   // Get 7-day window starting from Monday of selectedDate's week
   List<DateTime> get _weekDays {
-    final start = selectedDate.subtract(
-      Duration(days: selectedDate.weekday - 1),
+    final start = widget.selectedDate.subtract(
+      Duration(days: widget.selectedDate.weekday - 1),
     ); // Monday
     return List.generate(7, (i) => start.add(Duration(days: i)));
   }
 
   List<MealEntry> _mealsForDay(DateTime day) =>
-      meals
+      widget.meals
           .where(
             (m) =>
-                m.walletId == walletId &&
+                m.walletId == widget.walletId &&
                 m.date.year == day.year &&
                 m.date.month == day.month &&
                 m.date.day == day.day,
@@ -70,7 +105,7 @@ class MealMapSection extends StatelessWidget {
   static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   bool get _hasClipboard =>
-      clipboardMeals != null && clipboardMeals!.isNotEmpty;
+      widget.clipboardMeals != null && widget.clipboardMeals!.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -91,13 +126,13 @@ class MealMapSection extends StatelessWidget {
               _IconAction(
                 icon: Icons.copy_rounded,
                 tooltip: 'Copy week',
-                onTap: () => onCopyWeek?.call(weekStart),
+                onTap: () => widget.onCopyWeek?.call(weekStart),
               ),
               // Paste week (only when clipboard has week data)
-              if (_hasClipboard && clipboardIsWeek) ...[
+              if (_hasClipboard && widget.clipboardIsWeek) ...[
                 const SizedBox(width: 6),
                 GestureDetector(
-                  onTap: () => onPasteToWeek?.call(weekStart),
+                  onTap: () => widget.onPasteToWeek?.call(weekStart),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 5,
@@ -159,7 +194,7 @@ class MealMapSection extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Copied: $clipboardLabel  •  Long-press a day to paste',
+                      'Copied: ${widget.clipboardLabel}  •  Long-press a day to paste',
                       style: const TextStyle(
                         fontSize: 11,
                         fontFamily: 'Nunito',
@@ -169,7 +204,7 @@ class MealMapSection extends StatelessWidget {
                     ),
                   ),
                   GestureDetector(
-                    onTap: onClearClipboard,
+                    onTap: widget.onClearClipboard,
                     child: const Icon(
                       Icons.close_rounded,
                       size: 16,
@@ -183,10 +218,11 @@ class MealMapSection extends StatelessWidget {
         else
           const SizedBox(height: 8),
 
-        // Horizontal scroll of day columns
+        // Horizontal scroll of day columns — starts at today's column
         SizedBox(
           height: 260,
           child: ListView.builder(
+            controller: _scrollCtrl,
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 16, right: 8),
             itemCount: days.length,
@@ -195,9 +231,9 @@ class MealMapSection extends StatelessWidget {
               final dayMeals = _mealsForDay(day);
               final isToday = _isToday(day);
               final isSel =
-                  day.day == selectedDate.day &&
-                  day.month == selectedDate.month &&
-                  day.year == selectedDate.year;
+                  day.day == widget.selectedDate.day &&
+                  day.month == widget.selectedDate.month &&
+                  day.year == widget.selectedDate.year;
 
               return _DayColumn(
                 day: day,
@@ -205,23 +241,23 @@ class MealMapSection extends StatelessWidget {
                 meals: dayMeals,
                 isToday: isToday,
                 isSelected: isSel,
-                walletId: walletId,
+                walletId: widget.walletId,
                 isDark: isDark,
                 hasClipboard: _hasClipboard,
-                clipboardLabel: clipboardLabel,
+                clipboardLabel: widget.clipboardLabel,
                 onAddMeal: (dt) async {
                   await AddMealSheet.show(
                     context,
                     date: dt,
-                    walletId: walletId,
-                    recipes: recipes,
-                    onSave: onMealAdded,
+                    walletId: widget.walletId,
+                    recipes: widget.recipes,
+                    onSave: widget.onMealAdded,
                   );
                 },
-                onMealTapped: onMealTapped,
-                onCopyDay: onCopyDay,
-                onPasteToDay: onPasteToDay,
-                onCopyMeal: onCopyMeal,
+                onMealTapped: widget.onMealTapped,
+                onCopyDay: widget.onCopyDay,
+                onPasteToDay: widget.onPasteToDay,
+                onCopyMeal: widget.onCopyMeal,
               );
             },
           ),
