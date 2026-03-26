@@ -70,19 +70,21 @@ class PantryService {
     String? note,
     int? cookTimeMin,
     bool isFavourite = false,
+    String? libraryRecipeId,
   }) async {
     final row = await _db.from('recipes').insert({
-      'wallet_id':     walletId,
-      'created_by':    _uid,
-      'name':          name,
-      'emoji':         emoji,
-      'cuisine':       cuisine,
-      'suitable_for':  suitableFor,
-      'ingredients':   ingredients,
-      'social_link':   socialLink,
-      'note':          note,
-      'cook_time_min': cookTimeMin,
-      'is_favourite':  isFavourite,
+      'wallet_id':         walletId,
+      'created_by':        _uid,
+      'name':              name,
+      'emoji':             emoji,
+      'cuisine':           cuisine,
+      'suitable_for':      suitableFor,
+      'ingredients':       ingredients,
+      'social_link':       socialLink,
+      'note':              note,
+      'cook_time_min':     cookTimeMin,
+      'is_favourite':      isFavourite,
+      'library_recipe_id': libraryRecipeId,
     }).select().single();
     return row;
   }

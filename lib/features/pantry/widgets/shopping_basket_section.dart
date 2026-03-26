@@ -39,6 +39,9 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
+    _tabCtrl.addListener(() {
+      if (!_tabCtrl.indexIsChanging) setState(() => _filterCat = null);
+    });
   }
 
   @override
@@ -60,9 +63,12 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
       .where((i) => _filterCat == null || i.category == _filterCat)
       .toList();
 
-  /// Distinct categories present across both In Stock and To Buy, in GroceryCategory.values order.
+  /// Distinct categories present in the ACTIVE tab's items, in GroceryCategory.values order.
   List<GroceryCategory> get _availableCategories {
-    final present = _walletItems.map((i) => i.category).toSet();
+    final base = _tabCtrl.index == 0
+        ? _walletItems.where((i) => i.inStock)
+        : _walletItems.where((i) => i.toBuy);
+    final present = base.map((i) => i.category).toSet();
     return GroceryCategory.values.where(present.contains).toList();
   }
 
@@ -131,7 +137,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.income.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,

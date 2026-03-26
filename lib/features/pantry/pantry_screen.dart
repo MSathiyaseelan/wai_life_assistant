@@ -726,6 +726,7 @@ class _PantryScreenState extends State<PantryScreen>
         note: r.note,
         cookTimeMin: r.cookTimeMin,
         isFavourite: r.isFavourite,
+        libraryRecipeId: r.libraryRecipeId,
       );
       if (!mounted) return;
       final saved = RecipeModel.fromMap(row);
@@ -764,17 +765,18 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _toggleFav(RecipeModel r) async {
-    final newVal = !r.isFavourite;
-    setState(() => r.isFavourite = newVal); // optimistic
+  Future<void> _deleteRecipe(RecipeModel r) async {
+    setState(() => _recipes.remove(r));
     try {
-      await PantryService.instance.toggleFavourite(r.id, isFavourite: newVal);
+      await PantryService.instance.deleteRecipe(r.id);
+      _showSavedSnack('Recipe removed from your box', AppColors.subLight);
     } catch (e) {
       if (!mounted) return;
-      setState(() => r.isFavourite = !newVal); // revert
-      _showSavedSnack('Failed to update favourite', AppColors.expense);
+      setState(() => _recipes.add(r));
+      _showSavedSnack('Failed to remove recipe', AppColors.expense);
     }
   }
+
   void _showRecipeDetail(RecipeModel r) => RecipeDetailSheet.show(
     context,
     r,
@@ -822,7 +824,28 @@ class _PantryScreenState extends State<PantryScreen>
   );
 
   // ── Grocery handlers ───────────────────────────────────────────────────────
-  void _toggleBuy(GroceryItem i) => setState(() => i.toBuy = !i.toBuy);
+  Future<void> _toggleBuy(GroceryItem i) async {
+    final newToBuy = !i.toBuy;
+    final updates = <String, dynamic>{'to_buy': newToBuy};
+    setState(() {
+      i.toBuy = newToBuy;
+      if (newToBuy) {
+        i.inStock = false;
+        updates['in_stock'] = false;
+      }
+    });
+    try {
+      await PantryService.instance.updateGroceryItem(i.id, updates);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        i.toBuy = !newToBuy;
+        if (newToBuy) i.inStock = true;
+      });
+      _showSavedSnack('Failed to update item', AppColors.expense);
+    }
+  }
+
   void _toggleStock(GroceryItem i) => setState(() => i.inStock = !i.inStock);
 
   /// Mark a To-Buy item as purchased: move it to In Stock, off the shopping list.
@@ -1146,8 +1169,8 @@ class _PantryScreenState extends State<PantryScreen>
           RecipeBoxSection(
             recipes: _recipes,
             onRecipeTapped: _showRecipeDetail,
-            onToggleFavourite: _toggleFav,
             onRecipeAdded: _addRecipe,
+            onUntagRecipe: _deleteRecipe,
           ),
           const SizedBox(height: 24),
         ],

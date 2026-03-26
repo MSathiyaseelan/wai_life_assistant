@@ -289,6 +289,8 @@ class RecipeModel {
   final String? note;
   final int? cookTimeMin;
   bool isFavourite;
+  /// Non-null when this recipe was tagged from the master library.
+  final String? libraryRecipeId;
 
   RecipeModel({
     required this.id,
@@ -302,6 +304,7 @@ class RecipeModel {
     this.note,
     this.cookTimeMin,
     this.isFavourite = false,
+    this.libraryRecipeId,
   });
 
   /// Deserialise a Supabase row.
@@ -328,6 +331,7 @@ class RecipeModel {
       note: m['note'] as String?,
       cookTimeMin: m['cook_time_min'] as int?,
       isFavourite: (m['is_favourite'] as bool?) ?? false,
+      libraryRecipeId: m['library_recipe_id'] as String?,
     );
   }
 }
@@ -472,13 +476,14 @@ class MasterRecipe {
     }
 
     return RecipeModel(
-      id:          DateTime.now().millisecondsSinceEpoch.toString(),
-      name:        name,
-      emoji:       emoji,
-      cuisine:     cuisineType,
-      suitableFor: suitableFor.isEmpty ? [MealTime.lunch] : suitableFor,
-      ingredients: ingredients,
-      cookTimeMin: cookTimeMin,
+      id:              DateTime.now().millisecondsSinceEpoch.toString(),
+      name:            name,
+      emoji:           emoji,
+      cuisine:         cuisineType,
+      suitableFor:     suitableFor.isEmpty ? [MealTime.lunch] : suitableFor,
+      ingredients:     ingredients,
+      cookTimeMin:     cookTimeMin,
+      libraryRecipeId: id, // links back to this master recipe
     );
   }
 }

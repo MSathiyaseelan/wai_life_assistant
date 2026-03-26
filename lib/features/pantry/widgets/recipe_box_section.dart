@@ -6,15 +6,16 @@ import '../sheets/add_recipe_sheet.dart';
 class RecipeBoxSection extends StatefulWidget {
   final List<RecipeModel> recipes;
   final void Function(RecipeModel) onRecipeTapped;
-  final void Function(RecipeModel) onToggleFavourite;
   final void Function(RecipeModel) onRecipeAdded;
+  /// Called when the user untagged a library recipe from their box.
+  final void Function(RecipeModel)? onUntagRecipe;
 
   const RecipeBoxSection({
     super.key,
     required this.recipes,
     required this.onRecipeTapped,
-    required this.onToggleFavourite,
     required this.onRecipeAdded,
+    this.onUntagRecipe,
   });
 
   @override
@@ -91,6 +92,10 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
                   decoration: BoxDecoration(
                     color: inputBg,
                     borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: sub.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
@@ -202,7 +207,9 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
               recipe: r,
               isDark: isDark,
               onTap: () => widget.onRecipeTapped(r),
-              onFavTap: () => widget.onToggleFavourite(r),
+              onUntag: widget.onUntagRecipe != null
+                  ? () => widget.onUntagRecipe!(r)
+                  : null,
             ),
           )),
       ],
@@ -215,14 +222,16 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
 class RecipeCard extends StatelessWidget {
   final RecipeModel recipe;
   final bool isDark;
-  final VoidCallback onTap, onFavTap;
+  final VoidCallback onTap;
+  /// Non-null only for library recipes — tapping removes from the box.
+  final VoidCallback? onUntag;
 
   const RecipeCard({
     super.key,
     required this.recipe,
     required this.isDark,
     required this.onTap,
-    required this.onFavTap,
+    this.onUntag,
   });
 
   @override
@@ -282,19 +291,41 @@ class RecipeCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Fav toggle
-                      GestureDetector(
-                        onTap: onFavTap,
-                        child: Icon(
-                          recipe.isFavourite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          color: recipe.isFavourite
-                              ? AppColors.expense
-                              : AppColors.subLight,
-                          size: 20,
+                      // Untag button — only for library recipes
+                      if (onUntag != null)
+                        GestureDetector(
+                          onTap: onUntag,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.subLight.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.label_off_rounded,
+                                    size: 12,
+                                    color: isDark
+                                        ? AppColors.subDark
+                                        : AppColors.subLight),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Untag',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: isDark
+                                        ? AppColors.subDark
+                                        : AppColors.subLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 5),
