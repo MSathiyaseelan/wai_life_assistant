@@ -557,43 +557,63 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
   List<_ScannedItem> _scannedItems = [];
   String? _error;
   bool _pushToWallet = false;
-  bool _limitChecking = false;
+  bool _limitChecking = true;   // true while checking on open
+  bool _limitReached = false;
 
   // ── Scan limit check ────────────────────────────────────────────────────────
 
-  static const _freeScansPerMonth = 3;
+  int _monthlyLimit = 3; // populated from feature_limits table on open
 
-  Future<bool> _checkScanLimit() async {
+  @override
+  void initState() {
+    super.initState();
+    _checkLimitOnOpen();
+  }
+
+  Future<void> _checkLimitOnOpen() async {
+    // Peek at current usage without incrementing — query feature_usage directly.
+    // Also fetch the configured limit from feature_limits.
     try {
-      final result = await Supabase.instance.client.rpc(
-        'check_feature_limit',
-        params: {
-          'p_user_id': Supabase.instance.client.auth.currentUser!.id,
-          'p_feature': 'bill_scan',
-          'p_limit': _freeScansPerMonth,
-        },
-      );
-      return result as bool? ?? true;
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) {
+        setState(() => _limitChecking = false);
+        return;
+      }
+      final month = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+
+      final results = await Future.wait([
+        client
+            .from('feature_usage')
+            .select('count')
+            .eq('user_id', userId)
+            .eq('feature', 'bill_scan')
+            .eq('month', month)
+            .maybeSingle(),
+        client
+            .from('feature_limits')
+            .select('monthly_limit')
+            .eq('feature', 'bill_scan')
+            .maybeSingle(),
+      ]);
+
+      if (!mounted) return;
+      final count = (results[0]?['count'] as int?) ?? 0;
+      final limit = (results[1]?['monthly_limit'] as int?) ?? 3;
+      setState(() {
+        _monthlyLimit = limit;
+        _limitReached = count >= limit;
+        _limitChecking = false;
+      });
     } catch (_) {
-      return true; // fail open on DB error
+      if (!mounted) return;
+      setState(() => _limitChecking = false); // fail open
     }
   }
 
   // ── Pick image ──────────────────────────────────────────────────────────────
 
   Future<void> _pick(ImageSource source) async {
-    setState(() { _limitChecking = true; _error = null; });
-    final allowed = await _checkScanLimit();
-    if (!mounted) return;
-    if (!allowed) {
-      setState(() {
-        _limitChecking = false;
-        _error = 'Free scan limit reached ($_freeScansPerMonth/month). Upgrade to scan more.';
-      });
-      return;
-    }
-    setState(() => _limitChecking = false);
-
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, imageQuality: 85);
     if (!mounted || picked == null) return;
@@ -610,6 +630,23 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
 
   Future<void> _analyze(File imageFile) async {
     try {
+      // Increment + check limit right before the API call (not on button tap)
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final allowed = await Supabase.instance.client.rpc(
+          'check_feature_limit',
+          params: {'p_user_id': userId, 'p_feature': 'bill_scan'},
+        ) as bool? ?? true;
+        if (!mounted) return;
+        if (!allowed) {
+          setState(() {
+            _limitReached = true;
+            _phase = 'pick';
+          });
+          return;
+        }
+      }
+
       final bytes = await imageFile.readAsBytes();
       final ext = imageFile.path.toLowerCase();
       final mimeType = ext.endsWith('.png') ? 'image/png' : 'image/jpeg';
@@ -822,6 +859,42 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
               padding: EdgeInsets.symmetric(vertical: 8),
               child: CircularProgressIndicator(
                 color: AppColors.income, strokeWidth: 2,
+              ),
+            )
+          else if (_limitReached)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.expense.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppColors.expense.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                children: [
+                  const Text('🚫', style: TextStyle(fontSize: 32)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Free scan limit reached',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: tc,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$_monthlyLimit scans/month on free plan.\nUpgrade to scan more.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                      color: sub,
+                    ),
+                  ),
+                ],
               ),
             )
           else
