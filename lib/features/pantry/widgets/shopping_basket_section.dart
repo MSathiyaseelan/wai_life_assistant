@@ -1,10 +1,12 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 
 class ShoppingBasketSection extends StatefulWidget {
   final List<GroceryItem> items;
@@ -554,15 +556,47 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
   File? _image;
   List<_ScannedItem> _scannedItems = [];
   String? _error;
+  bool _pushToWallet = false;
+  bool _limitChecking = false;
 
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
+  // ── Scan limit check ────────────────────────────────────────────────────────
+
+  static const _freeScansPerMonth = 3;
+
+  Future<bool> _checkScanLimit() async {
+    try {
+      final result = await Supabase.instance.client.rpc(
+        'check_feature_limit',
+        params: {
+          'p_user_id': Supabase.instance.client.auth.currentUser!.id,
+          'p_feature': 'bill_scan',
+          'p_limit': _freeScansPerMonth,
+        },
+      );
+      return result as bool? ?? true;
+    } catch (_) {
+      return true; // fail open on DB error
+    }
+  }
 
   // ── Pick image ──────────────────────────────────────────────────────────────
 
   Future<void> _pick(ImageSource source) async {
+    setState(() { _limitChecking = true; _error = null; });
+    final allowed = await _checkScanLimit();
+    if (!mounted) return;
+    if (!allowed) {
+      setState(() {
+        _limitChecking = false;
+        _error = 'Free scan limit reached ($_freeScansPerMonth/month). Upgrade to scan more.';
+      });
+      return;
+    }
+    setState(() => _limitChecking = false);
+
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: source, imageQuality: 85);
-    if (picked == null) return;
+    if (!mounted || picked == null) return;
     final file = File(picked.path);
     setState(() {
       _image = file;
@@ -572,77 +606,33 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
     await _analyze(file);
   }
 
-  // ── Call Claude vision API ──────────────────────────────────────────────────
+  // ── Call Edge Function via AIParser ─────────────────────────────────────────
 
   Future<void> _analyze(File imageFile) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') {
-      setState(() {
-        _error = 'Claude API key not configured.';
-        _phase = 'pick';
-      });
-      return;
-    }
-
     try {
       final bytes = await imageFile.readAsBytes();
-      final b64 = base64Encode(bytes);
       final ext = imageFile.path.toLowerCase();
-      final mediaType = ext.endsWith('.png') ? 'image/png' : 'image/jpeg';
+      final mimeType = ext.endsWith('.png') ? 'image/png' : 'image/jpeg';
 
-      const prompt =
-          'Look at this bill, receipt, or order screenshot. Extract every grocery '
-          'or food item listed. Return ONLY a valid JSON object — no markdown, no '
-          'explanation — in this exact format:\n'
-          '{"items":[{"name":"Rice","quantity":5,"unit":"kg","category":"grains"}]}\n'
-          'Categories must be one of: vegetables, fruits, dairy, meat, grains, '
-          'beverages, snacks, spices, cleaning, other.\n'
-          'If quantity is not visible use 1. If unit is not visible use "pcs".';
+      final result = await AIParser.parseImage(
+        feature: 'pantry',
+        subFeature: 'bill_scan',
+        imageBytes: bytes,
+        mimeType: mimeType,
+      );
 
-      final body = jsonEncode({
-        'model': 'claude-haiku-4-5-20251001',
-        'max_tokens': 1024,
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'image',
-                'source': {
-                  'type': 'base64',
-                  'media_type': mediaType,
-                  'data': b64,
-                },
-              },
-              {'type': 'text', 'text': prompt},
-            ],
-          },
-        ],
-      });
+      if (!mounted) return;
 
-      final client = HttpClient();
-      final uri = Uri.parse('https://api.anthropic.com/v1/messages');
-      final req = await client.postUrl(uri);
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(utf8.encode(body));
-      final res = await req.close();
-      final resBody = await res.transform(utf8.decoder).join();
-      client.close();
+      if (!result.success) {
+        setState(() {
+          _error = result.error ?? 'Could not read bill. Please try again.';
+          _phase = 'pick';
+        });
+        return;
+      }
 
-      final decoded = jsonDecode(resBody) as Map<String, dynamic>;
-      final text =
-          (decoded['content'] as List).first['text'] as String;
-
-      // Strip markdown code fences if present
-      final cleaned = text
-          .replaceAll(RegExp(r'^```[a-z]*\n?', multiLine: true), '')
-          .replaceAll(RegExp(r'```$', multiLine: true), '')
-          .trim();
-
-      final parsed = jsonDecode(cleaned) as Map<String, dynamic>;
-      final rawItems = (parsed['items'] as List).cast<Map<String, dynamic>>();
+      final rawItems =
+          (result.data?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
       final items = rawItems.map((m) {
         final catStr = (m['category'] as String?)?.toLowerCase() ?? 'other';
@@ -655,6 +645,8 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
           quantity: (m['quantity'] as num?)?.toDouble() ?? 1,
           unit: m['unit'] as String? ?? 'pcs',
           category: cat,
+          price: (m['price'] as num?)?.toDouble(),
+          confidence: (m['confidence'] as num?)?.toDouble(),
         );
       }).toList();
 
@@ -663,6 +655,7 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
         _phase = 'confirm';
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Could not read bill: ${e.toString().split('\n').first}';
         _phase = 'pick';
@@ -672,13 +665,16 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
 
   // ── Save confirmed items ────────────────────────────────────────────────────
 
-  void _saveSelected() {
+  Future<void> _saveSelected() async {
     final selected = _scannedItems.where((i) => i.selected).toList();
+    if (selected.isEmpty) return;
+
+    // Add items to In Stock
     for (final item in selected) {
       final qty = double.tryParse(item.qtyCtrl.text) ?? item.quantity;
       widget.onItemAdded(
         GroceryItem(
-          id: '${DateTime.now().millisecondsSinceEpoch}_${item.name}',
+          id: '${DateTime.now().microsecondsSinceEpoch}_${item.name}',
           name: item.nameCtrl.text.trim().isEmpty
               ? item.name
               : item.nameCtrl.text.trim(),
@@ -688,12 +684,46 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
               ? item.unit
               : item.unitCtrl.text.trim(),
           walletId: widget.walletId,
-          inStock: false,
-          toBuy: true,
+          inStock: true,
+          toBuy: false,
         ),
       );
     }
+
+    // Optionally push total to Wallet as an expense
+    if (_pushToWallet) {
+      final total = selected.fold<double>(0.0, (sum, i) {
+        final p = double.tryParse(i.priceCtrl.text) ?? i.price ?? 0.0;
+        return sum + p;
+      });
+      if (total > 0) {
+        try {
+          await WalletService.instance.addTransaction(
+            walletId: widget.walletId,
+            type: 'expense',
+            amount: total,
+            category: 'groceries',
+            note: 'Bill scan — ${selected.length} item${selected.length == 1 ? '' : 's'}',
+          );
+        } catch (_) {
+          // Non-critical — basket save already succeeded
+        }
+      }
+    }
+
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final count = selected.length;
     Navigator.pop(context);
+    messenger.showSnackBar(SnackBar(
+      content: Text(
+        '$count item${count == 1 ? '' : 's'} added to stock ✓',
+        style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+      ),
+      backgroundColor: AppColors.income,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────────
@@ -704,6 +734,7 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
       i.nameCtrl.dispose();
       i.qtyCtrl.dispose();
       i.unitCtrl.dispose();
+      i.priceCtrl.dispose();
     }
     super.dispose();
   }
@@ -786,27 +817,35 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
             ),
           ],
           const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _PickButton(
-                  icon: Icons.photo_library_rounded,
-                  label: 'Gallery',
-                  isDark: widget.isDark,
-                  onTap: () => _pick(ImageSource.gallery),
-                ),
+          if (_limitChecking)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: CircularProgressIndicator(
+                color: AppColors.income, strokeWidth: 2,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _PickButton(
-                  icon: Icons.camera_alt_rounded,
-                  label: 'Camera',
-                  isDark: widget.isDark,
-                  onTap: () => _pick(ImageSource.camera),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _PickButton(
+                    icon: Icons.photo_library_rounded,
+                    label: 'Gallery',
+                    isDark: widget.isDark,
+                    onTap: () => _pick(ImageSource.gallery),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PickButton(
+                    icon: Icons.camera_alt_rounded,
+                    label: 'Camera',
+                    isDark: widget.isDark,
+                    onTap: () => _pick(ImageSource.camera),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -943,6 +982,74 @@ class _ScanBillSheetState extends State<_ScanBillSheet> {
             ),
           ),
         ),
+        // ── Also push to Wallet? toggle ──────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: GestureDetector(
+            onTap: () => setState(() => _pushToWallet = !_pushToWallet),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: surf,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _pushToWallet
+                      ? AppColors.lend.withValues(alpha: 0.4)
+                      : Colors.transparent,
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.account_balance_wallet_rounded,
+                      size: 18,
+                      color: _pushToWallet ? AppColors.lend : sub),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Also push to Wallet?',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: _pushToWallet ? AppColors.lend : tc,
+                          ),
+                        ),
+                        if (_pushToWallet) Builder(builder: (_) {
+                          final total = _scannedItems
+                              .where((i) => i.selected)
+                              .fold<double>(0.0, (s, i) =>
+                                  s + (double.tryParse(i.priceCtrl.text) ??
+                                      i.price ?? 0.0));
+                          return Text(
+                            total > 0
+                                ? '₹${total.toStringAsFixed(2)} logged as grocery expense'
+                                : 'Enter prices above to track amount',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _pushToWallet,
+                    onChanged: (v) => setState(() => _pushToWallet = v),
+                    activeThumbColor: AppColors.lend,
+                    activeTrackColor: AppColors.lend.withValues(alpha: 0.4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: Row(
@@ -1018,19 +1125,26 @@ class _ScannedItem {
   final double quantity;
   final String unit;
   final GroceryCategory category;
+  final double? price;
+  final double? confidence;
   late final TextEditingController nameCtrl;
   late final TextEditingController qtyCtrl;
   late final TextEditingController unitCtrl;
+  late final TextEditingController priceCtrl;
 
   _ScannedItem({
     required this.name,
     required this.quantity,
     required this.unit,
     required this.category,
+    this.price,
+    this.confidence,
   }) {
     nameCtrl = TextEditingController(text: name);
     qtyCtrl = TextEditingController(text: _fmtQty(quantity));
     unitCtrl = TextEditingController(text: unit);
+    priceCtrl = TextEditingController(
+        text: price != null ? price!.toStringAsFixed(2) : '');
   }
 
   static String _fmtQty(double q) =>
@@ -1125,7 +1239,7 @@ class _ScannedItemTile extends StatelessWidget {
               ),
               // Unit
               SizedBox(
-                width: 40,
+                width: 38,
                 child: TextField(
                   controller: item.unitCtrl,
                   style: TextStyle(
@@ -1135,6 +1249,28 @@ class _ScannedItemTile extends StatelessWidget {
                   ),
                   decoration: const InputDecoration.collapsed(hintText: 'pcs'),
                 ),
+              ),
+              const SizedBox(width: 6),
+              // Price (₹)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('₹', style: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')),
+                  SizedBox(
+                    width: 46,
+                    child: TextField(
+                      controller: item.priceCtrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
+                      decoration: const InputDecoration.collapsed(hintText: '0'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

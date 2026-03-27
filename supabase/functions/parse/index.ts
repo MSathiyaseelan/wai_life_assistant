@@ -41,9 +41,16 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/" +
-  "gemini-2.5-flash:generateContent";
+const GEMINI_BASE =
+  "https://generativelanguage.googleapis.com/v1beta/models/";
+
+// Default model for text tasks; image-heavy tasks use a lighter vision model
+const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
+const GEMINI_VISION_MODEL   = "gemini-1.5-flash-8b";
+
+function geminiUrl(model: string): string {
+  return `${GEMINI_BASE}${model}:generateContent`;
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -134,36 +141,41 @@ async function fetchPrompt(
 async function callGemini(
   prompt: string,
   imageBase64?: string,
-  imageMimeType?: string
+  imageMimeType?: string,
+  model = GEMINI_DEFAULT_MODEL
 ): Promise<{ text: string; tokens: number; latencyMs: number }> {
 
   const start = Date.now();
-  const parts: GeminiPart[] = [{ text: prompt }];
+  const isImageRequest = !!(imageBase64 && imageMimeType);
 
-  if (imageBase64 && imageMimeType) {
-    parts.push({
-      inline_data: {
-        mime_type: imageMimeType,
-        data: imageBase64,
-      },
-    });
+  // For image requests: put image first so the model sees it before instructions
+  const parts: GeminiPart[] = [];
+  if (isImageRequest) {
+    parts.push({ inline_data: { mime_type: imageMimeType!, data: imageBase64! } });
+  }
+  parts.push({ text: prompt });
+
+  // responseMimeType: "application/json" can cause 422 on gemini-1.5-flash-8b
+  // when combined with image input — use plain text generation and parse manually
+  const generationConfig: Record<string, unknown> = {
+    temperature: 0.1,
+    maxOutputTokens: 2048,
+  };
+  if (!isImageRequest) {
+    generationConfig["responseMimeType"] = "application/json";
   }
 
-  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${geminiUrl(model)}?key=${GEMINI_API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 1024,
-        responseMimeType: "application/json",
-      },
+      generationConfig,
       safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT",       threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH",      threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT",threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
       ],
     }),
   });
@@ -294,13 +306,21 @@ serve(async (req: Request) => {
 
   const finalPrompt = injectContext(promptRow.prompt, enrichedContext);
 
+  // ── Select model: use lighter vision model for image-heavy features
+  const useVisionModel =
+    input_type === "image" &&
+    feature === "pantry" &&
+    sub_feature === "bill_scan";
+  const model = useVisionModel ? GEMINI_VISION_MODEL : GEMINI_DEFAULT_MODEL;
+
   // ── Call Gemini
   let geminiResult: { text: string; tokens: number; latencyMs: number };
   try {
     geminiResult = await callGemini(
       finalPrompt,
       image_base64,
-      image_mime_type || "image/jpeg"
+      image_mime_type || "image/jpeg",
+      model
     );
   } catch (e) {
     const errMsg = (e as Error).message;
@@ -353,6 +373,7 @@ serve(async (req: Request) => {
       tokens_used: geminiResult.tokens,
       latency_ms:  geminiResult.latencyMs,
       prompt_id:   promptRow.id,
+      model,
     },
   });
 });
