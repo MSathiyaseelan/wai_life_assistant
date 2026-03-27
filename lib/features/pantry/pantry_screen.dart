@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
@@ -371,8 +372,23 @@ class _PantryScreenState extends State<PantryScreen>
   Future<void> _fetchUserName() async {
     try {
       final profile = await ProfileService.instance.fetchProfile();
-      if (profile != null && mounted) {
-        setState(() => _currentUserName = (profile['name'] as String? ?? '').trim());
+      if (profile != null) {
+        final name = (profile['name'] as String? ?? '').trim();
+        if (name.isNotEmpty && mounted) {
+          setState(() => _currentUserName = name);
+          return;
+        }
+      }
+    } catch (_) {}
+    // Fallback: use auth metadata name, or email prefix
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null && mounted) {
+        final metaName =
+            (user.userMetadata?['full_name'] as String? ?? '').trim();
+        final emailPrefix = (user.email ?? '').split('@').first;
+        final fallback = metaName.isNotEmpty ? metaName : emailPrefix;
+        if (fallback.isNotEmpty) setState(() => _currentUserName = fallback);
       }
     } catch (_) {}
   }
@@ -539,6 +555,7 @@ class _PantryScreenState extends State<PantryScreen>
         date: m.date,
         recipeId: m.recipeId,
         note: m.note,
+        ingredients: m.ingredients,
       );
       if (!mounted) return;
       final saved = MealEntry.fromMap(row);
@@ -547,6 +564,10 @@ class _PantryScreenState extends State<PantryScreen>
         if (idx >= 0) _meals[idx] = saved;
       });
       PantryService.mealChangeSignal.value++;
+      // Ingredient analysis — for recipe-linked meals or manually-entered ingredients
+      if ((m.recipeId != null || m.ingredients.isNotEmpty) && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(m));
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _meals.remove(m));
@@ -572,6 +593,7 @@ class _PantryScreenState extends State<PantryScreen>
             '${updated.date.year}-${updated.date.month.toString().padLeft(2, '0')}-${updated.date.day.toString().padLeft(2, '0')}',
         'recipe_id': updated.recipeId,
         'note': updated.note,
+        'ingredients': updated.ingredients,
       });
     } catch (e) {
       if (!mounted) return;
@@ -581,6 +603,167 @@ class _PantryScreenState extends State<PantryScreen>
       });
       _showSavedSnack('Failed to update meal', AppColors.expense);
     }
+  }
+
+  // ── Meal status / stock handlers ──────────────────────────────────────────
+
+  Future<void> _updateMealStatus(
+    MealEntry m,
+    MealStatus status,
+    int servingsCount,
+  ) async {
+    final original = m;
+    setState(() {
+      final idx = _meals.indexWhere((e) => e.id == m.id);
+      if (idx >= 0) {
+        _meals[idx] = _meals[idx].copyWith(
+          mealStatus: status,
+          servingsCount: servingsCount,
+        );
+      }
+    });
+    try {
+      await PantryService.instance.updateMealStatus(
+        m.id,
+        status: status.name,
+        servingsCount: servingsCount,
+      );
+      if (status == MealStatus.cooked && m.recipeId != null) {
+        await _reduceStockForMeal(m.recipeId!);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        final idx = _meals.indexWhere((e) => e.id == original.id);
+        if (idx >= 0) _meals[idx] = original;
+      });
+      _showSavedSnack('Failed to update status', AppColors.expense);
+    }
+  }
+
+  /// Extract the core ingredient name from strings like "2 cups basmati rice" → "basmati rice".
+  String _extractIngredientName(String raw) {
+    return raw
+        .toLowerCase()
+        .replaceAll(RegExp(r'^\s*[\d./]+\s*(cups?|tbsp|tsp|g|kg|ml|l|pcs|pieces?|medium|large|small)?\s*[-–:,]?\s*'), '')
+        .replaceAll(RegExp(r'\s*[-–(,].*$'), '')
+        .trim();
+  }
+
+  /// When a meal is cooked, reduce in-stock quantities for matching groceries.
+  Future<void> _reduceStockForMeal(String recipeId) async {
+    final rIdx = _recipes.indexWhere((r) => r.id == recipeId);
+    if (rIdx < 0) return;
+    final recipe = _recipes[rIdx];
+    bool changed = false;
+
+    for (final ingredient in recipe.ingredients) {
+      final name = _extractIngredientName(ingredient);
+      if (name.isEmpty) continue;
+
+      final gIdx = _groceries.indexWhere((g) =>
+          g.inStock &&
+          (g.name.toLowerCase().contains(name) ||
+              name.contains(g.name.toLowerCase())));
+      if (gIdx < 0) continue;
+
+      final item = _groceries[gIdx];
+      final newQty = item.quantity - 1;
+      final Map<String, dynamic> updates = {};
+
+      if (newQty <= 0) {
+        setState(() {
+          _groceries[gIdx].inStock = false;
+          _groceries[gIdx].toBuy = true;
+          _groceries[gIdx].quantity = 0;
+        });
+        updates['in_stock'] = false;
+        updates['to_buy'] = true;
+        updates['quantity'] = 0;
+      } else {
+        setState(() => _groceries[gIdx].quantity = newQty);
+        updates['quantity'] = newQty;
+      }
+      try {
+        await PantryService.instance.updateGroceryItem(item.id, updates);
+      } catch (_) {}
+      changed = true;
+    }
+
+    if (changed && mounted) {
+      _showSavedSnack('🧺 Basket updated for cooked meal', AppColors.income);
+    }
+  }
+
+  /// After adding a meal with a recipe, check if ingredients are in stock.
+  void _analyzeIngredients(MealEntry m) {
+    // Use recipe ingredients when linked, otherwise fall back to manually entered ones
+    final List<String> ingredientList;
+    final String mealName;
+    if (m.recipeId != null) {
+      final rIdx = _recipes.indexWhere((r) => r.id == m.recipeId);
+      if (rIdx < 0) return;
+      ingredientList = _recipes[rIdx].ingredients;
+      mealName = _recipes[rIdx].name;
+    } else {
+      ingredientList = m.ingredients;
+      mealName = m.name;
+    }
+    if (ingredientList.isEmpty) return;
+
+    final stockItems = _groceries
+        .where((g) => g.walletId == widget.activeWalletId && g.inStock)
+        .toList();
+    final toBuyItems = _groceries
+        .where((g) => g.walletId == widget.activeWalletId && g.toBuy)
+        .toList();
+
+    final missing = <String>[];
+    final alreadyInToBuy = <String>[];
+    for (final ingredient in ingredientList) {
+      final name = _extractIngredientName(ingredient);
+      if (name.isEmpty) continue;
+      bool matches(GroceryItem g) =>
+          g.name.toLowerCase().contains(name) ||
+          name.contains(g.name.toLowerCase());
+      if (stockItems.any(matches)) continue;
+      if (toBuyItems.any(matches)) {
+        alreadyInToBuy.add(ingredient);
+      } else {
+        missing.add(ingredient);
+      }
+    }
+
+    if (missing.isEmpty && alreadyInToBuy.isEmpty) return;
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _IngredientAnalysisSheet(
+        recipeName: mealName,
+        missingIngredients: missing,
+        alreadyInToBuyIngredients: alreadyInToBuy,
+        isDark: isDark,
+        onAddToBasket: (items) {
+          for (final label in items) {
+            final item = GroceryItem(
+              id: DateTime.now().microsecondsSinceEpoch.toString(),
+              name: label,
+              category: GroceryCategory.other,
+              quantity: 1,
+              unit: 'pcs',
+              walletId: widget.activeWalletId,
+              inStock: false,
+              toBuy: true,
+            );
+            _addGrocery(item);
+          }
+          _showSavedSnack('${items.length} item(s) added to To Buy 🛒', AppColors.primary);
+        },
+      ),
+    );
   }
 
   void _showMealDetail(MealEntry m) {
@@ -664,18 +847,19 @@ class _PantryScreenState extends State<PantryScreen>
           }
         },
         onReactionUpdated: (reactionIndex, updated) async {
-          setState(() {
-            final idx = _meals.indexWhere((e) => e.id == m.id);
-            if (idx >= 0) {
-              final list = List<MealReaction>.from(_meals[idx].reactions);
-              list[reactionIndex] = updated;
-              _meals[idx] = _meals[idx].copyWith(reactions: list);
-            }
-          });
+          // Read DB id BEFORE setState overwrites the list
           final mealIdx = _meals.indexWhere((e) => e.id == m.id);
           final dbId = mealIdx >= 0 && reactionIndex < _meals[mealIdx].reactions.length
               ? _meals[mealIdx].reactions[reactionIndex].id
               : null;
+          setState(() {
+            if (mealIdx >= 0) {
+              final list = List<MealReaction>.from(_meals[mealIdx].reactions);
+              // Preserve the DB id so it isn't lost from the parent's list
+              list[reactionIndex] = updated.copyWith(id: dbId ?? updated.id);
+              _meals[mealIdx] = _meals[mealIdx].copyWith(reactions: list);
+            }
+          });
           if (dbId == null) return; // not yet persisted
           try {
             await PantryService.instance.updateReaction(dbId, {
@@ -706,6 +890,9 @@ class _PantryScreenState extends State<PantryScreen>
             // Reactions are non-critical; swallow silently
           }
         },
+        onStatusChanged: (status, servingsCount) =>
+            _updateMealStatus(m, status, servingsCount),
+        onCheckStock: (m.recipeId != null || m.ingredients.isNotEmpty) ? () => _analyzeIngredients(m) : null,
       ),
     );
   }
@@ -780,6 +967,24 @@ class _PantryScreenState extends State<PantryScreen>
   void _showRecipeDetail(RecipeModel r) => RecipeDetailSheet.show(
     context,
     r,
+    groceries: _groceries
+        .where((g) => g.walletId == widget.activeWalletId)
+        .toList(),
+    onAddMissingToBasket: (items) {
+      for (final label in items) {
+        _addGrocery(GroceryItem(
+          id: DateTime.now().microsecondsSinceEpoch.toString(),
+          name: label,
+          category: GroceryCategory.other,
+          quantity: 1,
+          unit: 'pcs',
+          walletId: widget.activeWalletId,
+          inStock: false,
+          toBuy: true,
+        ));
+      }
+      _showSavedSnack('${items.length} item(s) added to 🛒 To Buy', AppColors.primary);
+    },
     onEdit: () {
       Navigator.pop(context);
       AddRecipeSheet.show(
@@ -1662,27 +1867,34 @@ class _PantryScreenState extends State<PantryScreen>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : AppColors.cardLight,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
+      builder: (ctx) {
+        final maxH = MediaQuery.of(ctx).size.height * 0.92;
+        return ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            child,
-          ],
-        ),
-      ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Flexible(child: child),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1700,6 +1912,8 @@ class _MealDetailSheet extends StatefulWidget {
   final void Function(MealReaction reaction) onReactionAdded;
   final void Function(int index, MealReaction updated) onReactionUpdated;
   final void Function(int index) onReactionDeleted;
+  final void Function(MealStatus status, int servingsCount)? onStatusChanged;
+  final VoidCallback? onCheckStock;
 
   const _MealDetailSheet({
     required this.meal,
@@ -1710,6 +1924,8 @@ class _MealDetailSheet extends StatefulWidget {
     required this.onReactionAdded,
     required this.onReactionUpdated,
     required this.onReactionDeleted,
+    this.onStatusChanged,
+    this.onCheckStock,
   });
 
   @override
@@ -1746,6 +1962,10 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
   final _nameCtrl = TextEditingController();
   final _commentCtrl = TextEditingController();
 
+  // Status state
+  late MealStatus _status;
+  late int _servings;
+
   // Edit / reply state
   int? _editingIndex;    // null = add mode, int = editing that index
   String? _replyingTo;   // null = not a reply, String = replying to this name
@@ -1754,6 +1974,8 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
   void initState() {
     super.initState();
     _reactions = List.from(widget.meal.reactions);
+    _status = widget.meal.mealStatus;
+    _servings = widget.meal.servingsCount;
     if (widget.currentUserName.isNotEmpty) {
       _nameCtrl.text = widget.currentUserName;
     }
@@ -1812,21 +2034,22 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
     final comment = _commentCtrl.text.trim().isEmpty ? null : _commentCtrl.text.trim();
 
     if (_editingIndex != null) {
-      // Edit existing
-      final updated = _reactions[_editingIndex!].copyWith(
+      // Capture index before setState clears it
+      final idx = _editingIndex!;
+      final updated = _reactions[idx].copyWith(
         memberName: name,
         reactionEmoji: _selectedEmoji,
         comment: comment,
       );
       setState(() {
-        _reactions[_editingIndex!] = updated;
+        _reactions[idx] = updated;
         _showForm = false;
         _editingIndex = null;
         _nameCtrl.text = widget.currentUserName;
         _commentCtrl.clear();
         _selectedEmoji = '👍';
       });
-      widget.onReactionUpdated(_editingIndex!, updated);
+      widget.onReactionUpdated(idx, updated);
     } else {
       // Add new (or reply)
       final r = MealReaction(
@@ -1950,7 +2173,163 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
               ],
             ),
 
+            const SizedBox(height: 18),
+
+            // ── Status picker ────────────────────────────────────────────────
+            Text(
+              '📍  Meal Status',
+              style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito', color: tc,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: MealStatus.values.map((s) {
+                final active = _status == s;
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: s != MealStatus.values.last ? 8 : 0,
+                    ),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _status = s),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? s.color.withValues(alpha: 0.15)
+                              : (widget.isDark ? AppColors.surfDark : AppColors.bgLight),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: active ? s.color : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(s.emoji, style: const TextStyle(fontSize: 18)),
+                            const SizedBox(height: 3),
+                            Text(
+                              s.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: active ? s.color : sub,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            if (_status == MealStatus.cooked || _status == MealStatus.ordered) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text(
+                    '👥  Serves',
+                    style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito', color: tc,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: _servings > 1 ? () => setState(() => _servings--) : null,
+                    child: Icon(Icons.remove_circle_outline,
+                        size: 22,
+                        color: _servings > 1 ? AppColors.primary : sub),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      '$_servings',
+                      style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito', color: tc,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _servings++),
+                    child: const Icon(Icons.add_circle_outline,
+                        size: 22, color: AppColors.primary),
+                  ),
+                ],
+              ),
+            ],
+            if (_status != widget.meal.mealStatus ||
+                _servings != widget.meal.servingsCount) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onStatusChanged?.call(_status, _servings);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _status.color,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    '${_status.emoji}  Save Status',
+                    style: const TextStyle(
+                      fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
             const SizedBox(height: 22),
+
+            // ── Check Stock ──────────────────────────────────────────────────
+            if (widget.onCheckStock != null) ...[
+              GestureDetector(
+                onTap: widget.onCheckStock,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('🧺', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Check Ingredients in Stock',
+                          style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito', color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 18, color: AppColors.primary),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+            ],
 
             // ── Opinions section ─────────────────────────────────────────────
             Row(
@@ -2423,6 +2802,244 @@ class _ExpiryBanner extends StatelessWidget {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INGREDIENT ANALYSIS SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _IngredientAnalysisSheet extends StatefulWidget {
+  final String recipeName;
+  final List<String> missingIngredients;
+  final List<String> alreadyInToBuyIngredients;
+  final bool isDark;
+  final void Function(List<String>) onAddToBasket;
+
+  const _IngredientAnalysisSheet({
+    required this.recipeName,
+    required this.missingIngredients,
+    required this.isDark,
+    required this.onAddToBasket,
+    this.alreadyInToBuyIngredients = const [],
+  });
+
+  @override
+  State<_IngredientAnalysisSheet> createState() =>
+      _IngredientAnalysisSheetState();
+}
+
+class _IngredientAnalysisSheetState extends State<_IngredientAnalysisSheet> {
+  late final Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set.from(widget.missingIngredients);
+  }
+
+  Widget _buildRow(String ingredient, {required bool alreadyInToBuy, required colorSub}) {
+    final isDark = widget.isDark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    if (alreadyInToBuy) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(Icons.playlist_add_check_rounded, size: 18, color: Colors.orange),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                ingredient,
+                style: TextStyle(
+                  fontSize: 13, fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w700,
+                  color: tc.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                '· In To Buy',
+                style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w800,
+                  color: Colors.orange,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    final checked = _selected.contains(ingredient);
+    return GestureDetector(
+      onTap: () => setState(() {
+        if (checked) { _selected.remove(ingredient); }
+        else { _selected.add(ingredient); }
+      }),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(
+              checked ? Icons.check_circle_rounded : Icons.circle_outlined,
+              size: 18,
+              color: checked ? AppColors.primary : sub,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                ingredient,
+                style: TextStyle(
+                  fontSize: 13, fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w700, color: tc,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.expense.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Not in stock',
+                style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w800,
+                  color: AppColors.expense,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = widget.isDark ? AppColors.surfDark : AppColors.bgLight;
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+    final totalShown = widget.missingIngredients.length + widget.alreadyInToBuyIngredients.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              const Text('🛒', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ingredient Check',
+                      style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito', color: tc,
+                      ),
+                    ),
+                    Text(
+                      '$totalShown items from "${widget.recipeName}" not in stock',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 320),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  ...widget.missingIngredients.map((i) =>
+                      _buildRow(i, alreadyInToBuy: false, colorSub: sub)),
+                  ...widget.alreadyInToBuyIngredients.map((i) =>
+                      _buildRow(i, alreadyInToBuy: true, colorSub: sub)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Skip',
+                      style: TextStyle(
+                          fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: _selected.isEmpty
+                      ? null
+                      : () {
+                          widget.onAddToBasket(_selected.toList());
+                          Navigator.pop(context);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    'Add ${_selected.length} to 🛒 To Buy',
+                    style: const TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

@@ -56,9 +56,11 @@ class AddMealSheet extends StatefulWidget {
 
 class _AddMealSheetState extends State<AddMealSheet> {
   final _nameCtrl = TextEditingController();
+  final _ingredientCtrl = TextEditingController();
   MealTime _mealTime = MealTime.lunch;
   String _emoji = '🍛';
   String? _selectedRecipeId;
+  final List<String> _ingredients = [];
 
   /// Set when user taps an already-occupied meal time slot (pre-fill mode).
   MealEntry? _prefilledExisting;
@@ -128,6 +130,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
       _mealTime = widget.existing!.mealTime;
       _emoji = widget.existing!.emoji;
       _selectedRecipeId = widget.existing!.recipeId;
+      _ingredients.addAll(widget.existing!.ingredients);
     } else {
       // Auto-select the first unoccupied meal slot for the day
       final occupiedTimes = widget.dayMeals.map((m) => m.mealTime).toSet();
@@ -141,7 +144,15 @@ class _AddMealSheetState extends State<AddMealSheet> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _ingredientCtrl.dispose();
     super.dispose();
+  }
+
+  void _addIngredient() {
+    final val = _ingredientCtrl.text.trim();
+    if (val.isEmpty) return;
+    setState(() => _ingredients.add(val));
+    _ingredientCtrl.clear();
   }
 
   String get _dateLabel {
@@ -180,6 +191,9 @@ class _AddMealSheetState extends State<AddMealSheet> {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
 
+    // Ingredients only apply to manually-entered meals (no recipe)
+    final ingredients = _selectedRecipeId == null ? List<String>.from(_ingredients) : <String>[];
+
     if (widget.existing != null) {
       // Explicit edit mode (opened from meal detail sheet)
       widget.onUpdate!(
@@ -188,6 +202,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
           mealTime: _mealTime,
           emoji: _emoji,
           recipeId: _selectedRecipeId,
+          ingredients: ingredients,
         ),
       );
     } else if (_prefilledExisting != null && widget.onUpdate != null) {
@@ -198,6 +213,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
           mealTime: _mealTime,
           emoji: _emoji,
           recipeId: _selectedRecipeId,
+          ingredients: ingredients,
         ),
       );
     } else {
@@ -211,6 +227,7 @@ class _AddMealSheetState extends State<AddMealSheet> {
           walletId: widget.walletId,
           emoji: _emoji,
           recipeId: _selectedRecipeId,
+          ingredients: ingredients,
         ),
       );
     }
@@ -228,15 +245,20 @@ class _AddMealSheetState extends State<AddMealSheet> {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
         ),
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
             // Handle
             Container(
               width: 40,
@@ -501,7 +523,110 @@ class _AddMealSheetState extends State<AddMealSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
+
+            // ── Ingredients (manual meals only) ───────────────────────────
+            if (_selectedRecipeId == null) ...[
+              Row(
+                children: [
+                  Text(
+                    '🥕  Ingredients',
+                    style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                    ),
+                  ),
+                  Text(
+                    '  optional',
+                    style: TextStyle(
+                      fontSize: 10, fontFamily: 'Nunito',
+                      color: (isDark ? AppColors.subDark : AppColors.subLight)
+                          .withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Added chips
+              if (_ingredients.isNotEmpty) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _ingredients.asMap().entries.map((e) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            e.value,
+                            style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito', color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => setState(() => _ingredients.removeAt(e.key)),
+                            child: const Icon(Icons.close_rounded,
+                                size: 14, color: AppColors.primary),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+              ],
+              // Input row
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: surfBg,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: TextField(
+                        controller: _ingredientCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        style: TextStyle(fontSize: 13, color: tc, fontFamily: 'Nunito'),
+                        onSubmitted: (_) => _addIngredient(),
+                        decoration: InputDecoration.collapsed(
+                          hintText: 'e.g. Tomato, Rice 2 cups…',
+                          hintStyle: TextStyle(
+                            fontSize: 12, fontFamily: 'Nunito',
+                            color: isDark ? AppColors.subDark : AppColors.subLight,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _addIngredient,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.add_rounded,
+                          size: 20, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+            ],
+
+            const SizedBox(height: 14),
 
             // Save button
             SizedBox(
@@ -531,6 +656,8 @@ class _AddMealSheetState extends State<AddMealSheet> {
               ),
             ),
           ],
+        ),
+      ),
         ),
       ),
     );

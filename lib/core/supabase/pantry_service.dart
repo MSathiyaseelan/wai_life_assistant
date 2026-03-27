@@ -162,19 +162,33 @@ class PantryService {
     required DateTime date,
     String? recipeId,
     String? note,
+    List<String> ingredients = const [],
   }) async {
     final dateStr = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     final row = await _db.from('meal_entries').insert({
-      'wallet_id':  walletId,
-      'created_by': _uid,
-      'name':       name,
-      'emoji':      emoji,
-      'meal_time':  mealTime,
-      'date':       dateStr,
-      'recipe_id':  recipeId,
-      'note':       note,
+      'wallet_id':   walletId,
+      'created_by':  _uid,
+      'name':        name,
+      'emoji':       emoji,
+      'meal_time':   mealTime,
+      'date':        dateStr,
+      'recipe_id':   recipeId,
+      'note':        note,
+      'ingredients': ingredients,
     }).select().single();
     return row;
+  }
+
+  /// Update the preparation status and serving count of a meal entry.
+  Future<void> updateMealStatus(
+    String id, {
+    required String status,   // MealStatus.name
+    required int servingsCount,
+  }) async {
+    await _db.from('meal_entries').update({
+      'meal_status':    status,
+      'servings_count': servingsCount,
+    }).eq('id', id);
   }
 
   /// Update mutable fields on a meal entry.

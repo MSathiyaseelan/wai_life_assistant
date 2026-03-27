@@ -52,7 +52,7 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
   bool _isFav = false;
 
   // ─── Library tab ────────────────────────────────────────────────────────────
-  int _tab = 0; // 0 = Custom, 1 = From Library
+  int _tab = 1; // 0 = Custom, 1 = From Library (Library shown first)
   final _searchCtrl = TextEditingController();
   List<MasterRecipe> _masterResults = [];
   bool _searching = false;
@@ -98,6 +98,8 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
       _noteCtrl.text = e.note ?? '';
       _timeCtrl.text = e.cookTimeMin?.toString() ?? '';
     }
+    // Pre-load library since it is the default tab
+    _loadLibrary();
   }
 
   @override
@@ -202,17 +204,28 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 child: Row(children: [
-                  _tabBtn(0, '✏️  Custom', surfBg, sub),
-                  const SizedBox(width: 8),
                   _tabBtn(1, '📚  Library', surfBg, sub),
+                  const SizedBox(width: 8),
+                  _tabBtn(0, '✏️  Custom', surfBg, sub),
                 ]),
               ),
 
             Expanded(
-              child: _tab == 0
-                  ? ListView(
-                      controller: ctrl,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              child: GestureDetector(
+                onHorizontalDragEnd: (d) {
+                  if (d.primaryVelocity == null || _isEdit) return;
+                  // Swipe left → Custom (0);  swipe right → Library (1)
+                  if (d.primaryVelocity! < -300 && _tab == 1) {
+                    setState(() => _tab = 0);
+                  } else if (d.primaryVelocity! > 300 && _tab == 0) {
+                    setState(() => _tab = 1);
+                    _loadLibrary();
+                  }
+                },
+                child: _tab == 0
+                    ? ListView(
+                        controller: ctrl,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                 children: [
                   // Header
                   Row(
@@ -456,6 +469,7 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
                 ],
                   )
                   : _buildLibrary(surfBg, tc, sub),
+              ),
             ),
           ],
         ),
@@ -908,6 +922,10 @@ class RecipeDetailSheet extends StatelessWidget {
   final void Function(MealEntry)? onLogMeal;
   final void Function(GroceryItem)? onAddToBasket;
   final VoidCallback? onEdit;
+  /// In-stock grocery items used for the availability check.
+  final List<GroceryItem> groceries;
+  /// Called with the list of missing ingredient names to add to To Buy.
+  final void Function(List<String>)? onAddMissingToBasket;
 
   const RecipeDetailSheet({
     super.key,
@@ -915,6 +933,8 @@ class RecipeDetailSheet extends StatelessWidget {
     this.onLogMeal,
     this.onAddToBasket,
     this.onEdit,
+    this.groceries = const [],
+    this.onAddMissingToBasket,
   });
 
   static Future<void> show(
@@ -923,6 +943,8 @@ class RecipeDetailSheet extends StatelessWidget {
     void Function(MealEntry)? onLogMeal,
     void Function(GroceryItem)? onAddToBasket,
     VoidCallback? onEdit,
+    List<GroceryItem> groceries = const [],
+    void Function(List<String>)? onAddMissingToBasket,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -933,6 +955,50 @@ class RecipeDetailSheet extends StatelessWidget {
         onLogMeal: onLogMeal,
         onAddToBasket: onAddToBasket,
         onEdit: onEdit,
+        groceries: groceries,
+        onAddMissingToBasket: onAddMissingToBasket,
+      ),
+    );
+  }
+
+  /// Extract the core name from an ingredient string like "2 cups basmati rice".
+  String _extractName(String raw) {
+    return raw
+        .toLowerCase()
+        .replaceAll(
+            RegExp(r'^\s*[\d./]+\s*(cups?|tbsp|tsp|g|kg|ml|l|pcs|pieces?|medium|large|small)?\s*[-–:,]?\s*'),
+            '')
+        .replaceAll(RegExp(r'\s*[-–(,].*$'), '')
+        .trim();
+  }
+
+  void _checkAvailability(BuildContext context) {
+    final inStock = groceries.where((g) => g.inStock).toList();
+    final inToBuy = groceries.where((g) => g.toBuy).toList();
+    final checked = <_IngredientStatus>[];
+
+    for (final ingredient in recipe.ingredients) {
+      final name = _extractName(ingredient);
+      bool matches(GroceryItem g) =>
+          name.isNotEmpty &&
+          (g.name.toLowerCase().contains(name) ||
+              name.contains(g.name.toLowerCase()));
+      final found = inStock.any(matches);
+      final listed = !found && inToBuy.any(matches);
+      checked.add(_IngredientStatus(
+          label: ingredient, inStock: found, alreadyInToBuy: listed));
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _IngredientCheckSheet(
+        recipeName: recipe.name,
+        items: checked,
+        isDark: isDark,
+        onAddToBasket: onAddMissingToBasket,
       ),
     );
   }
@@ -1071,7 +1137,40 @@ class RecipeDetailSheet extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   // Ingredients
-                  const _SectionTitle(title: 'Ingredients'),
+                  Row(
+                    children: [
+                      const Expanded(child: _SectionTitle(title: 'Ingredients')),
+                      if (recipe.ingredients.isNotEmpty)
+                        GestureDetector(
+                          onTap: () => _checkAvailability(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.inventory_2_outlined,
+                                    size: 12, color: AppColors.primary),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Check Stock',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(14),
@@ -1526,4 +1625,262 @@ class _Tag extends StatelessWidget {
       ),
     ),
   );
+}
+
+// ── Ingredient availability check ────────────────────────────────────────────
+
+class _IngredientStatus {
+  final String label;
+  final bool inStock;
+  final bool alreadyInToBuy;
+  const _IngredientStatus({
+    required this.label,
+    required this.inStock,
+    this.alreadyInToBuy = false,
+  });
+}
+
+class _IngredientCheckSheet extends StatefulWidget {
+  final String recipeName;
+  final List<_IngredientStatus> items;
+  final bool isDark;
+  final void Function(List<String>)? onAddToBasket;
+
+  const _IngredientCheckSheet({
+    required this.recipeName,
+    required this.items,
+    required this.isDark,
+    this.onAddToBasket,
+  });
+
+  @override
+  State<_IngredientCheckSheet> createState() => _IngredientCheckSheetState();
+}
+
+class _IngredientCheckSheetState extends State<_IngredientCheckSheet> {
+  late final Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-select missing items that aren't already in To Buy
+    _selected = widget.items
+        .where((i) => !i.inStock && !i.alreadyInToBuy)
+        .map((i) => i.label)
+        .toSet();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = widget.isDark ? AppColors.surfDark : AppColors.bgLight;
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+    final missing = widget.items.where((i) => !i.inStock && !i.alreadyInToBuy).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          // Header
+          Row(
+            children: [
+              const Text('🛒', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ingredient Check',
+                      style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito', color: tc,
+                      ),
+                    ),
+                    Text(
+                      '${widget.recipeName} · ${missing.length} of ${widget.items.length} not in stock',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Full ingredient list
+          Container(
+            constraints: const BoxConstraints(maxHeight: 320),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: widget.items.map((item) {
+                  final canSelect = !item.inStock && !item.alreadyInToBuy;
+                  final selected = _selected.contains(item.label);
+                  final badgeColor = item.inStock
+                      ? AppColors.income
+                      : item.alreadyInToBuy
+                          ? Colors.orange
+                          : AppColors.expense;
+                  final badgeLabel = item.inStock
+                      ? '✓ In Stock'
+                      : item.alreadyInToBuy
+                          ? '· In To Buy'
+                          : 'Missing';
+                  return GestureDetector(
+                    onTap: canSelect
+                        ? () => setState(() {
+                              if (selected) {
+                                _selected.remove(item.label);
+                              } else {
+                                _selected.add(item.label);
+                              }
+                            })
+                        : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Icon(
+                            item.inStock
+                                ? Icons.check_circle_rounded
+                                : item.alreadyInToBuy
+                                    ? Icons.playlist_add_check_rounded
+                                    : selected
+                                        ? Icons.check_circle_rounded
+                                        : Icons.circle_outlined,
+                            size: 18,
+                            color: item.inStock
+                                ? AppColors.income
+                                : item.alreadyInToBuy
+                                    ? Colors.orange
+                                    : selected
+                                        ? AppColors.primary
+                                        : sub,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.label,
+                              style: TextStyle(
+                                fontSize: 13, fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w700,
+                                color: item.alreadyInToBuy
+                                    ? tc.withValues(alpha: 0.5)
+                                    : tc,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: badgeColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              badgeLabel,
+                              style: TextStyle(
+                                fontSize: 9, fontWeight: FontWeight.w800,
+                                color: badgeColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (missing.isEmpty)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.income,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('All ingredients in stock! 🎉',
+                    style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15)),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Skip',
+                        style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () {
+                            widget.onAddToBasket?.call(_selected.toList());
+                            Navigator.pop(context);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(
+                      'Add ${_selected.length} to 🛒 To Buy',
+                      style: const TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w900,
+                          fontSize: 13),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 }

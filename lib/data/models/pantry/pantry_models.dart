@@ -165,6 +165,34 @@ extension CuisineTypeExt on CuisineType {
   }
 }
 
+enum MealStatus { planned, cooked, ordered }
+
+extension MealStatusExt on MealStatus {
+  String get label {
+    switch (this) {
+      case MealStatus.planned: return 'Planned';
+      case MealStatus.cooked:  return 'Cooked';
+      case MealStatus.ordered: return 'Ordered';
+    }
+  }
+
+  String get emoji {
+    switch (this) {
+      case MealStatus.planned: return '⏰';
+      case MealStatus.cooked:  return '🏠';
+      case MealStatus.ordered: return '🛵';
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case MealStatus.planned: return const Color(0xFF8E8EA0);
+      case MealStatus.cooked:  return const Color(0xFF00C897);
+      case MealStatus.ordered: return const Color(0xFFFF9800);
+    }
+  }
+}
+
 // ── Meal reaction ─────────────────────────────────────────────────────────────
 
 class MealReaction {
@@ -216,7 +244,11 @@ class MealEntry {
   final String? note;
   final String walletId; // 'personal' or family id
   final String emoji;
-  // Nullable backing field — getter ensures non-null even on hot-reload
+  final MealStatus mealStatus;
+  final int servingsCount; // how many members it was prepared for
+  // Nullable backing fields — getters ensure non-null even on hot-reload / missing DB column
+  final List<String>? _ingredients;
+  List<String> get ingredients => _ingredients ?? const [];
   final List<MealReaction>? _reactions;
   List<MealReaction> get reactions => _reactions ?? const [];
 
@@ -229,8 +261,12 @@ class MealEntry {
     this.recipeId,
     this.note,
     this.emoji = '🍽️',
+    this.mealStatus = MealStatus.planned,
+    this.servingsCount = 1,
+    List<String>? ingredients,
     List<MealReaction>? reactions,
-  }) : _reactions = reactions;
+  }) : _ingredients = ingredients,
+       _reactions = reactions;
 
   MealEntry copyWith({
     String? name,
@@ -239,6 +275,9 @@ class MealEntry {
     String? note,
     String? emoji,
     String? recipeId,
+    MealStatus? mealStatus,
+    int? servingsCount,
+    List<String>? ingredients,
     List<MealReaction>? reactions,
   }) => MealEntry(
     id: id,
@@ -249,6 +288,9 @@ class MealEntry {
     date: date ?? this.date,
     note: note ?? this.note,
     emoji: emoji ?? this.emoji,
+    mealStatus: mealStatus ?? this.mealStatus,
+    servingsCount: servingsCount ?? this.servingsCount,
+    ingredients: ingredients ?? _ingredients,
     reactions: reactions ?? this.reactions,
   );
 
@@ -272,6 +314,12 @@ class MealEntry {
       date: DateTime.parse(m['date'] as String),
       recipeId: m['recipe_id'] as String?,
       note: m['note'] as String?,
+      mealStatus: MealStatus.values.firstWhere(
+        (s) => s.name == (m['meal_status'] as String?),
+        orElse: () => MealStatus.planned,
+      ),
+      servingsCount: (m['servings_count'] as int?) ?? 1,
+      ingredients: (m['ingredients'] as List<dynamic>?)?.cast<String>(),
       reactions: reactions,
     );
   }

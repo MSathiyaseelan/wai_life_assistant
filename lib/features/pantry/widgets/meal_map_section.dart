@@ -50,7 +50,7 @@ class MealMapSection extends StatefulWidget {
 
 class _MealMapSectionState extends State<MealMapSection> {
   final _scrollCtrl = ScrollController();
-  static const _columnWidth = 140.0; // 130 card + 10 margin
+  static const _columnWidth = 165.0; // 155 card + 10 margin
 
   @override
   void initState() {
@@ -222,7 +222,7 @@ class _MealMapSectionState extends State<MealMapSection> {
 
         // Horizontal scroll of day columns — starts at today's column
         SizedBox(
-          height: 260,
+          height: 320,
           child: ListView.builder(
             controller: _scrollCtrl,
             scrollDirection: Axis.horizontal,
@@ -247,6 +247,7 @@ class _MealMapSectionState extends State<MealMapSection> {
                 isDark: isDark,
                 hasClipboard: _hasClipboard,
                 clipboardLabel: widget.clipboardLabel,
+                width: 155,
                 onAddMeal: (dt) async {
                   await AddMealSheet.show(
                     context,
@@ -281,6 +282,7 @@ class _DayColumn extends StatelessWidget {
   final String walletId;
   final bool hasClipboard;
   final String clipboardLabel;
+  final double width;
   final void Function(DateTime) onAddMeal;
   final void Function(MealEntry) onMealTapped;
   final void Function(DateTime)? onCopyDay;
@@ -299,6 +301,7 @@ class _DayColumn extends StatelessWidget {
     required this.onMealTapped,
     this.hasClipboard = false,
     this.clipboardLabel = '',
+    this.width = 130,
     this.onCopyDay,
     this.onPasteToDay,
     this.onCopyMeal,
@@ -314,7 +317,7 @@ class _DayColumn extends StatelessWidget {
         : Colors.transparent;
 
     return Container(
-      width: 130,
+      width: width,
       margin: const EdgeInsets.only(right: 10),
       decoration: BoxDecoration(
         color: cardBg,
@@ -577,6 +580,46 @@ class _MealChip extends StatelessWidget {
               const SizedBox(height: 4),
               _ReactionBadgeRow(reactions: meal.reactions),
             ],
+            Builder(builder: (context) {
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              final mealDay = DateTime(
+                  meal.date.year, meal.date.month, meal.date.day);
+              final isUpcoming = !mealDay.isBefore(today); // today or future
+              final showBadge = meal.mealStatus != MealStatus.planned ||
+                  isUpcoming;
+              if (!showBadge) return const SizedBox.shrink();
+              String label;
+              if (meal.mealStatus == MealStatus.cooked) {
+                label = '🏠${meal.servingsCount > 1 ? ' ×${meal.servingsCount}' : ''}';
+              } else if (meal.mealStatus == MealStatus.ordered) {
+                label = '🛵 Ordered';
+              } else {
+                label = '⏰ Planned';
+              }
+              return Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: meal.mealStatus.color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: meal.mealStatus.color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -590,23 +633,36 @@ class _ReactionBadgeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Count each emoji
-    final counts = <String, int>{};
-    for (final r in reactions) {
-      counts[r.reactionEmoji] = (counts[r.reactionEmoji] ?? 0) + 1;
-    }
-    return Row(
-      children: [
-        const Icon(Icons.chat_bubble_outline_rounded, size: 9, color: AppColors.primary),
-        const SizedBox(width: 3),
-        Expanded(
-          child: Text(
-            counts.entries.map((e) => '${e.key}${e.value > 1 ? e.value : ''}').join(' '),
-            style: const TextStyle(fontSize: 9, color: AppColors.primary),
-            overflow: TextOverflow.ellipsis,
+    // Top-level reactions only (no replies), deduplicate by member
+    final topLevel = reactions.where((r) => r.replyTo == null).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: topLevel.map((r) {
+        // First word of the member name keeps it compact
+        final shortName = r.memberName.split(' ').first;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 2),
+          child: Row(
+            children: [
+              Text(r.reactionEmoji, style: const TextStyle(fontSize: 10)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  shortName,
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: AppColors.primary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+        );
+      }).toList(),
     );
   }
 }
