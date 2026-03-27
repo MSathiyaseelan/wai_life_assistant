@@ -718,6 +718,7 @@ class _PantryScreenState extends State<PantryScreen>
         .where((g) => g.walletId == widget.activeWalletId && g.toBuy)
         .toList();
 
+    final inStock = <String>[];
     final missing = <String>[];
     final alreadyInToBuy = <String>[];
     for (final ingredient in ingredientList) {
@@ -726,15 +727,16 @@ class _PantryScreenState extends State<PantryScreen>
       bool matches(GroceryItem g) =>
           g.name.toLowerCase().contains(name) ||
           name.contains(g.name.toLowerCase());
-      if (stockItems.any(matches)) continue;
-      if (toBuyItems.any(matches)) {
+      if (stockItems.any(matches)) {
+        inStock.add(ingredient);
+      } else if (toBuyItems.any(matches)) {
         alreadyInToBuy.add(ingredient);
       } else {
         missing.add(ingredient);
       }
     }
 
-    if (missing.isEmpty && alreadyInToBuy.isEmpty) return;
+    if (inStock.isEmpty && missing.isEmpty && alreadyInToBuy.isEmpty) return;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
@@ -743,6 +745,7 @@ class _PantryScreenState extends State<PantryScreen>
       isScrollControlled: true,
       builder: (_) => _IngredientAnalysisSheet(
         recipeName: mealName,
+        inStockIngredients: inStock,
         missingIngredients: missing,
         alreadyInToBuyIngredients: alreadyInToBuy,
         isDark: isDark,
@@ -2814,6 +2817,7 @@ class _ExpiryBanner extends StatelessWidget {
 
 class _IngredientAnalysisSheet extends StatefulWidget {
   final String recipeName;
+  final List<String> inStockIngredients;
   final List<String> missingIngredients;
   final List<String> alreadyInToBuyIngredients;
   final bool isDark;
@@ -2824,6 +2828,7 @@ class _IngredientAnalysisSheet extends StatefulWidget {
     required this.missingIngredients,
     required this.isDark,
     required this.onAddToBasket,
+    this.inStockIngredients = const [],
     this.alreadyInToBuyIngredients = const [],
   });
 
@@ -2841,10 +2846,45 @@ class _IngredientAnalysisSheetState extends State<_IngredientAnalysisSheet> {
     _selected = Set.from(widget.missingIngredients);
   }
 
-  Widget _buildRow(String ingredient, {required bool alreadyInToBuy, required colorSub}) {
+  Widget _buildRow(String ingredient, {bool inStock = false, bool alreadyInToBuy = false, required colorSub}) {
     final isDark = widget.isDark;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    if (inStock) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_rounded, size: 18, color: AppColors.income),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                ingredient,
+                style: TextStyle(
+                  fontSize: 13, fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w700,
+                  color: tc.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.income.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '✓ In Stock',
+                style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w800,
+                  color: AppColors.income,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (alreadyInToBuy) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2931,7 +2971,7 @@ class _IngredientAnalysisSheetState extends State<_IngredientAnalysisSheet> {
     final surfBg = widget.isDark ? AppColors.surfDark : AppColors.bgLight;
     final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
     final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
-    final totalShown = widget.missingIngredients.length + widget.alreadyInToBuyIngredients.length;
+    final totalShown = widget.inStockIngredients.length + widget.missingIngredients.length + widget.alreadyInToBuyIngredients.length;
 
     return Container(
       decoration: BoxDecoration(
@@ -2969,7 +3009,7 @@ class _IngredientAnalysisSheetState extends State<_IngredientAnalysisSheet> {
                       ),
                     ),
                     Text(
-                      '$totalShown items from "${widget.recipeName}" not in stock',
+                      '$totalShown ingredients · ${widget.inStockIngredients.length} in stock',
                       style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                     ),
                   ],
@@ -2989,9 +3029,11 @@ class _IngredientAnalysisSheetState extends State<_IngredientAnalysisSheet> {
               child: Column(
                 children: [
                   ...widget.missingIngredients.map((i) =>
-                      _buildRow(i, alreadyInToBuy: false, colorSub: sub)),
+                      _buildRow(i, colorSub: sub)),
                   ...widget.alreadyInToBuyIngredients.map((i) =>
                       _buildRow(i, alreadyInToBuy: true, colorSub: sub)),
+                  ...widget.inStockIngredients.map((i) =>
+                      _buildRow(i, inStock: true, colorSub: sub)),
                 ],
               ),
             ),

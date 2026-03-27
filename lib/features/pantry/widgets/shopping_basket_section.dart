@@ -202,6 +202,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
         Expanded(
           child: TabBarView(
             controller: _tabCtrl,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               // In-stock list
               _GroceryList(
