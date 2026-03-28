@@ -38,9 +38,22 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   bool _loading = false;
 
   List<ReminderModel> get _active => _reminders
-      .where((r) => !r.done)
+      .where((r) => !r.done && !_isPast(r))
       .toList()
     ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+
+  List<ReminderModel> get _overdue => _reminders
+      .where((r) => !r.done && _isPast(r))
+      .toList()
+    ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+
+  bool _isPast(ReminderModel r) {
+    final due = DateTime(
+      r.dueDate.year, r.dueDate.month, r.dueDate.day,
+      r.dueTime.hour, r.dueTime.minute,
+    );
+    return due.isBefore(DateTime.now());
+  }
 
   List<ReminderModel> get _done =>
       _reminders.where((r) => r.done).toList();
@@ -166,16 +179,23 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   }
 
   Future<void> _snooze(ReminderModel r) async {
-    final newDate = r.dueDate.add(const Duration(hours: 1));
+    final now = DateTime(
+      r.dueDate.year, r.dueDate.month, r.dueDate.day,
+      r.dueTime.hour, r.dueTime.minute,
+    );
+    final snoozed = now.add(const Duration(minutes: 10));
     setState(() {
-      r.dueDate = newDate;
+      r.dueDate = DateTime(snoozed.year, snoozed.month, snoozed.day);
+      r.dueTime = TimeOfDay(hour: snoozed.hour, minute: snoozed.minute);
       r.snoozed = true;
     });
     try {
       await ReminderService.instance.updateReminder(r.id, {
-        'due_date': newDate.toIso8601String().split('T').first,
+        'due_date': '${snoozed.year}-${snoozed.month.toString().padLeft(2, '0')}-${snoozed.day.toString().padLeft(2, '0')}',
+        'due_time': '${snoozed.hour.toString().padLeft(2, '0')}:${snoozed.minute.toString().padLeft(2, '0')}',
         'snoozed': true,
       });
+      await NotificationService.instance.schedule(r);
     } catch (_) {}
   }
 
@@ -255,7 +275,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
           labelColor: AppColors.expense,
           unselectedLabelColor: subColor,
           tabs: [
-            Tab(text: 'Active (${_active.length})'),
+            Tab(text: 'Active (${_active.length + _overdue.length})'),
             Tab(text: 'Done (${_done.length})'),
           ],
         ),
@@ -282,7 +302,8 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         controller: _tab,
         children: [
           _ReminderList(
-            key: ValueKey('active-${_active.length}'),
+            key: ValueKey('active-${_active.length}-${_overdue.length}'),
+            overdue: _overdue,
             reminders: _active,
             isDark: isDark,
             onDone: _markDone,
@@ -389,6 +410,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
 
 class _ReminderList extends StatelessWidget {
   final List<ReminderModel> reminders;
+  final List<ReminderModel> overdue;
   final bool isDark;
   final void Function(ReminderModel)? onDone;
   final void Function(ReminderModel)? onSnooze;
@@ -400,6 +422,7 @@ class _ReminderList extends StatelessWidget {
   const _ReminderList({
     super.key,
     required this.reminders,
+    this.overdue = const [],
     required this.isDark,
     required this.onDone,
     required this.onSnooze,
@@ -409,9 +432,42 @@ class _ReminderList extends StatelessWidget {
     this.onReactivate,
   });
 
+  Widget _sectionHeader(String label, Color color) => Padding(
+        padding: const EdgeInsets.only(bottom: 8, top: 4),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Nunito',
+            color: color,
+            letterSpacing: 0.6,
+          ),
+        ),
+      );
+
+  Widget _card(ReminderModel r, {bool isOverdue = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: SwipeTile(
+          onDelete: () => onDelete(r),
+          child: _ReminderCard(
+            reminder: r,
+            isDark: isDark,
+            onDone: onDone != null ? () => onDone!(r) : null,
+            // Snooze shown only for overdue (alarm has fired) when snoozed flag set
+            onSnooze: (onSnooze != null && isOverdue && r.snoozed)
+                ? () => onSnooze!(r)
+                : null,
+            onTap: onTap != null ? () => onTap!(r) : null,
+            onReactivate: onReactivate != null ? () => onReactivate!(r) : null,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    if (reminders.isEmpty) {
+    final isEmpty = reminders.isEmpty && overdue.isEmpty;
+    if (isEmpty) {
       return RefreshIndicator(
         onRefresh: onRefresh,
         child: ListView(
@@ -429,24 +485,18 @@ class _ReminderList extends StatelessWidget {
     }
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView.builder(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-        itemCount: reminders.length,
-        itemBuilder: (_, i) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: SwipeTile(
-            onDelete: () => onDelete(reminders[i]),
-            child: _ReminderCard(
-              reminder: reminders[i],
-              isDark: isDark,
-              onDone: onDone != null ? () => onDone!(reminders[i]) : null,
-              onSnooze: onSnooze != null ? () => onSnooze!(reminders[i]) : null,
-              onTap: onTap != null ? () => onTap!(reminders[i]) : null,
-              onReactivate: onReactivate != null ? () => onReactivate!(reminders[i]) : null,
-            ),
-          ),
-        ),
+        children: [
+          if (overdue.isNotEmpty) ...[
+            _sectionHeader('⚠ OVERDUE', AppColors.expense),
+            ...overdue.map((r) => _card(r, isOverdue: true)),
+            if (reminders.isNotEmpty)
+              _sectionHeader('UPCOMING', AppColors.subLight),
+          ],
+          ...reminders.map((r) => _card(r)),
+        ],
       ),
     );
   }
@@ -603,7 +653,7 @@ class _ReminderCard extends StatelessWidget {
                             children: [
                               if (onSnooze != null) ...[
                                 _ActionBtn(
-                                  label: '💤 Snooze 1h',
+                                  label: '💤 Snooze 10 min',
                                   color: AppColors.lend,
                                   onTap: onSnooze!,
                                 ),
@@ -691,6 +741,14 @@ class _ReminderDetailSheet extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
   });
+
+  bool get _isOverdue {
+    final due = DateTime(
+      reminder.dueDate.year, reminder.dueDate.month, reminder.dueDate.day,
+      reminder.dueTime.hour, reminder.dueTime.minute,
+    );
+    return due.isBefore(DateTime.now());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -795,14 +853,16 @@ class _ReminderDetailSheet extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: _SheetBtn(
-                  label: '💤 Snooze 1h',
-                  color: AppColors.lend,
-                  onTap: onSnooze,
+              if (_isOverdue) ...[
+                Expanded(
+                  child: _SheetBtn(
+                    label: '💤 Snooze 10 min',
+                    color: AppColors.lend,
+                    onTap: onSnooze,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               Expanded(
                 child: _SheetBtn(
                   label: '✓ Done',
@@ -1934,11 +1994,12 @@ class _ManualForm extends StatelessWidget {
             Expanded(
               child: GestureDetector(
                 onTap: () async {
+                  final today = DateTime.now();
                   final d = await showDatePicker(
                     context: context,
-                    initialDate: date,
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime.now().add(const Duration(days: 3650)),
+                    initialDate: date.isBefore(today) ? today : date,
+                    firstDate: today,
+                    lastDate: today.add(const Duration(days: 3650)),
                   );
                   if (d != null) onDateChanged(d);
                 },

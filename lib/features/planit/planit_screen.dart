@@ -6,6 +6,13 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
+import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
+import 'package:wai_life_assistant/core/supabase/task_service.dart';
+import 'package:wai_life_assistant/core/supabase/special_day_service.dart';
+import 'package:wai_life_assistant/core/supabase/wish_service.dart';
+import 'package:wai_life_assistant/core/supabase/note_service.dart';
+import 'package:wai_life_assistant/core/supabase/functions_service.dart';
 import 'package:wai_life_assistant/features/planit/modules/alert_me/alert_me_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_tasks/my_tasks_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/special_days/special_days_screen.dart';
@@ -56,7 +63,61 @@ class _PlanItScreenState extends State<PlanItScreen> {
   final List<SpecialDayModel> _days = [];
   final List<WishModel> _wishes = [];
   final List<NoteModel> _notes = [];
+  final List<FunctionModel> _functions = [];
   final List<TripModel> _trips = List.from(mockTrips);
+
+  String? _loadedWalletId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAllData());
+  }
+
+  @override
+  void didUpdateWidget(PlanItScreen old) {
+    super.didUpdateWidget(old);
+    if (old.activeWalletId != widget.activeWalletId) _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
+    final wid = widget.activeWalletId;
+    if (wid.isEmpty || wid == _loadedWalletId) return;
+    _loadedWalletId = wid;
+    try {
+      final results = await Future.wait([
+        ReminderService.instance.fetchReminders(wid),
+        TaskService.instance.fetchTasks(wid),
+        SpecialDayService.instance.fetchDays(wid),
+        WishService.instance.fetchWishes(wid),
+        NoteService.instance.fetchNotes(wid),
+        FunctionsService.instance.fetchMyFunctions(wid),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _reminders
+          ..clear()
+          ..addAll((results[0]).map(ReminderModel.fromRow));
+        _tasksList
+          ..clear()
+          ..addAll((results[1]).map(TaskModel.fromRow));
+        _days
+          ..clear()
+          ..addAll((results[2]).map(SpecialDayModel.fromRow));
+        _wishes
+          ..clear()
+          ..addAll((results[3]).map(WishModel.fromRow));
+        _notes
+          ..clear()
+          ..addAll((results[4]).map(NoteModel.fromRow));
+        _functions
+          ..clear()
+          ..addAll((results[5]).map(FunctionModel.fromJson));
+      });
+    } catch (e) {
+      debugPrint('[PlanIt] _loadAllData error: $e');
+    }
+  }
 
   // ── Family members for current wallet — converted to PlanMember ───────────
   List<PlanMember> get _members {
@@ -532,9 +593,29 @@ class _PlanItScreenState extends State<PlanItScreen> {
                 : n.content.split('\n').first.trim())
             .where((s) => s.isNotEmpty)
             .toList();
+      case 'Functions':
+        return _functions
+            .where((f) => f.walletId == wid)
+            .take(2)
+            .map((f) {
+              final when = f.functionDate != null
+                  ? _daysLabel(f.functionDate!)
+                  : '';
+              final who = f.whoFunction.isNotEmpty ? ' · ${f.whoFunction}' : '';
+              return '🎊 ${f.title}$who${when.isNotEmpty ? ' · $when' : ''}';
+            })
+            .toList();
       default:
         return [];
     }
+  }
+
+  String _daysLabel(DateTime date) {
+    final diff = date.difference(DateTime.now()).inDays;
+    if (diff < 0) return 'Past';
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    return 'in $diff days';
   }
 
   int _getCount(_ModuleInfo m) {
@@ -557,6 +638,8 @@ class _PlanItScreenState extends State<PlanItScreen> {
             .length;
       case 'Notes':
         return _notes.where((n) => n.walletId == wid).length;
+      case 'Functions':
+        return _functions.where((f) => f.walletId == wid).length;
       default:
         return 0;
     }
@@ -712,12 +795,14 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
+        notes: _notes,
       ),
       quickAddBuilder: (ctx, wid) => NotesScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         openAdd: true,
+        notes: _notes,
       ),
     ),
     _ModuleInfo(

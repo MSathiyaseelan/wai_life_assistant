@@ -1984,8 +1984,19 @@ class _WalletScreenState extends State<WalletScreen>
             if (idx >= 0) _transactions[idx] = updated;
           });
         },
-        onDelete: () =>
-            setState(() => _transactions.removeWhere((t) => t.id == tx.id)),
+        onDelete: () async {
+          setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+          try {
+            await WalletService.instance.deleteTransaction(tx.id);
+            WalletService.txChangeSignal.value++;
+          } catch (e) {
+            if (!mounted) return;
+            setState(() => _transactions.add(tx)); // revert
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to delete: $e')),
+            );
+          }
+        },
       ),
     );
   }

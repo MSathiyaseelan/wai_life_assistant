@@ -155,6 +155,7 @@ class NotesScreen extends StatefulWidget {
   final String walletId;
   final String walletName;
   final String walletEmoji;
+  final List<NoteModel>? notes;
 
   final bool openAdd;
   const NotesScreen({
@@ -163,6 +164,7 @@ class NotesScreen extends StatefulWidget {
     this.walletName = 'Personal',
     this.walletEmoji = '🗒️',
     this.openAdd = false,
+    this.notes,
   });
 
   @override
@@ -226,8 +228,10 @@ class _NotesScreenState extends State<NotesScreen> {
     try {
       final rows = await NoteService.instance.fetchNotes(widget.walletId);
       if (!mounted) return;
+      final loaded = rows.map(NoteModel.fromRow).toList();
+      widget.notes?..clear()..addAll(loaded);
       setState(() {
-        _notes = rows.map(NoteModel.fromRow).toList();
+        _notes = loaded;
         _loading = false;
       });
     } catch (e) {

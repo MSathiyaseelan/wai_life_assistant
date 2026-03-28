@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 
@@ -7,6 +7,10 @@ import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 class WalletService {
   WalletService._();
   static final WalletService instance = WalletService._();
+
+  /// Fires whenever a transaction is added, updated, or deleted.
+  /// Listeners (e.g. DashboardScreen) can reload their transaction list.
+  static final txChangeSignal = ValueNotifier<int>(0);
 
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid => _db.auth.currentUser!.id;

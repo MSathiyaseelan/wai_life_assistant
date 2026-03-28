@@ -14,6 +14,8 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
 import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -29,11 +31,16 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   String _userName = 'Sathiya';
   bool _balanceHidden = false;
+  bool _fabExpanded = false;
   String? _outfitNote; // today's selfie / outfit note
 
   // Today's meals — loaded from DB
   List<MealEntry> _todayMeals = [];
   String _mealsWalletId = '';
+
+  // Transactions — loaded from DB
+  List<TxModel> _transactions = [];
+  String _txWalletId = '';
 
   // derived data — walletId is read from AppStateScope in build()
   WalletModel _wallet(String wid, List<WalletModel> wallets) =>
@@ -42,7 +49,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         orElse: () => wallets.isNotEmpty ? wallets.first : personalWallet,
       );
 
-  List<TxModel> _todayTx(String wid) => mockTransactions
+  List<TxModel> _todayTx(String wid) => _transactions
       .where((t) => t.walletId == wid && _isToday(t.date))
       .toList();
 
@@ -60,15 +67,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     PantryService.mealChangeSignal.addListener(_onMealChange);
+    WalletService.txChangeSignal.addListener(_onTxChange);
     pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
     _loadPinnedGroups();
+  }
+
+  void _ensureTransactionsLoaded(String walletId) {
+    if (walletId.isEmpty || walletId == _txWalletId) return;
+    _txWalletId = walletId;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTransactions(walletId));
   }
 
   Future<void> _refresh() async {
     await Future.wait([
       _loadPinnedGroups(),
       _loadTodayMeals(_mealsWalletId),
+      if (_txWalletId.isNotEmpty) _loadTransactions(_txWalletId),
     ]);
+  }
+
+  Future<void> _loadTransactions(String walletId) async {
+    if (!AuthService.instance.isLoggedIn || walletId.isEmpty) return;
+    try {
+      final rows = await WalletService.instance.fetchTransactions(walletId);
+      if (!mounted) return;
+      setState(() => _transactions = rows.map(TxModel.fromRow).toList());
+    } catch (e) {
+      debugPrint('[Dashboard] fetchTransactions error: $e');
+    }
   }
 
   Future<void> _loadPinnedGroups() async {
@@ -85,11 +111,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     PantryService.mealChangeSignal.removeListener(_onMealChange);
+    WalletService.txChangeSignal.removeListener(_onTxChange);
     pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
     super.dispose();
   }
 
   void _onMealChange() => _loadTodayMeals(_mealsWalletId);
+  void _onTxChange() { if (_txWalletId.isNotEmpty) _loadTransactions(_txWalletId); }
   void _onSplitGroupsChanged() {
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,6 +163,125 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!mounted) return;
       setState(() => _todayMeals = rows.map(MealEntry.fromMap).toList());
     } catch (_) {} // non-critical — Today's Plate shows empty state gracefully
+  }
+
+  void _showMealDetail(MealEntry m) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showMealDetailSheet(
+      context,
+      meal: m,
+      isDark: isDark,
+      currentUserName: _userName,
+      onEdit: () {
+        Navigator.pop(context);
+        // Re-load after any edits in Pantry
+        _loadTodayMeals(_mealsWalletId);
+      },
+      onDelete: () async {
+        Navigator.pop(context);
+        setState(() => _todayMeals.removeWhere((e) => e.id == m.id));
+        try {
+          await PantryService.instance.deleteMealEntry(m.id);
+          PantryService.mealChangeSignal.value++;
+        } catch (_) {
+          _loadTodayMeals(_mealsWalletId); // revert by reloading
+        }
+      },
+      onReactionAdded: (reaction) async {
+        setState(() {
+          final idx = _todayMeals.indexWhere((e) => e.id == m.id);
+          if (idx >= 0) {
+            _todayMeals[idx] = _todayMeals[idx].copyWith(
+              reactions: [..._todayMeals[idx].reactions, reaction],
+            );
+          }
+        });
+        try {
+          final row = await PantryService.instance.addReaction(
+            mealId: m.id,
+            memberName: reaction.memberName,
+            reactionEmoji: reaction.reactionEmoji,
+            comment: reaction.comment,
+            replyTo: reaction.replyTo,
+          );
+          if (!mounted) return;
+          final saved = MealReaction.fromMap(row);
+          setState(() {
+            final idx = _todayMeals.indexWhere((e) => e.id == m.id);
+            if (idx >= 0) {
+              final list = List<MealReaction>.from(_todayMeals[idx].reactions);
+              final ri = list.lastIndexWhere(
+                (r) => r.id == null &&
+                    r.memberName == reaction.memberName &&
+                    r.reactionEmoji == reaction.reactionEmoji,
+              );
+              if (ri >= 0) list[ri] = saved;
+              _todayMeals[idx] = _todayMeals[idx].copyWith(reactions: list);
+            }
+          });
+        } catch (_) {
+          // non-critical
+        }
+      },
+      onReactionUpdated: (reactionIndex, updated) async {
+        final mealIdx = _todayMeals.indexWhere((e) => e.id == m.id);
+        final dbId = mealIdx >= 0 && reactionIndex < _todayMeals[mealIdx].reactions.length
+            ? _todayMeals[mealIdx].reactions[reactionIndex].id
+            : null;
+        setState(() {
+          if (mealIdx >= 0) {
+            final list = List<MealReaction>.from(_todayMeals[mealIdx].reactions);
+            list[reactionIndex] = updated.copyWith(id: dbId ?? updated.id);
+            _todayMeals[mealIdx] = _todayMeals[mealIdx].copyWith(reactions: list);
+          }
+        });
+        if (dbId == null) return;
+        try {
+          await PantryService.instance.updateReaction(dbId, {
+            'member_name': updated.memberName,
+            'reaction_emoji': updated.reactionEmoji,
+            'comment': updated.comment,
+          });
+        } catch (_) {}
+      },
+      onReactionDeleted: (reactionIndex) async {
+        final mealIdx = _todayMeals.indexWhere((e) => e.id == m.id);
+        final dbId = mealIdx >= 0 && reactionIndex < _todayMeals[mealIdx].reactions.length
+            ? _todayMeals[mealIdx].reactions[reactionIndex].id
+            : null;
+        setState(() {
+          if (mealIdx >= 0) {
+            final list = List<MealReaction>.from(_todayMeals[mealIdx].reactions)
+              ..removeAt(reactionIndex);
+            _todayMeals[mealIdx] = _todayMeals[mealIdx].copyWith(reactions: list);
+          }
+        });
+        if (dbId == null) return;
+        try {
+          await PantryService.instance.deleteReaction(dbId);
+        } catch (_) {}
+      },
+      onStatusChanged: (status, servingsCount) async {
+        setState(() {
+          final idx = _todayMeals.indexWhere((e) => e.id == m.id);
+          if (idx >= 0) {
+            _todayMeals[idx] = _todayMeals[idx].copyWith(
+              mealStatus: status,
+              servingsCount: servingsCount,
+            );
+          }
+        });
+        try {
+          await PantryService.instance.updateMealStatus(
+            m.id,
+            status: status.name,
+            servingsCount: servingsCount,
+          );
+        } catch (_) {
+          _loadTodayMeals(_mealsWalletId); // revert by reloading
+        }
+      },
+    );
   }
 
   List<_PlanNudge> get _nudges {
@@ -305,6 +452,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Read walletId from global state — updates whenever any tab switches view
     final appState = AppStateScope.of(context);
     final walletId = appState.activeWalletId;
+    _ensureTransactionsLoaded(walletId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -314,7 +462,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: bg,
-      body: RefreshIndicator(
+      floatingActionButton: _buildFab(context, isDark, surfBg, walletId),
+      body: GestureDetector(
+        onTap: () { if (_fabExpanded) setState(() => _fabExpanded = false); },
+        child: RefreshIndicator(
         onRefresh: _refresh,
         child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -444,10 +595,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     wallet: _wallet(walletId, appState.wallets),
                     isDark: isDark,
                     todayTx: _todayTx(walletId),
+                    balance: _todayTx(walletId).fold(0.0, (s, t) =>
+                        t.type.isPositive
+                            ? s + t.amount
+                            : (t.type == TxType.expense || t.type == TxType.lend)
+                                ? s - t.amount
+                                : s),
                     hidden: _balanceHidden,
                     onToggleHide: () =>
                         setState(() => _balanceHidden = !_balanceHidden),
-                    onAddTx: () => _showQuickAdd(context, isDark, surfBg, null),
                   ),
                   const SizedBox(height: 10),
 
@@ -524,6 +680,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     meals: _todayMeals,
                     isDark: isDark,
                     cardBg: cardBg,
+                    onMealTap: _showMealDetail,
                   ),
                   const SizedBox(height: 16),
 
@@ -610,6 +767,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
       ),
+      ),
+    );
+  }
+
+  // ── FAB ──────────────────────────────────────────────────────────────────────
+  Widget _buildFab(BuildContext context, bool isDark, Color surfBg, String walletId) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: _fabExpanded
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _FabAction(
+                      icon: Icons.auto_awesome_rounded,
+                      label: 'AI Parse',
+                      color: Colors.deepPurple,
+                      onTap: () {
+                        setState(() => _fabExpanded = false);
+                        showSparkBottomSheet(
+                          context,
+                          walletId: walletId,
+                          onSave: (tx) => setState(() {}),
+                          onOpenFlow: () => _showQuickAdd(context, isDark, surfBg, null),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _FabAction(
+                      icon: Icons.bolt_rounded,
+                      label: 'Quick Add',
+                      color: AppColors.primary,
+                      onTap: () {
+                        setState(() => _fabExpanded = false);
+                        _showQuickAdd(context, isDark, surfBg, null);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+        FloatingActionButton(
+          onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
+          backgroundColor: AppColors.primary,
+          child: AnimatedRotation(
+            turns: _fabExpanded ? 0.125 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(Icons.add_rounded, color: Colors.white),
+          ),
+        ),
+      ],
     );
   }
 
@@ -949,9 +1163,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      final amt = double.tryParse(amtCtrl.text.trim());
+                      if (amt == null || amt <= 0) return;
                       HapticFeedback.lightImpact();
                       Navigator.pop(ctx);
+                      final walletId = AppStateScope.of(context).activeWalletId;
+                      try {
+                        final row = await WalletService.instance.addTransaction(
+                          walletId: walletId,
+                          type: txType.name,
+                          amount: amt,
+                          category: cat,
+                          note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
+                          payMode: (txType == TxType.expense || txType == TxType.income)
+                              ? payMode.name
+                              : null,
+                        );
+                        if (!mounted) return;
+                        setState(() => _transactions.add(TxModel.fromRow(row)));
+                        WalletService.txChangeSignal.value++;
+                      } catch (e) {
+                        debugPrint('[Dashboard] quickAdd error: $e');
+                      }
                     },
                     style: FilledButton.styleFrom(
                       backgroundColor: txType.color,
@@ -1399,15 +1633,16 @@ class _MoneyPulseCard extends StatelessWidget {
   final WalletModel wallet;
   final bool isDark, hidden;
   final List<TxModel> todayTx;
-  final VoidCallback onToggleHide, onAddTx;
+  final double balance;
+  final VoidCallback onToggleHide;
 
   const _MoneyPulseCard({
     required this.wallet,
     required this.isDark,
     required this.todayTx,
+    required this.balance,
     required this.hidden,
     required this.onToggleHide,
-    required this.onAddTx,
   });
 
   String _fmt(double v) {
@@ -1417,13 +1652,26 @@ class _MoneyPulseCard extends StatelessWidget {
     return '₹${v.toStringAsFixed(0)}';
   }
 
+  String _fmtCompact(double v) {
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
+    return v.toStringAsFixed(0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final todayIn = todayTx
-        .where((t) => t.type.isPositive)
+    final cashIn = todayTx
+        .where((t) => t.payMode == PayMode.cash && t.type.isPositive)
         .fold(0.0, (s, t) => s + t.amount);
-    final todayOut = todayTx
-        .where((t) => t.type == TxType.expense || t.type == TxType.lend)
+    final cashOut = todayTx
+        .where((t) => t.payMode == PayMode.cash &&
+            (t.type == TxType.expense || t.type == TxType.lend))
+        .fold(0.0, (s, t) => s + t.amount);
+    final onlineIn = todayTx
+        .where((t) => t.payMode == PayMode.online && t.type.isPositive)
+        .fold(0.0, (s, t) => s + t.amount);
+    final onlineOut = todayTx
+        .where((t) => t.payMode == PayMode.online &&
+            (t.type == TxType.expense || t.type == TxType.lend))
         .fold(0.0, (s, t) => s + t.amount);
 
     return Container(
@@ -1437,272 +1685,235 @@ class _MoneyPulseCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Top — balance
+          // Top — balance + hide toggle
           Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    EmojiOrImage(value: wallet.emoji, size: 16, borderRadius: 3),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        wallet.name,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: onToggleHide,
-                      child: Icon(
-                        hidden
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        color: Colors.white60,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: onAddTx,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.add_rounded,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                            SizedBox(width: 3),
-                            Text(
-                              'Add',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
                 Text(
-                  'Total Balance',
-                  style: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                    fontFamily: 'Nunito',
-                  ),
-                ),
-                Text(
-                  _fmt(wallet.balance),
+                  _fmt(balance),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 30,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                     fontFamily: 'DM Mono',
                   ),
                 ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: onToggleHide,
+                  child: Icon(
+                    hidden
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: Colors.white60,
+                    size: 18,
+                  ),
+                ),
               ],
             ),
           ),
 
-          // Bottom — today's stats
+          // Middle — today's Cash / Online summary (same structure as WalletSummaryCard)
           Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _PulseStat(
-                    icon: Icons.arrow_downward_rounded,
-                    label: 'In today',
-                    value: _fmt(todayIn),
-                    color: Colors.greenAccent,
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _TodayPaySection(
+                      icon: Icons.payments_rounded,
+                      title: 'Cash',
+                      inAmt: _fmt(cashIn),
+                      outAmt: _fmt(cashOut),
+                    ),
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: Colors.white.withOpacity(0.2),
-                ),
-                Expanded(
-                  child: _PulseStat(
-                    icon: Icons.arrow_upward_rounded,
-                    label: 'Out today',
-                    value: _fmt(todayOut),
-                    color: Colors.redAccent[100]!,
+                  Container(
+                    width: 1,
+                    color: Colors.white.withValues(alpha: 0.25),
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 30,
-                  color: Colors.white.withOpacity(0.2),
-                ),
-                Expanded(
-                  child: _PulseStat(
-                    icon: Icons.receipt_long_rounded,
-                    label: 'Entries',
-                    value: '${todayTx.length}',
-                    color: Colors.white70,
+                  Expanded(
+                    child: _TodayPaySection(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Online',
+                      inAmt: _fmt(onlineIn),
+                      outAmt: _fmt(onlineOut),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
-          // Today's transactions list (max 3, compact)
+          // Bottom — today's transactions list (max 3, compact)
           if (todayTx.isNotEmpty)
-            if (todayTx.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                child: Column(
-                  children: [
-                    ...todayTx.take(3).map((t) {
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              t.type.emoji,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    t.category,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+              child: Column(
+                children: [
+                  ...todayTx.take(3).map((t) => Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(t.type.emoji,
+                            style: const TextStyle(fontSize: 16)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(t.category,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                  )),
+                              if (t.note != null)
+                                Text(t.note!,
                                     style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white60,
+                                      fontSize: 10,
                                       fontFamily: 'Nunito',
                                     ),
-                                  ),
-                                  if (t.note != null)
-                                    Text(
-                                      t.note!,
-                                      style: const TextStyle(
-                                        color: Colors.white60,
-                                        fontSize: 10,
-                                        fontFamily: 'Nunito',
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '${t.type.isPositive ? '+' : '-'}'
-                              '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
-                              style: TextStyle(
-                                color: t.type.isPositive
-                                    ? Colors.greenAccent
-                                    : Colors.redAccent[100],
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                fontFamily: 'DM Mono',
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    if (todayTx.length > 3)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '+${todayTx.length - 3} more today',
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 11,
-                            fontFamily: 'Nunito',
+                                    overflow: TextOverflow.ellipsis),
+                            ],
                           ),
                         ),
+                        Text(
+                          '${t.type.isPositive ? '+' : '-'}'
+                          '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
+                          style: TextStyle(
+                            color: t.type.isPositive
+                                ? Colors.greenAccent
+                                : Colors.redAccent[100],
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'DM Mono',
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                  if (todayTx.length > 3)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '+${todayTx.length - 3} more today',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                          fontFamily: 'Nunito',
+                        ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
+            ),
         ],
       ),
     );
   }
+}
 
-  String _fmtCompact(double v) {
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(0);
+// ── Today payment section (Cash / Online) ────────────────────────────────────
+class _TodayPaySection extends StatelessWidget {
+  final IconData icon;
+  final String title, inAmt, outAmt;
+
+  const _TodayPaySection({
+    required this.icon,
+    required this.title,
+    required this.inAmt,
+    required this.outAmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.white70),
+            const SizedBox(width: 5),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        _TodayAmtRow(label: 'In', amount: inAmt, isIn: true),
+        const SizedBox(height: 4),
+        _TodayAmtRow(label: 'Out', amount: outAmt, isIn: false),
+      ],
+    );
   }
 }
 
-class _PulseStat extends StatelessWidget {
-  final IconData icon;
-  final String label, value;
-  final Color color;
-  const _PulseStat({
-    required this.icon,
+class _TodayAmtRow extends StatelessWidget {
+  final String label, amount;
+  final bool isIn;
+
+  const _TodayAmtRow({
     required this.label,
-    required this.value,
-    required this.color,
+    required this.amount,
+    required this.isIn,
   });
+
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Icon(icon, color: color, size: 14),
-      const SizedBox(height: 4),
-      Text(
-        value,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w900,
-          fontFamily: 'DM Mono',
-          color: Colors.white,
+  Widget build(BuildContext context) {
+    final color = isIn ? Colors.greenAccent : Colors.redAccent[100]!;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+            ),
+          ),
         ),
-      ),
-      Text(
-        label,
-        style: const TextStyle(
-          fontSize: 9,
-          color: Colors.white60,
-          fontFamily: 'Nunito',
+        Text(
+          amount,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'DM Mono',
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1985,10 +2196,12 @@ class _TodaysPlateCard extends StatelessWidget {
   final List<MealEntry> meals;
   final bool isDark;
   final Color cardBg;
+  final void Function(MealEntry)? onMealTap;
   const _TodaysPlateCard({
     required this.meals,
     required this.isDark,
     required this.cardBg,
+    this.onMealTap,
   });
 
   @override
@@ -2123,27 +2336,61 @@ class _TodaysPlateCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       ...entries.map(
-                        (e) => Container(
-                          margin: const EdgeInsets.only(bottom: 4),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: mt.color.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${e.emoji} ${e.name}',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontFamily: 'Nunito',
-                              color: tc,
-                              fontWeight: FontWeight.w600,
+                        (e) => GestureDetector(
+                          onTap: onMealTap != null ? () => onMealTap!(e) : null,
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            decoration: BoxDecoration(
+                              color: mt.color.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: onMealTap != null
+                                  ? Border.all(color: mt.color.withValues(alpha: 0.2))
+                                  : null,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '${e.emoji} ${e.name}',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontFamily: 'Nunito',
+                                    color: tc,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      e.mealStatus.emoji,
+                                      style: const TextStyle(fontSize: 8),
+                                    ),
+                                    if (e.reactions.isNotEmpty) ...[
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '💬${e.reactions.length}',
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          fontFamily: 'Nunito',
+                                          color: sub,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -2874,6 +3121,54 @@ class _PlanNudge {
     required this.color,
     required this.tag,
   });
+}
+
+// ── FAB action button ─────────────────────────────────────────────────────────
+class _FabAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FabAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        FloatingActionButton.small(
+          heroTag: null,
+          onPressed: onTap,
+          backgroundColor: color,
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+      ],
+    );
+  }
 }
 
 class _QuickAction {
