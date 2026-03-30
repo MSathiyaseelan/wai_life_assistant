@@ -69,25 +69,3 @@ class GroceryController extends ChangeNotifier {
     }
   }
 }
-
-//How to use ConsumeItemSheet in other pages
-//From your Meal Planner (or any place you want the user to mark consumption):
-// InkWell(
-//   onTap: () {
-//     showModalBottomSheet(
-//       context: context,
-//       isScrollControlled: true,
-//       shape: const RoundedRectangleBorder(
-//         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-//       ),
-//       builder: (_) => ConsumeItemSheet(
-//         item: groceryItem, // the item being consumed
-//         controller: groceryController, // your instance of GroceryController
-//       ),
-//     );
-//   },
-//   child: ListTile(
-//     title: Text(groceryItem.name),
-//     subtitle: Text('${groceryItem.quantity} ${groceryItem.unit} left'),
-//   ),
-// ),
