@@ -166,18 +166,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
-    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final textColor = isDark ? AppColors.textDark : AppColors.textLight;
-    final subColor = isDark ? AppColors.subDark : AppColors.subLight;
 
     return Scaffold(
       backgroundColor: bg,
       appBar: _buildAppBar(isDark, textColor),
       body: CustomScrollView(
         slivers: [
-          // ── Stats summary bar ─────────────────────────────────────────────
-          SliverToBoxAdapter(child: _buildStatsBar(isDark, cardBg, subColor)),
-
           // ── Module list ───────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -239,87 +234,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // ── Stats bar ─────────────────────────────────────────────────────────────
-  Widget _buildStatsBar(bool isDark, Color cardBg, Color subColor) {
-    final stats = [
-      (
-        emoji: '🔔',
-        value: '$_dueReminders',
-        label: 'Due\nSoon',
-        color: AppColors.expense,
-      ),
-      (
-        emoji: '✅',
-        value: '$_pendingTasks',
-        label: 'Pending\nTasks',
-        color: AppColors.split,
-      ),
-      (
-        emoji: '📅',
-        value: '$_upcomingDays',
-        label: 'Special\nDays',
-        color: AppColors.primary,
-      ),
-      (
-        emoji: '🗒️',
-        value: '${_notes.length}',
-        label: 'Notes',
-        color: const Color(0xFFF9A825),
-      ),
-    ];
-    return Container(
-      color: cardBg,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      child: Row(
-        children: stats.asMap().entries.map((e) {
-          final s = e.value;
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(left: e.key > 0 ? 8 : 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: s.color.withOpacity(isDark ? 0.12 : 0.08),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: s.color.withOpacity(0.2)),
-                ),
-                child: Column(
-                  children: [
-                    Text(s.emoji, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(height: 3),
-                    Text(
-                      s.value,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'DM Mono',
-                        color: s.color,
-                      ),
-                    ),
-                    Text(
-                      s.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Nunito',
-                        color: s.color.withOpacity(0.75),
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
     );
   }
 

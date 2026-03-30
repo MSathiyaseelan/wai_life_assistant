@@ -62,17 +62,31 @@ class _PantryScreenState extends State<PantryScreen>
   List<MemberFoodPrefs> _foodPrefs = [];
 
   // ── Family food prefs ────────────────────────────────────────────────────────
-  List<PantryMember> get _currentMembers {
-    if (widget.activeWalletId == 'personal') {
-      return const [PantryMember(id: 'me', name: 'Me', emoji: '🧑')];
+  List<PantryMember> _buildMembers() {
+    final appState = AppStateScope.read(context);
+    final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
+
+    if (appState.isPersonal) {
+      // Personal wallet — show the logged-in user
+      final name = _currentUserName.isEmpty ? 'Me' : _currentUserName;
+      final emoji = appState.activeWallet.emoji;
+      return [PantryMember(id: uid.isEmpty ? 'me' : uid, name: name, emoji: emoji)];
     }
-    return const [
-      PantryMember(id: 'me', name: 'Me', emoji: '🧑'),
-      PantryMember(id: 'dad', name: 'Dad', emoji: '👨'),
-      PantryMember(id: 'mom', name: 'Mom', emoji: '👩'),
-      PantryMember(id: 'son', name: 'Arjun', emoji: '👦'),
-      PantryMember(id: 'dau', name: 'Priya', emoji: '👧'),
-    ];
+
+    // Family wallet — look up the matching FamilyModel
+    final walletId = widget.activeWalletId;
+    final families = appState.families;
+    final idx = families.indexWhere((f) => f.walletId == walletId);
+    if (idx >= 0) {
+      return families[idx]
+          .members
+          .map((m) => PantryMember(id: m.id, name: m.name, emoji: m.emoji))
+          .toList();
+    }
+
+    // Fallback — family not loaded yet
+    final name = _currentUserName.isEmpty ? 'Me' : _currentUserName;
+    return [PantryMember(id: uid.isEmpty ? 'me' : uid, name: name, emoji: '👤')];
   }
 
   Future<void> _saveFoodPrefs(MemberFoodPrefs updated) async {
@@ -1330,11 +1344,11 @@ class _PantryScreenState extends State<PantryScreen>
             onDateSelected: (d) => setState(() => _selectedDate = d),
           ),
           FamilyFoodPrefsCard(
-            members: _currentMembers,
+            members: _buildMembers(),
             foodPrefs: _foodPrefs
                 .where((p) => p.walletId == widget.activeWalletId)
                 .toList(),
-            currentUserId: 'me',
+            currentUserId: Supabase.instance.client.auth.currentUser?.id ?? 'me',
             walletId: widget.activeWalletId,
             isAdmin: true,
             onSave: _saveFoodPrefs,

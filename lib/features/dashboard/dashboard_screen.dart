@@ -7,6 +7,11 @@ import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
+import 'package:wai_life_assistant/core/supabase/task_service.dart';
+import 'package:wai_life_assistant/core/supabase/special_day_service.dart';
+import 'package:wai_life_assistant/core/supabase/wish_service.dart';
+import 'package:wai_life_assistant/core/supabase/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
@@ -32,8 +37,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userName = 'Sathiya';
   bool _balanceHidden = false;
   bool _fabExpanded = false;
-  String? _outfitNote; // today's selfie / outfit note
-
   // Today's meals — loaded from DB
   List<MealEntry> _todayMeals = [];
   String _mealsWalletId = '';
@@ -41,6 +44,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Transactions — loaded from DB
   List<TxModel> _transactions = [];
   String _txWalletId = '';
+
+  // PlanIt data — loaded from DB (next 7 days)
+  List<ReminderModel> _reminders = [];
+  List<TaskModel> _tasks = [];
+  List<SpecialDayModel> _specialDays = [];
+  List<WishModel> _wishes = [];
+  List<FunctionModel> _functions = [];
+  String _planItWalletId = '';
 
   // derived data — walletId is read from AppStateScope in build()
   WalletModel _wallet(String wid, List<WalletModel> wallets) =>
@@ -78,11 +89,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadTransactions(walletId));
   }
 
+  void _ensurePlanItLoaded(String walletId) {
+    if (walletId.isEmpty || walletId == _planItWalletId) return;
+    _planItWalletId = walletId;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlanItData(walletId));
+  }
+
   Future<void> _refresh() async {
     await Future.wait([
       _loadPinnedGroups(),
       _loadTodayMeals(_mealsWalletId),
       if (_txWalletId.isNotEmpty) _loadTransactions(_txWalletId),
+      if (_planItWalletId.isNotEmpty) _loadPlanItData(_planItWalletId),
     ]);
   }
 
@@ -140,6 +158,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshCount != widget.refreshCount) {
       _loadTodayMeals(_mealsWalletId);
+      _loadPlanItData(_planItWalletId);
     }
   }
 
@@ -150,6 +169,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (walletId != _mealsWalletId) {
       _mealsWalletId = walletId;
       _loadTodayMeals(walletId);
+    }
+  }
+
+  Future<void> _loadPlanItData(String walletId) async {
+    if (walletId.isEmpty) return;
+    try {
+      final results = await Future.wait([
+        ReminderService.instance.fetchReminders(walletId),
+        TaskService.instance.fetchTasks(walletId),
+        SpecialDayService.instance.fetchDays(walletId),
+        WishService.instance.fetchWishes(walletId),
+        FunctionsService.instance.fetchMyFunctions(walletId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _reminders = (results[0]).map(ReminderModel.fromRow).toList();
+        _tasks = (results[1]).map(TaskModel.fromRow).toList();
+        _specialDays = (results[2]).map(SpecialDayModel.fromRow).toList();
+        _wishes = (results[3]).map(WishModel.fromRow).toList();
+        _functions = (results[4]).map(FunctionModel.fromJson).toList();
+      });
+    } catch (e) {
+      debugPrint('[Dashboard] _loadPlanItData error: $e');
     }
   }
 
@@ -286,116 +328,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<_PlanNudge> get _nudges {
     final now = DateTime.now();
-    final week = now.add(const Duration(days: 7));
+    final today = DateTime(now.year, now.month, now.day);
     final list = <_PlanNudge>[];
 
-    // Overdue bills (show regardless of wallet)
-    for (final b in mockBills) {
-      final daysLeft = b.dueDate.difference(now).inDays;
-      if (daysLeft <= 7) {
-        list.add(
-          _PlanNudge(
-            emoji: b.category.emoji,
-            title: b.name,
-            subtitle: daysLeft < 0
-                ? 'Overdue by ${-daysLeft}d  •  ₹${_fmtAmt(b.amount)}'
-                : daysLeft == 0
-                ? 'Due TODAY  •  ₹${_fmtAmt(b.amount)}'
-                : 'Due in ${daysLeft}d  •  ₹${_fmtAmt(b.amount)}',
-            urgency: daysLeft <= 0
-                ? 3
-                : daysLeft <= 3
-                ? 2
-                : 1,
-            color: daysLeft < 0
-                ? AppColors.expense
-                : daysLeft <= 3
-                ? AppColors.lend
-                : AppColors.split,
-            tag: 'Bill',
-          ),
-        );
-      }
-    }
-
-    // Reminders due within 7 days
-    for (final r in mockReminders) {
-      if (r.dueDate.isBefore(week) && !r.done) {
-        final daysLeft = r.dueDate.difference(now).inDays;
-        list.add(
-          _PlanNudge(
-            emoji: r.emoji,
-            title: r.title,
-            subtitle: daysLeft <= 0 ? 'Due today' : 'In ${daysLeft}d',
-            urgency: daysLeft <= 0
-                ? 3
-                : daysLeft <= 2
-                ? 2
-                : 1,
-            color: r.priority.color,
-            tag: 'Alert',
-          ),
-        );
-      }
-    }
-
-    // Special days in next 7 days
-    for (final sd in mockSpecialDays) {
-      final thisYear = DateTime(now.year, sd.date.month, sd.date.day);
-      final daysLeft = thisYear.difference(now).inDays;
+    // Reminders — not done, due today → +7 days
+    for (final r in _reminders) {
+      if (r.done) continue;
+      final due = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
+      final daysLeft = due.difference(today).inDays;
       if (daysLeft >= 0 && daysLeft <= 7) {
-        list.add(
-          _PlanNudge(
-            emoji: sd.emoji,
-            title: sd.title,
-            subtitle: daysLeft == 0 ? '🎉 Today!' : 'In ${daysLeft}d',
-            urgency: daysLeft == 0
-                ? 3
-                : daysLeft <= 2
-                ? 2
-                : 1,
-            color: sd.type.color,
-            tag: 'Special Day',
-          ),
-        );
+        list.add(_PlanNudge(
+          emoji: r.emoji,
+          title: r.title,
+          subtitle: daysLeft == 0 ? 'Due today' : 'In ${daysLeft}d',
+          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+          color: r.priority.color,
+          tag: 'Alert',
+        ));
       }
     }
 
-    // Parties within 7 days
-    for (final p in mockParties) {
-      if (p.eventDate != null && p.eventDate!.isBefore(week)) {
-        final daysLeft = p.eventDate!.difference(now).inDays;
-        if (daysLeft >= 0) {
-          list.add(
-            _PlanNudge(
-              emoji: p.emoji,
-              title: p.title,
-              subtitle: daysLeft == 0 ? 'Today!' : 'In ${daysLeft}d',
-              urgency: daysLeft == 0 ? 3 : 1,
-              color: AppColors.primary,
-              tag: 'Party',
-            ),
-          );
-        }
+    // Tasks — not done, due today → +7 days
+    for (final t in _tasks) {
+      if (t.status == TaskStatus.done || t.dueDate == null) continue;
+      final due = DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day);
+      final daysLeft = due.difference(today).inDays;
+      if (daysLeft >= 0 && daysLeft <= 7) {
+        list.add(_PlanNudge(
+          emoji: t.emoji,
+          title: t.title,
+          subtitle: daysLeft == 0 ? 'Due today' : 'Due in ${daysLeft}d',
+          urgency: daysLeft == 0 ? 3 : t.priority.index >= 2 ? 2 : 1,
+          color: t.priority.color,
+          tag: 'Task',
+        ));
       }
     }
 
-    // Pending tasks (urgent / high priority)
-    for (final t in mockTasks.where(
-      (t) => t.status != TaskStatus.done && t.priority.index >= 2,
-    )) {
-      if (t.dueDate != null && t.dueDate!.isBefore(week)) {
-        final daysLeft = t.dueDate!.difference(now).inDays;
-        list.add(
-          _PlanNudge(
-            emoji: t.emoji,
-            title: t.title,
-            subtitle: daysLeft <= 0 ? 'Overdue' : 'Due in ${daysLeft}d',
-            urgency: daysLeft <= 0 ? 3 : 2,
-            color: t.priority.color,
-            tag: 'Task',
-          ),
-        );
+    // Special days — today → +7 days (yearly recurrence projected to this year)
+    for (final sd in _specialDays) {
+      final projected = sd.yearlyRecur
+          ? DateTime(now.year, sd.date.month, sd.date.day)
+          : DateTime(sd.date.year, sd.date.month, sd.date.day);
+      final daysLeft = projected.difference(today).inDays;
+      if (daysLeft >= 0 && daysLeft <= 7) {
+        list.add(_PlanNudge(
+          emoji: sd.emoji,
+          title: sd.title,
+          subtitle: daysLeft == 0 ? '🎉 Today!' : 'In ${daysLeft}d',
+          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+          color: sd.type.color,
+          tag: 'Special Day',
+        ));
+      }
+    }
+
+    // Wishes — not purchased, target date today → +7 days
+    for (final w in _wishes) {
+      if (w.purchased || w.targetDate == null) continue;
+      final due = DateTime(w.targetDate!.year, w.targetDate!.month, w.targetDate!.day);
+      final daysLeft = due.difference(today).inDays;
+      if (daysLeft >= 0 && daysLeft <= 7) {
+        list.add(_PlanNudge(
+          emoji: w.emoji,
+          title: w.title,
+          subtitle: daysLeft == 0 ? 'Target today' : 'Target in ${daysLeft}d',
+          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+          color: w.priority.color,
+          tag: 'Wish',
+        ));
+      }
+    }
+
+    // Functions — function date today → +7 days
+    for (final f in _functions) {
+      if (f.functionDate == null) continue;
+      final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
+      final daysLeft = fDate.difference(today).inDays;
+      if (daysLeft >= 0 && daysLeft <= 7) {
+        list.add(_PlanNudge(
+          emoji: '🎉',
+          title: f.title,
+          subtitle: daysLeft == 0 ? 'Today!' : 'In ${daysLeft}d',
+          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+          color: AppColors.primary,
+          tag: 'Function',
+        ));
       }
     }
 
@@ -403,30 +421,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return list;
   }
 
-  // Upcoming functions within 30 days
+  // Upcoming functions within 7 days (for the Functions card)
   List<FunctionModel> get _upcomingFunctions {
     final now = DateTime.now();
-    final soon = now.add(const Duration(days: 30));
-    return mockFunctions
-        .where(
-          (f) =>
-              f.functionDate != null &&
-              f.functionDate!.isAfter(now) &&
-              f.functionDate!.isBefore(soon),
-        )
-        .toList();
+    final today = DateTime(now.year, now.month, now.day);
+    final end = today.add(const Duration(days: 7));
+    return _functions.where((f) {
+      if (f.functionDate == null) return false;
+      final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
+      return !fDate.isBefore(today) && !fDate.isAfter(end);
+    }).toList();
   }
 
-  List<UpcomingFunction> get _upcomingAttending {
-    final now = DateTime.now();
-    final soon = now.add(const Duration(days: 30));
-    return mockUpcoming
-        .where(
-          (u) =>
-              u.date != null && u.date!.isAfter(now) && u.date!.isBefore(soon),
-        )
-        .toList();
-  }
+  List<UpcomingFunction> get _upcomingAttending => const [];
 
   // Active split transactions
   List<TxModel> _activeSplits(String wid) => mockTransactions
@@ -441,11 +448,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
 
-  String _fmtAmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(0);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -453,6 +455,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final appState = AppStateScope.of(context);
     final walletId = appState.activeWalletId;
     _ensureTransactionsLoaded(walletId);
+    _ensurePlanItLoaded(walletId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -514,10 +517,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.12),
+                      color: AppColors.primary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: AppColors.primary.withOpacity(0.3),
+                        color: AppColors.primary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -702,24 +705,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // ④  OUTFIT TODAY (LifeStyle) ─────────────────────────────
-                  _SectionHeader(
-                    emoji: '👗',
-                    title: "Today's Look",
-                    sub: sub,
-                    action: 'Wardrobe →',
-                    onAction: () {},
-                  ),
-                  const SizedBox(height: 8),
-                  _OutfitTodayCard(
-                    outfitNote: _outfitNote,
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    onCapture: () => _showOutfitCapture(context, isDark),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ⑤  UPCOMING FUNCTIONS ───────────────────────────────────
+                  // ④  UPCOMING FUNCTIONS ───────────────────────────────────
                   if (_upcomingFunctions.isNotEmpty ||
                       _upcomingAttending.isNotEmpty) ...[
                     _SectionHeader(
@@ -739,27 +725,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // ⑥  QUICK ACTIONS GRID ───────────────────────────────────
-                  _SectionHeader(
-                    emoji: '⚡',
-                    title: 'Quick Actions',
-                    sub: sub,
-                    action: null,
-                    onAction: null,
-                  ),
-                  const SizedBox(height: 10),
-                  _QuickActionsGrid(
-                    isDark: isDark,
-                    surfBg: surfBg,
-                    onAddExpense: () =>
-                        _showQuickAdd(context, isDark, surfBg, null),
-                    onOutfitSelfie: () => _showOutfitCapture(context, isDark),
-                    onShopping: () {},
-                    onAddMeal: () {},
-                    onBillPay: () {},
-                    onScanDoc: () {},
-                  ),
-                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -794,7 +759,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         showSparkBottomSheet(
                           context,
                           walletId: walletId,
-                          onSave: (tx) => setState(() {}),
+                          onSave: (tx) async {
+                            setState(() => _transactions.insert(0, tx));
+                            try {
+                              final row = await WalletService.instance.addTransaction(
+                                walletId: tx.walletId,
+                                type: tx.type.name,
+                                amount: tx.amount,
+                                category: tx.category,
+                                payMode: tx.payMode?.name,
+                                note: tx.note,
+                                person: tx.person,
+                                persons: tx.persons,
+                                dueDate: tx.dueDate,
+                                date: tx.date,
+                              );
+                              if (!mounted) return;
+                              final saved = TxModel.fromRow(row);
+                              setState(() {
+                                final idx = _transactions.indexWhere((t) => t.id == tx.id);
+                                if (idx >= 0) _transactions[idx] = saved;
+                              });
+                              WalletService.txChangeSignal.value++;
+                            } catch (e) {
+                              debugPrint('[Dashboard] AI parse save error: $e');
+                              if (!mounted) return;
+                              setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+                            }
+                          },
                           onOpenFlow: () => _showQuickAdd(context, isDark, surfBg, null),
                         );
                       },
@@ -884,7 +876,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.3),
+                      color: Colors.grey.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -947,7 +939,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 TxType.income,
                                 TxType.lend,
                                 TxType.borrow,
-                                TxType.split,
                               ]
                               .map(
                                 (t) => GestureDetector(
@@ -961,7 +952,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: txType == t
-                                          ? t.color.withOpacity(0.15)
+                                          ? t.color.withValues(alpha: 0.15)
                                           : surfBg,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(
@@ -1040,7 +1031,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             border: InputBorder.none,
                             hintText: '0',
                             hintStyle: TextStyle(
-                              color: txType.color.withOpacity(0.3),
+                              color: txType.color.withValues(alpha: 0.3),
                               fontFamily: 'DM Mono',
                             ),
                           ),
@@ -1061,8 +1052,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: payMode == PayMode.cash
-                                  ? AppColors.cash.withOpacity(0.12)
-                                  : AppColors.online.withOpacity(0.12),
+                                  ? AppColors.cash.withValues(alpha: 0.12)
+                                  : AppColors.online.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -1129,7 +1120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: cat == c
-                                      ? AppColors.primary.withOpacity(0.12)
+                                      ? AppColors.primary.withValues(alpha: 0.12)
                                       : surfBg,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
@@ -1213,155 +1204,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ── Outfit Capture ──────────────────────────────────────────────────────────
-  void _showOutfitCapture(BuildContext ctx, bool isDark) {
-    final noteCtrl = TextEditingController(text: _outfitNote ?? '');
-    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.cardLight,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                "Today's Look",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Photo placeholder
-              Container(
-                height: 180,
-                decoration: BoxDecoration(
-                  color: surfBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFFFF5CA8).withOpacity(0.3),
-                    width: 1.5,
-                    style: BorderStyle.solid,
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFF5CA8).withOpacity(0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt_rounded,
-                          size: 30,
-                          color: Color(0xFFFF5CA8),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Tap to take selfie',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: 'Nunito',
-                          color: Color(0xFFFF5CA8),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Text(
-                        'or choose from gallery',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: AppColors.subLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: surfBg,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: TextField(
-                  controller: noteCtrl,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'Nunito',
-                    color: isDark ? AppColors.textDark : AppColors.textLight,
-                  ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText:
-                        "What are you wearing today? (e.g. Blue kurta + jeans)",
-                    prefixIcon: Icon(Icons.edit_note_rounded, size: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    if (noteCtrl.text.isNotEmpty) {
-                      setState(() => _outfitNote = noteCtrl.text.trim());
-                    }
-                    Navigator.pop(ctx);
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF5CA8),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: const Text(
-                    'Save Today\'s Look',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Nunito',
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   // ── Settings ────────────────────────────────────────────────────────────────
   void _showSettings(BuildContext ctx, bool isDark) {
@@ -1426,7 +1268,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 height: 4,
                 margin: const EdgeInsets.only(top: 12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
+                  color: Colors.grey.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1464,7 +1306,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         width: 52,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
@@ -1580,7 +1422,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -1942,7 +1784,7 @@ class _SplitNudgeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.split.withOpacity(0.3)),
+        border: Border.all(color: AppColors.split.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -1950,7 +1792,7 @@ class _SplitNudgeCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: AppColors.split.withOpacity(0.12),
+              color: AppColors.split.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
@@ -2220,7 +2062,7 @@ class _TodaysPlateCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -2257,7 +2099,7 @@ class _TodaysPlateCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.18)),
+        border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.18)),
       ),
       child: Column(
         children: [
@@ -2265,7 +2107,7 @@ class _TodaysPlateCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withOpacity(0.08),
+              color: const Color(0xFF4CAF50).withValues(alpha: 0.08),
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(22),
               ),
@@ -2310,7 +2152,7 @@ class _TodaysPlateCard extends StatelessWidget {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: mt.color.withOpacity(
+                          color: mt.color.withValues(alpha: 
                             entries.isEmpty ? 0.06 : 0.15,
                           ),
                           borderRadius: BorderRadius.circular(12),
@@ -2401,10 +2243,10 @@ class _TodaysPlateCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: sub.withOpacity(0.08),
+                            color: sub.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: sub.withOpacity(0.15),
+                              color: sub.withValues(alpha: 0.15),
                               style: BorderStyle.solid,
                             ),
                           ),
@@ -2473,7 +2315,7 @@ class _NudgesCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.lend.withOpacity(0.2)),
+        border: Border.all(color: AppColors.lend.withValues(alpha: 0.2)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -2534,9 +2376,9 @@ class _NudgesCard extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: n.color.withOpacity(0.12),
+                          color: n.color.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: n.color.withOpacity(0.3)),
+                          border: Border.all(color: n.color.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           n.tag,
@@ -2556,7 +2398,7 @@ class _NudgesCard extends StatelessWidget {
                     height: 1,
                     indent: 42,
                     endIndent: 14,
-                    color: (isDark ? Colors.white : Colors.black).withOpacity(
+                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 
                       0.05,
                     ),
                   ),
@@ -2567,7 +2409,7 @@ class _NudgesCard extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10),
-              color: AppColors.lend.withOpacity(0.06),
+              color: AppColors.lend.withValues(alpha: 0.06),
               child: Text(
                 '+${nudges.length - 5} more in PlanIt',
                 textAlign: TextAlign.center,
@@ -2586,161 +2428,7 @@ class _NudgesCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ④ OUTFIT TODAY CARD
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _OutfitTodayCard extends StatelessWidget {
-  final String? outfitNote;
-  final bool isDark;
-  final Color cardBg;
-  final VoidCallback onCapture;
-  const _OutfitTodayCard({
-    this.outfitNote,
-    required this.isDark,
-    required this.cardBg,
-    required this.onCapture,
-  });
-
-  static const _pink = Color(0xFFFF5CA8);
-
-  @override
-  Widget build(BuildContext context) {
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-
-    if (outfitNote == null) {
-      return GestureDetector(
-        onTap: onCapture,
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: _pink.withOpacity(0.25),
-              style: BorderStyle.solid,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: _pink.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: const Text('📸', style: TextStyle(fontSize: 24)),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Capture today's look",
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Nunito',
-                        color: tc,
-                      ),
-                    ),
-                    Text(
-                      "Take a selfie or note what you're wearing",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'Nunito',
-                        color: sub,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: _pink,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.camera_alt_rounded,
-                  color: Colors.white,
-                  size: 17,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Has outfit note
-    return GestureDetector(
-      onTap: onCapture,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _pink.withOpacity(0.3)),
-        ),
-        child: Row(
-          children: [
-            // Photo placeholder
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: _pink.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _pink.withOpacity(0.2)),
-              ),
-              alignment: Alignment.center,
-              child: const Text('👗', style: TextStyle(fontSize: 28)),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Today's Look 🌟",
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                      color: _pink,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    outfitNote!,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      color: tc,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.edit_rounded, size: 16, color: _pink),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ⑤ UPCOMING FUNCTIONS CARD
+// ④ UPCOMING FUNCTIONS CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _UpcomingFunctionsCard extends StatelessWidget {
@@ -2802,7 +2490,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.primary.withOpacity(0.18)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -2825,8 +2513,8 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                       height: 46,
                       decoration: BoxDecoration(
                         color: f.isMine
-                            ? AppColors.primary.withOpacity(0.12)
-                            : AppColors.lend.withOpacity(0.12),
+                            ? AppColors.primary.withValues(alpha: 0.12)
+                            : AppColors.lend.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       alignment: Alignment.center,
@@ -2907,7 +2595,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     color: const Color(
                                       0xFFFF9800,
-                                    ).withOpacity(0.15),
+                                    ).withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -2934,10 +2622,10 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: daysLeft == 0
-                              ? AppColors.expense.withOpacity(0.12)
+                              ? AppColors.expense.withValues(alpha: 0.12)
                               : daysLeft <= 7
-                              ? AppColors.lend.withOpacity(0.12)
-                              : AppColors.split.withOpacity(0.1),
+                              ? AppColors.lend.withValues(alpha: 0.12)
+                              : AppColors.split.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -2962,7 +2650,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                   height: 1,
                   indent: 72,
                   endIndent: 14,
-                  color: (isDark ? Colors.white : Colors.black).withOpacity(
+                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 
                     0.05,
                   ),
                 ),
@@ -2970,88 +2658,6 @@ class _UpcomingFunctionsCard extends StatelessWidget {
           );
         }).toList(),
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ⑥ QUICK ACTIONS GRID
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _QuickActionsGrid extends StatelessWidget {
-  final bool isDark;
-  final Color surfBg;
-  final VoidCallback onAddExpense,
-      onOutfitSelfie,
-      onShopping,
-      onAddMeal,
-      onBillPay,
-      onScanDoc;
-  const _QuickActionsGrid({
-    required this.isDark,
-    required this.surfBg,
-    required this.onAddExpense,
-    required this.onOutfitSelfie,
-    required this.onShopping,
-    required this.onAddMeal,
-    required this.onBillPay,
-    required this.onScanDoc,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = [
-      _QuickAction('💸', 'Add Expense', AppColors.expense, onAddExpense),
-      _QuickAction(
-        '📸',
-        'Outfit Selfie',
-        const Color(0xFFFF5CA8),
-        onOutfitSelfie,
-      ),
-      _QuickAction('🛒', 'Shopping List', AppColors.income, onShopping),
-      _QuickAction('🍽️', 'Add Meal', const Color(0xFF4CAF50), onAddMeal),
-      _QuickAction('💡', 'Pay Bill', AppColors.lend, onBillPay),
-      _QuickAction('📄', 'Scan Doc', AppColors.split, onScanDoc),
-    ];
-
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 3,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 1.1,
-      children: actions
-          .map(
-            (a) => GestureDetector(
-              onTap: a.onTap,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: a.color.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: a.color.withOpacity(0.2)),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(a.emoji, style: const TextStyle(fontSize: 26)),
-                    const SizedBox(height: 6),
-                    Text(
-                      a.label,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Nunito',
-                        color: a.color,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          )
-          .toList(),
     );
   }
 }
@@ -3169,13 +2775,6 @@ class _FabAction extends StatelessWidget {
       ],
     );
   }
-}
-
-class _QuickAction {
-  final String emoji, label;
-  final Color color;
-  final VoidCallback onTap;
-  const _QuickAction(this.emoji, this.label, this.color, this.onTap);
 }
 
 class _SettingItem {

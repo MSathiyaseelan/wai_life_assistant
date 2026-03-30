@@ -787,7 +787,7 @@ class _DayCard extends StatelessWidget {
       }
     } else {
       final next = nextOccurrence(day.date);
-      final days = next.difference(DateTime.now()).inDays;
+      final days = next.difference(today).inDays;
       if (days == 0) {
         countdown = '🎉 Today!';
         countColor = AppColors.income;
@@ -836,18 +836,49 @@ class _DayCard extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    // Emoji badge
+                    // Date badge — shows actual month/day to avoid the
+                    // platform 📅 emoji always rendering as "July 17".
                     Container(
                       width: 46,
                       height: 46,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.12),
+                        color: color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        day.emoji,
-                        style: const TextStyle(fontSize: 22),
+                      clipBehavior: Clip.hardEdge,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            color: color.withValues(alpha: 0.5),
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              _monthName(day.date.month).substring(0, 3),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                                fontFamily: 'Nunito',
+                                color: color,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: Text(
+                                '${day.date.day}',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  fontFamily: 'DM Mono',
+                                  color: color,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -983,7 +1014,9 @@ class _DayDetailSheet extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final next = nextOccurrence(day.date);
-    final diff = next.difference(DateTime.now()).inDays;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final diff = next.difference(today).inDays;
     final color = day.type.color;
 
     return Padding(
