@@ -21,6 +21,8 @@ import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_scr
 import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -28,13 +30,24 @@ import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dar
 
 class DashboardScreen extends StatefulWidget {
   final int refreshCount;
-  const DashboardScreen({super.key, this.refreshCount = 0});
+  final ThemeMode themeMode;
+  final void Function(ThemeMode)? onSetTheme;
+  const DashboardScreen({
+    super.key,
+    this.refreshCount = 0,
+    this.themeMode = ThemeMode.system,
+    this.onSetTheme,
+  });
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String _userName = 'Sathiya';
+  String _userName = '';
+  String _userPhone = '';
+  String _userDob = '';
+  String _userPlan = 'Free';
+  String _userPhotoUrl = '';
   bool _balanceHidden = false;
   bool _fabExpanded = false;
   // Today's meals — loaded from DB
@@ -81,6 +94,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WalletService.txChangeSignal.addListener(_onTxChange);
     pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
     _loadPinnedGroups();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await ProfileService.instance.fetchProfile();
+      if (profile != null && mounted) {
+        setState(() {
+          final name = (profile['name'] as String?)?.trim() ?? '';
+          if (name.isNotEmpty) _userName = name;
+          _userPhone    = (profile['phone']     as String?) ?? '';
+          _userDob      = (profile['dob']       as String?) ?? '';
+          _userPlan     = (profile['plan']      as String?) ?? 'Free';
+          _userPhotoUrl = (profile['photo_url'] as String?) ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] _loadProfile error: $e');
+    }
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'A';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+
+  String _fmtDob(String iso) {
+    try {
+      final d = DateTime.parse(iso);
+      const months = [
+        'Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec',
+      ];
+      return '${d.day} ${months[d.month - 1]} ${d.year}';
+    } catch (_) {
+      return iso;
+    }
+  }
+
+  Future<void> _pickProfilePhoto(void Function(void Function()) ss) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+    );
+    if (picked == null || !mounted) return;
+    try {
+      final url = await ProfileService.instance.uploadPhoto(
+        localPath: picked.path,
+        folder: 'profiles',
+        name: 'avatar',
+      );
+      await ProfileService.instance.updateProfile(photoUrl: url);
+      if (mounted) {
+        setState(() => _userPhotoUrl = url);
+        ss(() {});
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] photo upload error: $e');
+    }
   }
 
   void _ensureTransactionsLoaded(String walletId) {
@@ -1205,47 +1280,138 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
 
+  // ── Theme picker ─────────────────────────────────────────────────────────────
+  void _showThemePicker(BuildContext ctx, bool isDark) {
+    final options = [
+      (ThemeMode.light,  Icons.light_mode_rounded,       'Light'),
+      (ThemeMode.dark,   Icons.dark_mode_rounded,         'Dark'),
+      (ThemeMode.system, Icons.brightness_auto_rounded,  'System default'),
+    ];
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.cardDark : AppColors.cardLight,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Text(
+              'Appearance',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito',
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...options.map((opt) {
+              final (mode, icon, label) = opt;
+              final selected = widget.themeMode == mode;
+              return GestureDetector(
+                onTap: () {
+                  widget.onSetTheme?.call(mode);
+                  Navigator.pop(ctx);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : (isDark ? AppColors.surfDark : const Color(0xFFEDEEF5)),
+                    borderRadius: BorderRadius.circular(14),
+                    border: selected
+                        ? Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                          )
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        icon,
+                        size: 20,
+                        color: selected
+                            ? AppColors.primary
+                            : (isDark ? AppColors.subDark : AppColors.subLight),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: selected
+                                ? AppColors.primary
+                                : (isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight),
+                          ),
+                        ),
+                      ),
+                      if (selected)
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Settings ────────────────────────────────────────────────────────────────
-  void _showSettings(BuildContext ctx, bool isDark) {
+  void _showSettings(BuildContext ctx, bool isDark) async {
+    // Always fetch fresh profile before opening so phone/dob/plan are current.
+    await _loadProfile();
+    if (!ctx.mounted) return;
+
     final nameCtrl = TextEditingController(text: _userName);
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    bool profileExpanded = false;
+    final themeLabel = switch (widget.themeMode) {
+      ThemeMode.light  => 'Light',
+      ThemeMode.dark   => 'Dark',
+      ThemeMode.system => 'System',
+    };
     final settings = [
-      _SettingItem(
-        Icons.notifications_rounded,
-        'Notifications',
-        'Manage alerts & reminders',
-      ),
-      _SettingItem(
-        Icons.palette_rounded,
-        'Appearance',
-        'Theme, colors & font size',
-      ),
-      _SettingItem(
-        Icons.currency_rupee_rounded,
-        'Currency',
-        'Currency & number format',
-      ),
-      _SettingItem(Icons.language_rounded, 'Language', 'App language'),
-      _SettingItem(
-        Icons.lock_rounded,
-        'Privacy & Security',
-        'PIN, biometrics, data',
-      ),
-      _SettingItem(
-        Icons.cloud_sync_rounded,
-        'Backup & Sync',
-        'Cloud backup settings',
-      ),
-      _SettingItem(
-        Icons.family_restroom_rounded,
-        'Family & Wallets',
-        'Manage family groups',
-      ),
-      _SettingItem(
-        Icons.info_outline_rounded,
-        'About',
-        'Version, feedback, support',
-      ),
+      _SettingItem('🎨', const Color(0xFFFFE0E0), 'Theme', themeLabel),
+      _SettingItem('🌐', const Color(0xFFE0EEFF), 'Language & Voice', 'English'),
+      _SettingItem('🏠', const Color(0xFFFFEDD5), 'Default Scope', 'Per tab'),
+      _SettingItem('✦',  const Color(0xFFE8E0FF), 'AI Parser Settings', 'Always confirm'),
+      _SettingItem('🔔', const Color(0xFFE0F8EC), 'Notifications', 'On'),
+      _SettingItem('₹',  const Color(0xFFE0F0FF), 'Currency', 'INR'),
+      _SettingItem('🔒', const Color(0xFFFFF0E0), 'Privacy & Security', ''),
+      _SettingItem('☁️', const Color(0xFFE8F5FF), 'Backup & Sync', 'On'),
+      _SettingItem('👨‍👩‍👧', const Color(0xFFEEF0FF), 'Family & Wallets', ''),
+      _SettingItem('ℹ️', const Color(0xFFF0F0F0), 'About', 'v1.0.0'),
     ];
 
     showModalBottomSheet(
@@ -1256,7 +1422,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         initialChildSize: 0.75,
         maxChildSize: 0.95,
         minChildSize: 0.5,
-        builder: (_, sc) => Container(
+        builder: (_, sc) => StatefulBuilder(
+          builder: (ctx2, ss) => Container(
           decoration: BoxDecoration(
             color: isDark ? AppColors.cardDark : AppColors.cardLight,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
@@ -1289,130 +1456,451 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
-              // Profile
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, Color(0xFF4B44CC)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
+              // ── Account + Settings ──────────────────────────────
+              Expanded(
+                child: ListView(
+                  controller: sc,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
+                  children: [
+                    // Upgrade banner
+                    if (_userPlan == 'Free')
                       Container(
-                        width: 52,
-                        height: 52,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _userName.isNotEmpty ? _userName[0] : 'A',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            fontFamily: 'Nunito',
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFD97706), Color(0xFFB45309)],
                           ),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Text(
-                              _userName,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                fontFamily: 'Nunito',
-                                color: Colors.white,
+                            const Text('⭐', style: TextStyle(fontSize: 26)),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Upgrade to WAI Plus',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Unlimited AI scans, history & more — ₹99/month',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white70,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const Text(
-                              'Personal & Family Account',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'Nunito',
-                                color: Colors.white70,
-                              ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white70,
                             ),
                           ],
                         ),
                       ),
-                      const Icon(
-                        Icons.edit_rounded,
-                        color: Colors.white70,
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Name field
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: surfBg,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: StatefulBuilder(
-                    builder: (c2, ss) => TextField(
-                      controller: nameCtrl,
-                      onChanged: (v) => ss(() {}),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'Nunito',
-                        color: isDark
-                            ? AppColors.textDark
-                            : AppColors.textLight,
-                      ),
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        hintText: 'Your name',
-                        prefixIcon: const Icon(
-                          Icons.person_outline_rounded,
-                          size: 16,
+                    // ── ACCOUNT section ──────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                      child: Text(
+                        'ACCOUNT',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          fontFamily: 'Nunito',
+                          color: isDark ? AppColors.subDark : AppColors.subLight,
                         ),
-                        suffixIcon: nameCtrl.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: AppColors.income,
-                                  size: 18,
-                                ),
-                                onPressed: () {
-                                  setState(
-                                    () => _userName = nameCtrl.text.trim(),
-                                  );
-                                  Navigator.pop(ctx);
-                                },
-                              )
-                            : null,
                       ),
                     ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  controller: sc,
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 36),
-                  itemCount: settings.length,
-                  itemBuilder: (_, i) {
-                    final s = settings[i];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
+                    // Profile (expandable)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: surfBg,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.person_rounded,
+                                size: 18,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            title: const Text(
+                              'Profile',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Name, photo, phone, date of birth',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'Nunito',
+                                color: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
+                              ),
+                            ),
+                            trailing: Icon(
+                              profileExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 20,
+                              color: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
+                            ),
+                            onTap: () =>
+                                ss(() => profileExpanded = !profileExpanded),
+                          ),
+                          if (profileExpanded)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Divider(
+                                    height: 1,
+                                    color: isDark
+                                        ? Colors.white12
+                                        : Colors.black12,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  // Profile photo
+                                  GestureDetector(
+                                    onTap: () => _pickProfilePhoto(ss),
+                                    child: Row(
+                                      children: [
+                                        Stack(
+                                          children: [
+                                            Container(
+                                              width: 54,
+                                              height: 54,
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary
+                                                    .withValues(alpha: 0.12),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: _userPhotoUrl.isEmpty
+                                                  ? Text(
+                                                      _initials(_userName),
+                                                      style: const TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        color: AppColors.primary,
+                                                        fontFamily: 'Nunito',
+                                                      ),
+                                                    )
+                                                  : ClipOval(
+                                                      child: Image.network(
+                                                        _userPhotoUrl,
+                                                        width: 54,
+                                                        height: 54,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    ),
+                                            ),
+                                            Positioned(
+                                              bottom: 0,
+                                              right: 0,
+                                              child: Container(
+                                                width: 18,
+                                                height: 18,
+                                                decoration: const BoxDecoration(
+                                                  color: AppColors.primary,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.camera_alt_rounded,
+                                                  size: 10,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Text(
+                                          'Tap to change photo',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontFamily: 'Nunito',
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  // Name field
+                                  TextField(
+                                    controller: nameCtrl,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontFamily: 'Nunito',
+                                      color: isDark
+                                          ? AppColors.textDark
+                                          : AppColors.textLight,
+                                    ),
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: isDark
+                                          ? Colors.white.withValues(alpha: 0.06)
+                                          : Colors.black
+                                              .withValues(alpha: 0.04),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      prefixIcon: const Icon(
+                                        Icons.person_outline_rounded,
+                                        size: 16,
+                                      ),
+                                      hintText: 'Full name',
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Phone (read-only — used for login)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 14,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.06)
+                                          : Colors.black
+                                              .withValues(alpha: 0.04),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.phone_rounded,
+                                          size: 16,
+                                          color: isDark
+                                              ? AppColors.subDark
+                                              : AppColors.subLight,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                _userPhone.isNotEmpty
+                                                    ? _userPhone
+                                                    : '—',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontFamily: 'Nunito',
+                                                  color: isDark
+                                                      ? AppColors.textDark
+                                                      : AppColors.textLight,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Used for login',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontFamily: 'Nunito',
+                                                  color: isDark
+                                                      ? AppColors.subDark
+                                                      : AppColors.subLight,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.lock_outline_rounded,
+                                          size: 12,
+                                          color: isDark
+                                              ? AppColors.subDark
+                                              : AppColors.subLight,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Date of birth (for birthday reminders)
+                                  GestureDetector(
+                                    onTap: () async {
+                                      final picked = await showDatePicker(
+                                        context: ctx,
+                                        initialDate: _userDob.isEmpty
+                                            ? DateTime(1995)
+                                            : DateTime.tryParse(_userDob) ??
+                                                DateTime(1995),
+                                        firstDate: DateTime(1900),
+                                        lastDate: DateTime.now(),
+                                      );
+                                      if (picked != null && mounted) {
+                                        final iso =
+                                            '${picked.year.toString().padLeft(4, "0")}-'
+                                            '${picked.month.toString().padLeft(2, "0")}-'
+                                            '${picked.day.toString().padLeft(2, "0")}';
+                                        setState(() => _userDob = iso);
+                                        ss(() {});
+                                        ProfileService.instance
+                                            .updateProfile(dob: iso);
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 14,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isDark
+                                            ? Colors.white
+                                                .withValues(alpha: 0.06)
+                                            : Colors.black
+                                                .withValues(alpha: 0.04),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.cake_rounded,
+                                            size: 16,
+                                            color: isDark
+                                                ? AppColors.subDark
+                                                : AppColors.subLight,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  _userDob.isEmpty
+                                                      ? 'Date of birth'
+                                                      : _fmtDob(_userDob),
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontFamily: 'Nunito',
+                                                    color: _userDob.isEmpty
+                                                        ? (isDark
+                                                            ? AppColors.subDark
+                                                            : AppColors
+                                                                .subLight)
+                                                        : (isDark
+                                                            ? AppColors.textDark
+                                                            : AppColors
+                                                                .textLight),
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'For birthday reminders',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontFamily: 'Nunito',
+                                                    color: isDark
+                                                        ? AppColors.subDark
+                                                        : AppColors.subLight,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.edit_calendar_rounded,
+                                            size: 14,
+                                            color: isDark
+                                                ? AppColors.subDark
+                                                : AppColors.subLight,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  // Save button
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () async {
+                                        final name = nameCtrl.text.trim();
+                                        if (name.isNotEmpty) {
+                                          setState(() => _userName = name);
+                                          try {
+                                            await ProfileService.instance
+                                                .updateProfile(name: name);
+                                          } catch (e) {
+                                            debugPrint(
+                                              '[Dashboard] save: $e',
+                                            );
+                                          }
+                                        }
+                                        ss(() => profileExpanded = false);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primary,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Save Changes',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          fontFamily: 'Nunito',
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Change Phone Number
+                    Container(
                       decoration: BoxDecoration(
                         color: surfBg,
                         borderRadius: BorderRadius.circular(16),
@@ -1425,22 +1913,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(
-                            s.icon,
+                          child: const Icon(
+                            Icons.phone_forwarded_rounded,
                             size: 18,
                             color: AppColors.primary,
                           ),
                         ),
-                        title: Text(
-                          s.title,
-                          style: const TextStyle(
+                        title: const Text(
+                          'Change Phone Number',
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             fontFamily: 'Nunito',
                           ),
                         ),
                         subtitle: Text(
-                          s.subtitle,
+                          'OTP verification required',
                           style: TextStyle(
                             fontSize: 10,
                             fontFamily: 'Nunito',
@@ -1455,12 +1943,155 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         onTap: () {},
                       ),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 8),
+                    // Delete Account
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ListTile(
+                        leading: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.delete_forever_rounded,
+                            size: 18,
+                            color: Colors.red,
+                          ),
+                        ),
+                        title: const Text(
+                          'Delete Account',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: Colors.red,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Permanent — requires OTP confirmation',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'Nunito',
+                            color: Colors.red.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        trailing: const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 13,
+                          color: Colors.red,
+                        ),
+                        onTap: () {},
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // ── PREFERENCES section ───────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                      child: Text(
+                        'PREFERENCES',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.8,
+                          fontFamily: 'Nunito',
+                          color: isDark ? AppColors.subDark : AppColors.subLight,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: surfBg,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: settings.asMap().entries.map((entry) {
+                          final i = entry.key;
+                          final s = entry.value;
+                          final subColor = isDark
+                              ? AppColors.subDark
+                              : AppColors.subLight;
+                          return Column(
+                            children: [
+                              if (i > 0)
+                                Divider(
+                                  height: 1,
+                                  indent: 60,
+                                  endIndent: 16,
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.black.withValues(alpha: 0.06),
+                                ),
+                              ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 2,
+                                ),
+                                leading: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: s.iconBg,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    s.emoji,
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                ),
+                                title: Text(
+                                  s.title,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: isDark
+                                        ? AppColors.textDark
+                                        : AppColors.textLight,
+                                  ),
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (s.value.isNotEmpty)
+                                      Text(
+                                        s.value,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontFamily: 'Nunito',
+                                          color: subColor,
+                                        ),
+                                      ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.chevron_right_rounded,
+                                      size: 18,
+                                      color: subColor,
+                                    ),
+                                  ],
+                                ),
+                                onTap: s.title == 'Theme'
+                                    ? () => _showThemePicker(ctx, isDark)
+                                    : () {},
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -2778,9 +3409,11 @@ class _FabAction extends StatelessWidget {
 }
 
 class _SettingItem {
-  final IconData icon;
-  final String title, subtitle;
-  const _SettingItem(this.icon, this.title, this.subtitle);
+  final String emoji;
+  final Color iconBg;
+  final String title;
+  final String value;
+  const _SettingItem(this.emoji, this.iconBg, this.title, this.value);
 }
 
 // import 'package:flutter/material.dart';

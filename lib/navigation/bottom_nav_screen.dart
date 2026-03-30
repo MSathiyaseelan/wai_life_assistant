@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_screen.dart';
 import 'package:wai_life_assistant/features/pantry/pantry_screen.dart';
@@ -6,6 +7,8 @@ import 'package:wai_life_assistant/features/planit/planit_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+
+const _kThemePrefKey = 'theme_mode';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -16,32 +19,55 @@ class BottomNavScreen extends StatefulWidget {
 class _BottomNavScreenState extends State<BottomNavScreen> {
   ThemeMode _themeMode = ThemeMode.system;
 
-  void _toggleTheme() => setState(() {
-    _themeMode = _themeMode == ThemeMode.dark
-        ? ThemeMode.light
-        : ThemeMode.dark;
-  });
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kThemePrefKey);
+    if (!mounted) return;
+    setState(() {
+      _themeMode = switch (saved) {
+        'light'  => ThemeMode.light,
+        'dark'   => ThemeMode.dark,
+        _        => ThemeMode.system,
+      };
+    });
+  }
+
+  Future<void> _setTheme(ThemeMode mode) async {
+    setState(() => _themeMode = mode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemePrefKey, switch (mode) {
+      ThemeMode.light  => 'light',
+      ThemeMode.dark   => 'dark',
+      ThemeMode.system => 'system',
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'HomeApp',
+      title: 'WAI Life Assistant',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: _themeMode,
-      home: AppShell(onToggleTheme: _toggleTheme, themeMode: _themeMode),
+      home: AppShell(themeMode: _themeMode, onSetTheme: _setTheme),
     );
   }
 }
 
 class AppShell extends StatefulWidget {
-  final VoidCallback onToggleTheme;
   final ThemeMode themeMode;
+  final void Function(ThemeMode) onSetTheme;
   const AppShell({
     super.key,
-    required this.onToggleTheme,
     required this.themeMode,
+    required this.onSetTheme,
   });
   @override
   State<AppShell> createState() => _AppShellState();
@@ -66,7 +92,6 @@ class _AppShellState extends State<AppShell> {
     (icon: '✨', label: 'MyLife'), // V2 — hidden from nav bar
   ];
 
-  // Indices hidden from the bottom nav bar — planned for V2
   static const _hiddenTabIndices = {4}; // MyLife
 
   @override
@@ -86,7 +111,11 @@ class _AppShellState extends State<AppShell> {
         builder: (context, _) {
           final walletId = _appState.activeWalletId;
           final screens = [
-            DashboardScreen(refreshCount: _dashboardRefreshCount),
+            DashboardScreen(
+              refreshCount: _dashboardRefreshCount,
+              themeMode: widget.themeMode,
+              onSetTheme: widget.onSetTheme,
+            ),
             WalletScreen(
               activeWalletId: walletId,
               onWalletChange: _appState.switchWallet,
@@ -112,7 +141,7 @@ class _AppShellState extends State<AppShell> {
                 color: isDark ? AppColors.cardDark : AppColors.cardLight,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
                     blurRadius: 24,
                     offset: const Offset(0, -4),
                   ),
@@ -146,14 +175,13 @@ class _AppShellState extends State<AppShell> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: i == _idx
-                                      ? AppColors.primary.withOpacity(0.1)
+                                      ? AppColors.primary.withValues(alpha: 0.1)
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // Wallet tab (index 1) uses a Material icon for correct color rendering
                                     if (i == 1)
                                       AnimatedScale(
                                         duration: const Duration(milliseconds: 200),
@@ -167,11 +195,11 @@ class _AppShellState extends State<AppShell> {
                                         ),
                                       )
                                     else
-                                    AnimatedDefaultTextStyle(
-                                      duration: const Duration(milliseconds: 200),
-                                      style: TextStyle(fontSize: i == _idx ? 24 : 20),
-                                      child: Text(_tabs[i].icon),
-                                    ),
+                                      AnimatedDefaultTextStyle(
+                                        duration: const Duration(milliseconds: 200),
+                                        style: TextStyle(fontSize: i == _idx ? 24 : 20),
+                                        child: Text(_tabs[i].icon),
+                                      ),
                                     const SizedBox(height: 3),
                                     AnimatedDefaultTextStyle(
                                       duration: const Duration(milliseconds: 200),
@@ -184,8 +212,8 @@ class _AppShellState extends State<AppShell> {
                                         color: i == _idx
                                             ? AppColors.primary
                                             : (isDark
-                                                  ? AppColors.subDark
-                                                  : AppColors.subLight),
+                                                ? AppColors.subDark
+                                                : AppColors.subLight),
                                       ),
                                       child: Text(_tabs[i].label),
                                     ),
