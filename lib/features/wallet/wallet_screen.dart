@@ -23,6 +23,7 @@ import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
+import 'package:wai_life_assistant/features/wallet/wallet_reports_sheet.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -1515,6 +1516,13 @@ class _WalletScreenState extends State<WalletScreen>
                   periodOnlineIn: ps.onlineIn,
                   periodOnlineOut: ps.onlineOut,
                   onTap: () {},
+                  onReports: () => WalletReportsSheet.show(
+                    context,
+                    transactions: _transactions
+                        .where((t) => t.walletId == wallets[0].id)
+                        .toList(),
+                    wallet: wallets[0],
+                  ),
                 );
               },
             ),
@@ -1541,6 +1549,13 @@ class _WalletScreenState extends State<WalletScreen>
                       periodOnlineIn: ps.onlineIn,
                       periodOnlineOut: ps.onlineOut,
                       onTap: () {},
+                      onReports: () => WalletReportsSheet.show(
+                        context,
+                        transactions: _transactions
+                            .where((t) => t.walletId == wallets[i].id)
+                            .toList(),
+                        wallet: wallets[i],
+                      ),
                     );
                   },
                 ),

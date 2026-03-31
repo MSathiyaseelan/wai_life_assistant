@@ -6,6 +6,7 @@ class WalletCardWidget extends StatefulWidget {
   final WalletModel wallet;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback? onReports;
 
   /// When provided, overrides the wallet's all-time breakdown with period stats.
   final double? periodCashIn;
@@ -18,6 +19,7 @@ class WalletCardWidget extends StatefulWidget {
     required this.wallet,
     required this.isActive,
     required this.onTap,
+    this.onReports,
     this.periodCashIn,
     this.periodCashOut,
     this.periodOnlineIn,
@@ -106,6 +108,21 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
                     ),
                   ),
                 ),
+                if (widget.onReports != null)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      widget.onReports!();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4, right: 12),
+                      child: const Icon(
+                        Icons.bar_chart_rounded,
+                        color: Colors.white60,
+                        size: 20,
+                      ),
+                    ),
+                  ),
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
