@@ -120,6 +120,7 @@ class _WalletScreenState extends State<WalletScreen>
     // Initial transaction load
     if (_txLoading) _loadTransactions();
     if (_sgLoading) _loadSplitGroups();
+    WalletService.instance.loadCategories();
   }
 
   @override
@@ -359,6 +360,8 @@ class _WalletScreenState extends State<WalletScreen>
     if (!AuthService.instance.isLoggedIn) {
       return;
     }
+    // Always save the category — runs regardless of whether addTransaction succeeds
+    WalletService.instance.ensureCategory(tx.category, tx.type.name);
     try {
       final row = await WalletService.instance.addTransaction(
         walletId: tx.walletId,
@@ -366,6 +369,7 @@ class _WalletScreenState extends State<WalletScreen>
         amount: tx.amount,
         category: tx.category,
         payMode: tx.payMode?.name,
+        title: tx.title,
         note: tx.note,
         person: tx.person,
         persons: tx.persons,
@@ -1909,6 +1913,7 @@ class _WalletScreenState extends State<WalletScreen>
           return TxTile(
             tx: tx,
             onTap: () => _showDetail(tx),
+            onLongPress: () => _duplicateTx(tx),
             onAccept: isRecipient
                 ? () => _handleRequestResponse(tx, accept: true)
                 : null,
@@ -1969,6 +1974,55 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
+  // ── Duplicate transaction ───────────────────────────────────────────────────
+  void _duplicateTx(TxModel tx) {
+    // Map TxType → FlowType
+    final flowType = switch (tx.type) {
+      TxType.income    => FlowType.income,
+      TxType.lend      => FlowType.lend,
+      TxType.borrow    => FlowType.borrow,
+      TxType.split     => FlowType.split,
+      TxType.request   => FlowType.request,
+      TxType.returned  => FlowType.returned,
+      _                => FlowType.expense,
+    };
+
+    final intent = ParsedIntent(
+      flowType: flowType,
+      amount: tx.amount,
+      category: tx.category,
+      title: tx.title,
+      person: tx.person,
+      payMode: tx.payMode,
+      note: tx.note,
+      date: DateTime.now(), // always today for duplicates
+      confidence: 1.0,
+    );
+
+    IntentConfirmSheet.show(
+      context,
+      intent: intent,
+      walletId: widget.activeWalletId,
+      onSave: (saved) {
+        _onTransactionSaved(saved);
+      },
+      onOpenFlow: () {
+        // open the conversation flow for this type
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ConversationScreen(
+              flowType: flowType,
+              walletId: widget.activeWalletId,
+              wallets: _allWallets,
+              onComplete: _onTransactionSaved,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ── Detail / Edit sheet ─────────────────────────────────────────────────────
   void _showDetail(TxModel tx) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1978,11 +2032,30 @@ class _WalletScreenState extends State<WalletScreen>
       builder: (_) => _TxDetailSheet(
         tx: tx,
         isDark: isDark,
-        onEdit: (updated) {
+        onEdit: (updated) async {
           setState(() {
             final idx = _transactions.indexWhere((t) => t.id == updated.id);
             if (idx >= 0) _transactions[idx] = updated;
           });
+          // Always save the category — runs regardless of whether update succeeds
+          WalletService.instance.ensureCategory(updated.category, updated.type.name);
+          try {
+            final fields = <String, dynamic>{
+              'type': updated.type.name,
+              'amount': updated.amount,
+              'category': updated.category,
+              'date': updated.date.toIso8601String().substring(0, 10),
+              'pay_mode': updated.payMode?.name,
+              'note': updated.note,
+              'person': updated.person,
+            };
+            // Only include title if non-null to avoid errors if migration not yet applied
+            if (updated.title != null) fields['title'] = updated.title;
+            await WalletService.instance.updateTransaction(updated.id, fields);
+            WalletService.txChangeSignal.value++;
+          } catch (e) {
+            debugPrint('[Wallet] updateTransaction failed: $e');
+          }
         },
         onDelete: () async {
           setState(() => _transactions.removeWhere((t) => t.id == tx.id));
@@ -2127,6 +2200,7 @@ class _TxEditSheet extends StatefulWidget {
 class _TxEditSheetState extends State<_TxEditSheet> {
   late TextEditingController _amtCtrl;
   late TextEditingController _catCtrl;
+  late TextEditingController _titleCtrl;
   late TextEditingController _noteCtrl;
   late TextEditingController _personCtrl;
   late TxType _type;
@@ -2139,17 +2213,20 @@ class _TxEditSheetState extends State<_TxEditSheet> {
     final tx = widget.tx;
     _amtCtrl = TextEditingController(text: tx.amount.toStringAsFixed(0));
     _catCtrl = TextEditingController(text: tx.category);
+    _titleCtrl = TextEditingController(text: tx.title ?? '');
     _noteCtrl = TextEditingController(text: tx.note ?? '');
     _personCtrl = TextEditingController(text: tx.person ?? '');
     _type = tx.type;
     _payMode = tx.payMode;
     _date = tx.date;
+    _catCtrl.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _amtCtrl.dispose();
     _catCtrl.dispose();
+    _titleCtrl.dispose();
     _noteCtrl.dispose();
     _personCtrl.dispose();
     super.dispose();
@@ -2170,6 +2247,7 @@ class _TxEditSheetState extends State<_TxEditSheet> {
         date: _date,
         walletId: widget.tx.walletId,
         payMode: _payMode,
+        title: _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
         person: _personCtrl.text.trim().isEmpty
             ? null
@@ -2327,6 +2405,46 @@ class _TxEditSheetState extends State<_TxEditSheet> {
               // Category
               _ELbl('CATEGORY', sub),
               _EField(_catCtrl, 'e.g. Food, Travel…', surfBg, tc),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 34,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: WalletService.instance
+                      .categoriesFor(WalletService.txCategoryType(_type.name))
+                      .map((c) => GestureDetector(
+                            onTap: () => setState(() => _catCtrl.text = c),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 100),
+                              margin: const EdgeInsets.only(right: 7),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 11, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _catCtrl.text == c
+                                    ? _type.color.withValues(alpha: 0.12)
+                                    : surfBg,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: _catCtrl.text == c
+                                      ? _type.color
+                                      : Colors.transparent,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Text(
+                                c,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: _catCtrl.text == c ? _type.color : sub,
+                                ),
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ),
               const SizedBox(height: 14),
 
               // Person (lend/borrow/request)
@@ -2419,6 +2537,11 @@ class _TxEditSheetState extends State<_TxEditSheet> {
                   ),
                 ),
               ),
+              const SizedBox(height: 14),
+
+              // Title
+              _ELbl('TITLE (OPTIONAL)', sub),
+              _EField(_titleCtrl, 'e.g. Monthly groceries, Dinner with team…', surfBg, tc),
               const SizedBox(height: 14),
 
               // Note

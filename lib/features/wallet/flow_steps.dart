@@ -435,18 +435,38 @@ class _ToggleCardState extends State<_ToggleCard> {
 // DATE STEP — quick date chips
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class DateStep extends StatelessWidget {
+class DateStep extends StatefulWidget {
   final Color color;
-  final void Function(String value) onSelect;
+  /// Called with a display label and an optional real DateTime (for "Pick date").
+  final void Function(String label, DateTime? date) onSelect;
 
   const DateStep({super.key, required this.color, required this.onSelect});
 
-  static const _options = [
+  static const _quickOptions = [
     ('📅', 'Today'),
     ('⏮️', 'Yesterday'),
     ('📆', '2 days ago'),
-    ('🗓️', 'Pick date'),
   ];
+
+  @override
+  State<DateStep> createState() => _DateStepState();
+}
+
+class _DateStepState extends State<DateStep> {
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+    );
+    if (picked != null) {
+      final label =
+          '${picked.day}/${picked.month}/${picked.year}';
+      widget.onSelect(label, picked);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -455,16 +475,22 @@ class DateStep extends StatelessWidget {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: _options
-            .map(
-              (o) => _DateChip(
-                emoji: o.$1,
-                label: o.$2,
-                color: color,
-                onTap: () => onSelect(o.$2),
-              ),
-            )
-            .toList(),
+        children: [
+          ...DateStep._quickOptions.map(
+            (o) => _DateChip(
+              emoji: o.$1,
+              label: o.$2,
+              color: widget.color,
+              onTap: () => widget.onSelect(o.$2, null),
+            ),
+          ),
+          _DateChip(
+            emoji: '🗓️',
+            label: 'Pick date',
+            color: widget.color,
+            onTap: _pickDate,
+          ),
+        ],
       ),
     );
   }
@@ -939,6 +965,138 @@ class _NoteStepState extends State<NoteStep> {
                   ),
                   child: Text(
                     _hasText ? 'Add Note →' : 'No Note →',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TITLE STEP — optional single-line title with skip
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class TitleStep extends StatefulWidget {
+  final Color color;
+  final void Function(String title) onConfirm;
+
+  const TitleStep({super.key, required this.color, required this.onConfirm});
+
+  @override
+  State<TitleStep> createState() => _TitleStepState();
+}
+
+class _TitleStepState extends State<TitleStep> {
+  final _ctrl = TextEditingController();
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl.addListener(() => setState(() => _hasText = _ctrl.text.isNotEmpty));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    final textColor = isDark ? AppColors.textDark : AppColors.textLight;
+    final subColor = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _hasText
+                    ? widget.color.withValues(alpha: 0.4)
+                    : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: TextField(
+              controller: _ctrl,
+              maxLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Nunito',
+                color: textColor,
+              ),
+              decoration: InputDecoration.collapsed(
+                hintText: 'e.g. Monthly groceries, Dinner with team…',
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: subColor,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => widget.onConfirm(''),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    side: BorderSide(
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    'Skip',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: subColor,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: () => widget.onConfirm(_ctrl.text.trim()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.color,
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    shadowColor: widget.color.withValues(alpha: 0.4),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    _hasText ? 'Add Title →' : 'No Title →',
                     style: const TextStyle(
                       fontWeight: FontWeight.w800,
                       fontFamily: 'Nunito',

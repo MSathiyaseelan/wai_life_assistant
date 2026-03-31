@@ -4,6 +4,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 class TxTile extends StatelessWidget {
   final TxModel tx;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   /// Accept/reject callbacks — only used for pending request transactions.
   final VoidCallback? onAccept;
@@ -13,6 +14,7 @@ class TxTile extends StatelessWidget {
     super.key,
     required this.tx,
     this.onTap,
+    this.onLongPress,
     this.onAccept,
     this.onReject,
   });
@@ -58,6 +60,7 @@ class TxTile extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
@@ -99,22 +102,39 @@ class TxTile extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Category + type badge
+                          // Title (or category) + type badge
                           Flexible(
                             child: Row(
                               children: [
                                 Flexible(
-                                  child: Text(
-                                    tx.category,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      fontFamily: 'Nunito',
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFF1A1A2E),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        tx.title?.isNotEmpty == true
+                                            ? tx.title!
+                                            : tx.category,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 14,
+                                          fontFamily: 'Nunito',
+                                          color: isDark
+                                              ? Colors.white
+                                              : const Color(0xFF1A1A2E),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (tx.title?.isNotEmpty == true)
+                                        Text(
+                                          tx.category,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF8E8EA0),
+                                            fontFamily: 'Nunito',
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
                                   ),
                                 ),
                                 const SizedBox(width: 6),

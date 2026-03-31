@@ -74,6 +74,8 @@ extension FlowTypeExt on FlowType {
           FlowStep.owner,
           FlowStep.paymode,
           FlowStep.date,
+          FlowStep.title,
+          FlowStep.note,
           FlowStep.confirm,
         ];
       case FlowType.income:
@@ -83,6 +85,8 @@ extension FlowTypeExt on FlowType {
           FlowStep.owner,
           FlowStep.paymode,
           FlowStep.date,
+          FlowStep.title,
+          FlowStep.note,
           FlowStep.confirm,
         ];
       case FlowType.split:
@@ -91,6 +95,8 @@ extension FlowTypeExt on FlowType {
           FlowStep.persons,
           FlowStep.splitType,
           FlowStep.date,
+          FlowStep.title,
+          FlowStep.note,
           FlowStep.confirm,
         ];
       case FlowType.lend:
@@ -99,6 +105,8 @@ extension FlowTypeExt on FlowType {
           FlowStep.person,
           FlowStep.paymode,
           FlowStep.dueDate,
+          FlowStep.title,
+          FlowStep.note,
           FlowStep.confirm,
         ];
       case FlowType.borrow:
@@ -107,12 +115,15 @@ extension FlowTypeExt on FlowType {
           FlowStep.person,
           FlowStep.paymode,
           FlowStep.dueDate,
+          FlowStep.title,
+          FlowStep.note,
           FlowStep.confirm,
         ];
       case FlowType.request:
         return [
           FlowStep.amount,
           FlowStep.person,
+          FlowStep.title,
           FlowStep.note,
           FlowStep.confirm,
         ];
@@ -122,6 +133,8 @@ extension FlowTypeExt on FlowType {
           FlowStep.person,
           FlowStep.paymode,
           FlowStep.date,
+          FlowStep.title,
+          FlowStep.note,
           FlowStep.confirm,
         ];
     }
@@ -160,6 +173,7 @@ enum FlowStep {
   splitType,
   person,
   dueDate,
+  title,
   note,
   confirm,
 }
@@ -213,6 +227,8 @@ extension FlowStepExt on FlowStep {
         }
       case FlowStep.dueDate:
         return 'Set a due date?';
+      case FlowStep.title:
+        return 'Give it a short title? (optional)';
       case FlowStep.note:
         return 'Add a note? (optional)';
       case FlowStep.confirm:
@@ -230,10 +246,12 @@ class FlowData {
   String? selectedWalletId; // actual wallet ID chosen in the owner step
   String? paymode; // 'Cash' | 'Online'
   String? date;
+  DateTime? pickedDate; // actual DateTime from date picker
   List<String>? persons;
   String? splitType;
   String? person;
   String? dueDate;
+  String? title;
   String? note;
 
   FlowData();
@@ -241,9 +259,16 @@ class FlowData {
   /// Builds a TxModel from collected data
   TxModel toTxModel(FlowType flowType, String walletId) {
     final now = DateTime.now();
-    DateTime txDate = now;
-    if (date == 'Yesterday') txDate = now.subtract(const Duration(days: 1));
-    if (date == '2 days ago') txDate = now.subtract(const Duration(days: 2));
+    DateTime txDate;
+    if (pickedDate != null) {
+      txDate = pickedDate!;
+    } else if (date == 'Yesterday') {
+      txDate = now.subtract(const Duration(days: 1));
+    } else if (date == '2 days ago') {
+      txDate = now.subtract(const Duration(days: 2));
+    } else {
+      txDate = now;
+    }
 
     PayMode? pm;
     if (paymode == 'Cash') pm = PayMode.cash;
@@ -266,6 +291,7 @@ class FlowData {
       date: txDate,
       walletId: selectedWalletId ?? walletId,
       payMode: pm,
+      title: (title?.isEmpty ?? true) ? null : title,
       note: (note?.isEmpty ?? true) ? null : note,
       person: person,
       persons: persons,
@@ -277,13 +303,18 @@ class FlowData {
   List<MapEntry<String, String>> get summaryRows {
     final rows = <MapEntry<String, String>>[];
     if (amount != null) rows.add(MapEntry('Amount', '₹${_fmt(amount!)}'));
+    if (title != null && title!.isNotEmpty) rows.add(MapEntry('Title', title!));
     if (category != null) rows.add(MapEntry('Category', category!));
     if (owner != null) rows.add(MapEntry('Account', owner!));
     if (paymode != null) rows.add(MapEntry('Payment', paymode!));
     if (persons != null) rows.add(MapEntry('Split with', persons!.join(', ')));
     if (splitType != null) rows.add(MapEntry('Split type', splitType!));
     if (person != null) rows.add(MapEntry('Person', person!));
-    if (date != null) rows.add(MapEntry('Date', date!));
+    if (pickedDate != null) {
+      rows.add(MapEntry('Date', '${pickedDate!.day}/${pickedDate!.month}/${pickedDate!.year}'));
+    } else if (date != null) {
+      rows.add(MapEntry('Date', date!));
+    }
     if (dueDate != null) rows.add(MapEntry('Due date', dueDate!));
     if (note != null && note!.isNotEmpty) rows.add(MapEntry('Note', note!));
     return rows;

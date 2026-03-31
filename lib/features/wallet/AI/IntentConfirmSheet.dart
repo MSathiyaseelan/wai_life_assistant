@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
+import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'nlp_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,41 +53,13 @@ class IntentConfirmSheet extends StatefulWidget {
 class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   late FlowType _flowType;
   late TextEditingController _amountCtrl;
+  late TextEditingController _titleCtrl;
   late TextEditingController _noteCtrl;
   late TextEditingController _personCtrl;
   String? _category;
   PayMode? _payMode;
   late DateTime _date;
 
-  // All category options
-  static const _expenseCategories = [
-    'Food',
-    'Grocery',
-    'Travel',
-    'Shopping',
-    'Entertainment',
-    'Bills',
-    'Health',
-    'Education',
-    'Fuel',
-    'Other',
-  ];
-  static const _incomeCategories = [
-    'Salary',
-    'Freelance',
-    'Business',
-    'Rent',
-    'Investment',
-    'Refund',
-    'Gift',
-    'Other',
-  ];
-  static const _transferCategories = [
-    'Personal Loan',
-    'Shared Expense',
-    'Emergency',
-    'Other',
-  ];
 
   @override
   void initState() {
@@ -98,6 +71,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
           ? i.amount!.toStringAsFixed(i.amount! == i.amount!.truncate() ? 0 : 2)
           : '',
     );
+    _titleCtrl = TextEditingController(text: i.title ?? '');
     _noteCtrl = TextEditingController(text: i.note ?? '');
     _personCtrl = TextEditingController(text: i.person ?? '');
     _category = i.category;
@@ -108,6 +82,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   @override
   void dispose() {
     _amountCtrl.dispose();
+    _titleCtrl.dispose();
     _noteCtrl.dispose();
     _personCtrl.dispose();
     super.dispose();
@@ -123,9 +98,9 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       _flowType == FlowType.expense || _flowType == FlowType.income;
 
   List<String> get _categories {
-    if (_flowType == FlowType.income) return _incomeCategories;
-    if (_needsPerson) return _transferCategories;
-    return _expenseCategories;
+    if (_flowType == FlowType.income) return WalletService.instance.categoriesFor('income');
+    if (_needsPerson) return WalletService.instance.categoriesFor('transfer');
+    return WalletService.instance.categoriesFor('expense');
   }
 
   void _save() {
@@ -158,12 +133,14 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
             FlowType.request => 'Request',
             _ => 'Expense',
           },
+      title: _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
       note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       walletId: widget.walletId,
       date: _date,
       person: _personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim(),
     );
 
+    WalletService.instance.ensureCategory(tx.category, tx.type.name);
     widget.onSave(tx);
     Navigator.pop(context);
   }
@@ -199,7 +176,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.3),
+                      color: Colors.grey.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -213,9 +190,9 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.08),
+                    color: color.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: color.withOpacity(0.2)),
+                    border: Border.all(color: color.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     children: [
@@ -299,7 +276,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                             ),
                             decoration: BoxDecoration(
                               color: _category == cat
-                                  ? color.withOpacity(0.12)
+                                  ? color.withValues(alpha: 0.12)
                                   : surfBg,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
@@ -437,6 +414,16 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                 ),
                 const SizedBox(height: 14),
 
+                // ── Title ──────────────────────────────────────────────────
+                _Label('TITLE (OPTIONAL)', sub),
+                _InputField(
+                  controller: _titleCtrl,
+                  hint: 'e.g. Monthly groceries, Dinner with team…',
+                  surfBg: surfBg,
+                  tc: tc,
+                ),
+                const SizedBox(height: 14),
+
                 // ── Note ───────────────────────────────────────────────────
                 _Label('NOTE (OPTIONAL)', sub),
                 _InputField(
@@ -468,7 +455,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                         ),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: sub,
-                          side: BorderSide(color: sub.withOpacity(0.3)),
+                          side: BorderSide(color: sub.withValues(alpha: 0.3)),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -552,7 +539,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.3),
+                    color: Colors.grey.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -588,7 +575,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                           duration: const Duration(milliseconds: 140),
                           decoration: BoxDecoration(
                             color: _flowType == f
-                                ? f.color.withOpacity(0.15)
+                                ? f.color.withValues(alpha: 0.15)
                                 : surfBg,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
@@ -701,7 +688,7 @@ class _AmountField extends StatelessWidget {
     decoration: BoxDecoration(
       color: surfBg,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: color.withOpacity(0.25)),
+      border: Border.all(color: color.withValues(alpha: 0.25)),
     ),
     child: Row(
       children: [
@@ -731,7 +718,7 @@ class _AmountField extends StatelessWidget {
                 fontSize: 28,
                 fontWeight: FontWeight.w900,
                 fontFamily: 'DM Mono',
-                color: color.withOpacity(0.25),
+                color: color.withValues(alpha: 0.25),
               ),
             ),
           ),
@@ -762,7 +749,7 @@ class _PayModeChip extends StatelessWidget {
       duration: const Duration(milliseconds: 140),
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        color: selected ? color.withOpacity(0.1) : surfBg,
+        color: selected ? color.withValues(alpha: 0.1) : surfBg,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: selected ? color : Colors.transparent,
@@ -804,9 +791,9 @@ class _FlowChip extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,

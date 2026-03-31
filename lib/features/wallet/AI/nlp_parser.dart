@@ -17,6 +17,7 @@ class ParsedIntent {
   final FlowType flowType;
   final double? amount;
   final String? category;
+  final String? title;
   final String? person;
   final PayMode? payMode;
   final String? note;
@@ -27,6 +28,7 @@ class ParsedIntent {
     required this.flowType,
     this.amount,
     this.category,
+    this.title,
     this.person,
     this.payMode,
     this.note,
@@ -53,15 +55,15 @@ class NlpParser {
     'biryani': 'Food',
     'pizza': 'Food',
     'chai': 'Food',
-    // Grocery
-    'grocery': 'Grocery',
-    'groceries': 'Grocery',
-    'vegetables': 'Grocery',
-    'milk': 'Grocery',
-    'rice': 'Grocery',
-    'bigbasket': 'Grocery',
-    'dmart': 'Grocery',
-    'blinkit': 'Grocery',
+    // Groceries
+    'grocery': 'Groceries',
+    'groceries': 'Groceries',
+    'vegetables': 'Groceries',
+    'milk': 'Groceries',
+    'rice': 'Groceries',
+    'bigbasket': 'Groceries',
+    'dmart': 'Groceries',
+    'blinkit': 'Groceries',
     // Travel
     'travel': 'Travel',
     'auto': 'Travel',
@@ -83,8 +85,8 @@ class NlpParser {
     'shoes': 'Shopping',
     // Entertainment
     'movie': 'Entertainment',
-    'netflix': 'Entertainment',
-    'spotify': 'Entertainment',
+    'netflix': 'Subscription',
+    'spotify': 'Subscription',
     'game': 'Entertainment',
     'cinema': 'Entertainment',
     'theatre': 'Entertainment',
@@ -105,10 +107,20 @@ class NlpParser {
     'hospital': 'Health',
     'pharmacy': 'Health',
     'tablet': 'Health',
+    // Subscription
+    'subscription': 'Subscription',
+    'hotstar': 'Subscription',
+    'prime': 'Subscription',
+    'youtube': 'Subscription',
+    'icloud': 'Subscription',
     // Income
     'salary': 'Salary',
     'freelance': 'Freelance',
     'dividend': 'Investment',
+    'investment': 'Investment',
+    'stocks': 'Investment',
+    'sip': 'Investment',
+    'mutual fund': 'Investment',
     'rent': 'Rent',
     'bonus': 'Salary',
   };

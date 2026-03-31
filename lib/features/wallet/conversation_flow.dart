@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
+import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'flow_steps.dart';
 import 'chat_bubble.dart';
 
@@ -180,9 +181,8 @@ class _ConversationFlowState extends State<ConversationFlow> {
 
   Widget _buildInput(FlowStep step) {
     final color = widget.flowType.color;
-    final cats = widget.flowType == FlowType.income
-        ? incomeCategories
-        : expenseCategories;
+    final catType = widget.flowType == FlowType.income ? 'income' : 'expense';
+    final cats = WalletService.instance.categoriesFor(catType);
 
     switch (step) {
       // ── Amount ──────────────────────────────────────────────────────────────
@@ -239,8 +239,14 @@ class _ConversationFlowState extends State<ConversationFlow> {
       case FlowStep.date:
         return DateStep(
           color: color,
-          onSelect: (v) => _answer(step, '📅 $v', () {
-            _data.date = v;
+          onSelect: (label, date) => _answer(step, '📅 $label', () {
+            if (date != null) {
+              _data.pickedDate = date;
+              _data.date = label;
+            } else {
+              _data.date = label;
+              _data.pickedDate = null;
+            }
           }),
         );
 
@@ -286,6 +292,18 @@ class _ConversationFlowState extends State<ConversationFlow> {
           onSelect: (v) => _answer(step, '📅 $v', () {
             _data.dueDate = v;
           }),
+        );
+
+      // ── Title ─────────────────────────────────────────────────────────────────
+      case FlowStep.title:
+        return TitleStep(
+          color: color,
+          onConfirm: (title) {
+            final display = title.isEmpty ? 'No title' : '🏷️ $title';
+            _answer(step, display, () {
+              _data.title = title;
+            });
+          },
         );
 
       // ── Note ─────────────────────────────────────────────────────────────────

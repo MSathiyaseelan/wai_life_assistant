@@ -154,7 +154,8 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       category: data['category'] as String?,
       person: data['person'] as String?,
       payMode: payMode,
-      note: (data['note'] as String?) ?? (data['title'] as String?),
+      title: data['title'] as String?,
+      note: data['note'] as String?,
       confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
     );
   }

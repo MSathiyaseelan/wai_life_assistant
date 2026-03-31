@@ -15,6 +15,110 @@ class WalletService {
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid => _db.auth.currentUser!.id;
 
+  // ── Categories ──────────────────────────────────────────────────────────────
+
+  static const defaultExpenseCategories = [
+    'Food', 'Groceries', 'Transport', 'Shopping', 'Bills',
+    'Health', 'Entertainment', 'Education', 'Fuel', 'Housing',
+    'Clothing', 'Gifts', 'Subscription', 'Investment', 'Other',
+  ];
+  static const defaultIncomeCategories = [
+    'Salary', 'Freelance', 'Business', 'Rent', 'Investment',
+    'Refund', 'Gift', 'Bonus', 'Other',
+  ];
+  static const defaultTransferCategories = [
+    'Personal Loan', 'Shared Expense', 'Emergency', 'Other',
+  ];
+
+  List<String> _customExpense = [];
+  List<String> _customIncome = [];
+  List<String> _customTransfer = [];
+
+  List<String> _merge(List<String> defaults, List<String> custom) {
+    final set = <String>{...defaults};
+    return [...defaults, ...custom.where((c) => !set.contains(c))];
+  }
+
+  /// Returns the full category list (defaults + user-saved) for the given tx type string.
+  /// [txType] is 'expense', 'income', or 'transfer' (covers lend/borrow/request).
+  List<String> categoriesFor(String txType) {
+    if (txType == 'income') return _merge(defaultIncomeCategories, _customIncome);
+    if (txType == 'transfer') return _merge(defaultTransferCategories, _customTransfer);
+    return _merge(defaultExpenseCategories, _customExpense);
+  }
+
+  /// Maps a TxType name to the simpler category type string.
+  static String txCategoryType(String txTypeName) {
+    if (txTypeName == 'income') return 'income';
+    if (txTypeName == 'expense') return 'expense';
+    return 'transfer'; // lend, borrow, request, split, returned
+  }
+
+  /// Load user-saved categories from DB into cache.
+  /// On first use (empty table for this user), seeds all defaults so the DB
+  /// becomes the source of truth immediately.
+  Future<void> loadCategories() async {
+    try {
+      final rows = await _db
+          .from('user_tx_categories')
+          .select()
+          .eq('user_id', _uid)
+          .order('created_at');
+
+      if (rows.isEmpty) {
+        // First time — seed all defaults into DB
+        final seeds = [
+          ...defaultExpenseCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'expense'}),
+          ...defaultIncomeCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'income'}),
+          ...defaultTransferCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'transfer'}),
+        ];
+        await _db.from('user_tx_categories').upsert(seeds, onConflict: 'user_id,name,tx_type');
+        _customExpense = List.from(defaultExpenseCategories);
+        _customIncome = List.from(defaultIncomeCategories);
+        _customTransfer = List.from(defaultTransferCategories);
+        return;
+      }
+
+      _customExpense = rows
+          .where((r) => r['tx_type'] == 'expense')
+          .map((r) => r['name'] as String)
+          .toList();
+      _customIncome = rows
+          .where((r) => r['tx_type'] == 'income')
+          .map((r) => r['name'] as String)
+          .toList();
+      _customTransfer = rows
+          .where((r) => r['tx_type'] == 'transfer')
+          .map((r) => r['name'] as String)
+          .toList();
+    } catch (e) {
+      debugPrint('[WalletService] loadCategories error: $e');
+    }
+  }
+
+  /// Persist a category to DB whenever it is used (default or custom).
+  /// Safe to call fire-and-forget; errors are swallowed.
+  Future<void> ensureCategory(String name, String txTypeName) async {
+    final cat = name.trim();
+    if (cat.isEmpty) return;
+    final catType = txCategoryType(txTypeName);
+    try {
+      await _db.from('user_tx_categories').upsert(
+        {'user_id': _uid, 'name': cat, 'tx_type': catType},
+        onConflict: 'user_id,name,tx_type',
+      );
+      // Update local cache so it's immediately available
+      final cache = catType == 'income'
+          ? _customIncome
+          : catType == 'transfer'
+              ? _customTransfer
+              : _customExpense;
+      if (!cache.contains(cat)) cache.add(cat);
+    } catch (e) {
+      debugPrint('[WalletService] ensureCategory error: $e');
+    }
+  }
+
   // ── Wallets ─────────────────────────────────────────────────────────────
 
   /// Fetch all wallets visible to the current user (personal + family).
@@ -140,6 +244,7 @@ class WalletService {
     required double amount,
     required String category,
     String? payMode,            // PayMode.name, null for split/lend/borrow/request
+    String? title,
     String? note,
     String? person,
     List<String>? persons,
@@ -154,6 +259,7 @@ class WalletService {
       'pay_mode': payMode,
       'amount': amount,
       'category': category,
+      'title': title,
       'note': note,
       'person': person,
       'persons': persons,

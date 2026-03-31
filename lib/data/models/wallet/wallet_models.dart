@@ -116,6 +116,7 @@ class TxModel {
   final PayMode? payMode; // null for non-cash/online types
   final double amount;
   final String category;
+  final String? title; // short user label, e.g. "Dinner at Zomato"
   final String? note;
   final DateTime date;
   final String? person;
@@ -133,6 +134,7 @@ class TxModel {
     required this.date,
     required this.walletId,
     this.payMode,
+    this.title,
     this.note,
     this.person,
     this.persons,
@@ -156,6 +158,7 @@ class TxModel {
           : null,
       amount: (row['amount'] as num).toDouble(),
       category: row['category'] as String? ?? '',
+      title: row['title'] as String?,
       date: DateTime.tryParse(row['date'] as String? ?? '') ?? DateTime.now(),
       walletId: row['wallet_id'] as String,
       note: row['note'] as String?,

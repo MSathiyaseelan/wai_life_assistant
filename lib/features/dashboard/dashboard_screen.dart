@@ -856,6 +856,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 if (idx >= 0) _transactions[idx] = saved;
                               });
                               WalletService.txChangeSignal.value++;
+                              WalletService.instance.ensureCategory(saved.category, saved.type.name);
                             } catch (e) {
                               debugPrint('[Dashboard] AI parse save error: $e');
                               if (!mounted) return;
@@ -924,7 +925,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final noteCtrl = TextEditingController(text: splitRef?.note ?? '');
     var txType = splitRef != null ? TxType.split : TxType.expense;
     var payMode = PayMode.online;
-    final cats = ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Other'];
     var cat = splitRef?.category ?? 'Food';
 
     showModalBottomSheet(
@@ -1182,7 +1182,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     height: 36,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
-                      children: cats
+                      children: WalletService.instance
+                          .categoriesFor(txType == TxType.income ? 'income' : 'expense')
                           .map(
                             (c) => GestureDetector(
                               onTap: () => ss(() => cat = c),
@@ -1249,6 +1250,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (!mounted) return;
                         setState(() => _transactions.add(TxModel.fromRow(row)));
                         WalletService.txChangeSignal.value++;
+                        WalletService.instance.ensureCategory(cat, txType.name);
                       } catch (e) {
                         debugPrint('[Dashboard] quickAdd error: $e');
                       }
