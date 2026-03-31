@@ -17,6 +17,9 @@ class IntentConfirmSheet extends StatefulWidget {
   final String walletId;
   final void Function(TxModel tx) onSave;
   final VoidCallback onOpenFlow; // "Edit in full flow" escape hatch
+  /// When set, the sheet is in edit mode — TxModel will use this id instead
+  /// of generating a new one (so callers can call updateTransaction with it).
+  final String? existingId;
 
   const IntentConfirmSheet({
     super.key,
@@ -24,6 +27,7 @@ class IntentConfirmSheet extends StatefulWidget {
     required this.walletId,
     required this.onSave,
     required this.onOpenFlow,
+    this.existingId,
   });
 
   static Future<void> show(
@@ -32,6 +36,7 @@ class IntentConfirmSheet extends StatefulWidget {
     required String walletId,
     required void Function(TxModel) onSave,
     required VoidCallback onOpenFlow,
+    String? existingId,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -42,6 +47,7 @@ class IntentConfirmSheet extends StatefulWidget {
         walletId: walletId,
         onSave: onSave,
         onOpenFlow: onOpenFlow,
+        existingId: existingId,
       ),
     );
   }
@@ -120,7 +126,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
 
     final now = DateTime.now();
     final tx = TxModel(
-      id: '${now.millisecondsSinceEpoch}',
+      id: widget.existingId ?? '${now.millisecondsSinceEpoch}',
       type: _flowType.txType,
       payMode: _payMode,
       amount: amount,

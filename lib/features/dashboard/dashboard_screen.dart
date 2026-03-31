@@ -20,6 +20,7 @@ import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
 import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
@@ -682,6 +683,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     hidden: _balanceHidden,
                     onToggleHide: () =>
                         setState(() => _balanceHidden = !_balanceHidden),
+                    onTxTap: (tx) => _showDashTxEdit(tx, isDark, surfBg),
                   ),
                   const SizedBox(height: 10),
 
@@ -843,6 +845,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 amount: tx.amount,
                                 category: tx.category,
                                 payMode: tx.payMode?.name,
+                                title: tx.title,
                                 note: tx.note,
                                 person: tx.person,
                                 persons: tx.persons,
@@ -914,6 +917,106 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ── Edit existing transaction (tap from dashboard card) ────────────────────
+  void _showDashTxEdit(TxModel tx, bool isDark, Color surfBg) {
+    final appState = AppStateScope.of(context);
+    final otherWallets = appState.wallets
+        .where((w) => w.id != tx.walletId)
+        .toList();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TxDetailSheet(
+        tx: tx,
+        isDark: isDark,
+        otherWallets: otherWallets,
+        onMove: (target) {
+          Navigator.pop(context);
+          _moveTxToWallet(tx, target);
+        },
+        onEdit: (updated) async {
+          setState(() {
+            final idx = _transactions.indexWhere((t) => t.id == updated.id);
+            if (idx >= 0) _transactions[idx] = updated;
+          });
+          WalletService.instance.ensureCategory(updated.category, updated.type.name);
+          try {
+            final fields = <String, dynamic>{
+              'type': updated.type.name,
+              'amount': updated.amount,
+              'category': updated.category,
+              'date': updated.date.toIso8601String().substring(0, 10),
+              'pay_mode': updated.payMode?.name,
+              'note': updated.note,
+              'person': updated.person,
+            };
+            if (updated.title != null) fields['title'] = updated.title;
+            await WalletService.instance.updateTransaction(updated.id, fields);
+            WalletService.txChangeSignal.value++;
+          } catch (e) {
+            debugPrint('[Dashboard] updateTransaction failed: $e');
+          }
+        },
+        onDelete: () async {
+          setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+          try {
+            await WalletService.instance.deleteTransaction(tx.id);
+            WalletService.txChangeSignal.value++;
+          } catch (e) {
+            if (!mounted) return;
+            setState(() => _transactions.add(tx));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to delete: $e')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _moveTxToWallet(TxModel tx, WalletModel target) async {
+    setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+    try {
+      await WalletService.instance.deleteTransaction(tx.id);
+      await WalletService.instance.addTransaction(
+        walletId: target.id,
+        type: tx.type.name,
+        amount: tx.amount,
+        category: tx.category,
+        payMode: tx.payMode?.name,
+        title: tx.title,
+        note: tx.note,
+        person: tx.person,
+        persons: tx.persons,
+        dueDate: tx.dueDate,
+        date: tx.date,
+      );
+      WalletService.txChangeSignal.value++;
+      if (mounted) await AppStateScope.of(context).reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Moved to ${target.name} ${target.isPersonal ? '👤' : '👨‍👩‍👧'}',
+              style: const TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            backgroundColor: const Color(0xFF00C897),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] moveTx failed: $e');
+      if (mounted) setState(() => _transactions.insert(0, tx));
+    }
+  }
+
   // ── Quick Add Transaction ───────────────────────────────────────────────────
   void _showQuickAdd(
     BuildContext ctx,
@@ -922,6 +1025,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     TxModel? splitRef,
   ) {
     final amtCtrl = TextEditingController();
+    final titleCtrl = TextEditingController(text: splitRef?.title ?? '');
     final noteCtrl = TextEditingController(text: splitRef?.note ?? '');
     var txType = splitRef != null ? TxType.split : TxType.expense;
     var payMode = PayMode.online;
@@ -1149,6 +1253,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 10),
 
+                // Title field
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: surfBg,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: TextField(
+                    controller: titleCtrl,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: 'Title (optional)',
+                      prefixIcon: Icon(Icons.label_outline_rounded, size: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
                 // Note field
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -1242,6 +1372,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           type: txType.name,
                           amount: amt,
                           category: cat,
+                          title: titleCtrl.text.trim().isEmpty ? null : titleCtrl.text.trim(),
                           note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
                           payMode: (txType == TxType.expense || txType == TxType.income)
                               ? payMode.name
@@ -2110,6 +2241,7 @@ class _MoneyPulseCard extends StatelessWidget {
   final List<TxModel> todayTx;
   final double balance;
   final VoidCallback onToggleHide;
+  final void Function(TxModel)? onTxTap;
 
   const _MoneyPulseCard({
     required this.wallet,
@@ -2118,6 +2250,7 @@ class _MoneyPulseCard extends StatelessWidget {
     required this.balance,
     required this.hidden,
     required this.onToggleHide,
+    this.onTxTap,
   });
 
   String _fmt(double v) {
@@ -2233,54 +2366,74 @@ class _MoneyPulseCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
               child: Column(
                 children: [
-                  ...todayTx.take(3).map((t) => Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        Text(t.type.emoji,
-                            style: const TextStyle(fontSize: 16)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t.category,
+                  ...todayTx.take(3).map((t) => GestureDetector(
+                    onTap: onTxTap != null ? () => onTxTap!(t) : null,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(t.type.emoji,
+                              style: const TextStyle(fontSize: 16)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.title?.isNotEmpty == true
+                                      ? t.title!
+                                      : t.category,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     fontFamily: 'Nunito',
-                                  )),
-                              if (t.note != null)
-                                Text(t.note!,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (t.title?.isNotEmpty == true)
+                                  Text(
+                                    t.category,
                                     style: const TextStyle(
                                       color: Colors.white60,
                                       fontSize: 10,
                                       fontFamily: 'Nunito',
                                     ),
-                                    overflow: TextOverflow.ellipsis),
-                            ],
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                else if (t.note != null)
+                                  Text(
+                                    t.note!,
+                                    style: const TextStyle(
+                                      color: Colors.white60,
+                                      fontSize: 10,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${t.type.isPositive ? '+' : '-'}'
-                          '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
-                          style: TextStyle(
-                            color: t.type.isPositive
-                                ? Colors.greenAccent
-                                : Colors.redAccent[100],
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                            fontFamily: 'DM Mono',
+                          Text(
+                            '${t.type.isPositive ? '+' : '-'}'
+                            '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
+                            style: TextStyle(
+                              color: t.type.isPositive
+                                  ? Colors.greenAccent
+                                  : Colors.redAccent[100],
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'DM Mono',
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   )),
                   if (todayTx.length > 3)
