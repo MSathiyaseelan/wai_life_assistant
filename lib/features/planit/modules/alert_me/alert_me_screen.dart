@@ -17,6 +17,9 @@ class AlertMeScreen extends StatefulWidget {
   final bool isPersonal;
   final List<ReminderModel> reminders; // lifted state for PlanIt summary
   final bool openAdd;
+  /// Family wallet ID → display label (e.g. "👨‍👩‍👧 Our Family").
+  /// Non-empty only when opened from Personal view.
+  final Map<String, String> familyWalletNames;
   const AlertMeScreen({
     super.key,
     required this.walletId,
@@ -26,6 +29,7 @@ class AlertMeScreen extends StatefulWidget {
     this.isPersonal = true,
     required this.reminders,
     this.openAdd = false,
+    this.familyWalletNames = const {},
   });
   @override
   State<AlertMeScreen> createState() => _AlertMeScreenState();
@@ -95,8 +99,29 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   }
 
   Future<void> _loadReminders() async {
-    if (widget.walletId == 'personal' || widget.walletId.isEmpty) {
+    if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
+      return;
+    }
+    if (widget.walletId == 'personal') {
+      // Personal view: fetch independently from personal + all family wallets.
+      setState(() => _loading = true);
+      try {
+        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final results = await Future.wait(
+          allIds.map((id) => ReminderService.instance.fetchReminders(id)),
+        );
+        if (!mounted) return;
+        final loaded = results.expand((rows) => rows.map(ReminderModel.fromRow)).toList();
+        setState(() {
+          _reminders = loaded;
+          widget.reminders..clear()..addAll(loaded);
+          _loading = false;
+        });
+        NotificationService.instance.rescheduleAll(loaded);
+      } catch (_) {
+        if (mounted) setState(() => _loading = false);
+      }
       return;
     }
     setState(() => _loading = true);
@@ -312,6 +337,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onTap: (r) => _openDetailSheet(context, r, isDark, surfBg),
             onReactivate: null,
             onRefresh: _loadReminders,
+            familyWalletNames: widget.familyWalletNames,
           ),
           _ReminderList(
             key: ValueKey('done-${_done.length}'),
@@ -323,6 +349,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onTap: null,
             onRefresh: _loadReminders,
             onReactivate: _markActive,
+            familyWalletNames: widget.familyWalletNames,
           ),
         ],
       ),
@@ -418,6 +445,7 @@ class _ReminderList extends StatelessWidget {
   final void Function(ReminderModel)? onTap;
   final void Function(ReminderModel)? onReactivate;
   final Future<void> Function() onRefresh;
+  final Map<String, String> familyWalletNames;
 
   const _ReminderList({
     super.key,
@@ -430,6 +458,7 @@ class _ReminderList extends StatelessWidget {
     required this.onTap,
     required this.onRefresh,
     this.onReactivate,
+    this.familyWalletNames = const {},
   });
 
   Widget _sectionHeader(String label, Color color) => Padding(
@@ -446,23 +475,37 @@ class _ReminderList extends StatelessWidget {
         ),
       );
 
-  Widget _card(ReminderModel r, {bool isOverdue = false}) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: SwipeTile(
-          onDelete: () => onDelete(r),
-          child: _ReminderCard(
-            reminder: r,
-            isDark: isDark,
-            onDone: onDone != null ? () => onDone!(r) : null,
-            // Snooze shown only for overdue (alarm has fired) when snoozed flag set
-            onSnooze: (onSnooze != null && isOverdue && r.snoozed)
-                ? () => onSnooze!(r)
-                : null,
-            onTap: onTap != null ? () => onTap!(r) : null,
-            onReactivate: onReactivate != null ? () => onReactivate!(r) : null,
-          ),
-        ),
-      );
+  Widget _card(ReminderModel r, {bool isOverdue = false}) {
+    final familyLabel = familyWalletNames[r.walletId];
+    final card = _ReminderCard(
+      reminder: r,
+      isDark: isDark,
+      onDone: familyLabel == null && onDone != null ? () => onDone!(r) : null,
+      onSnooze: (familyLabel == null && onSnooze != null && isOverdue && r.snoozed)
+          ? () => onSnooze!(r)
+          : null,
+      onTap: familyLabel == null && onTap != null ? () => onTap!(r) : null,
+      onReactivate: familyLabel == null && onReactivate != null
+          ? () => onReactivate!(r)
+          : null,
+    );
+    Widget child = familyLabel != null
+        ? Stack(
+            children: [
+              card,
+              Positioned(
+                top: 8,
+                right: 8,
+                child: FamilyBadge(label: familyLabel),
+              ),
+            ],
+          )
+        : SwipeTile(onDelete: () => onDelete(r), child: card);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: child,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

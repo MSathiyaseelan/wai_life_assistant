@@ -102,6 +102,7 @@ class _WalletScreenState extends State<WalletScreen>
     _splitGroups = [];
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
+    WalletService.txChangeSignal.addListener(_onExternalTxChange);
     _tabCtrl = TabController(length: kV1WalletTabs.length, vsync: this);
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
@@ -268,9 +269,15 @@ class _WalletScreenState extends State<WalletScreen>
   SplitGroup _splitGroupFromRow(Map<String, dynamic> row) =>
       splitGroupFromRow(row);
 
+  void _onExternalTxChange() {
+    _loadTransactions();
+    _loadTxGroups();
+  }
+
   @override
   void dispose() {
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
+    WalletService.txChangeSignal.removeListener(_onExternalTxChange);
     _tabCtrl.dispose();
     _familyPageCtrl?.dispose();
     _speech.stop();
@@ -416,7 +423,14 @@ class _WalletScreenState extends State<WalletScreen>
       // Reload wallet so the card reflects updated balance
       await AppStateScope.of(context).reload();
       if (!mounted) return;
-      // Show saved snackbar after reload so widget tree is stable
+      // ConversationScreen may still be on top (it pops after a 1800ms delay).
+      // Wait until WalletScreen's route is active before starting the snackbar
+      // timer — otherwise the timer expires while the screen is hidden and the
+      // snackbar appears permanently stuck when the user returns.
+      while (mounted && ModalRoute.of(context)?.isCurrent == false) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      if (!mounted) return;
       final otherWallets = _allWallets
           .where((w) => w.id != saved.walletId)
           .toList();
@@ -772,7 +786,8 @@ class _WalletScreenState extends State<WalletScreen>
       category: data['category'] as String?,
       person: data['person'] as String?,
       payMode: payMode,
-      note: (data['note'] as String?) ?? (data['title'] as String?),
+      title: data['title'] as String?,
+      note: data['note'] as String?,
       date: date,
       confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
     );
@@ -1090,7 +1105,11 @@ class _WalletScreenState extends State<WalletScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? AppColors.textDark : AppColors.textLight;
 
-    return Scaffold(
+    // Scoped ScaffoldMessenger so snackbars always render in this specific
+    // Scaffold, not in whichever tab happens to be last-registered with the
+    // app-level ScaffoldMessenger (which could be an invisible IndexedStack tab).
+    return ScaffoldMessenger(
+      child: Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: _buildAppBar(isDark, textColor),
       body: Column(
@@ -1145,6 +1164,7 @@ class _WalletScreenState extends State<WalletScreen>
               onMicLongPress: _onMicLongPress,
             ),
         ],
+      ),
       ),
     );
   }
@@ -1668,6 +1688,7 @@ class _WalletScreenState extends State<WalletScreen>
         .toList();
 
     final grouped = <String, List<TxModel>>{};
+    final sectionDates = <String, DateTime>{};
     for (final tx in base) {
       final diff = DateTime.now().difference(tx.date).inDays;
       final label = diff == 0
@@ -1676,6 +1697,7 @@ class _WalletScreenState extends State<WalletScreen>
           ? 'Yesterday'
           : '${tx.date.day} ${_monthName(tx.date.month)}';
       grouped.putIfAbsent(label, () => []).add(tx);
+      sectionDates.putIfAbsent(label, () => tx.date);
     }
     // Ensure date-sections hosting only TxGroupCards also appear
     for (final g in _activeWalletTxGroups) {
@@ -1688,9 +1710,14 @@ class _WalletScreenState extends State<WalletScreen>
           ? 'Yesterday'
           : '${g.latestDate.day} ${_monthName(g.latestDate.month)}';
       grouped.putIfAbsent(label, () => []);
+      sectionDates.putIfAbsent(label, () => g.latestDate);
     }
 
-    final entries = grouped.entries.toList();
+    // Sort sections newest-first so group-only date sections (e.g. a group
+    // whose latest tx is 4 Mar) appear above older sections (3 Mar).
+    final entries = grouped.entries.toList()
+      ..sort((a, b) => (sectionDates[b.key] ?? DateTime(0))
+          .compareTo(sectionDates[a.key] ?? DateTime(0)));
     return RefreshIndicator(
       onRefresh: _refreshAll,
       child: CustomScrollView(

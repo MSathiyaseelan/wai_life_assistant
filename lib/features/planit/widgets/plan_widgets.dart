@@ -504,3 +504,35 @@ class SwipeTile extends StatelessWidget {
     child: child,
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAMILY BADGE
+// Small pill shown on items that belong to a family wallet when viewed from
+// the Personal tab.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class FamilyBadge extends StatelessWidget {
+  final String label;
+  const FamilyBadge({super.key, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFF6C63FF).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF6C63FF).withValues(alpha: 0.35),
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Nunito',
+            color: Color(0xFF6C63FF),
+          ),
+        ),
+      );
+}

@@ -1391,8 +1391,10 @@ class _SuccessStepState extends State<SuccessStep>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final amt = widget.data.amount ?? 0;
-    final fmtAmt = amt >= 1000
-        ? '${(amt / 1000).toStringAsFixed(1)}K'
+    final fmtAmt = amt >= 100000
+        ? '${(amt / 100000).toStringAsFixed(1)}L'
+        : amt >= 1000
+        ? '${(amt / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}k'
         : amt.toStringAsFixed(0);
 
     return FadeTransition(

@@ -15,6 +15,8 @@ class MyTasksScreen extends StatefulWidget {
   final List<PlanMember> members;
   final List<TaskModel> tasks; // kept for PlanItScreen's _pendingTasks count
   final bool openAdd;
+  /// Family wallet ID → display label. Non-empty only in Personal view.
+  final Map<String, String> familyWalletNames;
   const MyTasksScreen({
     super.key,
     required this.walletId,
@@ -23,6 +25,7 @@ class MyTasksScreen extends StatefulWidget {
     this.members = const [],
     required this.tasks,
     this.openAdd = false,
+    this.familyWalletNames = const {},
   });
   @override
   State<MyTasksScreen> createState() => _MyTasksScreenState();
@@ -86,8 +89,29 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   }
 
   Future<void> _loadTasks() async {
-    if (widget.walletId == 'personal' || widget.walletId.isEmpty) {
+    if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
+      return;
+    }
+    if (widget.walletId == 'personal') {
+      // Personal view: fetch independently from personal + all family wallets.
+      setState(() => _loading = true);
+      try {
+        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final results = await Future.wait(
+          allIds.map((id) => TaskService.instance.fetchTasks(id)),
+        );
+        if (!mounted) return;
+        final loaded = results.expand((rows) => rows.map(TaskModel.fromRow)).toList();
+        setState(() {
+          _tasks = loaded;
+          widget.tasks..clear()..addAll(loaded);
+          _loading = false;
+        });
+      } catch (e) {
+        debugPrint('[MyTasks] personal load error: $e');
+        if (mounted) setState(() => _loading = false);
+      }
       return;
     }
     setState(() => _loading = true);
@@ -279,6 +303,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
                   onRefresh: _loadTasks,
+                  familyWalletNames: widget.familyWalletNames,
                 ),
                 _TaskList(
                   key: ValueKey(
@@ -291,6 +316,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
                   onRefresh: _loadTasks,
+                  familyWalletNames: widget.familyWalletNames,
                 ),
                 _TaskList(
                   key: ValueKey('done-${_byStatus(TaskStatus.done).length}'),
@@ -301,6 +327,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onToggleSubtask: _toggleSubtask,
                   onTap: null,
                   onRefresh: _loadTasks,
+                  familyWalletNames: widget.familyWalletNames,
                 ),
               ],
             ),
@@ -570,6 +597,7 @@ class _TaskList extends StatelessWidget {
   final void Function(SubTask) onToggleSubtask;
   final void Function(TaskModel)? onTap;
   final Future<void> Function() onRefresh;
+  final Map<String, String> familyWalletNames;
   const _TaskList({
     super.key,
     required this.tasks,
@@ -579,6 +607,7 @@ class _TaskList extends StatelessWidget {
     required this.onToggleSubtask,
     required this.onTap,
     required this.onRefresh,
+    this.familyWalletNames = const {},
   });
 
   @override
@@ -601,19 +630,32 @@ class _TaskList extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         itemCount: tasks.length,
-        itemBuilder: (_, i) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: SwipeTile(
-            onDelete: () => onDelete(tasks[i]),
-            child: _TaskCard(
-              task: tasks[i],
-              isDark: isDark,
-              onStatusChange: (s) => onStatusChange(tasks[i], s),
-              onToggleSubtask: onToggleSubtask,
-              onTap: onTap != null ? () => onTap!(tasks[i]) : null,
-            ),
-          ),
-        ),
+        itemBuilder: (_, i) {
+          final t = tasks[i];
+          final familyLabel = familyWalletNames[t.walletId];
+          final card = _TaskCard(
+            task: t,
+            isDark: isDark,
+            onStatusChange: familyLabel == null ? (s) => onStatusChange(t, s) : (_) {},
+            onToggleSubtask: familyLabel == null ? onToggleSubtask : (_) {},
+            onTap: familyLabel == null && onTap != null ? () => onTap!(t) : null,
+          );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: familyLabel != null
+                ? Stack(
+                    children: [
+                      card,
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: FamilyBadge(label: familyLabel),
+                      ),
+                    ],
+                  )
+                : SwipeTile(onDelete: () => onDelete(t), child: card),
+          );
+        },
       ),
     );
   }

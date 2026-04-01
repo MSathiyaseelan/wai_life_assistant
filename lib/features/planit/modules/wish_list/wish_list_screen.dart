@@ -14,6 +14,8 @@ class WishListScreen extends StatefulWidget {
   final List<PlanMember> members;
   final List<WishModel> wishes;
   final bool openAdd;
+  /// Family wallet ID → display label. Non-empty only in Personal view.
+  final Map<String, String> familyWalletNames;
   const WishListScreen({
     super.key,
     required this.walletId,
@@ -22,6 +24,7 @@ class WishListScreen extends StatefulWidget {
     this.members = const [],
     required this.wishes,
     this.openAdd = false,
+    this.familyWalletNames = const {},
   });
   @override
   State<WishListScreen> createState() => _WishListScreenState();
@@ -83,6 +86,27 @@ class _WishListScreenState extends State<WishListScreen>
   Future<void> _loadWishes() async {
     if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
+      return;
+    }
+    if (widget.walletId == 'personal') {
+      // Personal view: fetch independently from personal + all family wallets.
+      setState(() => _loading = true);
+      try {
+        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final results = await Future.wait(
+          allIds.map((id) => WishService.instance.fetchWishes(id)),
+        );
+        if (!mounted) return;
+        final loaded = results.expand((rows) => rows.map(WishModel.fromRow)).toList();
+        setState(() {
+          _wishes = loaded;
+          widget.wishes..clear()..addAll(loaded);
+          _loading = false;
+        });
+      } catch (e) {
+        debugPrint('[WishList] personal load error: $e');
+        if (mounted) setState(() => _loading = false);
+      }
       return;
     }
     setState(() => _loading = true);
@@ -303,6 +327,7 @@ class _WishListScreenState extends State<WishListScreen>
                           onDelete: _delete,
                           onTap: (w) =>
                               _openDetailSheet(context, w, isDark, surfBg),
+                          familyWalletNames: widget.familyWalletNames,
                         ),
                 ),
                 RefreshIndicator(
@@ -314,6 +339,7 @@ class _WishListScreenState extends State<WishListScreen>
                     showPurchasedBadge: true,
                     onDelete: _delete,
                     onTap: (w) => _openDetailSheet(context, w, isDark, surfBg),
+                    familyWalletNames: widget.familyWalletNames,
                   ),
                 ),
               ],
@@ -610,6 +636,7 @@ class _WishList extends StatelessWidget {
   final List<WishModel> wishes;
   final bool isDark, showPurchasedBadge;
   final void Function(WishModel) onDelete, onTap;
+  final Map<String, String> familyWalletNames;
   const _WishList({
     super.key,
     required this.wishes,
@@ -617,6 +644,7 @@ class _WishList extends StatelessWidget {
     this.showPurchasedBadge = false,
     required this.onDelete,
     required this.onTap,
+    this.familyWalletNames = const {},
   });
 
   @override
@@ -633,18 +661,31 @@ class _WishList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: wishes.length,
-      itemBuilder: (_, i) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: SwipeTile(
-          onDelete: () => onDelete(wishes[i]),
-          child: _WishCard(
-            wish: wishes[i],
-            isDark: isDark,
-            showPurchasedBadge: showPurchasedBadge,
-            onTap: () => onTap(wishes[i]),
-          ),
-        ),
-      ),
+      itemBuilder: (_, i) {
+        final w = wishes[i];
+        final familyLabel = familyWalletNames[w.walletId];
+        final card = _WishCard(
+          wish: w,
+          isDark: isDark,
+          showPurchasedBadge: showPurchasedBadge,
+          onTap: familyLabel == null ? () => onTap(w) : () {},
+        );
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: familyLabel != null
+              ? Stack(
+                  children: [
+                    card,
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: FamilyBadge(label: familyLabel),
+                    ),
+                  ],
+                )
+              : SwipeTile(onDelete: () => onDelete(w), child: card),
+        );
+      },
     );
   }
 }

@@ -259,6 +259,8 @@ class SpecialDaysScreen extends StatefulWidget {
   final List<PlanMember> members;
   final List<SpecialDayModel> days;
   final bool openAdd;
+  /// Family wallet ID → display label. Non-empty only in Personal view.
+  final Map<String, String> familyWalletNames;
   const SpecialDaysScreen({
     super.key,
     required this.walletId,
@@ -267,6 +269,7 @@ class SpecialDaysScreen extends StatefulWidget {
     this.members = const [],
     required this.days,
     this.openAdd = false,
+    this.familyWalletNames = const {},
   });
   @override
   State<SpecialDaysScreen> createState() => _SpecialDaysScreenState();
@@ -361,6 +364,27 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       setState(() => _loading = false);
       return;
     }
+    if (widget.walletId == 'personal') {
+      // Personal view: fetch independently from personal + all family wallets.
+      setState(() => _loading = true);
+      try {
+        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final results = await Future.wait(
+          allIds.map((id) => SpecialDayService.instance.fetchDays(id)),
+        );
+        if (!mounted) return;
+        final loaded = results.expand((rows) => rows.map(SpecialDayModel.fromRow)).toList();
+        setState(() {
+          _days = loaded;
+          widget.days..clear()..addAll(loaded);
+          _loading = false;
+        });
+      } catch (e) {
+        debugPrint('[SpecialDays] personal load error: $e');
+        if (mounted) setState(() => _loading = false);
+      }
+      return;
+    }
     setState(() => _loading = true);
     try {
       final rows = await SpecialDayService.instance.fetchDays(widget.walletId);
@@ -425,16 +449,20 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Row(
-          children: [
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
             Text('🎂', style: TextStyle(fontSize: 20)),
             SizedBox(width: 8),
-            Text(
-              'Special Days',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Nunito',
+            Flexible(
+              child: Text(
+                'Special Days',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Nunito',
+                ),
               ),
             ),
           ],
@@ -523,6 +551,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
                     nextOccurrence: _nextOccurrence,
                     onDelete: _delete,
                     onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
+                    familyWalletNames: widget.familyWalletNames,
                   ),
                 ),
                 RefreshIndicator(
@@ -535,6 +564,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
                     nextOccurrence: _nextOccurrence,
                     onDelete: _delete,
                     onTap: (d) => _openDetailSheet(context, d, isDark, surfBg),
+                    familyWalletNames: widget.familyWalletNames,
                   ),
                 ),
               ],
@@ -705,6 +735,7 @@ class _DayList extends StatelessWidget {
   final DateTime Function(DateTime) nextOccurrence;
   final void Function(SpecialDayModel) onDelete;
   final void Function(SpecialDayModel) onTap;
+  final Map<String, String> familyWalletNames;
   const _DayList({
     super.key,
     required this.days,
@@ -713,6 +744,7 @@ class _DayList extends StatelessWidget {
     required this.onDelete,
     required this.onTap,
     this.isPast = false,
+    this.familyWalletNames = const {},
   });
 
   @override
@@ -727,19 +759,32 @@ class _DayList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: days.length,
-      itemBuilder: (_, i) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: SwipeTile(
-          onDelete: () => onDelete(days[i]),
-          child: _DayCard(
-            day: days[i],
-            isDark: isDark,
-            isPast: isPast,
-            nextOccurrence: nextOccurrence,
-            onTap: () => onTap(days[i]),
-          ),
-        ),
-      ),
+      itemBuilder: (_, i) {
+        final d = days[i];
+        final familyLabel = familyWalletNames[d.walletId];
+        final card = _DayCard(
+          day: d,
+          isDark: isDark,
+          isPast: isPast,
+          nextOccurrence: nextOccurrence,
+          onTap: familyLabel == null ? () => onTap(d) : () {},
+        );
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: familyLabel != null
+              ? Stack(
+                  children: [
+                    card,
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: FamilyBadge(label: familyLabel),
+                    ),
+                  ],
+                )
+              : SwipeTile(onDelete: () => onDelete(d), child: card),
+        );
+      },
     );
   }
 }

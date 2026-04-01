@@ -15,6 +15,10 @@ class MyFunctionsScreen extends StatefulWidget {
   final String walletEmoji;
   final bool openAdd;
   final int initialTab;
+  /// Lifted list from PlanItScreen — only used in Personal view for merged data.
+  final List<FunctionModel>? parentFunctions;
+  /// Family wallet ID → display label. Non-empty only in Personal view.
+  final Map<String, String> familyWalletNames;
   const MyFunctionsScreen({
     super.key,
     required this.walletId,
@@ -22,6 +26,8 @@ class MyFunctionsScreen extends StatefulWidget {
     this.walletEmoji = '🎊',
     this.openAdd = false,
     this.initialTab = 0,
+    this.parentFunctions,
+    this.familyWalletNames = const {},
   });
   @override
   State<MyFunctionsScreen> createState() => _MyFunctionsScreenState();
@@ -59,6 +65,26 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   }
 
   Future<void> _loadData() async {
+    // Personal view: fetch independently from personal + all family wallets.
+    if (widget.walletId == 'personal') {
+      try {
+        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final results = await Future.wait(
+          allIds.map((id) => FunctionsService.instance.fetchMyFunctions(id)),
+        );
+        if (!mounted) return;
+        final loaded = results.expand((row) => row.map(FunctionModel.fromJson)).toList();
+        widget.parentFunctions?..clear()..addAll(loaded);
+        setState(() {
+          _functions..clear()..addAll(loaded);
+          _loading = false;
+        });
+      } catch (e) {
+        debugPrint('[MyFunctions] personal load error: $e');
+        if (mounted) setState(() => _loading = false);
+      }
+      return;
+    }
     try {
       final svc = FunctionsService.instance;
       final results = await Future.wait([
@@ -202,31 +228,48 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                   itemCount: _myFuncs.length,
-                  itemBuilder: (_, i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: SwipeTile(
-                      onDelete: () {
-                        HapticFeedback.mediumImpact();
-                        final fn = _myFuncs[i];
-                        setState(() => _functions.remove(fn));
-                        FunctionsService.instance.deleteMyFunction(fn.id);
-                      },
-                      child: _FunctionCard(
-                        fn: _myFuncs[i],
-                        isDark: isDark,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => _FunctionDetail(
-                              fn: _myFuncs[i],
-                              isDark: isDark,
-                              onUpdate: () => setState(() {}),
+                  itemBuilder: (_, i) {
+                    final fn = _myFuncs[i];
+                    final familyLabel = widget.familyWalletNames[fn.walletId];
+                    final card = _FunctionCard(
+                      fn: fn,
+                      isDark: isDark,
+                      onTap: familyLabel == null
+                          ? () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _FunctionDetail(
+                                    fn: fn,
+                                    isDark: isDark,
+                                    onUpdate: () => setState(() {}),
+                                  ),
+                                ),
+                              )
+                          : () {},
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: familyLabel != null
+                          ? Stack(
+                              children: [
+                                card,
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: FamilyBadge(label: familyLabel),
+                                ),
+                              ],
+                            )
+                          : SwipeTile(
+                              onDelete: () {
+                                HapticFeedback.mediumImpact();
+                                setState(() => _functions.remove(fn));
+                                FunctionsService.instance.deleteMyFunction(fn.id);
+                              },
+                              child: card,
                             ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
 
           // UPCOMING tab (index 1)

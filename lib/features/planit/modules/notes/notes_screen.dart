@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/supabase/note_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 
 // ── Note color palette ────────────────────────────────────────────────────────
 
@@ -156,8 +157,9 @@ class NotesScreen extends StatefulWidget {
   final String walletName;
   final String walletEmoji;
   final List<NoteModel>? notes;
-
   final bool openAdd;
+  /// Family wallet ID → display label. Non-empty only in Personal view.
+  final Map<String, String> familyWalletNames;
   const NotesScreen({
     super.key,
     required this.walletId,
@@ -165,6 +167,7 @@ class NotesScreen extends StatefulWidget {
     this.walletEmoji = '🗒️',
     this.openAdd = false,
     this.notes,
+    this.familyWalletNames = const {},
   });
 
   @override
@@ -222,6 +225,27 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _loadNotes() async {
     if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
+      return;
+    }
+    if (widget.walletId == 'personal') {
+      // Personal view: fetch independently from personal + all family wallets.
+      setState(() => _loading = true);
+      try {
+        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final results = await Future.wait(
+          allIds.map((id) => NoteService.instance.fetchNotes(id)),
+        );
+        if (!mounted) return;
+        final loaded = results.expand((rows) => rows.map(NoteModel.fromRow)).toList();
+        widget.notes?..clear()..addAll(loaded);
+        setState(() {
+          _notes = loaded;
+          _loading = false;
+        });
+      } catch (e) {
+        debugPrint('[Notes] personal load error: $e');
+        if (mounted) setState(() => _loading = false);
+      }
       return;
     }
     setState(() => _loading = true);
@@ -577,12 +601,27 @@ class _NotesScreenState extends State<NotesScreen> {
           childAspectRatio: 0.85,
         ),
         delegate: SliverChildBuilderDelegate(
-          (ctx, i) => _NoteCard(
-            note: notes[i],
-            isDark: isDark,
-            onTap: () => _openNoteSheet(existing: notes[i]),
-            onLongPress: () => _showContextMenu(notes[i]),
-          ),
+          (ctx, i) {
+            final n = notes[i];
+            final familyLabel = widget.familyWalletNames[n.walletId];
+            final card = _NoteCard(
+              note: n,
+              isDark: isDark,
+              onTap: familyLabel == null ? () => _openNoteSheet(existing: n) : () {},
+              onLongPress: familyLabel == null ? () => _showContextMenu(n) : () {},
+            );
+            if (familyLabel == null) return card;
+            return Stack(
+              children: [
+                card,
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: FamilyBadge(label: familyLabel),
+                ),
+              ],
+            );
+          },
           childCount: notes.length,
         ),
       ),

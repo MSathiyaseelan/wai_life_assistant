@@ -49,10 +49,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _appState = AppStateScope.of(context);
-    final newWallets = _appState.wallets;
-    if (newWallets != _allWallets) {
-      _allWallets = newWallets;
-    }
+    // Always refresh — AppStateScope may mutate the same list object in place
+    // so reference equality is unreliable. The composite key inside
+    // _loadAllData() prevents redundant fetches.
+    _allWallets = _appState.wallets;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadAllData();
+    });
   }
 
   void _switchWallet(String id) => widget.onWalletChange(id);
@@ -66,7 +69,9 @@ class _PlanItScreenState extends State<PlanItScreen> {
   final List<FunctionModel> _functions = [];
   final List<TripModel> _trips = List.from(mockTrips);
 
-  String? _loadedWalletId;
+  /// Composite key of all wallet IDs whose data is currently loaded.
+  /// Format: "personal|family-id-1|family-id-2"
+  String? _loadedKey;
 
   @override
   void initState() {
@@ -77,46 +82,70 @@ class _PlanItScreenState extends State<PlanItScreen> {
   @override
   void didUpdateWidget(PlanItScreen old) {
     super.didUpdateWidget(old);
-    if (old.activeWalletId != widget.activeWalletId) _loadAllData();
+    if (old.activeWalletId != widget.activeWalletId) {
+      _loadedKey = null; // force re-fetch for new wallet
+      _loadAllData();
+    }
   }
 
   Future<void> _loadAllData() async {
     final wid = widget.activeWalletId;
-    if (wid.isEmpty || wid == _loadedWalletId) return;
-    _loadedWalletId = wid;
+    if (wid.isEmpty) return;
+    // When viewing Personal, also fetch data from all family wallets so they
+    // appear in Personal view with a family indicator.
+    final walletIds = _currentWallet.isPersonal
+        ? [wid, ..._allWallets.where((w) => !w.isPersonal).map((w) => w.id)]
+        : [wid];
+    // Composite key prevents redundant fetches when nothing has changed.
+    final loadKey = walletIds.join('|');
+    if (loadKey == _loadedKey) return;
+    _loadedKey = loadKey;
     try {
-      final results = await Future.wait([
-        ReminderService.instance.fetchReminders(wid),
-        TaskService.instance.fetchTasks(wid),
-        SpecialDayService.instance.fetchDays(wid),
-        WishService.instance.fetchWishes(wid),
-        NoteService.instance.fetchNotes(wid),
-        FunctionsService.instance.fetchMyFunctions(wid),
-      ]);
+      final perWallet = await Future.wait(
+        walletIds.map((id) => Future.wait([
+          ReminderService.instance.fetchReminders(id),
+          TaskService.instance.fetchTasks(id),
+          SpecialDayService.instance.fetchDays(id),
+          WishService.instance.fetchWishes(id),
+          NoteService.instance.fetchNotes(id),
+          FunctionsService.instance.fetchMyFunctions(id),
+        ])),
+      );
       if (!mounted) return;
       setState(() {
         _reminders
           ..clear()
-          ..addAll((results[0]).map(ReminderModel.fromRow));
+          ..addAll(perWallet.expand((r) => r[0]).map(ReminderModel.fromRow));
         _tasksList
           ..clear()
-          ..addAll((results[1]).map(TaskModel.fromRow));
+          ..addAll(perWallet.expand((r) => r[1]).map(TaskModel.fromRow));
         _days
           ..clear()
-          ..addAll((results[2]).map(SpecialDayModel.fromRow));
+          ..addAll(perWallet.expand((r) => r[2]).map(SpecialDayModel.fromRow));
         _wishes
           ..clear()
-          ..addAll((results[3]).map(WishModel.fromRow));
+          ..addAll(perWallet.expand((r) => r[3]).map(WishModel.fromRow));
         _notes
           ..clear()
-          ..addAll((results[4]).map(NoteModel.fromRow));
+          ..addAll(perWallet.expand((r) => r[4]).map(NoteModel.fromRow));
         _functions
           ..clear()
-          ..addAll((results[5]).map(FunctionModel.fromJson));
+          ..addAll(perWallet.expand((r) => r[5]).map(FunctionModel.fromJson));
       });
     } catch (e) {
       debugPrint('[PlanIt] _loadAllData error: $e');
     }
+  }
+
+  /// Maps family wallet IDs → their emoji + name label.
+  /// Empty when the current wallet is a family wallet — badges must not appear
+  /// on items when you are already inside that family's view.
+  Map<String, String> get _familyWalletNames {
+    if (!_currentWallet.isPersonal) return const {};
+    return {
+      for (final w in _allWallets.where((w) => !w.isPersonal))
+        w.id: '${w.emoji} ${w.name}',
+    };
   }
 
   // ── Family members for current wallet — converted to PlanMember ───────────
@@ -139,19 +168,24 @@ class _PlanItScreenState extends State<PlanItScreen> {
   }
 
   // ── Derived stats ─────────────────────────────────────────────────────────
+  // When in Personal view, the merged list already contains personal + family
+  // items, so we don't filter by walletId.
+  bool get _isPersonalView => _currentWallet.isPersonal;
+
   int get _dueReminders => _reminders
-      .where((r) => r.walletId == widget.activeWalletId && !r.done)
+      .where((r) => (_isPersonalView || r.walletId == widget.activeWalletId) && !r.done)
       .length;
 
   int get _pendingTasks => _tasksList
       .where(
         (t) =>
-            t.walletId == widget.activeWalletId && t.status != TaskStatus.done,
+            (_isPersonalView || t.walletId == widget.activeWalletId) &&
+            t.status != TaskStatus.done,
       )
       .length;
 
   int get _upcomingDays => _days
-      .where((d) => d.walletId == widget.activeWalletId)
+      .where((d) => _isPersonalView || d.walletId == widget.activeWalletId)
       .where((d) {
         final thisYear = DateTime(
           DateTime.now().year,
@@ -449,10 +483,11 @@ class _PlanItScreenState extends State<PlanItScreen> {
   // ── Summary helpers ───────────────────────────────────────────────────────
   List<String> _getSummary(_ModuleInfo m) {
     final wid = widget.activeWalletId;
+    final personal = _isPersonalView;
     switch (m.title) {
       case 'Alert Me':
         return _reminders
-            .where((r) => r.walletId == wid && !r.done)
+            .where((r) => (personal || r.walletId == wid) && !r.done)
             .take(2)
             .map((r) {
           final days = r.dueDate.difference(DateTime.now()).inDays;
@@ -463,7 +498,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
       case 'My Tasks':
         return _tasksList
             .where((t) =>
-                t.walletId == wid && t.status != TaskStatus.done)
+                (personal || t.walletId == wid) && t.status != TaskStatus.done)
             .take(2)
             .map((t) => t.title)
             .toList();
@@ -471,7 +506,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         final now = DateTime.now();
         final flat = DateTime(now.year, now.month, now.day);
         final pairs = _days
-            .where((d) => d.walletId == wid)
+            .where((d) => personal || d.walletId == wid)
             .map((d) {
               DateTime next =
                   DateTime(now.year, d.date.month, d.date.day);
@@ -494,13 +529,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
         }).toList();
       case 'Wish List':
         return _wishes
-            .where((w) => w.walletId == wid && !w.purchased)
+            .where((w) => (personal || w.walletId == wid) && !w.purchased)
             .take(2)
             .map((w) => '${w.emoji} ${w.title}')
             .toList();
       case 'Notes':
         return _notes
-            .where((n) => n.walletId == wid)
+            .where((n) => personal || n.walletId == wid)
             .take(2)
             .map((n) => n.title.isNotEmpty
                 ? n.title
@@ -509,7 +544,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
             .toList();
       case 'Functions':
         return _functions
-            .where((f) => f.walletId == wid)
+            .where((f) => personal || f.walletId == wid)
             .take(2)
             .map((f) {
               final when = f.functionDate != null
@@ -534,26 +569,27 @@ class _PlanItScreenState extends State<PlanItScreen> {
 
   int _getCount(_ModuleInfo m) {
     final wid = widget.activeWalletId;
+    final personal = _isPersonalView;
     switch (m.title) {
       case 'Alert Me':
         return _reminders
-            .where((r) => r.walletId == wid && !r.done)
+            .where((r) => (personal || r.walletId == wid) && !r.done)
             .length;
       case 'My Tasks':
         return _tasksList
-            .where(
-                (t) => t.walletId == wid && t.status != TaskStatus.done)
+            .where((t) =>
+                (personal || t.walletId == wid) && t.status != TaskStatus.done)
             .length;
       case 'Special Days':
-        return _days.where((d) => d.walletId == wid).length;
+        return _days.where((d) => personal || d.walletId == wid).length;
       case 'Wish List':
         return _wishes
-            .where((w) => w.walletId == wid && !w.purchased)
+            .where((w) => (personal || w.walletId == wid) && !w.purchased)
             .length;
       case 'Notes':
-        return _notes.where((n) => n.walletId == wid).length;
+        return _notes.where((n) => personal || n.walletId == wid).length;
       case 'Functions':
-        return _functions.where((f) => f.walletId == wid).length;
+        return _functions.where((f) => personal || f.walletId == wid).length;
       default:
         return 0;
     }
@@ -605,6 +641,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         members: _members,
         isPersonal: _currentWallet.isPersonal,
         reminders: _reminders,
+        familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => AlertMeScreen(
         walletId: wid,
@@ -613,6 +650,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         members: _members,
         isPersonal: _currentWallet.isPersonal,
         reminders: _reminders,
+        familyWalletNames: _familyWalletNames,
         openAdd: true,
       ),
     ),
@@ -628,6 +666,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         days: _days,
+        familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => SpecialDaysScreen(
         walletId: wid,
@@ -635,6 +674,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         days: _days,
+        familyWalletNames: _familyWalletNames,
         openAdd: true,
       ),
     ),
@@ -648,11 +688,15 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
+        parentFunctions: _functions,
+        familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
+        parentFunctions: _functions,
+        familyWalletNames: _familyWalletNames,
         openAdd: true,
         initialTab: 2,
       ),
@@ -669,6 +713,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         tasks: _tasksList,
+        familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => MyTasksScreen(
         walletId: wid,
@@ -676,6 +721,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         tasks: _tasksList,
+        familyWalletNames: _familyWalletNames,
         openAdd: true,
       ),
     ),
@@ -690,12 +736,14 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         wishes: _wishes,
+        familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => WishListScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         wishes: _wishes,
+        familyWalletNames: _familyWalletNames,
         openAdd: true,
       ),
     ),
@@ -710,6 +758,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         notes: _notes,
+        familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => NotesScreen(
         walletId: wid,
@@ -717,6 +766,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         openAdd: true,
         notes: _notes,
+        familyWalletNames: _familyWalletNames,
       ),
     ),
     _ModuleInfo(

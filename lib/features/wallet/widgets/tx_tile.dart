@@ -19,8 +19,14 @@ class TxTile extends StatelessWidget {
     this.onReject,
   });
 
-  String _fmt(double v) =>
-      v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}K' : v.toStringAsFixed(0);
+  String _fmt(double v) {
+    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) {
+      final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '${s}k';
+    }
+    return v.toStringAsFixed(0);
+  }
 
   bool get _isPendingRequest =>
       tx.type == TxType.request &&

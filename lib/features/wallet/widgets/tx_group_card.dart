@@ -77,7 +77,10 @@ class _TxGroupCardState extends State<TxGroupCard>
 
   String _fmt(double v) {
     if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 10000) return '${(v / 1000).toStringAsFixed(1)}K';
+    if (v >= 1000) {
+      final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '${s}k';
+    }
     return v.toStringAsFixed(0);
   }
 
