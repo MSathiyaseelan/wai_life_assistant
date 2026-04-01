@@ -125,6 +125,7 @@ class TxModel {
   final String? dueDate;
   final String walletId; // 'personal' or family id
   final String? userId;  // Supabase user_id of who created this transaction
+  final String? groupId; // tx_groups.id — null means not grouped
 
   const TxModel({
     required this.id,
@@ -141,6 +142,7 @@ class TxModel {
     this.status,
     this.dueDate,
     this.userId,
+    this.groupId,
   });
 
   factory TxModel.fromRow(Map<String, dynamic> row) {
@@ -169,8 +171,48 @@ class TxModel {
       status: row['status'] as String?,
       dueDate: row['due_date'] as String?,
       userId: row['user_id'] as String?,
+      groupId: row['group_id'] as String?,
     );
   }
+}
+
+// ── Transaction Group ─────────────────────────────────────────────────────────
+
+/// Metadata + member transactions for a named expense group.
+class TxGroup {
+  final String id;
+  final String walletId;
+  final String name;
+  final String emoji;
+  final List<TxModel> transactions; // sorted newest-first
+
+  const TxGroup({
+    required this.id,
+    required this.walletId,
+    required this.name,
+    required this.emoji,
+    required this.transactions,
+  });
+
+  double get total => transactions.fold(0.0, (s, t) => s + t.amount);
+  DateTime get latestDate => transactions.isNotEmpty ? transactions.first.date : DateTime.now();
+  DateTime get earliestDate => transactions.isNotEmpty ? transactions.last.date : DateTime.now();
+
+  factory TxGroup.fromRow(Map<String, dynamic> row) => TxGroup(
+        id: row['id'] as String,
+        walletId: row['wallet_id'] as String,
+        name: row['name'] as String,
+        emoji: row['emoji'] as String? ?? '📦',
+        transactions: const [],
+      );
+
+  TxGroup withTransactions(List<TxModel> txs) => TxGroup(
+        id: id,
+        walletId: walletId,
+        name: name,
+        emoji: emoji,
+        transactions: txs,
+      );
 }
 
 class WalletModel {

@@ -251,6 +251,7 @@ class WalletService {
     String? status,
     String? dueDate,
     DateTime? date,
+    String? groupId,
   }) async {
     final row = await _db.from('transactions').insert({
       'wallet_id': walletId,
@@ -266,6 +267,7 @@ class WalletService {
       'status': status,
       'due_date': dueDate,
       'date': (date ?? DateTime.now()).toIso8601String(),
+      if (groupId != null) 'group_id': groupId,
     }).select().single();
     return row;
   }
@@ -281,6 +283,53 @@ class WalletService {
     Map<String, dynamic> updates,
   ) async {
     await _db.from('transactions').update(updates).eq('id', txId);
+  }
+
+  // ── Transaction Groups ────────────────────────────────────────────────────
+
+  /// Fetch all tx_groups for a wallet.
+  Future<List<Map<String, dynamic>>> fetchTxGroups(String walletId) async {
+    final rows = await _db
+        .from('tx_groups')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Create a new transaction group.
+  Future<Map<String, dynamic>> createTxGroup({
+    required String walletId,
+    required String name,
+    String emoji = '📦',
+  }) async {
+    final row = await _db.from('tx_groups').insert({
+      'wallet_id': walletId,
+      'user_id': _uid,
+      'name': name,
+      'emoji': emoji,
+    }).select().single();
+    return row;
+  }
+
+  /// Rename / re-emoji a group.
+  Future<void> updateTxGroup(String groupId, {String? name, String? emoji}) async {
+    final fields = <String, dynamic>{};
+    if (name != null) fields['name'] = name;
+    if (emoji != null) fields['emoji'] = emoji;
+    if (fields.isNotEmpty) {
+      await _db.from('tx_groups').update(fields).eq('id', groupId);
+    }
+  }
+
+  /// Delete a group. Member transactions stay but their group_id is set to NULL.
+  Future<void> deleteTxGroup(String groupId) async {
+    await _db.from('tx_groups').delete().eq('id', groupId);
+  }
+
+  /// Assign or remove a transaction from a group (groupId = null to ungroup).
+  Future<void> setTxGroup(String txId, String? groupId) async {
+    await _db.from('transactions').update({'group_id': groupId}).eq('id', txId);
   }
 
   // ── Split Groups ─────────────────────────────────────────────────────────

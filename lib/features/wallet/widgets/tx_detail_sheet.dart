@@ -17,6 +17,16 @@ class TxDetailSheet extends StatelessWidget {
   final VoidCallback onDelete;
   final void Function(WalletModel) onMove;
 
+  /// Existing groups for this wallet — used to show Group picker.
+  final List<TxGroup> groups;
+
+  /// Called when user picks a group or creates a new one.
+  /// Passes the chosen/created [TxGroup].
+  final void Function(TxGroup group)? onAddToGroup;
+
+  /// Called when user removes this tx from its current group.
+  final VoidCallback? onRemoveFromGroup;
+
   const TxDetailSheet({
     super.key,
     required this.tx,
@@ -25,6 +35,9 @@ class TxDetailSheet extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onMove,
+    this.groups = const [],
+    this.onAddToGroup,
+    this.onRemoveFromGroup,
   });
 
   @override
@@ -177,7 +190,278 @@ class TxDetailSheet extends StatelessWidget {
               ),
             ],
           ),
+
+          // ── Group action ────────────────────────────────────────────────
+          if (onAddToGroup != null || onRemoveFromGroup != null) ...[
+            const SizedBox(height: 10),
+            if (tx.groupId != null && onRemoveFromGroup != null)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onRemoveFromGroup!();
+                  },
+                  icon: const Icon(Icons.folder_off_outlined, size: 18),
+                  label: const Text(
+                    'Remove from Group',
+                    style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              )
+            else if (tx.groupId == null && onAddToGroup != null)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showGroupPicker(context, sub, tc);
+                  },
+                  icon: const Icon(Icons.folder_special_outlined, size: 18),
+                  label: const Text(
+                    'Add to Group',
+                    style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ],
+      ),
+    );
+  }
+
+  void _showGroupPicker(BuildContext context, Color sub, Color tc) {
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _GroupPickerSheet(
+        isDark: isDark,
+        bg: bg,
+        sub: sub,
+        tc: tc,
+        groups: groups,
+        onPick: (g) => onAddToGroup!(g),
+      ),
+    );
+  }
+}
+
+class _GroupPickerSheet extends StatefulWidget {
+  final bool isDark;
+  final Color bg, sub, tc;
+  final List<TxGroup> groups;
+  final void Function(TxGroup) onPick;
+
+  const _GroupPickerSheet({
+    required this.isDark,
+    required this.bg,
+    required this.sub,
+    required this.tc,
+    required this.groups,
+    required this.onPick,
+  });
+
+  @override
+  State<_GroupPickerSheet> createState() => _GroupPickerSheetState();
+}
+
+class _GroupPickerSheetState extends State<_GroupPickerSheet> {
+  final _nameCtrl = TextEditingController();
+  final _emojiCtrl = TextEditingController(text: '📦');
+  bool _creating = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emojiCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+        decoration: BoxDecoration(
+          color: widget.bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              'Add to Group',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'Nunito',
+                color: widget.tc,
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Existing groups
+            if (widget.groups.isNotEmpty) ...[
+              ...widget.groups.map((g) => ListTile(
+                    onTap: () {
+                      Navigator.pop(context);
+                      widget.onPick(g);
+                    },
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppColors.expense.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(g.emoji,
+                          style: const TextStyle(fontSize: 20)),
+                    ),
+                    title: Text(g.name,
+                        style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            color: widget.tc)),
+                    subtitle: Text(
+                      '${g.transactions.length} expense${g.transactions.length == 1 ? '' : 's'}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'Nunito',
+                          color: widget.sub),
+                    ),
+                    trailing: Icon(Icons.chevron_right_rounded,
+                        color: widget.sub),
+                  )),
+              const Divider(height: 20),
+            ],
+            // Create new group
+            if (!_creating)
+              GestureDetector(
+                onTap: () => setState(() => _creating = true),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.create_new_folder_outlined,
+                          size: 18, color: AppColors.primary),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Create new group',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else ...[
+              Row(
+                children: [
+                  SizedBox(
+                    width: 52,
+                    child: TextField(
+                      controller: _emojiCtrl,
+                      style: const TextStyle(fontSize: 22),
+                      textAlign: TextAlign.center,
+                      decoration: const InputDecoration(
+                        hintText: '📦',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _nameCtrl,
+                      autofocus: true,
+                      style: TextStyle(
+                          fontFamily: 'Nunito', color: widget.tc),
+                      decoration: const InputDecoration(
+                        hintText: 'Group name…',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    final name = _nameCtrl.text.trim();
+                    final emoji = _emojiCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    Navigator.pop(context);
+                    widget.onPick(TxGroup(
+                      id: '', // will be assigned after DB insert
+                      walletId: '',
+                      name: name,
+                      emoji: emoji.isEmpty ? '📦' : emoji,
+                      transactions: const [],
+                    ));
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text(
+                    'Create & Add',
+                    style: TextStyle(
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -25,6 +25,7 @@ import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_reports_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/tx_group_card.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -62,6 +63,9 @@ class _WalletScreenState extends State<WalletScreen>
   late List<SplitGroup> _splitGroups;
   bool _sgLoading = true;
 
+  // Transaction groups (named expense bundles)
+  List<TxGroup> _txGroups = [];
+
   // Wallets list (from AppStateScope)
   List<WalletModel> _allWallets = [];
 
@@ -89,7 +93,7 @@ class _WalletScreenState extends State<WalletScreen>
   /// Reloads AppState (to get real wallet UUID) then fetches transactions and split groups.
   Future<void> _refreshAll() async {
     await _appState.reload();
-    await Future.wait([_loadTransactions(), _loadSplitGroups()]);
+    await Future.wait([_loadTransactions(), _loadSplitGroups(), _loadTxGroups()]);
   }
 
   @override
@@ -122,6 +126,7 @@ class _WalletScreenState extends State<WalletScreen>
     // Initial transaction load
     if (_txLoading) _loadTransactions();
     if (_sgLoading) _loadSplitGroups();
+    if (_txGroups.isEmpty) _loadTxGroups();
     WalletService.instance.loadCategories();
   }
 
@@ -131,6 +136,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (old.activeWalletId != widget.activeWalletId) {
       _loadTransactions();
       _loadSplitGroups();
+      _loadTxGroups();
       _syncFamilyPage();
     }
   }
@@ -177,10 +183,42 @@ class _WalletScreenState extends State<WalletScreen>
           _transactions = rows.map(TxModel.fromRow).toList();
           _txLoading = false;
         });
+        // Rebuild group membership from freshly loaded txs
+        _loadTxGroups();
       }
     } catch (e) {
       debugPrint('[WalletScreen] fetchTransactions error: $e');
       if (mounted) setState(() => _txLoading = false);
+    }
+  }
+
+  Future<void> _loadTxGroups() async {
+    final walletId =
+        _appState.activeWalletId.isNotEmpty &&
+                _appState.activeWalletId != 'personal'
+            ? _appState.activeWalletId
+            : widget.activeWalletId;
+    if (!AuthService.instance.isLoggedIn ||
+        walletId.isEmpty ||
+        walletId == 'personal') {
+      if (mounted) setState(() => _txGroups = []);
+      return;
+    }
+    try {
+      final rows = await WalletService.instance.fetchTxGroups(walletId);
+      if (!mounted) return;
+      // Build group objects; member txs are matched from _transactions
+      final groups = rows.map((r) {
+        final g = TxGroup.fromRow(r);
+        final members = _transactions
+            .where((t) => t.groupId == g.id)
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+        return g.withTransactions(members);
+      }).toList();
+      setState(() => _txGroups = groups);
+    } catch (e) {
+      debugPrint('[WalletScreen] fetchTxGroups error: $e');
     }
   }
 
@@ -239,35 +277,20 @@ class _WalletScreenState extends State<WalletScreen>
     super.dispose();
   }
 
-  List<TxModel> get _filteredTx {
-    final base = _transactions
-        .where((t) => t.walletId == widget.activeWalletId)
-        .where((t) => _selectedRange.contains(t.date))
-        .toList();
-
-    switch (_activeTab) {
-      case WalletTab.wallet:
-        return base;
-      case WalletTab.splits:
-        return base.where((t) => t.type == TxType.split).toList();
-      case WalletTab.billWatch:
-        return [];
+  /// IDs of all transactions that belong to a tx_group.
+  Set<String> get _groupedTxIds {
+    final ids = <String>{};
+    for (final g in _txGroups) {
+      for (final t in g.transactions) {
+        ids.add(t.id);
+      }
     }
+    return ids;
   }
 
-  Map<String, List<TxModel>> get _grouped {
-    final m = <String, List<TxModel>>{};
-    for (final tx in _filteredTx) {
-      final diff = DateTime.now().difference(tx.date).inDays;
-      final label = diff == 0
-          ? 'Today'
-          : diff == 1
-          ? 'Yesterday'
-          : '${tx.date.day} ${_monthName(tx.date.month)}';
-      m.putIfAbsent(label, () => []).add(tx);
-    }
-    return m;
-  }
+  /// TxGroups belonging to the currently active wallet.
+  List<TxGroup> get _activeWalletTxGroups =>
+      _txGroups.where((g) => g.walletId == widget.activeWalletId).toList();
 
   String _monthName(int m) => const [
     '',
@@ -354,10 +377,12 @@ class _WalletScreenState extends State<WalletScreen>
   void _onTransactionSaved(TxModel tx) {
     // Optimistically show in list immediately
     setState(() => _transactions.insert(0, tx));
-    _persistTransaction(tx); // fire-and-forget — snackbar shown after persist
+    final group = _pendingGroupForNextTx;
+    _pendingGroupForNextTx = null;
+    _persistTransaction(tx, groupOverride: group); // fire-and-forget
   }
 
-  Future<void> _persistTransaction(TxModel tx) async {
+  Future<void> _persistTransaction(TxModel tx, {TxGroup? groupOverride}) async {
     if (!AuthService.instance.isLoggedIn) {
       return;
     }
@@ -384,13 +409,18 @@ class _WalletScreenState extends State<WalletScreen>
         final idx = _transactions.indexWhere((t) => t.id == tx.id);
         if (idx >= 0) _transactions[idx] = saved;
       });
-      // Show saved snackbar with optional "Move to" action now that we have the real id
+      // If this tx was created via "Add to group", assign it now
+      if (groupOverride != null) {
+        await _assignTxToGroup(saved, groupOverride);
+      }
+      // Reload wallet so the card reflects updated balance
+      await AppStateScope.of(context).reload();
+      if (!mounted) return;
+      // Show saved snackbar after reload so widget tree is stable
       final otherWallets = _allWallets
           .where((w) => w.id != saved.walletId)
           .toList();
       _showTxSnackBar(saved, otherWallets);
-      // Reload wallet so the card reflects updated balance
-      await AppStateScope.of(context).reload();
     } catch (e) {
       debugPrint('[WalletScreen] addTransaction failed: $e');
       if (mounted) {
@@ -1630,9 +1660,11 @@ class _WalletScreenState extends State<WalletScreen>
     PageController? familyPageCtrl,
     Widget? extraHeader,
   }) {
+    final groupedIds = _groupedTxIds;
     final base = _transactions
         .where((t) => walletIds.contains(t.walletId))
         .where((t) => _selectedRange.contains(t.date))
+        .where((t) => !groupedIds.contains(t.id)) // grouped txs render inside TxGroupCard
         .toList();
 
     final grouped = <String, List<TxModel>>{};
@@ -1644,6 +1676,18 @@ class _WalletScreenState extends State<WalletScreen>
           ? 'Yesterday'
           : '${tx.date.day} ${_monthName(tx.date.month)}';
       grouped.putIfAbsent(label, () => []).add(tx);
+    }
+    // Ensure date-sections hosting only TxGroupCards also appear
+    for (final g in _activeWalletTxGroups) {
+      if (g.transactions.isEmpty) continue;
+      if (!_selectedRange.contains(g.latestDate)) continue;
+      final diff = DateTime.now().difference(g.latestDate).inDays;
+      final label = diff == 0
+          ? 'Today'
+          : diff == 1
+          ? 'Yesterday'
+          : '${g.latestDate.day} ${_monthName(g.latestDate.month)}';
+      grouped.putIfAbsent(label, () => []);
     }
 
     final entries = grouped.entries.toList();
@@ -2069,8 +2113,24 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
-  // ── Transaction Group section ───────────────────────────────────────────────
+  // ── Transaction date-section ────────────────────────────────────────────────
   Widget _buildGroup(MapEntry<String, List<TxModel>> entry, bool isDark) {
+    // Groups whose latest tx falls in this date-label section
+    final sectionGroups = _activeWalletTxGroups
+        .where((g) {
+          if (g.transactions.isEmpty) return false;
+          final diff = DateTime.now().difference(g.latestDate).inDays;
+          final label = diff == 0
+              ? 'Today'
+              : diff == 1
+              ? 'Yesterday'
+              : '${g.latestDate.day} ${_monthName(g.latestDate.month)}';
+          return label == entry.key;
+        })
+        .toList();
+
+    final totalCount = entry.value.length + sectionGroups.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2098,7 +2158,7 @@ class _WalletScreenState extends State<WalletScreen>
               ),
               const SizedBox(width: 8),
               Text(
-                '${entry.value.length}',
+                '$totalCount',
                 style: TextStyle(
                   fontSize: 11,
                   color: isDark ? Colors.white38 : Colors.black38,
@@ -2107,8 +2167,18 @@ class _WalletScreenState extends State<WalletScreen>
             ],
           ),
         ),
+        // TxGroup master cards first
+        ...sectionGroups.map((g) => TxGroupCard(
+              group: g,
+              isDark: isDark,
+              onTxTap: (tx) => _showDetail(tx),
+              onTxLongPress: (tx) => _duplicateTx(tx),
+              onAddExpense: () => _addToGroup(g),
+              onRename: (name, emoji) => _renameTxGroup(g, name, emoji),
+              onDeleteGroup: () => _deleteTxGroup(g),
+            )),
+        // Individual (ungrouped) tiles
         ...entry.value.map((tx) {
-          // Show accept/reject only to the recipient — not the person who raised the request
           final currentUid = AuthService.instance.currentUser?.id;
           final isRecipient =
               tx.type == TxType.request && tx.userId != currentUid;
@@ -2228,9 +2298,8 @@ class _WalletScreenState extends State<WalletScreen>
   // ── Detail / Edit sheet ─────────────────────────────────────────────────────
   void _showDetail(TxModel tx) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final otherWallets = _allWallets
-        .where((w) => w.id != tx.walletId)
-        .toList();
+    final otherWallets = _allWallets.where((w) => w.id != tx.walletId).toList();
+    final walletGroups = _activeWalletTxGroups;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -2238,6 +2307,7 @@ class _WalletScreenState extends State<WalletScreen>
         tx: tx,
         isDark: isDark,
         otherWallets: otherWallets,
+        groups: walletGroups,
         onMove: (target) {
           Navigator.pop(context);
           _moveTxToWallet(tx, target);
@@ -2247,7 +2317,6 @@ class _WalletScreenState extends State<WalletScreen>
             final idx = _transactions.indexWhere((t) => t.id == updated.id);
             if (idx >= 0) _transactions[idx] = updated;
           });
-          // Always save the category — runs regardless of whether update succeeds
           WalletService.instance.ensureCategory(updated.category, updated.type.name);
           try {
             final fields = <String, dynamic>{
@@ -2259,7 +2328,6 @@ class _WalletScreenState extends State<WalletScreen>
               'note': updated.note,
               'person': updated.person,
             };
-            // Only include title if non-null to avoid errors if migration not yet applied
             if (updated.title != null) fields['title'] = updated.title;
             await WalletService.instance.updateTransaction(updated.id, fields);
             WalletService.txChangeSignal.value++;
@@ -2274,14 +2342,103 @@ class _WalletScreenState extends State<WalletScreen>
             WalletService.txChangeSignal.value++;
           } catch (e) {
             if (!mounted) return;
-            setState(() => _transactions.add(tx)); // revert
+            setState(() => _transactions.add(tx));
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Failed to delete: $e')),
             );
           }
         },
+        onAddToGroup: (picked) => _assignTxToGroup(tx, picked),
+        onRemoveFromGroup: tx.groupId != null
+            ? () => _unassignTxFromGroup(tx)
+            : null,
       ),
     );
+  }
+
+  // ── Transaction Group management ────────────────────────────────────────────
+
+  /// Open the conversation screen pre-set to expense, with group pre-assigned.
+  void _addToGroup(TxGroup group) {
+    _openConversation(FlowType.expense);
+    // After save, _onTransactionSaved fires → we then assign group_id
+    _pendingGroupForNextTx = group;
+  }
+
+  TxGroup? _pendingGroupForNextTx;
+
+  /// Assign tx to a group. Creates the group first if its id is empty.
+  Future<void> _assignTxToGroup(TxModel tx, TxGroup picked) async {
+    try {
+      String groupId = picked.id;
+      if (groupId.isEmpty) {
+        // New group — create it
+        final row = await WalletService.instance.createTxGroup(
+          walletId: tx.walletId,
+          name: picked.name,
+          emoji: picked.emoji,
+        );
+        groupId = row['id'] as String;
+      }
+      await WalletService.instance.setTxGroup(tx.id, groupId);
+      // Update local tx
+      final idx = _transactions.indexWhere((t) => t.id == tx.id);
+      if (idx >= 0) {
+        _transactions[idx] = TxModel(
+          id: tx.id, type: tx.type, amount: tx.amount,
+          category: tx.category, date: tx.date, walletId: tx.walletId,
+          payMode: tx.payMode, title: tx.title, note: tx.note,
+          person: tx.person, persons: tx.persons, status: tx.status,
+          dueDate: tx.dueDate, userId: tx.userId, groupId: groupId,
+        );
+      }
+      WalletService.txChangeSignal.value++;
+      if (mounted) await _loadTxGroups();
+    } catch (e) {
+      debugPrint('[Wallet] assignTxToGroup failed: $e');
+    }
+  }
+
+  Future<void> _unassignTxFromGroup(TxModel tx) async {
+    try {
+      await WalletService.instance.setTxGroup(tx.id, null);
+      final idx = _transactions.indexWhere((t) => t.id == tx.id);
+      if (idx >= 0) {
+        _transactions[idx] = TxModel(
+          id: tx.id, type: tx.type, amount: tx.amount,
+          category: tx.category, date: tx.date, walletId: tx.walletId,
+          payMode: tx.payMode, title: tx.title, note: tx.note,
+          person: tx.person, persons: tx.persons, status: tx.status,
+          dueDate: tx.dueDate, userId: tx.userId, groupId: null,
+        );
+      }
+      WalletService.txChangeSignal.value++;
+      if (mounted) await _loadTxGroups();
+    } catch (e) {
+      debugPrint('[Wallet] unassignTxFromGroup failed: $e');
+    }
+  }
+
+  Future<void> _renameTxGroup(TxGroup g, String name, String emoji) async {
+    try {
+      await WalletService.instance.updateTxGroup(g.id, name: name, emoji: emoji);
+      if (mounted) await _loadTxGroups();
+    } catch (e) {
+      debugPrint('[Wallet] renameTxGroup failed: $e');
+    }
+  }
+
+  Future<void> _deleteTxGroup(TxGroup g) async {
+    try {
+      await WalletService.instance.deleteTxGroup(g.id);
+      // group_id on member txs is set to NULL by DB (ON DELETE SET NULL)
+      // Reload so those txs reappear as ungrouped
+      if (mounted) {
+        await _loadTransactions();
+      }
+    } catch (e) {
+      debugPrint('[Wallet] deleteTxGroup failed: $e');
+    }
   }
 }
 
