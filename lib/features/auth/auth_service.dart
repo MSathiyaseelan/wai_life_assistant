@@ -7,53 +7,53 @@ class AuthService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// Sends an OTP to [phone] (must include country code, e.g. "+919876543210").
+  /// Sends an OTP to [phone] via the MSG91-backed edge function.
+  /// [phone] must include the country code, e.g. "+919876543210".
   Future<void> sendOtp(String phone) async {
-    await _client.auth.signInWithOtp(phone: phone);
+    final res = await _client.functions.invoke(
+      'send-otp',
+      body: {'phone': phone},
+    );
+    if (res.status != 200) {
+      final msg = (res.data as Map<String, dynamic>?)?['error'] as String?
+          ?? 'Failed to send OTP';
+      throw AuthException(msg);
+    }
   }
 
-  /// Verifies the OTP. Throws [AuthException] on failure.
-  Future<AuthResponse> verifyOtp(String phone, String token) async {
-    return await _client.auth.verifyOTP(
-      phone: phone,
-      token: token,
-      type: OtpType.sms,
+  /// Verifies [otp] for [phone] via the edge function.
+  /// On success the returned session is activated so [isLoggedIn] becomes true.
+  Future<void> verifyOtp(String phone, String otp) async {
+    final res = await _client.functions.invoke(
+      'verify-otp',
+      body: {'phone': phone, 'otp': otp},
     );
+
+    final data = res.data as Map<String, dynamic>?;
+
+    if (res.status != 200 || data == null) {
+      final msg = data?['error'] as String? ?? 'Invalid OTP. Please try again.';
+      throw AuthException(msg);
+    }
+
+    final accessToken  = data['access_token']  as String?;
+    final refreshToken = data['refresh_token'] as String?;
+
+    if (accessToken == null || refreshToken == null) {
+      throw AuthException('Authentication failed — missing session tokens.');
+    }
+
+    // Activate the session in the Supabase Flutter client.
+    await _client.auth.setSession(accessToken);
+    debugPrint('[Auth] OTP verified, uid=${_client.auth.currentUser?.id}');
   }
+
+  /// Resend OTP — same as sendOtp, exposed separately for the resend button.
+  Future<void> resendOtp(String phone) => sendOtp(phone);
 
   /// Signs the user out and clears the session.
   Future<void> signOut() async {
     await _client.auth.signOut();
-  }
-
-  /// Dev bypass: sign in with a stable email+password derived from the phone number.
-  /// This gives a consistent auth.uid() across cache clears for the same phone,
-  /// so existing profile/wallet data is always found.
-  /// Requires Email auth enabled in Supabase Dashboard → Auth → Email → enabled.
-  /// Also disable "Confirm email" in Supabase Dashboard → Auth → Email settings.
-  Future<void> signInWithPhoneBypass(String phone) async {
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final email = 'dev_$digits@wai.app';
-    const password = 'wai_dev_bypass_2024';
-    debugPrint('[Auth] bypass sign-in for $email');
-    try {
-      final res = await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      debugPrint('[Auth] signed in uid=${res.user?.id}');
-    } on AuthException catch (e) {
-      debugPrint('[Auth] signIn failed (${e.statusCode}): ${e.message}');
-      // User doesn't exist yet — sign up, then sign in explicitly
-      // (signUp alone doesn't create a session when email confirmation is on)
-      await _client.auth.signUp(email: email, password: password);
-      debugPrint('[Auth] signed up, now signing in');
-      final res = await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      debugPrint('[Auth] post-signup sign-in uid=${res.user?.id}');
-    }
   }
 
   /// Returns true if a valid session exists.

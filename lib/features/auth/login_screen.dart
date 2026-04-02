@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable with OTP
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-// import 'auth_service.dart'; // TODO: Re-enable with OTP
+import 'auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -37,23 +37,19 @@ class _LoginScreenState extends State<LoginScreen> {
       _loading = true;
       _error = null;
     });
-    // TODO: Re-enable when OTP validation is active
-    // try {
-    //   await AuthService.instance.sendOtp('+91$phone');
-    //   if (!mounted) return;
-    //   Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');
-    // } on AuthException catch (e) {
-    //   if (!mounted) return;
-    //   setState(() => _error = e.message);
-    // } catch (_) {
-    //   if (!mounted) return;
-    //   setState(() => _error = 'Failed to send OTP. Please try again.');
-    // } finally {
-    //   if (mounted) setState(() => _loading = false);
-    // }
-    if (!mounted) return;
-    setState(() => _loading = false);
-    Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');
+    try {
+      await AuthService.instance.sendOtp('+91$phone');
+      if (!mounted) return;
+      Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Failed to send OTP. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override

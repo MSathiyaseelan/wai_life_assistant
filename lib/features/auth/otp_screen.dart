@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // TODO: Re-enable with OTP
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/supabase/profile_service.dart';
@@ -82,59 +82,28 @@ class _OtpScreenState extends State<OtpScreen> {
       setState(() => _error = 'Please enter the 6-digit OTP');
       return;
     }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    // TODO: Re-enable when OTP validation is active
-    // try {
-    //   await AuthService.instance.verifyOtp(widget.phone, _otp);
-    //   if (!mounted) return;
-    // } on AuthException catch (e) {
-    //   if (!mounted) return;
-    //   setState(() => _error = e.message);
-    //   return;
-    // } catch (_) {
-    //   if (!mounted) return;
-    //   setState(() => _error = 'Invalid OTP. Please try again.');
-    //   return;
-    // } finally {
-    //   if (mounted) setState(() => _loading = false);
-    // }
-    // Dev bypass: sign in with a stable email+password derived from the phone number.
-    // This ensures the same auth.uid() is used for the same phone, so existing data loads.
-    bool anonOk = false;
+    setState(() { _loading = true; _error = null; });
     try {
-      if (!AuthService.instance.isLoggedIn) {
-        await AuthService.instance.signInWithPhoneBypass(widget.phone);
-      }
-      // bootstrapNewUser is idempotent (ON CONFLICT DO UPDATE), safe every time.
-      await ProfileService.instance.bootstrapNewUser();
-      // Migrate any existing data that was created under a different auth session
-      // for the same phone number (e.g. old anonymous session after cache clear).
-      final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
-      if (migrated) debugPrint('[OTP bypass] Profile data migrated for ${widget.phone}');
-      anonOk = true;
-    } catch (e) {
-      debugPrint('[OTP bypass] Supabase setup failed: $e');
-    }
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (!anonOk) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Mock mode — Supabase setup failed, data will not be saved'),
-          duration: Duration(seconds: 4),
-        ),
-      );
-      await Future.delayed(const Duration(seconds: 4));
+      await AuthService.instance.verifyOtp(widget.phone, _otp);
       if (!mounted) return;
+      await ProfileService.instance.bootstrapNewUser();
+      final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
+      if (migrated) debugPrint('[OTP] Profile data migrated for ${widget.phone}');
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.bottomNav,
+        (route) => false,
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Invalid OTP. Please try again.');
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      AppRoutes.bottomNav,
-      (route) => false,
-    );
   }
 
   Future<void> _resend() async {
@@ -142,8 +111,11 @@ class _OtpScreenState extends State<OtpScreen> {
     _nodes[0].requestFocus();
     setState(() => _error = null);
     _startResendTimer();
-    // Simulate resend
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      await AuthService.instance.resendOtp(widget.phone);
+    } catch (_) {
+      // Resend failure is non-fatal — user can retry again after the timer.
+    }
   }
 
   @override
