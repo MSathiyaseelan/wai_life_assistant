@@ -323,7 +323,7 @@ class _WalletScreenState extends State<WalletScreen>
         .toList();
     double cashIn = 0, cashOut = 0, onlineIn = 0, onlineOut = 0;
     for (final t in txs) {
-      final isIn = t.type == TxType.income || t.type == TxType.borrow;
+      final isIn = t.type == TxType.income || t.type == TxType.borrow || t.type == TxType.returned;
       final isOut =
           t.type == TxType.expense ||
           t.type == TxType.lend ||

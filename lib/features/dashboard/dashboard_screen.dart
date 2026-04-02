@@ -677,7 +677,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     balance: _todayTx(walletId).fold(0.0, (s, t) =>
                         t.type.isPositive
                             ? s + t.amount
-                            : (t.type == TxType.expense || t.type == TxType.lend)
+                            : (t.type == TxType.expense ||
+                                    t.type == TxType.lend ||
+                                    t.type == TxType.split)
                                 ? s - t.amount
                                 : s),
                     hidden: _balanceHidden,
@@ -2279,14 +2281,18 @@ class _MoneyPulseCard extends StatelessWidget {
         .fold(0.0, (s, t) => s + t.amount);
     final cashOut = todayTx
         .where((t) => t.payMode == PayMode.cash &&
-            (t.type == TxType.expense || t.type == TxType.lend))
+            (t.type == TxType.expense ||
+                t.type == TxType.lend ||
+                t.type == TxType.split))
         .fold(0.0, (s, t) => s + t.amount);
     final onlineIn = todayTx
         .where((t) => t.payMode == PayMode.online && t.type.isPositive)
         .fold(0.0, (s, t) => s + t.amount);
     final onlineOut = todayTx
         .where((t) => t.payMode == PayMode.online &&
-            (t.type == TxType.expense || t.type == TxType.lend))
+            (t.type == TxType.expense ||
+                t.type == TxType.lend ||
+                t.type == TxType.split))
         .fold(0.0, (s, t) => s + t.amount);
 
     return Container(

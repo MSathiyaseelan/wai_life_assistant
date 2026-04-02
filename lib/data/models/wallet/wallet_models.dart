@@ -91,7 +91,7 @@ extension TxTypeExt on TxType {
     }
   }
 
-  bool get isPositive => this == TxType.income || this == TxType.borrow;
+  bool get isPositive => this == TxType.income || this == TxType.borrow || this == TxType.returned;
   bool get isPending => this == TxType.request;
 }
 
