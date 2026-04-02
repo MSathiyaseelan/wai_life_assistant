@@ -88,11 +88,11 @@ class _WishListScreenState extends State<WishListScreen>
       setState(() => _loading = false);
       return;
     }
-    if (widget.walletId == 'personal') {
-      // Personal view: fetch independently from personal + all family wallets.
+    if (widget.familyWalletNames.isNotEmpty) {
+      // Personal view: fetch from personal wallet + all family wallets.
       setState(() => _loading = true);
       try {
-        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
           allIds.map((id) => WishService.instance.fetchWishes(id)),
         );
@@ -668,21 +668,13 @@ class _WishList extends StatelessWidget {
           wish: w,
           isDark: isDark,
           showPurchasedBadge: showPurchasedBadge,
+          familyLabel: familyLabel,
           onTap: familyLabel == null ? () => onTap(w) : () {},
         );
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: familyLabel != null
-              ? Stack(
-                  children: [
-                    card,
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: FamilyBadge(label: familyLabel),
-                    ),
-                  ],
-                )
+              ? card
               : SwipeTile(onDelete: () => onDelete(w), child: card),
         );
       },
@@ -698,11 +690,13 @@ class _WishCard extends StatelessWidget {
   final WishModel wish;
   final bool isDark, showPurchasedBadge;
   final VoidCallback onTap;
+  final String? familyLabel;
   const _WishCard({
     required this.wish,
     required this.isDark,
     this.showPurchasedBadge = false,
     required this.onTap,
+    this.familyLabel,
   });
 
   @override
@@ -799,6 +793,8 @@ class _WishCard extends StatelessWidget {
                                       label: '✅ Purchased',
                                       color: AppColors.income,
                                     ),
+                                  if (familyLabel != null)
+                                    FamilyBadge(label: familyLabel!),
                                 ],
                               ),
                             ],

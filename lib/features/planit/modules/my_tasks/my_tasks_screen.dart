@@ -93,11 +93,11 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       setState(() => _loading = false);
       return;
     }
-    if (widget.walletId == 'personal') {
-      // Personal view: fetch independently from personal + all family wallets.
+    if (widget.familyWalletNames.isNotEmpty) {
+      // Personal view: fetch from personal wallet + all family wallets.
       setState(() => _loading = true);
       try {
-        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
           allIds.map((id) => TaskService.instance.fetchTasks(id)),
         );
@@ -636,6 +636,7 @@ class _TaskList extends StatelessWidget {
           final card = _TaskCard(
             task: t,
             isDark: isDark,
+            familyLabel: familyLabel,
             onStatusChange: familyLabel == null ? (s) => onStatusChange(t, s) : (_) {},
             onToggleSubtask: familyLabel == null ? onToggleSubtask : (_) {},
             onTap: familyLabel == null && onTap != null ? () => onTap!(t) : null,
@@ -643,16 +644,7 @@ class _TaskList extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: familyLabel != null
-                ? Stack(
-                    children: [
-                      card,
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: FamilyBadge(label: familyLabel),
-                      ),
-                    ],
-                  )
+                ? card
                 : SwipeTile(onDelete: () => onDelete(t), child: card),
           );
         },
@@ -671,12 +663,14 @@ class _TaskCard extends StatelessWidget {
   final void Function(TaskStatus) onStatusChange;
   final void Function(SubTask) onToggleSubtask;
   final VoidCallback? onTap;
+  final String? familyLabel;
   const _TaskCard({
     required this.task,
     required this.isDark,
     required this.onStatusChange,
     required this.onToggleSubtask,
     this.onTap,
+    this.familyLabel,
   });
 
   @override
@@ -764,6 +758,7 @@ class _TaskCard extends StatelessWidget {
                     ),
                   ),
                 PriorityBadge(priority: task.priority),
+                if (familyLabel != null) FamilyBadge(label: familyLabel!),
                 if (task.dueDate != null)
                   Container(
                     padding: const EdgeInsets.symmetric(

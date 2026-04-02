@@ -227,11 +227,11 @@ class _NotesScreenState extends State<NotesScreen> {
       setState(() => _loading = false);
       return;
     }
-    if (widget.walletId == 'personal') {
-      // Personal view: fetch independently from personal + all family wallets.
+    if (widget.familyWalletNames.isNotEmpty) {
+      // Personal view: fetch from personal wallet + all family wallets.
       setState(() => _loading = true);
       try {
-        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
           allIds.map((id) => NoteService.instance.fetchNotes(id)),
         );
@@ -604,22 +604,12 @@ class _NotesScreenState extends State<NotesScreen> {
           (ctx, i) {
             final n = notes[i];
             final familyLabel = widget.familyWalletNames[n.walletId];
-            final card = _NoteCard(
+            return _NoteCard(
               note: n,
               isDark: isDark,
+              familyLabel: familyLabel,
               onTap: familyLabel == null ? () => _openNoteSheet(existing: n) : () {},
               onLongPress: familyLabel == null ? () => _showContextMenu(n) : () {},
-            );
-            if (familyLabel == null) return card;
-            return Stack(
-              children: [
-                card,
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: FamilyBadge(label: familyLabel),
-                ),
-              ],
             );
           },
           childCount: notes.length,
@@ -636,12 +626,14 @@ class _NoteCard extends StatelessWidget {
   final bool isDark;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final String? familyLabel;
 
   const _NoteCard({
     required this.note,
     required this.isDark,
     required this.onTap,
     required this.onLongPress,
+    this.familyLabel,
   });
 
   String _relativeDate(DateTime dt) {
@@ -708,6 +700,11 @@ class _NoteCard extends StatelessWidget {
                 ),
               ],
             ),
+
+            if (familyLabel != null) ...[
+              const SizedBox(height: 5),
+              FamilyBadge(label: familyLabel!),
+            ],
 
             const SizedBox(height: 8),
 

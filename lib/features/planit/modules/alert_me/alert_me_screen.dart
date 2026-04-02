@@ -103,11 +103,11 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       setState(() => _loading = false);
       return;
     }
-    if (widget.walletId == 'personal') {
-      // Personal view: fetch independently from personal + all family wallets.
+    if (widget.familyWalletNames.isNotEmpty) {
+      // Personal view: fetch from personal wallet + all family wallets.
       setState(() => _loading = true);
       try {
-        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
           allIds.map((id) => ReminderService.instance.fetchReminders(id)),
         );
@@ -480,6 +480,7 @@ class _ReminderList extends StatelessWidget {
     final card = _ReminderCard(
       reminder: r,
       isDark: isDark,
+      familyLabel: familyLabel,
       onDone: familyLabel == null && onDone != null ? () => onDone!(r) : null,
       onSnooze: (familyLabel == null && onSnooze != null && isOverdue && r.snoozed)
           ? () => onSnooze!(r)
@@ -490,16 +491,7 @@ class _ReminderList extends StatelessWidget {
           : null,
     );
     Widget child = familyLabel != null
-        ? Stack(
-            children: [
-              card,
-              Positioned(
-                top: 8,
-                right: 8,
-                child: FamilyBadge(label: familyLabel),
-              ),
-            ],
-          )
+        ? card
         : SwipeTile(onDelete: () => onDelete(r), child: card);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -553,6 +545,7 @@ class _ReminderCard extends StatelessWidget {
   final ReminderModel reminder;
   final bool isDark;
   final VoidCallback? onDone, onSnooze, onTap, onReactivate;
+  final String? familyLabel;
 
   const _ReminderCard({
     required this.reminder,
@@ -561,6 +554,7 @@ class _ReminderCard extends StatelessWidget {
     this.onSnooze,
     this.onTap,
     this.onReactivate,
+    this.familyLabel,
   });
 
   @override
@@ -667,6 +661,7 @@ class _ReminderCard extends StatelessWidget {
                           ),
                           PriorityBadge(priority: p),
                           RepeatBadge(repeat: reminder.repeat),
+                          if (familyLabel != null) FamilyBadge(label: familyLabel!),
                           if (reminder.snoozed)
                             Container(
                               padding: const EdgeInsets.symmetric(

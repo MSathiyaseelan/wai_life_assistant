@@ -65,10 +65,10 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   }
 
   Future<void> _loadData() async {
-    // Personal view: fetch independently from personal + all family wallets.
-    if (widget.walletId == 'personal') {
+    // Personal view: fetch from personal wallet + all family wallets.
+    if (widget.familyWalletNames.isNotEmpty) {
       try {
-        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
           allIds.map((id) => FunctionsService.instance.fetchMyFunctions(id)),
         );
@@ -234,6 +234,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     final card = _FunctionCard(
                       fn: fn,
                       isDark: isDark,
+                      familyLabel: familyLabel,
                       onTap: familyLabel == null
                           ? () => Navigator.push(
                                 context,
@@ -250,16 +251,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: familyLabel != null
-                          ? Stack(
-                              children: [
-                                card,
-                                Positioned(
-                                  top: 8,
-                                  right: 8,
-                                  child: FamilyBadge(label: familyLabel),
-                                ),
-                              ],
-                            )
+                          ? card
                           : SwipeTile(
                               onDelete: () {
                                 HapticFeedback.mediumImpact();
@@ -643,10 +635,12 @@ class _FunctionCard extends StatelessWidget {
   final FunctionModel fn;
   final bool isDark;
   final VoidCallback onTap;
+  final String? familyLabel;
   const _FunctionCard({
     required this.fn,
     required this.isDark,
     required this.onTap,
+    this.familyLabel,
   });
 
   String get _typeLabel =>
@@ -822,6 +816,8 @@ class _FunctionCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
+                              if (familyLabel != null)
+                                FamilyBadge(label: familyLabel!),
                             ],
                           ),
                           if (fn.venue != null) ...[

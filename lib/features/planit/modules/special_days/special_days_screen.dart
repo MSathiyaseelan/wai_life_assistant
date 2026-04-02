@@ -364,11 +364,11 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       setState(() => _loading = false);
       return;
     }
-    if (widget.walletId == 'personal') {
-      // Personal view: fetch independently from personal + all family wallets.
+    if (widget.familyWalletNames.isNotEmpty) {
+      // Personal view: fetch from personal wallet + all family wallets.
       setState(() => _loading = true);
       try {
-        final allIds = ['personal', ...widget.familyWalletNames.keys];
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
           allIds.map((id) => SpecialDayService.instance.fetchDays(id)),
         );
@@ -767,21 +767,13 @@ class _DayList extends StatelessWidget {
           isDark: isDark,
           isPast: isPast,
           nextOccurrence: nextOccurrence,
+          familyLabel: familyLabel,
           onTap: familyLabel == null ? () => onTap(d) : () {},
         );
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: familyLabel != null
-              ? Stack(
-                  children: [
-                    card,
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: FamilyBadge(label: familyLabel),
-                    ),
-                  ],
-                )
+              ? card
               : SwipeTile(onDelete: () => onDelete(d), child: card),
         );
       },
@@ -799,12 +791,14 @@ class _DayCard extends StatelessWidget {
   final bool isPast;
   final DateTime Function(DateTime) nextOccurrence;
   final VoidCallback onTap;
+  final String? familyLabel;
   const _DayCard({
     required this.day,
     required this.isDark,
     required this.nextOccurrence,
     required this.onTap,
     this.isPast = false,
+    this.familyLabel,
   });
 
   @override
@@ -973,6 +967,10 @@ class _DayCard extends StatelessWidget {
                               ),
                             ],
                           ),
+                          if (familyLabel != null) ...[
+                            const SizedBox(height: 4),
+                            FamilyBadge(label: familyLabel!),
+                          ],
                           if (day.note != null && day.note!.isNotEmpty) ...[
                             const SizedBox(height: 3),
                             Text(
