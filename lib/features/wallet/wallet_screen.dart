@@ -1689,8 +1689,11 @@ class _WalletScreenState extends State<WalletScreen>
 
     final grouped = <String, List<TxModel>>{};
     final sectionDates = <String, DateTime>{};
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
     for (final tx in base) {
-      final diff = DateTime.now().difference(tx.date).inDays;
+      final txDate = DateTime(tx.date.year, tx.date.month, tx.date.day);
+      final diff = todayDate.difference(txDate).inDays;
       final label = diff == 0
           ? 'Today'
           : diff == 1
@@ -1703,7 +1706,8 @@ class _WalletScreenState extends State<WalletScreen>
     for (final g in _activeWalletTxGroups) {
       if (g.transactions.isEmpty) continue;
       if (!_selectedRange.contains(g.latestDate)) continue;
-      final diff = DateTime.now().difference(g.latestDate).inDays;
+      final gDate = DateTime(g.latestDate.year, g.latestDate.month, g.latestDate.day);
+      final diff = todayDate.difference(gDate).inDays;
       final label = diff == 0
           ? 'Today'
           : diff == 1
@@ -2143,10 +2147,13 @@ class _WalletScreenState extends State<WalletScreen>
   // ── Transaction date-section ────────────────────────────────────────────────
   Widget _buildGroup(MapEntry<String, List<TxModel>> entry, bool isDark) {
     // Groups whose latest tx falls in this date-label section
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
     final sectionGroups = _activeWalletTxGroups
         .where((g) {
           if (g.transactions.isEmpty) return false;
-          final diff = DateTime.now().difference(g.latestDate).inDays;
+          final gDate = DateTime(g.latestDate.year, g.latestDate.month, g.latestDate.day);
+          final diff = todayDate.difference(gDate).inDays;
           final label = diff == 0
               ? 'Today'
               : diff == 1

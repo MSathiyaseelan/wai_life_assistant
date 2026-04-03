@@ -46,7 +46,7 @@ const GEMINI_BASE =
 
 // Default model for text tasks; image-heavy tasks use a lighter vision model
 const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash";
-const GEMINI_VISION_MODEL   = "gemini-1.5-flash";
+const GEMINI_VISION_MODEL   = "gemini-3-flash-preview";
 
 function geminiUrl(model: string): string {
   return `${GEMINI_BASE}${model}:generateContent`;
