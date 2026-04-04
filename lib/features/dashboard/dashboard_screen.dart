@@ -1531,6 +1531,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final nameCtrl = TextEditingController(text: _userName);
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     bool profileExpanded = false;
+    bool accountExpanded = true;
+    bool preferencesExpanded = true;
     final themeLabel = switch (widget.themeMode) {
       ThemeMode.light  => 'Light',
       ThemeMode.dark   => 'Dark',
@@ -1628,15 +1630,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       fontFamily: 'Nunito',
                                     ),
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'Unlimited AI scans, history & more — ₹99/month',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white70,
-                                      fontFamily: 'Nunito',
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -1648,19 +1641,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                     // ── ACCOUNT section ──────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                      child: Text(
-                        'ACCOUNT',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          fontFamily: 'Nunito',
-                          color: isDark ? AppColors.subDark : AppColors.subLight,
+                    GestureDetector(
+                      onTap: () => ss(() => accountExpanded = !accountExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              'ACCOUNT',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                fontFamily: 'Nunito',
+                                color: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(
+                              accountExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                    if (accountExpanded) ...[
                     // Profile (expandable)
                     Container(
                       decoration: BoxDecoration(
@@ -2125,21 +2138,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         onTap: () {},
                       ),
                     ),
+                    ], // accountExpanded
                     const SizedBox(height: 16),
                     // ── PREFERENCES section ───────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-                      child: Text(
-                        'PREFERENCES',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                          fontFamily: 'Nunito',
-                          color: isDark ? AppColors.subDark : AppColors.subLight,
+                    GestureDetector(
+                      onTap: () =>
+                          ss(() => preferencesExpanded = !preferencesExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                        child: Row(
+                          children: [
+                            Text(
+                              'PREFERENCES',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                fontFamily: 'Nunito',
+                                color: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
+                              ),
+                            ),
+                            const Spacer(),
+                            Icon(
+                              preferencesExpanded
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                    if (preferencesExpanded)
                     Container(
                       decoration: BoxDecoration(
                         color: surfBg,
