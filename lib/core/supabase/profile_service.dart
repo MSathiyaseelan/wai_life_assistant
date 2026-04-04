@@ -120,6 +120,7 @@ class ProfileService {
         final mm = Map<String, dynamic>.from(m as Map);
         return FamilyMember(
           id:       mm['id'] as String,
+          userId:   mm['user_id'] as String?,
           name:     mm['name'] as String,
           emoji:    mm['emoji'] as String? ?? '👤',
           role:     _parseRole(mm['role'] as String?),
@@ -135,6 +136,10 @@ class ProfileService {
         colorIndex: colorIdx,
         members:    members,
         walletId:   fm['wallet_id'] as String?,
+        myRole:     _parseRole(fm['my_role'] as String?),
+        permInvite: fm['perm_invite'] as String? ?? 'admin_only',
+        permEdit:   fm['perm_edit']   as String? ?? 'any_member',
+        permDelete: fm['perm_delete'] as String? ?? 'admin_only',
       ));
 
       if (fm['wallet_id'] != null) {
@@ -242,6 +247,20 @@ class ProfileService {
   /// Remove a member from a family.
   Future<void> removeMember(String memberId) async {
     await _db.from('family_members').delete().eq('id', memberId);
+  }
+
+  /// Update family permission settings (admin only — enforced by RLS).
+  Future<void> updateFamilyPermissions({
+    required String familyId,
+    required String permInvite,
+    required String permEdit,
+    required String permDelete,
+  }) async {
+    await _db.from('families').update({
+      'perm_invite': permInvite,
+      'perm_edit':   permEdit,
+      'perm_delete': permDelete,
+    }).eq('id', familyId);
   }
 
   /// Fetch members of a specific family.

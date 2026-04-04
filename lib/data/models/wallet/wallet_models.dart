@@ -258,6 +258,7 @@ enum MemberRole {
 
 class FamilyMember {
   String id;
+  String? userId;   // Supabase auth user ID (null for non-app members)
   String name;
   String emoji;
   MemberRole role;
@@ -267,6 +268,7 @@ class FamilyMember {
 
   FamilyMember({
     required this.id,
+    this.userId,
     required this.name,
     required this.emoji,
     required this.role,
@@ -276,6 +278,7 @@ class FamilyMember {
   });
 
   FamilyMember copyWith({
+    String? userId,
     String? name,
     String? emoji,
     MemberRole? role,
@@ -284,6 +287,7 @@ class FamilyMember {
     String? photoPath,
   }) => FamilyMember(
     id: id,
+    userId: userId ?? this.userId,
     name: name ?? this.name,
     emoji: emoji ?? this.emoji,
     role: role ?? this.role,
@@ -302,6 +306,16 @@ class FamilyModel {
   String? photoPath; // local file path or remote URL
   String? walletId;  // the linked wallet UUID (for switcher matching)
 
+  /// Current user's role in this family (populated from my_role in view).
+  MemberRole myRole;
+
+  /// Permission: who can invite members — 'admin_only' | 'any_member'
+  String permInvite;
+  /// Permission: who can edit entries — 'admin_only' | 'any_member'
+  String permEdit;
+  /// Permission: who can delete entries — 'admin_only' | 'any_member'
+  String permDelete;
+
   FamilyModel({
     required this.id,
     required this.name,
@@ -310,7 +324,24 @@ class FamilyModel {
     List<FamilyMember>? members,
     this.photoPath,
     this.walletId,
+    this.myRole = MemberRole.member,
+    this.permInvite = 'admin_only',
+    this.permEdit = 'any_member',
+    this.permDelete = 'admin_only',
   }) : members = members ?? [];
+
+  // ── Role / permission helpers ──────────────────────────────────────────────
+
+  bool get isAdmin => myRole == MemberRole.admin;
+
+  /// Whether the current user (myRole) can invite new members.
+  bool get canInvite => permInvite == 'any_member' || isAdmin;
+
+  /// Whether the current user (myRole) can edit entries.
+  bool get canEdit => permEdit == 'any_member' || isAdmin;
+
+  /// Whether the current user (myRole) can delete entries.
+  bool get canDelete => permDelete == 'any_member' || isAdmin;
 }
 
 // ── Fallback placeholder — no financial data ──────────────────────────────────

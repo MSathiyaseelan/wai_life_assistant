@@ -24,6 +24,7 @@ import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart'
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/features/dashboard/family_settings_section.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -1528,6 +1529,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _loadProfile();
     if (!ctx.mounted) return;
 
+    final appState = AppStateScope.read(ctx);
     final nameCtrl = TextEditingController(text: _userName);
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     bool profileExpanded = false;
@@ -2139,6 +2141,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     ], // accountExpanded
+                    const SizedBox(height: 16),
+                    // ── FAMILY section ────────────────────────────────────
+                    FamilySettingsSection(
+                      appState: appState,
+                      isDark: isDark,
+                    ),
                     const SizedBox(height: 16),
                     // ── PREFERENCES section ───────────────────────────────
                     GestureDetector(
