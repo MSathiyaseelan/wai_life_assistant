@@ -64,13 +64,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Page controller for swipeable wallet cards
   late final PageController _walletPageController;
 
-  // PlanIt data — loaded from DB (next 7 days)
-  List<ReminderModel> _reminders = [];
-  List<TaskModel> _tasks = [];
-  List<SpecialDayModel> _specialDays = [];
-  List<WishModel> _wishes = [];
-  List<FunctionModel> _functions = [];
-  String _planItWalletId = '';
+  // PlanIt data — merged from all loaded wallets, keyed by walletId
+  final Map<String, List<ReminderModel>>    _remindersMap    = {};
+  final Map<String, List<TaskModel>>        _tasksMap        = {};
+  final Map<String, List<SpecialDayModel>>  _specialDaysMap  = {};
+  final Map<String, List<WishModel>>        _wishesMap       = {};
+  final Map<String, List<FunctionModel>>    _functionsMap    = {};
+  final Set<String> _loadedPlanItWalletIds = {};
 
   List<TxModel> _todayTx(String wid) => _transactions
       .where((t) => t.walletId == wid && _isToday(t.date))
@@ -168,22 +168,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _ensurePlanItLoaded(String walletId) {
-    if (walletId.isEmpty || walletId == _planItWalletId) return;
-    _planItWalletId = walletId;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlanItData(walletId));
+  void _ensurePlanItLoaded(List<WalletModel> wallets) {
+    for (final w in wallets) {
+      if (w.id.isEmpty || _loadedPlanItWalletIds.contains(w.id)) continue;
+      _loadedPlanItWalletIds.add(w.id);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlanItData(w.id));
+    }
   }
 
   Future<void> _refresh() async {
-    final txToReload    = List<String>.from(_loadedWalletIds);
-    final mealToReload  = List<String>.from(_loadedMealWalletIds);
+    final txToReload      = List<String>.from(_loadedWalletIds);
+    final mealToReload    = List<String>.from(_loadedMealWalletIds);
+    final planItToReload  = List<String>.from(_loadedPlanItWalletIds);
     _loadedWalletIds.clear();
     _loadedMealWalletIds.clear();
+    _loadedPlanItWalletIds.clear();
     await Future.wait([
       _loadPinnedGroups(),
       ...txToReload.map(_loadTransactions),
       ...mealToReload.map(_loadTodayMeals),
-      if (_planItWalletId.isNotEmpty) _loadPlanItData(_planItWalletId),
+      ...planItToReload.map(_loadPlanItData),
     ]);
   }
 
@@ -258,12 +262,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       for (final wid in List<String>.from(_loadedMealWalletIds)) {
         _loadTodayMeals(wid);
       }
-      _loadPlanItData(_planItWalletId);
+      for (final wid in List<String>.from(_loadedPlanItWalletIds)) {
+        _loadPlanItData(wid);
+      }
     }
   }
 
   Future<void> _loadPlanItData(String walletId) async {
     if (walletId.isEmpty) return;
+    _loadedPlanItWalletIds.add(walletId);
     try {
       final results = await Future.wait([
         ReminderService.instance.fetchReminders(walletId),
@@ -274,11 +281,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _reminders = (results[0]).map(ReminderModel.fromRow).toList();
-        _tasks = (results[1]).map(TaskModel.fromRow).toList();
-        _specialDays = (results[2]).map(SpecialDayModel.fromRow).toList();
-        _wishes = (results[3]).map(WishModel.fromRow).toList();
-        _functions = (results[4]).map(FunctionModel.fromJson).toList();
+        _remindersMap[walletId]   = (results[0]).map(ReminderModel.fromRow).toList();
+        _tasksMap[walletId]       = (results[1]).map(TaskModel.fromRow).toList();
+        _specialDaysMap[walletId] = (results[2]).map(SpecialDayModel.fromRow).toList();
+        _wishesMap[walletId]      = (results[3]).map(WishModel.fromRow).toList();
+        _functionsMap[walletId]   = (results[4]).map(FunctionModel.fromJson).toList();
       });
     } catch (e) {
       debugPrint('[Dashboard] _loadPlanItData error: $e');
@@ -427,94 +434,121 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  /// Label for a walletId: 'Personal' for personal, family name otherwise.
+  String _walletLabel(String walletId) {
+    final appState = AppStateScope.read(context);
+    final wallet = appState.wallets.where((w) => w.id == walletId).firstOrNull;
+    if (wallet == null || wallet.isPersonal) return 'Personal';
+    return appState.families
+            .where((f) => f.walletId == walletId)
+            .firstOrNull
+            ?.name ??
+        wallet.name;
+  }
+
   List<_PlanNudge> get _nudges {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final list = <_PlanNudge>[];
 
-    // Reminders — not done, due today → +7 days
-    for (final r in _reminders) {
-      if (r.done) continue;
-      final due = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
-      final daysLeft = due.difference(today).inDays;
-      if (daysLeft >= 0 && daysLeft <= 7) {
-        list.add(_PlanNudge(
-          emoji: r.emoji,
-          title: r.title,
-          subtitle: daysLeft == 0 ? 'Due today' : 'In ${daysLeft}d',
-          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-          color: r.priority.color,
-          tag: 'Alert',
-        ));
+    for (final entry in _remindersMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final r in entry.value) {
+        if (r.done) continue;
+        final due = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
+        final daysLeft = due.difference(today).inDays;
+        if (daysLeft >= 0 && daysLeft <= 7) {
+          list.add(_PlanNudge(
+            emoji: r.emoji,
+            title: r.title,
+            subtitle: daysLeft == 0 ? 'Due today' : 'In ${daysLeft}d',
+            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+            color: r.priority.color,
+            tag: 'Alert',
+            walletLabel: wLabel,
+          ));
+        }
       }
     }
 
-    // Tasks — not done, due today → +7 days
-    for (final t in _tasks) {
-      if (t.status == TaskStatus.done || t.dueDate == null) continue;
-      final due = DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day);
-      final daysLeft = due.difference(today).inDays;
-      if (daysLeft >= 0 && daysLeft <= 7) {
-        list.add(_PlanNudge(
-          emoji: t.emoji,
-          title: t.title,
-          subtitle: daysLeft == 0 ? 'Due today' : 'Due in ${daysLeft}d',
-          urgency: daysLeft == 0 ? 3 : t.priority.index >= 2 ? 2 : 1,
-          color: t.priority.color,
-          tag: 'Task',
-        ));
+    for (final entry in _tasksMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final t in entry.value) {
+        if (t.status == TaskStatus.done || t.dueDate == null) continue;
+        final due = DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day);
+        final daysLeft = due.difference(today).inDays;
+        if (daysLeft >= 0 && daysLeft <= 7) {
+          list.add(_PlanNudge(
+            emoji: t.emoji,
+            title: t.title,
+            subtitle: daysLeft == 0 ? 'Due today' : 'Due in ${daysLeft}d',
+            urgency: daysLeft == 0 ? 3 : t.priority.index >= 2 ? 2 : 1,
+            color: t.priority.color,
+            tag: 'Task',
+            walletLabel: wLabel,
+          ));
+        }
       }
     }
 
-    // Special days — today → +7 days (yearly recurrence projected to this year)
-    for (final sd in _specialDays) {
-      final projected = sd.yearlyRecur
-          ? DateTime(now.year, sd.date.month, sd.date.day)
-          : DateTime(sd.date.year, sd.date.month, sd.date.day);
-      final daysLeft = projected.difference(today).inDays;
-      if (daysLeft >= 0 && daysLeft <= 7) {
-        list.add(_PlanNudge(
-          emoji: sd.emoji,
-          title: sd.title,
-          subtitle: daysLeft == 0 ? '🎉 Today!' : 'In ${daysLeft}d',
-          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-          color: sd.type.color,
-          tag: 'Special Day',
-        ));
+    for (final entry in _specialDaysMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final sd in entry.value) {
+        final projected = sd.yearlyRecur
+            ? DateTime(now.year, sd.date.month, sd.date.day)
+            : DateTime(sd.date.year, sd.date.month, sd.date.day);
+        final daysLeft = projected.difference(today).inDays;
+        if (daysLeft >= 0 && daysLeft <= 7) {
+          list.add(_PlanNudge(
+            emoji: sd.emoji,
+            title: sd.title,
+            subtitle: daysLeft == 0 ? '🎉 Today!' : 'In ${daysLeft}d',
+            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+            color: sd.type.color,
+            tag: 'Special Day',
+            walletLabel: wLabel,
+          ));
+        }
       }
     }
 
-    // Wishes — not purchased, target date today → +7 days
-    for (final w in _wishes) {
-      if (w.purchased || w.targetDate == null) continue;
-      final due = DateTime(w.targetDate!.year, w.targetDate!.month, w.targetDate!.day);
-      final daysLeft = due.difference(today).inDays;
-      if (daysLeft >= 0 && daysLeft <= 7) {
-        list.add(_PlanNudge(
-          emoji: w.emoji,
-          title: w.title,
-          subtitle: daysLeft == 0 ? 'Target today' : 'Target in ${daysLeft}d',
-          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-          color: w.priority.color,
-          tag: 'Wish',
-        ));
+    for (final entry in _wishesMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final w in entry.value) {
+        if (w.purchased || w.targetDate == null) continue;
+        final due = DateTime(w.targetDate!.year, w.targetDate!.month, w.targetDate!.day);
+        final daysLeft = due.difference(today).inDays;
+        if (daysLeft >= 0 && daysLeft <= 7) {
+          list.add(_PlanNudge(
+            emoji: w.emoji,
+            title: w.title,
+            subtitle: daysLeft == 0 ? 'Target today' : 'Target in ${daysLeft}d',
+            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+            color: w.priority.color,
+            tag: 'Wish',
+            walletLabel: wLabel,
+          ));
+        }
       }
     }
 
-    // Functions — function date today → +7 days
-    for (final f in _functions) {
-      if (f.functionDate == null) continue;
-      final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
-      final daysLeft = fDate.difference(today).inDays;
-      if (daysLeft >= 0 && daysLeft <= 7) {
-        list.add(_PlanNudge(
-          emoji: '🎉',
-          title: f.title,
-          subtitle: daysLeft == 0 ? 'Today!' : 'In ${daysLeft}d',
-          urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-          color: AppColors.primary,
-          tag: 'Function',
-        ));
+    for (final entry in _functionsMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final f in entry.value) {
+        if (f.functionDate == null) continue;
+        final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
+        final daysLeft = fDate.difference(today).inDays;
+        if (daysLeft >= 0 && daysLeft <= 7) {
+          list.add(_PlanNudge(
+            emoji: '🎉',
+            title: f.title,
+            subtitle: daysLeft == 0 ? 'Today!' : 'In ${daysLeft}d',
+            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+            color: AppColors.primary,
+            tag: 'Function',
+            walletLabel: wLabel,
+          ));
+        }
       }
     }
 
@@ -527,7 +561,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final end = today.add(const Duration(days: 7));
-    return _functions.where((f) {
+    final allFunctions = _functionsMap.values.expand((l) => l);
+    return allFunctions.where((f) {
       if (f.functionDate == null) return false;
       final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
       return !fDate.isBefore(today) && !fDate.isAfter(end);
@@ -557,7 +592,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final walletId = appState.activeWalletId;
     _ensureWalletsLoaded(appState.wallets);
     _ensureMealsLoaded(appState.wallets);
-    _ensurePlanItLoaded(walletId);
+    _ensurePlanItLoaded(appState.wallets);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -3416,25 +3451,52 @@ class _NudgesCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: n.color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: n.color.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(
-                          n.tag,
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: n.color,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: n.color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: n.color.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              n.tag,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: n.color,
+                              ),
+                            ),
                           ),
-                        ),
+                          if (n.walletLabel != 'Personal') ...[
+                            const SizedBox(height: 3),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                n.walletLabel,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -3762,7 +3824,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _PlanNudge {
-  final String emoji, title, subtitle, tag;
+  final String emoji, title, subtitle, tag, walletLabel;
   final int urgency;
   final Color color;
   const _PlanNudge({
@@ -3772,6 +3834,7 @@ class _PlanNudge {
     required this.urgency,
     required this.color,
     required this.tag,
+    required this.walletLabel,
   });
 }
 
