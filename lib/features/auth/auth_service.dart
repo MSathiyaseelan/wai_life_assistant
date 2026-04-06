@@ -6,6 +6,7 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   SupabaseClient get _client => Supabase.instance.client;
+  String requestId = '';
 
   /// Sends an OTP to [phone] via the MSG91-backed edge function.
   /// [phone] must include the country code, e.g. "+919876543210".
@@ -15,10 +16,12 @@ class AuthService {
       body: {'phone': phone},
     );
     if (res.status != 200) {
-      final msg = (res.data as Map<String, dynamic>?)?['error'] as String?
-          ?? 'Failed to send OTP';
+      final msg =
+          (res.data as Map<String, dynamic>?)?['error'] as String? ??
+          'Failed to send OTP';
       throw AuthException(msg);
     }
+    requestId = res.data['request_id'];
   }
 
   /// Verifies [otp] for [phone] via the edge function.
@@ -26,7 +29,7 @@ class AuthService {
   Future<void> verifyOtp(String phone, String otp) async {
     final res = await _client.functions.invoke(
       'verify-otp',
-      body: {'phone': phone, 'otp': otp},
+      body: {'phone': phone, 'otp': otp, 'request_id': requestId},
     );
 
     final data = res.data as Map<String, dynamic>?;
@@ -36,7 +39,7 @@ class AuthService {
       throw AuthException(msg);
     }
 
-    final accessToken  = data['access_token']  as String?;
+    final accessToken = data['access_token'] as String?;
     final refreshToken = data['refresh_token'] as String?;
 
     if (accessToken == null || refreshToken == null) {

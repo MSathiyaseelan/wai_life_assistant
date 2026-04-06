@@ -29,7 +29,7 @@ serve(async (req) => {
   }
 
   try {
-    const { phone, otp } = await req.json() as { phone: string; otp: string };
+    const { phone, otp, request_id } = await req.json() as { phone: string; otp: string };
 
     if (!phone || !otp) {
       return new Response(
@@ -38,7 +38,8 @@ serve(async (req) => {
       );
     }
 
-    const mobile = phone.replace(/\D/g, "");
+    const digits = phone.replace(/\D/g, "");
+    const mobile = digits.startsWith("91") ? digits : `91${digits}`;
 
     // ── 1. Verify OTP with MSG91 ─────────────────────────────────────────────
     // MSG91 v5 OTP verify is a GET with query parameters.
@@ -46,8 +47,10 @@ serve(async (req) => {
     verifyUrl.searchParams.set("authkey", MSG91_AUTH_KEY);
     verifyUrl.searchParams.set("mobile", mobile);
     verifyUrl.searchParams.set("otp", otp);
+    
 
-    console.log("[verify-otp] Calling MSG91 verify for mobile:", mobile);
+    //console.log("[verify-otp] Calling MSG91 verify for mobile:", mobile);
+    console.log("[verify-otp] VERIFY PARAMS:", { mobile, otp, request_id });
 
     const msg91Res = await fetch(verifyUrl.toString(), {
       method: "GET",
