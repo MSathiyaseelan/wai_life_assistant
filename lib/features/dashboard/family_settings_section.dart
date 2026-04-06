@@ -26,8 +26,8 @@ class FamilySettingsSection extends StatefulWidget {
 }
 
 class _FamilySettingsSectionState extends State<FamilySettingsSection> {
-  bool _sectionExpanded = true;
-  bool _myFamilyExpanded = true;
+  bool _sectionExpanded = false;
+  bool _myFamilyExpanded = false;
   bool _permissionsExpanded = false;
   bool _savingPerms = false;
 
@@ -165,7 +165,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             const SizedBox(height: 8),
           ],
 
-          // ── Create Family (always shown) ──────────────────────────────────
+          // ── Create Family (enabled only when below maxFamilyGroups) ─────────
           _buildCreateFamilyTile(context),
         ],
       ],
@@ -535,6 +535,44 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                       ),
                     ),
                   ),
+
+                  // ── Delete Family (admin only) ─────────────────────────────
+                  if (family.isAdmin) ...[
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () =>
+                          _confirmDeleteFamily(context, family),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.red.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.delete_forever_rounded,
+                                size: 16, color: Colors.red),
+                            SizedBox(width: 6),
+                            Text(
+                              'Delete Family',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -879,27 +917,51 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildCreateFamilyTile(BuildContext context) {
+    final currentCount = widget.appState.families.length;
+    final maxAllowed  = widget.appState.maxFamilyGroups;
+    final isEnabled   = currentCount < maxAllowed;
+
+    final tileColor  = isEnabled
+        ? AppColors.primary.withValues(alpha: 0.06)
+        : (widget.isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.black.withValues(alpha: 0.03));
+    final borderColor = isEnabled
+        ? AppColors.primary.withValues(alpha: 0.18)
+        : (widget.isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.08));
+    final iconBg = isEnabled
+        ? AppColors.primary.withValues(alpha: 0.12)
+        : (widget.isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.06));
+    final iconColor  = isEnabled ? AppColors.primary : _sub;
+    final titleColor = isEnabled ? AppColors.primary : _sub;
+    final subtitle   = isEnabled
+        ? 'Add a new family or group'
+        : 'Limit reached ($currentCount/$maxAllowed families)';
+
     return GestureDetector(
-      onTap: () async {
-        HapticFeedback.lightImpact();
-        final newId = await showAddFamilySheet(
-          context,
-          widget.isDark,
-          widget.appState,
-        );
-        if (newId != null && mounted) {
-          widget.appState.switchWallet(newId);
-          setState(() {}); // re-render to show new family
-        }
-      },
+      onTap: isEnabled
+          ? () async {
+              HapticFeedback.lightImpact();
+              final newId = await showAddFamilySheet(
+                context,
+                widget.isDark,
+                widget.appState,
+              );
+              if (newId != null && mounted) {
+                widget.appState.switchWallet(newId);
+                setState(() {});
+              }
+            }
+          : () => HapticFeedback.heavyImpact(),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.06),
+          color: tileColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.18),
-            width: 1.5,
-          ),
+          border: Border.all(color: borderColor, width: 1.5),
         ),
         child: ListTile(
           contentPadding:
@@ -908,36 +970,40 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
+              color: iconBg,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
-              Icons.group_add_rounded,
+            child: Icon(
+              isEnabled
+                  ? Icons.group_add_rounded
+                  : Icons.lock_outline_rounded,
               size: 18,
-              color: AppColors.primary,
+              color: iconColor,
             ),
           ),
-          title: const Text(
+          title: Text(
             'Create Family',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
               fontFamily: 'Nunito',
-              color: AppColors.primary,
+              color: titleColor,
             ),
           ),
           subtitle: Text(
-            'Add a new family or group',
+            subtitle,
             style: TextStyle(
               fontSize: 10,
               fontFamily: 'Nunito',
               color: _sub,
             ),
           ),
-          trailing: const Icon(
-            Icons.arrow_forward_ios_rounded,
+          trailing: Icon(
+            isEnabled
+                ? Icons.arrow_forward_ios_rounded
+                : Icons.block_rounded,
             size: 13,
-            color: AppColors.primary,
+            color: iconColor,
           ),
         ),
       ),
@@ -1137,6 +1203,69 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteFamily(BuildContext context, FamilyModel family) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text(
+          'Delete Family',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Nunito',
+            color: Colors.red,
+          ),
+        ),
+        content: Text(
+          'Delete "${family.name}"? The family and all its transactions will be archived and hidden. This cannot be undone.',
+          style: const TextStyle(fontSize: 13, fontFamily: 'Nunito'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel',
+                style: TextStyle(fontFamily: 'Nunito')),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await ProfileService.instance.deleteFamily(family.id);
+                if (mounted) {
+                  // Switch to personal wallet and refresh
+                  widget.appState.switchWallet(
+                    widget.appState.wallets
+                        .firstWhere((w) => w.isPersonal,
+                            orElse: () => personalWallet)
+                        .id,
+                  );
+                  await widget.appState.reload();
+                  if (mounted) setState(() {});
+                }
+              } catch (_) {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to delete family. Try again.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.red,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -15,10 +15,8 @@ import 'package:wai_life_assistant/core/supabase/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
-import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
@@ -52,13 +50,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userPhotoUrl = '';
   bool _balanceHidden = false;
   bool _fabExpanded = false;
-  // Today's meals — loaded from DB
+  // Today's meals — merged list from all loaded wallets
   List<MealEntry> _todayMeals = [];
-  String _mealsWalletId = '';
+  final Set<String> _loadedMealWalletIds = {};
 
-  // Transactions — loaded from DB
+  // Page controller for swipeable plate cards
+  late final PageController _platePageController;
+
+  // Transactions — merged list from all loaded wallets
   List<TxModel> _transactions = [];
-  String _txWalletId = '';
+  final Set<String> _loadedWalletIds = {};
+
+  // Page controller for swipeable wallet cards
+  late final PageController _walletPageController;
 
   // PlanIt data — loaded from DB (next 7 days)
   List<ReminderModel> _reminders = [];
@@ -67,13 +71,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<WishModel> _wishes = [];
   List<FunctionModel> _functions = [];
   String _planItWalletId = '';
-
-  // derived data — walletId is read from AppStateScope in build()
-  WalletModel _wallet(String wid, List<WalletModel> wallets) =>
-      wallets.firstWhere(
-        (w) => w.id == wid,
-        orElse: () => wallets.isNotEmpty ? wallets.first : personalWallet,
-      );
 
   List<TxModel> _todayTx(String wid) => _transactions
       .where((t) => t.walletId == wid && _isToday(t.date))
@@ -90,6 +87,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _walletPageController = PageController();
+    _platePageController  = PageController();
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     PantryService.mealChangeSignal.addListener(_onMealChange);
@@ -160,10 +159,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _ensureTransactionsLoaded(String walletId) {
-    if (walletId.isEmpty || walletId == _txWalletId) return;
-    _txWalletId = walletId;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTransactions(walletId));
+  /// Loads transactions for every wallet not yet fetched, merging into [_transactions].
+  void _ensureWalletsLoaded(List<WalletModel> wallets) {
+    for (final w in wallets) {
+      if (w.id.isEmpty || _loadedWalletIds.contains(w.id)) continue;
+      _loadedWalletIds.add(w.id);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadTransactions(w.id));
+    }
   }
 
   void _ensurePlanItLoaded(String walletId) {
@@ -173,20 +175,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _refresh() async {
+    final txToReload    = List<String>.from(_loadedWalletIds);
+    final mealToReload  = List<String>.from(_loadedMealWalletIds);
+    _loadedWalletIds.clear();
+    _loadedMealWalletIds.clear();
     await Future.wait([
       _loadPinnedGroups(),
-      _loadTodayMeals(_mealsWalletId),
-      if (_txWalletId.isNotEmpty) _loadTransactions(_txWalletId),
+      ...txToReload.map(_loadTransactions),
+      ...mealToReload.map(_loadTodayMeals),
       if (_planItWalletId.isNotEmpty) _loadPlanItData(_planItWalletId),
     ]);
   }
 
+  /// Fetches transactions for [walletId] and merges them into [_transactions].
   Future<void> _loadTransactions(String walletId) async {
     if (!AuthService.instance.isLoggedIn || walletId.isEmpty) return;
+    _loadedWalletIds.add(walletId);
     try {
       final rows = await WalletService.instance.fetchTransactions(walletId);
       if (!mounted) return;
-      setState(() => _transactions = rows.map(TxModel.fromRow).toList());
+      setState(() {
+        _transactions.removeWhere((t) => t.walletId == walletId);
+        _transactions.addAll(rows.map(TxModel.fromRow));
+      });
     } catch (e) {
       debugPrint('[Dashboard] fetchTransactions error: $e');
     }
@@ -204,6 +215,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   void dispose() {
+    _walletPageController.dispose();
+    _platePageController.dispose();
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     PantryService.mealChangeSignal.removeListener(_onMealChange);
     WalletService.txChangeSignal.removeListener(_onTxChange);
@@ -211,8 +224,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _onMealChange() => _loadTodayMeals(_mealsWalletId);
-  void _onTxChange() { if (_txWalletId.isNotEmpty) _loadTransactions(_txWalletId); }
+  void _onMealChange() {
+    for (final wid in List<String>.from(_loadedMealWalletIds)) {
+      _loadTodayMeals(wid);
+    }
+  }
+  void _onTxChange() {
+    for (final wid in List<String>.from(_loadedWalletIds)) {
+      _loadTransactions(wid);
+    }
+  }
   void _onSplitGroupsChanged() {
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -234,18 +255,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void didUpdateWidget(DashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshCount != widget.refreshCount) {
-      _loadTodayMeals(_mealsWalletId);
+      for (final wid in List<String>.from(_loadedMealWalletIds)) {
+        _loadTodayMeals(wid);
+      }
       _loadPlanItData(_planItWalletId);
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final walletId = AppStateScope.of(context).activeWalletId;
-    if (walletId != _mealsWalletId) {
-      _mealsWalletId = walletId;
-      _loadTodayMeals(walletId);
     }
   }
 
@@ -272,16 +285,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _ensureMealsLoaded(List<WalletModel> wallets) {
+    for (final w in wallets) {
+      if (w.id.isEmpty || _loadedMealWalletIds.contains(w.id)) continue;
+      _loadedMealWalletIds.add(w.id);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadTodayMeals(w.id));
+    }
+  }
+
   Future<void> _loadTodayMeals(String walletId) async {
     if (walletId.isEmpty) return;
+    _loadedMealWalletIds.add(walletId);
     try {
       final rows = await PantryService.instance.fetchMealEntriesForDay(
         walletId,
         DateTime.now(),
       );
       if (!mounted) return;
-      setState(() => _todayMeals = rows.map(MealEntry.fromMap).toList());
-    } catch (_) {} // non-critical — Today's Plate shows empty state gracefully
+      setState(() {
+        _todayMeals.removeWhere((e) => e.walletId == walletId);
+        _todayMeals.addAll(rows.map(MealEntry.fromMap));
+      });
+    } catch (_) {} // non-critical
   }
 
   void _showMealDetail(MealEntry m) {
@@ -293,8 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       currentUserName: _userName,
       onEdit: () {
         Navigator.pop(context);
-        // Re-load after any edits in Pantry
-        _loadTodayMeals(_mealsWalletId);
+        _loadTodayMeals(m.walletId);
       },
       onDelete: () async {
         Navigator.pop(context);
@@ -303,7 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           await PantryService.instance.deleteMealEntry(m.id);
           PantryService.mealChangeSignal.value++;
         } catch (_) {
-          _loadTodayMeals(_mealsWalletId); // revert by reloading
+          _loadTodayMeals(m.walletId); // revert by reloading
         }
       },
       onReactionAdded: (reaction) async {
@@ -397,7 +421,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             servingsCount: servingsCount,
           );
         } catch (_) {
-          _loadTodayMeals(_mealsWalletId); // revert by reloading
+          _loadTodayMeals(m.walletId); // revert by reloading
         }
       },
     );
@@ -531,7 +555,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Read walletId from global state — updates whenever any tab switches view
     final appState = AppStateScope.of(context);
     final walletId = appState.activeWalletId;
-    _ensureTransactionsLoaded(walletId);
+    _ensureWalletsLoaded(appState.wallets);
+    _ensureMealsLoaded(appState.wallets);
     _ensurePlanItLoaded(walletId);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
@@ -585,51 +610,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                // Wallet switcher pill
+                // Notifications
                 GestureDetector(
-                  onTap: () => _showWalletSwitcher(context, isDark, surfBg),
+                  onTap: () {/* TODO: open notifications */},
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                      ),
+                      color: surfBg,
+                      shape: BoxShape.circle,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        EmojiOrImage(
-                          value: _wallet(walletId, appState.wallets).emoji,
-                          size: 18,
-                          borderRadius: 4,
-                        ),
-                        const SizedBox(width: 6),
-                        SizedBox(
-                          width: 75,
-                          child: Text(
-                            _wallet(walletId, appState.wallets).name,
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              fontFamily: 'Nunito',
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.expand_more_rounded,
-                          size: 14,
-                          color: AppColors.primary,
-                        ),
-                      ],
+                    child: Icon(
+                      Icons.notifications_outlined,
+                      size: 20,
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
                     ),
                   ),
                 ),
@@ -662,32 +656,120 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ①  MONEY PULSE ─────────────────────────────────────────
+                  // ①  TODAY ───────────────────────────────────────────────
                   _SectionHeader(
                     emoji: '💳',
-                    title: 'Money Pulse',
+                    title: 'Today',
                     sub: sub,
                     action: 'Wallet →',
                     onAction: () {},
                   ),
                   const SizedBox(height: 10),
-                  _MoneyPulseCard(
-                    wallet: _wallet(walletId, appState.wallets),
-                    isDark: isDark,
-                    todayTx: _todayTx(walletId),
-                    balance: _todayTx(walletId).fold(0.0, (s, t) =>
-                        t.type.isPositive
-                            ? s + t.amount
-                            : (t.type == TxType.expense ||
-                                    t.type == TxType.lend ||
-                                    t.type == TxType.split)
-                                ? s - t.amount
-                                : s),
-                    hidden: _balanceHidden,
-                    onToggleHide: () =>
-                        setState(() => _balanceHidden = !_balanceHidden),
-                    onTxTap: (tx) => _showDashTxEdit(tx, isDark, surfBg),
-                  ),
+                  // Swipeable wallet summary cards (personal + family)
+                  Builder(builder: (ctx) {
+                    final personalW = appState.wallets.firstWhere(
+                        (w) => w.isPersonal, orElse: () => personalWallet);
+                    final familyWs = appState.wallets
+                        .where((w) => !w.isPersonal)
+                        .toList();
+                    final allCards = [personalW, ...familyWs];
+
+                    double cardHeight(String wid) {
+                      final txToday = _todayTx(wid);
+                      // base = top-padding(14) + label(14) + spacing(2)
+                      //       + balance(28) + bottom-padding(10)
+                      //       + middle-container(96)
+                      const base = 168.0;
+                      if (txToday.isEmpty) return base;
+                      final rows = txToday.take(3).length;
+                      return base + rows * 47.0 + (txToday.length > 3 ? 22.0 : 0.0);
+                    }
+
+                    final height = allCards
+                        .map((w) => cardHeight(w.id))
+                        .fold<double>(0, (a, b) => a > b ? a : b);
+
+                    return Column(
+                      children: [
+                        SizedBox(
+                          height: height.clamp(168.0, 380.0),
+                          child: PageView.builder(
+                            controller: _walletPageController,
+                            itemCount: allCards.length,
+                            onPageChanged: (idx) {
+                              AppStateScope.read(context)
+                                  .switchWallet(allCards[idx].id);
+                            },
+                            itemBuilder: (ctx, idx) {
+                              final w = allCards[idx];
+                              final label = w.isPersonal
+                                  ? 'Personal'
+                                  : (appState.families
+                                          .where((f) => f.walletId == w.id)
+                                          .firstOrNull
+                                          ?.name ??
+                                      w.name);
+                              final txToday = _todayTx(w.id);
+                              final bal = txToday.fold<double>(0.0, (s, t) =>
+                                  t.type.isPositive
+                                      ? s + t.amount
+                                      : (t.type == TxType.expense ||
+                                              t.type == TxType.lend ||
+                                              t.type == TxType.split)
+                                          ? s - t.amount
+                                          : s);
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                    right: idx < allCards.length - 1 ? 8.0 : 0),
+                                child: _MoneyPulseCard(
+                                  label: label,
+                                  wallet: w,
+                                  isDark: isDark,
+                                  todayTx: txToday,
+                                  balance: bal,
+                                  hidden: _balanceHidden,
+                                  onToggleHide: () => setState(
+                                      () => _balanceHidden = !_balanceHidden),
+                                  onTxTap: (tx) =>
+                                      _showDashTxEdit(tx, isDark, surfBg),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (allCards.length > 1) ...[
+                          const SizedBox(height: 8),
+                          AnimatedBuilder(
+                            animation: _walletPageController,
+                            builder: (ctx, _) {
+                              final page = _walletPageController.hasClients
+                                  ? (_walletPageController.page ?? 0).round()
+                                  : 0;
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(allCards.length, (i) {
+                                  final active = page == i;
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 3),
+                                    width: active ? 16 : 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: active
+                                          ? AppColors.primary
+                                          : sub.withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  );
+                                }),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 10),
 
                   // ①b  SPLIT ACTIVITY (if any active splits) ─────────────
@@ -759,12 +841,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onAction: () {},
                   ),
                   const SizedBox(height: 10),
-                  _TodaysPlateCard(
-                    meals: _todayMeals,
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    onMealTap: _showMealDetail,
-                  ),
+                  Builder(builder: (ctx) {
+                    final personalW = appState.wallets.firstWhere(
+                        (w) => w.isPersonal, orElse: () => personalWallet);
+                    final familyWs = appState.wallets
+                        .where((w) => !w.isPersonal)
+                        .toList();
+                    final allCards = [personalW, ...familyWs];
+
+                    // Height: empty state ~84px; header 61px + 42px/group + 52px/meal
+                    double plateHeight(String wid) {
+                      final meals = _todayMeals
+                          .where((e) => e.walletId == wid)
+                          .toList();
+                      if (meals.isEmpty) return 84.0;
+                      // Card is a horizontal Row across MealTime columns.
+                      // Height = tallest column, not sum.
+                      // header padding(24) + label(13) + date(17) ≈ 54
+                      // outer content padding(28) + icon+label column(58)
+                      // per entry in tallest column: padding(8)+text(~24)+status(10)+margin(4) ≈ 46
+                      final byTime = <Object, int>{};
+                      for (final m in meals) {
+                        byTime[m.mealTime] =
+                            (byTime[m.mealTime] ?? 0) + 1;
+                      }
+                      final maxCol =
+                          byTime.values.fold(0, (a, b) => a > b ? a : b);
+                      return 54.0 + 28.0 + 58.0 + maxCol * 46.0 + 16.0;
+                    }
+
+                    final plateH = allCards
+                        .map((w) => plateHeight(w.id))
+                        .fold<double>(0, (a, b) => a > b ? a : b)
+                        .clamp(84.0, 500.0);
+
+                    return Column(
+                      children: [
+                        SizedBox(
+                          height: plateH,
+                          child: PageView.builder(
+                            controller: _platePageController,
+                            itemCount: allCards.length,
+                            physics: allCards.length > 1
+                                ? const PageScrollPhysics()
+                                : const NeverScrollableScrollPhysics(),
+                            itemBuilder: (ctx, idx) {
+                              final w = allCards[idx];
+                              final label = w.isPersonal
+                                  ? 'Personal'
+                                  : (appState.families
+                                          .where((f) => f.walletId == w.id)
+                                          .firstOrNull
+                                          ?.name ??
+                                      w.name);
+                              final meals = _todayMeals
+                                  .where((e) => e.walletId == w.id)
+                                  .toList();
+                              return Padding(
+                                padding: EdgeInsets.only(
+                                    right:
+                                        idx < allCards.length - 1 ? 8.0 : 0),
+                                child: _TodaysPlateCard(
+                                  label: label,
+                                  meals: meals,
+                                  isDark: isDark,
+                                  cardBg: cardBg,
+                                  onMealTap: _showMealDetail,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        if (allCards.length > 1) ...[
+                          const SizedBox(height: 8),
+                          AnimatedBuilder(
+                            animation: _platePageController,
+                            builder: (ctx, _) {
+                              final page = _platePageController.hasClients
+                                  ? (_platePageController.page ?? 0).round()
+                                  : 0;
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(allCards.length, (i) {
+                                  final active = page == i;
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 3),
+                                    width: active ? 16 : 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: active
+                                          ? const Color(0xFF4CAF50)
+                                          : sub.withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  );
+                                }),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    );
+                  }),
                   const SizedBox(height: 16),
 
                   // ③  PLAN-IT NUDGES ───────────────────────────────────────
@@ -911,15 +1091,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── Wallet Switcher Sheet ───────────────────────────────────────────────────
-  void _showWalletSwitcher(BuildContext ctx, bool isDark, Color surfBg) {
-    final appState = AppStateScope.read(ctx);
-    FamilySwitcherSheet.show(
-      ctx,
-      currentWalletId: appState.activeWalletId,
-      onSelect: (id) => appState.switchWallet(id),
-    );
-  }
-
   // ── Edit existing transaction (tap from dashboard card) ────────────────────
   void _showDashTxEdit(TxModel tx, bool isDark, Color surfBg) {
     final appState = AppStateScope.of(context);
@@ -1533,8 +1704,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final nameCtrl = TextEditingController(text: _userName);
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     bool profileExpanded = false;
-    bool accountExpanded = true;
-    bool preferencesExpanded = true;
+    bool accountExpanded = false;
+    bool preferencesExpanded = false;
     final themeLabel = switch (widget.themeMode) {
       ThemeMode.light  => 'Light',
       ThemeMode.dark   => 'Dark',
@@ -2281,6 +2452,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MoneyPulseCard extends StatelessWidget {
+  final String label;
   final WalletModel wallet;
   final bool isDark, hidden;
   final List<TxModel> todayTx;
@@ -2289,6 +2461,7 @@ class _MoneyPulseCard extends StatelessWidget {
   final void Function(TxModel)? onTxTap;
 
   const _MoneyPulseCard({
+    required this.label,
     required this.wallet,
     required this.isDark,
     required this.todayTx,
@@ -2349,20 +2522,35 @@ class _MoneyPulseCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Top — balance + hide toggle
+          // Top — label + balance + hide toggle
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  _fmt(balance),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'DM Mono',
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _fmt(balance),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'DM Mono',
+                      ),
+                    ),
+                  ],
                 ),
                 const Spacer(),
                 GestureDetector(
@@ -2877,11 +3065,13 @@ class _PinnedSplitCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _TodaysPlateCard extends StatelessWidget {
+  final String label;
   final List<MealEntry> meals;
   final bool isDark;
   final Color cardBg;
   final void Function(MealEntry)? onMealTap;
   const _TodaysPlateCard({
+    required this.label,
     required this.meals,
     required this.isDark,
     required this.cardBg,
@@ -2958,14 +3148,28 @@ class _TodaysPlateCard extends StatelessWidget {
               children: [
                 const Text('🗓️', style: TextStyle(fontSize: 16)),
                 const SizedBox(width: 8),
-                Text(
-                  _todayLabel(),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Nunito',
-                    color: tc,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
+                    ),
+                    Text(
+                      _todayLabel(),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
+                    ),
+                  ],
                 ),
                 const Spacer(),
                 Text(

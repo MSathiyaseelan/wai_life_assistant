@@ -233,6 +233,7 @@ class WalletService {
         .from('transactions')
         .select()
         .eq('wallet_id', walletId)
+        .filter('deleted_at', 'is', null)
         .order('date', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
