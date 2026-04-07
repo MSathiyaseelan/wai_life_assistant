@@ -13,6 +13,7 @@ import 'package:wai_life_assistant/features/pantry/widgets/meal_map_section.dart
 import 'package:wai_life_assistant/features/pantry/widgets/family_food_prefs_card.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/recipe_box_section.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/shopping_basket_section.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/week_calendar_strip.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_recipe_sheet.dart';
@@ -704,6 +705,44 @@ class _PantryScreenState extends State<PantryScreen>
         _sectionTab.animateTo(2);
         _showAddGrocerySheet(context);
       },
+      onScanBill: () {
+        _sectionTab.animateTo(2);
+        _showScanBillSheet(context);
+      },
+      onCreateList: () {
+        _sectionTab.animateTo(2);
+        _showCreateList(context);
+      },
+    );
+  }
+
+  void _showScanBillSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ScanBillSheet(
+        isDark: isDark,
+        walletId: widget.activeWalletId,
+        onItemAdded: _addGrocery,
+      ),
+    );
+  }
+
+  void _showCreateList(BuildContext context) {
+    final toBuy = _groceries
+        .where((g) => g.walletId == widget.activeWalletId && g.toBuy)
+        .toList();
+    if (toBuy.isEmpty) {
+      _showSavedSnack('To-Buy list is empty 🛒', AppColors.subLight);
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateListSheet(items: toBuy),
     );
   }
 
@@ -1623,6 +1662,8 @@ class _PantryScreenState extends State<PantryScreen>
             onItemAdded: _addGrocery,
             onItemDeleted: _deleteGrocery,
             onItemUpdated: _updateGrocery,
+            onScanBill: () => _showScanBillSheet(context),
+            onCreateList: () => _showCreateList(context),
           ),
         ),
       ],
@@ -3465,6 +3506,243 @@ class _MultiBasketConfirmSheetState extends State<_MultiBasketConfirmSheet> {
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
                   fontFamily: 'Nunito',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Create List sheet ─────────────────────────────────────────────────────────
+
+class _CreateListSheet extends StatefulWidget {
+  final List<GroceryItem> items;
+  const _CreateListSheet({required this.items});
+
+  @override
+  State<_CreateListSheet> createState() => _CreateListSheetState();
+}
+
+class _CreateListSheetState extends State<_CreateListSheet> {
+  late final List<bool> _checked;
+
+  @override
+  void initState() {
+    super.initState();
+    _checked = List.filled(widget.items.length, true);
+  }
+
+  int get _selectedCount => _checked.where((v) => v).length;
+
+  String _buildListText() {
+    final buf = StringBuffer();
+    buf.writeln('🛒 Shopping List');
+    buf.writeln('─' * 20);
+    int n = 1;
+    for (var i = 0; i < widget.items.length; i++) {
+      if (!_checked[i]) continue;
+      final item = widget.items[i];
+      final qty = item.quantity == item.quantity.truncateToDouble()
+          ? item.quantity.toInt().toString()
+          : item.quantity.toString();
+      buf.writeln('$n. ${item.category.emoji} ${item.name} — $qty ${item.unit}');
+      n++;
+    }
+    return buf.toString().trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Header
+          Row(
+            children: [
+              const Text('📋', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Create Shopping List',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  final allOn = _selectedCount == widget.items.length;
+                  setState(() {
+                    for (var i = 0; i < _checked.length; i++) {
+                      _checked[i] = !allOn;
+                    }
+                  });
+                },
+                child: Text(
+                  _selectedCount == widget.items.length
+                      ? 'Deselect all'
+                      : 'Select all',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: AppColors.lend,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Items
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.45,
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: widget.items.length,
+              itemBuilder: (_, i) {
+                final item = widget.items[i];
+                final sel = _checked[i];
+                final qty = item.quantity == item.quantity.truncateToDouble()
+                    ? item.quantity.toInt().toString()
+                    : item.quantity.toString();
+                return GestureDetector(
+                  onTap: () => setState(() => _checked[i] = !_checked[i]),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: sel
+                          ? AppColors.lend.withValues(alpha: 0.08)
+                          : surfBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: sel
+                            ? AppColors.lend.withValues(alpha: 0.4)
+                            : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(item.category.emoji,
+                            style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: sel ? tc : sub,
+                                ),
+                              ),
+                              Text(
+                                '$qty ${item.unit}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: sel ? AppColors.lend : Colors.transparent,
+                            border: Border.all(
+                              color: sel ? AppColors.lend : sub,
+                              width: 2,
+                            ),
+                          ),
+                          child: sel
+                              ? const Icon(Icons.check_rounded,
+                                  size: 14, color: Colors.white)
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Share button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _selectedCount == 0
+                  ? null
+                  : () {
+                      final text = _buildListText();
+                      Share.share(text, subject: 'Shopping List');
+                    },
+              icon: const Icon(Icons.share_rounded, size: 18),
+              label: Text(
+                _selectedCount == 0
+                    ? 'Select items to share'
+                    : 'Share $_selectedCount item${_selectedCount == 1 ? '' : 's'}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.lend,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    AppColors.lend.withValues(alpha: 0.3),
+                elevation: 3,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
             ),

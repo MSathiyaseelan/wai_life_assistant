@@ -17,6 +17,8 @@ class ShoppingBasketSection extends StatefulWidget {
   final void Function(GroceryItem) onItemAdded;
   final void Function(GroceryItem) onItemDeleted;
   final Future<void> Function(GroceryItem, Map<String, dynamic>) onItemUpdated;
+  final VoidCallback onScanBill;
+  final VoidCallback onCreateList;
 
   const ShoppingBasketSection({
     super.key,
@@ -28,6 +30,8 @@ class ShoppingBasketSection extends StatefulWidget {
     required this.onItemAdded,
     required this.onItemDeleted,
     required this.onItemUpdated,
+    required this.onScanBill,
+    required this.onCreateList,
   });
 
   @override
@@ -92,80 +96,37 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Tabs + Scan Bill on same row
+        // In Stock / To Buy tabs
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
-          child: Row(
-            children: [
-              // In Stock / To Buy tabs
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: tabBg,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.all(3),
-                  child: TabBar(
-                    controller: _tabCtrl,
-                    indicator: BoxDecoration(
-                      color: AppColors.income,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    dividerColor: Colors.transparent,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: isDark
-                        ? AppColors.subDark
-                        : AppColors.subLight,
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                      fontFamily: 'Nunito',
-                    ),
-                    padding: EdgeInsets.zero,
-                    tabs: [
-                      Tab(text: '🏠 In Stock (${_inStock.length})', height: 34),
-                      Tab(text: '🛒 To Buy (${_toBuy.length})', height: 34),
-                    ],
-                  ),
-                ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: tabBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: TabBar(
+              controller: _tabCtrl,
+              indicator: BoxDecoration(
+                color: AppColors.income,
+                borderRadius: BorderRadius.circular(11),
               ),
-              const SizedBox(width: 10),
-              // Scan Bill button
-              GestureDetector(
-                onTap: () => _showScanSheet(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.income.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.document_scanner_outlined,
-                        size: 14,
-                        color: AppColors.income,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Scan Bill',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.income,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: Colors.white,
+              unselectedLabelColor:
+                  isDark ? AppColors.subDark : AppColors.subLight,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                fontFamily: 'Nunito',
               ),
-            ],
+              padding: EdgeInsets.zero,
+              tabs: [
+                Tab(text: '🏠 In Stock (${_inStock.length})', height: 34),
+                Tab(text: '🛒 To Buy (${_toBuy.length})', height: 34),
+              ],
+            ),
           ),
         ),
 
@@ -249,19 +210,6 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
     );
   }
 
-  void _showScanSheet(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ScanBillSheet(
-        isDark: isDark,
-        walletId: widget.walletId,
-        onItemAdded: widget.onItemAdded,
-      ),
-    );
-  }
 }
 
 // ── Grocery list ─────────────────────────────────────────────────────────────
@@ -838,22 +786,23 @@ class _EditItemSheetState extends State<_EditItemSheet> {
 
 // ── Scan Bill sheet ───────────────────────────────────────────────────────────
 
-class _ScanBillSheet extends StatefulWidget {
+class ScanBillSheet extends StatefulWidget {
   final bool isDark;
   final String walletId;
   final void Function(GroceryItem) onItemAdded;
 
-  const _ScanBillSheet({
+  const ScanBillSheet({
+    super.key,
     required this.isDark,
     required this.walletId,
     required this.onItemAdded,
   });
 
   @override
-  State<_ScanBillSheet> createState() => _ScanBillSheetState();
+  State<ScanBillSheet> createState() => _ScanBillSheetState();
 }
 
-class _ScanBillSheetState extends State<_ScanBillSheet> {
+class _ScanBillSheetState extends State<ScanBillSheet> {
   // 'pick' → 'loading' → 'confirm' → (done)
   String _phase = 'pick';
   File? _image;
