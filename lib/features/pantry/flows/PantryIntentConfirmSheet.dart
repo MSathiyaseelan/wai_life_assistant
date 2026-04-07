@@ -722,8 +722,8 @@ class _PantryIntentConfirmSheetState extends State<PantryIntentConfirmSheet> {
             quantity: double.tryParse(_qtyCtrl.text) ?? 1,
             unit: _unitCtrl.text.trim().isEmpty ? 'pcs' : _unitCtrl.text.trim(),
             walletId: widget.walletId,
-            inStock: false,
-            toBuy: true,
+            inStock: widget.intent.addToStock,
+            toBuy: !widget.intent.addToStock,
           ),
         );
     }

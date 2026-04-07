@@ -20,6 +20,7 @@ import 'package:wai_life_assistant/features/pantry/flows/pantry_nlp_parser.dart'
 import 'package:wai_life_assistant/features/pantry/flows/pantry_flow_selector.dart';
 import 'package:wai_life_assistant/features/pantry/flows/PantryIntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/services/ai_parser.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -41,6 +42,7 @@ class _PantryScreenState extends State<PantryScreen>
 
   // Chat bar — mic + NLP
   bool _isListening = false;
+  bool _isParsingAI = false;
   final _chatBarKey = GlobalKey<ChatInputBarState>();
 
   // Meal Map — loaded from DB
@@ -454,11 +456,170 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  // ── NLP submit — parse text, show confirm sheet or fall back to form ────────
-  void _onChatSubmit(String text) {
-    final intent = PantryNlpParser.parse(text);
+  // ── NLP submit — call edge function, fall back to local parser ──────────────
+  void _onChatSubmit(String text) => _parseAndHandle(text);
+
+  Future<void> _parseAndHandle(String text) async {
+    if (_isParsingAI) return;
+    setState(() => _isParsingAI = true);
+
+    final sc = ScaffoldMessenger.of(context);
+    sc.showSnackBar(SnackBar(
+      content: const Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+          ),
+          SizedBox(width: 12),
+          Text('🤖 Parsing…',
+              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+        ],
+      ),
+      duration: const Duration(seconds: 30),
+      backgroundColor: AppColors.primary,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ));
+
+    try {
+      final result = await AIParser.parseText(
+        feature: 'pantry',
+        subFeature: 'basket',
+        text: text,
+      );
+      sc.hideCurrentSnackBar();
+      if (!mounted) return;
+      setState(() => _isParsingAI = false);
+
+      if (result.success && result.data != null) {
+        final data = result.data!;
+        // Multi-item response: { "items": [...] }
+        final rawItems = data['items'];
+        if (rawItems is List && rawItems.isNotEmpty) {
+          _showMultiBasketConfirm(_mapBasketItems(rawItems));
+          return;
+        }
+        // Single item or meal/recipe
+        _handleParsedIntent(_mapAiResult(data), text);
+      } else {
+        _handleParsedIntent(PantryNlpParser.parse(text), text);
+      }
+    } catch (_) {
+      sc.hideCurrentSnackBar();
+      if (!mounted) return;
+      setState(() => _isParsingAI = false);
+      _handleParsedIntent(PantryNlpParser.parse(text), text);
+    }
+  }
+
+  /// Map a multi-item AI response list to [GroceryItem]s.
+  List<GroceryItem> _mapBasketItems(List<dynamic> rawItems) {
+    final now = DateTime.now();
+    return rawItems.indexed.map((entry) {
+      final m = entry.$2 as Map<String, dynamic>;
+      return _mapBasketItem(m, '${now.microsecondsSinceEpoch}_${entry.$1}');
+    }).toList();
+  }
+
+  /// Map a single AI basket item map to a [GroceryItem].
+  GroceryItem _mapBasketItem(Map<String, dynamic> m, String id) {
+    final catName = m['category'] as String? ?? 'other';
+    final cat = GroceryCategory.values.firstWhere(
+      (c) => c.name == catName,
+      orElse: () => GroceryCategory.other,
+    );
+    final name = (m['item_name'] as String? ?? 'Item').trim();
+    final addToStock = (m['action'] as String?) == 'add_stock';
+    return GroceryItem(
+      id: id,
+      name: name.isEmpty ? 'Item' : name,
+      category: cat,
+      quantity: (m['quantity'] as num?)?.toDouble() ?? 1,
+      unit: m['unit'] as String? ?? 'pcs',
+      walletId: widget.activeWalletId,
+      inStock: addToStock,
+      toBuy: !addToStock,
+      note: m['note'] as String?,
+    );
+  }
+
+  /// Map edge-function JSON (single item or meal/recipe) to a [PantryIntent].
+  PantryIntent _mapAiResult(Map<String, dynamic> d) {
+    final kindStr = d['kind'] as String? ?? 'basket';
+    final confidence = (d['confidence'] as num?)?.toDouble() ?? 0.5;
+
+    switch (kindStr) {
+      case 'meal':
+        final mtName = d['meal_time'] as String? ?? 'lunch';
+        final mt = MealTime.values.firstWhere(
+          (m) => m.name == mtName,
+          orElse: () => MealTime.lunch,
+        );
+        final dateStr = d['meal_date'] as String? ?? 'today';
+        final now = DateTime.now();
+        final date = switch (dateStr) {
+          'yesterday' => now.subtract(const Duration(days: 1)),
+          'tomorrow'  => now.add(const Duration(days: 1)),
+          _           => now,
+        };
+        return PantryIntent(
+          kind: PantryIntentKind.meal,
+          mealName: d['meal_name'] as String?,
+          mealTime: mt,
+          mealDate: date,
+          confidence: confidence,
+        );
+
+      case 'recipe':
+        return PantryIntent(
+          kind: PantryIntentKind.recipe,
+          recipeName: d['recipe_name'] as String?,
+          confidence: confidence,
+        );
+
+      default: // 'basket' — single item
+        final catName = d['category'] as String? ?? 'other';
+        final cat = GroceryCategory.values.firstWhere(
+          (c) => c.name == catName,
+          orElse: () => GroceryCategory.other,
+        );
+        return PantryIntent(
+          kind: PantryIntentKind.basket,
+          groceryName: d['item_name'] as String?,
+          qty: (d['quantity'] as num?)?.toDouble(),
+          unit: d['unit'] as String?,
+          groceryCat: cat,
+          confidence: confidence,
+          addToStock: (d['action'] as String?) == 'add_stock',
+        );
+    }
+  }
+
+  void _showMultiBasketConfirm(List<GroceryItem> items) {
+    if (_sectionTab.index != 2) _sectionTab.animateTo(2);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MultiBasketConfirmSheet(
+        items: items,
+        onConfirm: (selected) {
+          for (final item in selected) {
+            _addGrocery(item);
+          }
+          _showSavedSnack(
+            '${selected.length} item${selected.length == 1 ? '' : 's'} added to basket 🧺',
+            AppColors.expense,
+          );
+        },
+      ),
+    );
+  }
+
+  void _handleParsedIntent(PantryIntent intent, String rawText) {
     if (intent.confidence >= 0.4) {
-      // Auto-switch to the matching tab
       final targetTab = switch (intent.kind) {
         PantryIntentKind.meal => 0,
         PantryIntentKind.recipe => 1,
@@ -496,7 +657,6 @@ class _PantryScreenState extends State<PantryScreen>
         onOpenBasketForm: () => _showAddGrocerySheet(context),
       );
     } else {
-      // Low confidence — open the contextual form for the active tab
       _onFabTap(_sectionTab.index);
     }
   }
@@ -1118,7 +1278,38 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  void _deleteGrocery(GroceryItem i) => setState(() => _groceries.remove(i));
+  Future<void> _deleteGrocery(GroceryItem i) async {
+    setState(() => _groceries.remove(i));
+    try {
+      await PantryService.instance.deleteGroceryItem(i.id);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _groceries.add(i));
+      _showSavedSnack('Failed to delete item', AppColors.expense);
+    }
+  }
+
+  Future<void> _updateGrocery(GroceryItem i, Map<String, dynamic> updates) async {
+    // Apply optimistically
+    setState(() {
+      if (updates.containsKey('name')) i.name = updates['name'] as String;
+      if (updates.containsKey('quantity')) i.quantity = (updates['quantity'] as num).toDouble();
+      if (updates.containsKey('unit')) i.unit = updates['unit'] as String;
+      if (updates.containsKey('note')) i.note = updates['note'] as String?;
+      if (updates.containsKey('category')) {
+        i.category = GroceryCategory.values.firstWhere(
+          (c) => c.name == updates['category'],
+          orElse: () => i.category,
+        );
+      }
+    });
+    try {
+      await PantryService.instance.updateGroceryItem(i.id, updates);
+    } catch (_) {
+      if (!mounted) return;
+      _showSavedSnack('Failed to update item', AppColors.expense);
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // BUILD
@@ -1431,6 +1622,7 @@ class _PantryScreenState extends State<PantryScreen>
             onItemMarkBought: _markBought,
             onItemAdded: _addGrocery,
             onItemDeleted: _deleteGrocery,
+            onItemUpdated: _updateGrocery,
           ),
         ),
       ],
@@ -1465,11 +1657,11 @@ class _PantryScreenState extends State<PantryScreen>
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
     final nameCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController(text: '1');
+    final qtyCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
     GroceryCategory cat = GroceryCategory.other;
-    String selectedUnit = 'pieces';
-    DateTime? expiryDate = DateTime.now(); // defaults to today
+    String selectedUnit = 'kg';
+    DateTime? expiryDate;
     bool addToInStock = true;   // true = In Stock, false = To Buy
 
     const units = ['kg', 'g', 'litre', 'ml', 'pieces', 'packet', 'bunch'];
@@ -1480,12 +1672,6 @@ class _PantryScreenState extends State<PantryScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSt) {
-          final dateLabel = expiryDate == null
-              ? 'No date'
-              : '${expiryDate!.day.toString().padLeft(2, '0')}/'
-                '${expiryDate!.month.toString().padLeft(2, '0')}/'
-                '${expiryDate!.year}';
-
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -1534,77 +1720,14 @@ class _PantryScreenState extends State<PantryScreen>
                   _inputField(nameCtrl, 'Item name', surfBg, tc, sub),
                   const SizedBox(height: 10),
 
-                  // Qty + date row
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: _inputField(
-                          qtyCtrl,
-                          'Qty',
-                          surfBg,
-                          tc,
-                          sub,
-                          inputType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Date picker button
-                      Expanded(
-                        flex: 3,
-                        child: GestureDetector(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: ctx,
-                              initialDate: expiryDate ?? DateTime.now(),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2030),
-                            );
-                            if (picked != null) setSt(() => expiryDate = picked);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: surfBg,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.calendar_today_rounded,
-                                  size: 14,
-                                  color: AppColors.expense,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    dateLabel,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontFamily: 'Nunito',
-                                      fontWeight: FontWeight.w700,
-                                      color: tc,
-                                    ),
-                                  ),
-                                ),
-                                if (expiryDate != null)
-                                  GestureDetector(
-                                    onTap: () => setSt(() => expiryDate = null),
-                                    child: Icon(
-                                      Icons.close_rounded,
-                                      size: 14,
-                                      color: sub,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  // Qty
+                  _inputField(
+                    qtyCtrl,
+                    'Qty',
+                    surfBg,
+                    tc,
+                    sub,
+                    inputType: TextInputType.number,
                   ),
                   const SizedBox(height: 10),
 
@@ -3123,4 +3246,231 @@ class _PinnedDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant _PinnedDelegate o) =>
       o.child != child || o.minH != minH || o.maxH != maxH;
+}
+
+// ── Multi-basket confirm sheet ────────────────────────────────────────────────
+
+class _MultiBasketConfirmSheet extends StatefulWidget {
+  final List<GroceryItem> items;
+  final void Function(List<GroceryItem> selected) onConfirm;
+
+  const _MultiBasketConfirmSheet({
+    required this.items,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_MultiBasketConfirmSheet> createState() =>
+      _MultiBasketConfirmSheetState();
+}
+
+class _MultiBasketConfirmSheetState extends State<_MultiBasketConfirmSheet> {
+  late final List<bool> _checked;
+
+  @override
+  void initState() {
+    super.initState();
+    _checked = List.filled(widget.items.length, true);
+  }
+
+  int get _selectedCount => _checked.where((v) => v).length;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Header
+          Row(
+            children: [
+              const Text('🧺', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Add ${widget.items.length} items to Basket',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+              ),
+              // Select all toggle
+              GestureDetector(
+                onTap: () {
+                  final allOn = _selectedCount == widget.items.length;
+                  setState(() {
+                    for (var i = 0; i < _checked.length; i++) {
+                      _checked[i] = !allOn;
+                    }
+                  });
+                },
+                child: Text(
+                  _selectedCount == widget.items.length
+                      ? 'Deselect all'
+                      : 'Select all',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: AppColors.expense,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Items list
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.45,
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: widget.items.length,
+              itemBuilder: (_, i) {
+                final item = widget.items[i];
+                final sel = _checked[i];
+                return GestureDetector(
+                  onTap: () => setState(() => _checked[i] = !_checked[i]),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: sel
+                          ? AppColors.expense.withValues(alpha: 0.08)
+                          : surfBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: sel
+                            ? AppColors.expense.withValues(alpha: 0.4)
+                            : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(item.category.emoji,
+                            style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.name,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: sel ? tc : sub,
+                                ),
+                              ),
+                              Text(
+                                '${item.quantity} ${item.unit}  ·  ${item.category.label}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: sel ? AppColors.expense : Colors.transparent,
+                            border: Border.all(
+                              color: sel ? AppColors.expense : sub,
+                              width: 2,
+                            ),
+                          ),
+                          child: sel
+                              ? const Icon(Icons.check_rounded,
+                                  size: 14, color: Colors.white)
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Add button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _selectedCount == 0
+                  ? null
+                  : () {
+                      final selected = [
+                        for (var i = 0; i < widget.items.length; i++)
+                          if (_checked[i]) widget.items[i],
+                      ];
+                      Navigator.pop(context);
+                      widget.onConfirm(selected);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.expense,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    AppColors.expense.withValues(alpha: 0.3),
+                elevation: 3,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(
+                _selectedCount == 0
+                    ? 'Select items'
+                    : 'Add $_selectedCount item${_selectedCount == 1 ? '' : 's'} to Basket →',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

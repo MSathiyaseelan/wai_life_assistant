@@ -16,6 +16,7 @@ class ShoppingBasketSection extends StatefulWidget {
   final void Function(GroceryItem) onItemMarkBought;
   final void Function(GroceryItem) onItemAdded;
   final void Function(GroceryItem) onItemDeleted;
+  final Future<void> Function(GroceryItem, Map<String, dynamic>) onItemUpdated;
 
   const ShoppingBasketSection({
     super.key,
@@ -26,6 +27,7 @@ class ShoppingBasketSection extends StatefulWidget {
     required this.onItemMarkBought,
     required this.onItemAdded,
     required this.onItemDeleted,
+    required this.onItemUpdated,
   });
 
   @override
@@ -215,6 +217,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                 onToggleBuy: widget.onItemToggleBuy,
                 onToggleStock: widget.onItemToggleStock,
                 onDelete: widget.onItemDeleted,
+                onUpdate: widget.onItemUpdated,
                 trailing: (item) => _StockTrail(
                   item: item,
                   isDark: isDark,
@@ -230,6 +233,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                 onToggleBuy: widget.onItemToggleBuy,
                 onToggleStock: widget.onItemToggleStock,
                 onDelete: widget.onItemDeleted,
+                onUpdate: widget.onItemUpdated,
                 trailing: (item) => _BuyTrail(
                   item: item,
                   isDark: isDark,
@@ -267,6 +271,7 @@ class _GroceryList extends StatelessWidget {
   final bool isDark;
   final String emptyMsg, emptyEmoji;
   final void Function(GroceryItem) onToggleBuy, onToggleStock, onDelete;
+  final Future<void> Function(GroceryItem, Map<String, dynamic>) onUpdate;
   final Widget Function(GroceryItem) trailing;
 
   const _GroceryList({
@@ -277,6 +282,7 @@ class _GroceryList extends StatelessWidget {
     required this.onToggleBuy,
     required this.onToggleStock,
     required this.onDelete,
+    required this.onUpdate,
     required this.trailing,
   });
 
@@ -310,7 +316,7 @@ class _GroceryList extends StatelessWidget {
       primary: false,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
-      itemBuilder: (_, i) {
+      itemBuilder: (ctx, i) {
         final item = items[i];
         final c = item.category.emoji;
         final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -335,89 +341,101 @@ class _GroceryList extends StatelessWidget {
             child: const Icon(Icons.delete_outline, color: AppColors.expense),
           ),
           onDismissed: (_) => onDelete(item),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(14),
-              border: isExpiringSoon
-                  ? Border.all(
-                      color: AppColors.lend.withValues(alpha: 0.6),
-                      width: 1.5,
-                    )
-                  : null,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Text(c, style: const TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                          color: isDark
-                              ? AppColors.textDark
-                              : AppColors.textLight,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          Text(
-                            '${item.quantity} ${item.unit}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'Nunito',
-                              color: isDark
-                                  ? AppColors.subDark
-                                  : AppColors.subLight,
-                            ),
+          child: GestureDetector(
+            onTap: () => _showEditSheet(ctx, item),
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(14),
+                border: isExpiringSoon
+                    ? Border.all(
+                        color: AppColors.lend.withValues(alpha: 0.6),
+                        width: 1.5,
+                      )
+                    : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Text(c, style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: isDark
+                                ? AppColors.textDark
+                                : AppColors.textLight,
                           ),
-                          if (isExpiringSoon) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 1,
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '${item.quantity} ${item.unit}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
                               ),
-                              decoration: BoxDecoration(
-                                color: AppColors.lend.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                '⚠️ Expiring soon',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.lend,
+                            ),
+                            if (isExpiringSoon) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.lend.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  '⚠️ Expiring soon',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.lend,
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                trailing(item),
-              ],
+                  trailing(item),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _showEditSheet(BuildContext context, GroceryItem item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditItemSheet(item: item, isDark: isDark, onUpdate: onUpdate),
     );
   }
 }
@@ -531,6 +549,291 @@ class _CatChip extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Edit Item sheet ───────────────────────────────────────────────────────────
+
+class _EditItemSheet extends StatefulWidget {
+  final GroceryItem item;
+  final bool isDark;
+  final Future<void> Function(GroceryItem, Map<String, dynamic>) onUpdate;
+
+  const _EditItemSheet({
+    required this.item,
+    required this.isDark,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_EditItemSheet> createState() => _EditItemSheetState();
+}
+
+class _EditItemSheetState extends State<_EditItemSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _qtyCtrl;
+  late final TextEditingController _noteCtrl;
+  late String _selectedUnit;
+  late GroceryCategory _selectedCat;
+
+  static const _units = ['kg', 'g', 'litre', 'ml', 'pieces', 'packet', 'bunch'];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.item.name);
+    _qtyCtrl = TextEditingController(
+      text: widget.item.quantity == widget.item.quantity.truncateToDouble()
+          ? widget.item.quantity.toInt().toString()
+          : widget.item.quantity.toString(),
+    );
+    _noteCtrl = TextEditingController(text: widget.item.note ?? '');
+    _selectedUnit = _units.contains(widget.item.unit) ? widget.item.unit : _units[0];
+    _selectedCat = widget.item.category;
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _qtyCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12, bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              // Header
+              Row(
+                children: [
+                  Text(widget.item.category.emoji,
+                      style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Edit Item',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              // Item name
+              _label('ITEM NAME', sub),
+              _field(_nameCtrl, 'Item name', surfBg, tc),
+              const SizedBox(height: 12),
+
+              // Qty
+              _label('QUANTITY', sub),
+              SizedBox(
+                width: 120,
+                child: _field(_qtyCtrl, 'Qty', surfBg, tc,
+                    inputType: const TextInputType.numberWithOptions(decimal: true)),
+              ),
+              const SizedBox(height: 12),
+
+              // Unit chips
+              _label('UNIT', sub),
+              SizedBox(
+                height: 34,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: _units.map((u) {
+                    final sel = u == _selectedUnit;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedUnit = u),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppColors.expense.withValues(alpha: 0.15)
+                              : surfBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color:
+                                sel ? AppColors.expense : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Text(
+                          u,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: sel ? AppColors.expense : sub,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Category chips
+              _label('CATEGORY', sub),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: GroceryCategory.values.map((cat) {
+                  final sel = cat == _selectedCat;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedCat = cat),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: sel
+                            ? AppColors.expense.withValues(alpha: 0.15)
+                            : surfBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: sel ? AppColors.expense : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        '${cat.emoji} ${cat.label}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                          color: sel ? AppColors.expense : sub,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+
+              // Notes
+              _label('NOTES (OPTIONAL)', sub),
+              _field(_noteCtrl, 'e.g. buy organic', surfBg, tc),
+              const SizedBox(height: 20),
+
+              // Save button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.expense,
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _save() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    final updates = <String, dynamic>{
+      'name': name,
+      'quantity': double.tryParse(_qtyCtrl.text.trim()) ?? widget.item.quantity,
+      'unit': _selectedUnit,
+      'category': _selectedCat.name,
+      'note': _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+    };
+    widget.onUpdate(widget.item, updates);
+    Navigator.pop(context);
+  }
+
+  Widget _label(String text, Color color) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            fontFamily: 'Nunito',
+            color: color,
+          ),
+        ),
+      );
+
+  Widget _field(
+    TextEditingController ctrl,
+    String hint,
+    Color surfBg,
+    Color tc, {
+    TextInputType? inputType,
+  }) =>
+      TextField(
+        controller: ctrl,
+        keyboardType: inputType,
+        style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(
+              fontFamily: 'Nunito', fontSize: 12, color: AppColors.subLight),
+          filled: true,
+          fillColor: surfBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      );
 }
 
 // ── Scan Bill sheet ───────────────────────────────────────────────────────────

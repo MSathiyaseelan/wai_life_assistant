@@ -37,6 +37,8 @@ class PantryIntent {
   final GroceryCategory? groceryCat;
   // meta
   final double confidence;
+  /// true → add to In Stock; false → add to To Buy list
+  final bool addToStock;
 
   const PantryIntent({
     required this.kind,
@@ -49,6 +51,7 @@ class PantryIntent {
     this.unit,
     this.groceryCat,
     required this.confidence,
+    this.addToStock = false,
   });
 }
 

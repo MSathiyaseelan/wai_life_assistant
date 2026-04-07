@@ -363,65 +363,54 @@ class _MealTimeStep extends StatefulWidget {
 }
 
 class _MealTimeStepState extends State<_MealTimeStep> {
-  MealTime? _hovered;
+  late MealTime _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialSelected;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 2.2,
+      child: Row(
         children: MealTime.values.map((mt) {
-          final pressed = _hovered == mt;
-          return GestureDetector(
-            onTapDown: (_) => setState(() => _hovered = mt),
-            onTapUp: (_) {
-              setState(() => _hovered = null);
-              HapticFeedback.lightImpact();
-              widget.onSelect(mt);
-            },
-            onTapCancel: () => setState(() => _hovered = null),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              transform: Matrix4.identity()..scale(pressed ? 0.95 : 1.0),
-              padding:
-                  const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-              decoration: BoxDecoration(
-                color: mt.color.withValues(
-                    alpha: pressed ? 0.25 : 0.12),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                    color: mt.color.withValues(alpha: 0.4), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: mt.color.withValues(
-                        alpha: pressed ? 0.2 : 0.06),
-                    blurRadius: pressed ? 12 : 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(mt.emoji,
-                      style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 8),
-                  Text(
-                    mt.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      color: mt.color,
+          final sel = mt == _selected;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() => _selected = mt);
+                HapticFeedback.lightImpact();
+                widget.onSelect(mt);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: sel
+                      ? mt.color
+                      : mt.color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  children: [
+                    Text(mt.emoji,
+                        style: const TextStyle(fontSize: 18)),
+                    const SizedBox(height: 3),
+                    Text(
+                      mt.label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: sel ? Colors.white : mt.color,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
