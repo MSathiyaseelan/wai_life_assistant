@@ -27,6 +27,11 @@ import 'package:wai_life_assistant/core/supabase/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/currency_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -1786,6 +1791,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ── Preferences tap dispatcher ───────────────────────────────────────────────
+  VoidCallback _prefsTap(BuildContext ctx, bool isDark, String title) {
+    Widget? sheet;
+    switch (title) {
+      case 'Theme':
+        return () => _showThemePicker(ctx, isDark);
+      case 'Notifications':
+        sheet = NotificationPrefsSheet(isDark: isDark);
+      case 'Privacy & Security':
+        sheet = PrivacySecuritySheet(isDark: isDark);
+      case 'Language & Voice':
+        sheet = LanguageVoiceSheet(isDark: isDark);
+      case 'Currency':
+        sheet = CurrencySheet(isDark: isDark);
+      case 'Date & Time':
+        sheet = DateTimePrefsSheet(isDark: isDark);
+      case 'Default Scope':
+        sheet = DefaultScopeSheet(isDark: isDark);
+      case 'AI Parser Settings':
+        sheet = AiParserSheet(isDark: isDark);
+      default:
+        return () {};
+    }
+    return () => showModalBottomSheet(
+          context: ctx,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => DraggableScrollableSheet(
+            initialChildSize: 0.75,
+            maxChildSize: 0.95,
+            minChildSize: 0.4,
+            builder: (_, _) => sheet!,
+          ),
+        );
+  }
+
   // ── Settings ────────────────────────────────────────────────────────────────
   void _showSettings(BuildContext ctx, bool isDark) async {
     // Always fetch fresh profile before opening so phone/dob/plan are current.
@@ -1806,10 +1847,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final settings = [
       _SettingItem('🎨', const Color(0xFFFFE0E0), 'Theme', themeLabel),
       _SettingItem('🌐', const Color(0xFFE0EEFF), 'Language & Voice', 'English'),
+      _SettingItem('₹',  const Color(0xFFE0F0FF), 'Currency', 'INR'),
+      _SettingItem('📅', const Color(0xFFE0F8EC), 'Date & Time', 'DD/MM/YYYY'),
       _SettingItem('🏠', const Color(0xFFFFEDD5), 'Default Scope', 'Per tab'),
       _SettingItem('✦',  const Color(0xFFE8E0FF), 'AI Parser Settings', 'Always confirm'),
       _SettingItem('🔔', const Color(0xFFE0F8EC), 'Notifications', 'On'),
-      _SettingItem('₹',  const Color(0xFFE0F0FF), 'Currency', 'INR'),
       _SettingItem('🔒', const Color(0xFFFFF0E0), 'Privacy & Security', ''),
       _SettingItem('☁️', const Color(0xFFE8F5FF), 'Backup & Sync', 'On'),
       _SettingItem('👨‍👩‍👧', const Color(0xFFEEF0FF), 'Family & Wallets', ''),
@@ -2477,35 +2519,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     ),
                                   ],
                                 ),
-                                onTap: s.title == 'Theme'
-                                    ? () => _showThemePicker(ctx, isDark)
-                                    : s.title == 'Notifications'
-                                        ? () => showModalBottomSheet(
-                                              context: ctx,
-                                              backgroundColor: Colors.transparent,
-                                              isScrollControlled: true,
-                                              builder: (_) => DraggableScrollableSheet(
-                                                initialChildSize: 0.75,
-                                                maxChildSize: 0.95,
-                                                minChildSize: 0.4,
-                                                builder: (_, _) =>
-                                                    NotificationPrefsSheet(isDark: isDark),
-                                              ),
-                                            )
-                                        : s.title == 'Privacy & Security'
-                                            ? () => showModalBottomSheet(
-                                                  context: ctx,
-                                                  backgroundColor: Colors.transparent,
-                                                  isScrollControlled: true,
-                                                  builder: (_) => DraggableScrollableSheet(
-                                                    initialChildSize: 0.75,
-                                                    maxChildSize: 0.95,
-                                                    minChildSize: 0.4,
-                                                    builder: (_, _) =>
-                                                        PrivacySecuritySheet(isDark: isDark),
-                                                  ),
-                                                )
-                                            : () {},
+                                onTap: _prefsTap(ctx, isDark, s.title),
                               ),
                             ],
                           );
