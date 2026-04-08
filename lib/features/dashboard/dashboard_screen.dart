@@ -32,6 +32,7 @@ import 'package:wai_life_assistant/features/dashboard/widgets/currency_sheet.dar
 import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -1811,6 +1812,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         sheet = DefaultScopeSheet(isDark: isDark);
       case 'AI Parser Settings':
         sheet = AiParserSheet(isDark: isDark);
+      case 'Subscription':
+        sheet = SubscriptionSheet(isDark: isDark, currentPlan: _userPlan);
       default:
         return () {};
     }
@@ -2526,47 +2529,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         }).toList(),
                       ),
                     ),
-                    // ── Upgrade banner (last) ─────────────────────────────
-                    if (_userPlan == 'Free')
-                      Container(
-                        margin: const EdgeInsets.only(top: 16),
+                    // ── Subscription tile (last) ──────────────────────────
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: _prefsTap(context, isDark, 'Subscription'),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
+                            horizontal: 16, vertical: 14),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFD97706), Color(0xFFB45309)],
+                          gradient: LinearGradient(
+                            colors: _userPlan == 'Free'
+                                ? const [Color(0xFFD97706), Color(0xFFB45309)]
+                                : _userPlan == 'Family'
+                                    ? const [Color(0xFF6C63FF), Color(0xFF3D35CC)]
+                                    : const [Color(0xFFD97706), Color(0xFFB45309)],
                           ),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
                           children: [
-                            const Text('⭐', style: TextStyle(fontSize: 26)),
+                            Text(
+                              _userPlan == 'Free'
+                                  ? '⭐'
+                                  : _userPlan == 'Family'
+                                      ? '👨‍👩‍👧'
+                                      : '⭐',
+                              style: const TextStyle(fontSize: 26),
+                            ),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Upgrade to WAI Plus',
-                                    style: TextStyle(
-                                      fontSize: 14,
+                                    'WAI $_userPlan',
+                                    style: const TextStyle(
+                                      fontSize: 15,
                                       fontWeight: FontWeight.w900,
                                       color: Colors.white,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                  Text(
+                                    _userPlan == 'Free'
+                                        ? 'Upgrade to unlock all features'
+                                        : 'Manage your subscription',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white70,
                                       fontFamily: 'Nunito',
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Colors.white70,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(40),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                _userPlan == 'Free' ? 'UPGRADE' : 'MANAGE',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  fontFamily: 'Nunito',
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
+                    ),
                   ],
                 ),
               ),
