@@ -25,6 +25,7 @@ import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 import 'package:wai_life_assistant/features/dashboard/family_settings_section.dart';
 import 'package:wai_life_assistant/core/supabase/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -2477,7 +2478,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 onTap: s.title == 'Theme'
                                     ? () => _showThemePicker(ctx, isDark)
-                                    : () {},
+                                    : s.title == 'Notifications'
+                                        ? () => showModalBottomSheet(
+                                              context: ctx,
+                                              backgroundColor: Colors.transparent,
+                                              isScrollControlled: true,
+                                              builder: (_) => DraggableScrollableSheet(
+                                                initialChildSize: 0.75,
+                                                maxChildSize: 0.95,
+                                                minChildSize: 0.4,
+                                                builder: (_, sc) =>
+                                                    NotificationPrefsSheet(isDark: isDark),
+                                              ),
+                                            )
+                                        : () {},
                               ),
                             ],
                           );
