@@ -26,6 +26,7 @@ import 'package:wai_life_assistant/features/dashboard/family_settings_section.da
 import 'package:wai_life_assistant/core/supabase/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -2487,11 +2488,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                 initialChildSize: 0.75,
                                                 maxChildSize: 0.95,
                                                 minChildSize: 0.4,
-                                                builder: (_, sc) =>
+                                                builder: (_, _) =>
                                                     NotificationPrefsSheet(isDark: isDark),
                                               ),
                                             )
-                                        : () {},
+                                        : s.title == 'Privacy & Security'
+                                            ? () => showModalBottomSheet(
+                                                  context: ctx,
+                                                  backgroundColor: Colors.transparent,
+                                                  isScrollControlled: true,
+                                                  builder: (_) => DraggableScrollableSheet(
+                                                    initialChildSize: 0.75,
+                                                    maxChildSize: 0.95,
+                                                    minChildSize: 0.4,
+                                                    builder: (_, _) =>
+                                                        PrivacySecuritySheet(isDark: isDark),
+                                                  ),
+                                                )
+                                            : () {},
                               ),
                             ],
                           );
