@@ -23,6 +23,8 @@ import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dar
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 import 'package:wai_life_assistant/features/dashboard/family_settings_section.dart';
+import 'package:wai_life_assistant/core/supabase/notification_service.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -77,6 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       .toList();
 
   bool _wasOnline = true;
+  int _unreadNotifCount = 0;
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
@@ -94,8 +97,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     PantryService.mealChangeSignal.addListener(_onMealChange);
     WalletService.txChangeSignal.addListener(_onTxChange);
     pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
+    NotificationService.changeSignal.addListener(_onNotifChange);
+    NotificationService.instance.subscribe();
     _loadPinnedGroups();
     _loadProfile();
+    _loadUnreadCount();
   }
 
   Future<void> _loadProfile() async {
@@ -225,6 +231,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     PantryService.mealChangeSignal.removeListener(_onMealChange);
     WalletService.txChangeSignal.removeListener(_onTxChange);
     pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
+    NotificationService.changeSignal.removeListener(_onNotifChange);
+    NotificationService.instance.unsubscribe();
     super.dispose();
   }
 
@@ -237,6 +245,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final wid in List<String>.from(_loadedWalletIds)) {
       _loadTransactions(wid);
     }
+  }
+
+  void _onNotifChange() => _loadUnreadCount();
+
+  Future<void> _loadUnreadCount() async {
+    final count = await NotificationService.instance.fetchUnreadCount();
+    if (mounted) setState(() => _unreadNotifCount = count);
+  }
+
+  void _openNotifications(bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => NotificationSheet(isDark: isDark),
+    ).then((_) => _loadUnreadCount());
   }
   void _onSplitGroupsChanged() {
     if (mounted) {
@@ -647,19 +671,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 // Notifications
                 GestureDetector(
-                  onTap: () {/* TODO: open notifications */},
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: surfBg,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.notifications_outlined,
-                      size: 20,
-                      color: isDark ? AppColors.subDark : AppColors.subLight,
-                    ),
+                  onTap: () => _openNotifications(isDark),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _unreadNotifCount > 0
+                              ? Icons.notifications_rounded
+                              : Icons.notifications_outlined,
+                          size: 20,
+                          color: isDark ? AppColors.subDark : AppColors.subLight,
+                        ),
+                      ),
+                      if (_unreadNotifCount > 0)
+                        Positioned(
+                          top: -2,
+                          right: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: AppColors.expense,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            child: Text(
+                              _unreadNotifCount > 99 ? '99+' : '$_unreadNotifCount',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                height: 1,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1807,47 +1862,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   controller: sc,
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
                   children: [
-                    // Upgrade banner
-                    if (_userPlan == 'Free')
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFD97706), Color(0xFFB45309)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            const Text('⭐', style: TextStyle(fontSize: 26)),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Upgrade to WAI Plus',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                      fontFamily: 'Nunito',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right_rounded,
-                              color: Colors.white70,
-                            ),
-                          ],
-                        ),
-                      ),
                     // ── ACCOUNT section ──────────────────────────────────
                     GestureDetector(
                       onTap: () => ss(() => accountExpanded = !accountExpanded),
@@ -1858,8 +1872,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               'ACCOUNT',
                               style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
                                 letterSpacing: 0.8,
                                 fontFamily: 'Nunito',
                                 color: isDark
@@ -2365,8 +2379,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               'PREFERENCES',
                               style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
                                 letterSpacing: 0.8,
                                 fontFamily: 'Nunito',
                                 color: isDark
@@ -2470,6 +2484,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         }).toList(),
                       ),
                     ),
+                    // ── Upgrade banner (last) ─────────────────────────────
+                    if (_userPlan == 'Free')
+                      Container(
+                        margin: const EdgeInsets.only(top: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFD97706), Color(0xFFB45309)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('⭐', style: TextStyle(fontSize: 26)),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Upgrade to WAI Plus',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                      color: Colors.white,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white70,
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),

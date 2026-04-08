@@ -66,6 +66,7 @@ class _AddMealSheetState extends State<AddMealSheet>
   String _emoji = '🍛';
   String? _selectedRecipeId;
   final List<String> _ingredients = [];
+  late DateTime _selectedDate;
 
   /// Set when user taps an already-occupied meal time slot (pre-fill mode).
   MealEntry? _prefilledExisting;
@@ -118,6 +119,7 @@ class _AddMealSheetState extends State<AddMealSheet>
   void initState() {
     super.initState();
     // Edit mode → open directly on Manual tab (index 1); add mode → Chat tab (index 0)
+    _selectedDate = widget.date;
     _tabController = TabController(
       length: 2,
       vsync: this,
@@ -159,11 +161,12 @@ class _AddMealSheetState extends State<AddMealSheet>
   String get _dateLabel {
     final now = DateTime.now();
     final diff =
-        widget.date.difference(DateTime(now.year, now.month, now.day)).inDays;
+        _selectedDate.difference(DateTime(now.year, now.month, now.day)).inDays;
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Tomorrow';
-    final wd = widget.date.weekday - 1;
-    return '${_weekDays[wd]}, ${_months[widget.date.month - 1]} ${widget.date.day}';
+    if (diff == -1) return 'Yesterday';
+    final wd = _selectedDate.weekday - 1;
+    return '${_weekDays[wd]}, ${_months[_selectedDate.month - 1]} ${_selectedDate.day}';
   }
 
   void _onMealTimeTap(MealTime mt) {
@@ -217,7 +220,7 @@ class _AddMealSheetState extends State<AddMealSheet>
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: name,
           mealTime: _mealTime,
-          date: widget.date,
+          date: _selectedDate,
           walletId: widget.walletId,
           emoji: _emoji,
           recipeId: _selectedRecipeId,
@@ -298,8 +301,15 @@ class _AddMealSheetState extends State<AddMealSheet>
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: _buildTabBar(isDark),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
             ],
+
+            // Date picker — visible in both tabs and edit mode
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _buildDateRow(isDark),
+            ),
+            const SizedBox(height: 8),
 
             // Content
             Expanded(
@@ -310,7 +320,7 @@ class _AddMealSheetState extends State<AddMealSheet>
                       children: [
                         // Tab 0: Conversational flow
                         MealConversationFlow(
-                          date: widget.date,
+                          date: _selectedDate,
                           walletId: widget.walletId,
                           recipes: widget.recipes,
                           dayMeals: widget.dayMeals,
@@ -361,6 +371,54 @@ class _AddMealSheetState extends State<AddMealSheet>
           Tab(text: '💬  Chat'),
           Tab(text: '✏️  Manual'),
         ],
+      ),
+    );
+  }
+
+  // ── Date picker button ───────────────────────────────────────────────────────
+
+  Widget _buildDateRow(bool isDark) {
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDate,
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2030),
+        );
+        if (picked != null) setState(() => _selectedDate = picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: surfBg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_rounded,
+                size: 14, color: AppColors.primary),
+            const SizedBox(width: 7),
+            Text(
+              _dateLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Nunito',
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 5),
+            const Icon(Icons.expand_more_rounded,
+                size: 16, color: AppColors.primary),
+          ],
+        ),
       ),
     );
   }

@@ -136,8 +136,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                 Text(
                   'FAMILY',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
                     letterSpacing: 0.8,
                     fontFamily: 'Nunito',
                     color: _sub,

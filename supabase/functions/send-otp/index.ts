@@ -7,7 +7,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const MSG91_AUTH_KEY = Deno.env.get("MSG91_AUTH_KEY")!;
 // MSG91 dashboard calls it "Flow ID" but the OTP API parameter is template_id.
-const MSG91_TEMPLATE_ID = Deno.env.get("MSG91_FLOW_ID") ?? Deno.env.get("MSG91_TEMPLATE_ID")!;
+const MSG91_TEMPLATE_ID = Deno.env.get("MSG91_TEMPLATE_ID")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
