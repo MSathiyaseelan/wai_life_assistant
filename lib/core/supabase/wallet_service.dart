@@ -362,6 +362,20 @@ class WalletService {
         .eq('id', groupId);
   }
 
+  /// Update a split group's name and emoji (photo URL).
+  Future<void> updateSplitGroup(
+    String groupId, {
+    required String name,
+    required String emoji,
+    required bool pinned,
+  }) async {
+    await _db.from('split_groups').update({
+      'name': name,
+      'emoji': emoji,
+      'pinned_to_dashboard': pinned,
+    }).eq('id', groupId);
+  }
+
   /// Fetch all split groups for a wallet, including participants & transactions.
   Future<List<Map<String, dynamic>>> fetchSplitGroups(String walletId) async {
     final rows = await _db

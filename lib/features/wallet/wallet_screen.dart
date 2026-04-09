@@ -6,6 +6,7 @@ import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_tile.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/wallet_card_widget.dart';
 import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_sheet.dart';
@@ -1060,8 +1061,10 @@ class _WalletScreenState extends State<WalletScreen>
         });
         _syncPinnedGroups();
         if (AuthService.instance.isLoggedIn) {
-          WalletService.instance.updateSplitGroupPin(
+          WalletService.instance.updateSplitGroup(
             updated.id,
+            name: updated.name,
+            emoji: updated.emoji,
             pinned: updated.pinnedToDashboard,
           );
         }
@@ -2628,9 +2631,10 @@ class _SplitGroupCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    group.emoji,
-                    style: const TextStyle(fontSize: 24),
+                  child: EmojiOrImage(
+                    value: group.emoji,
+                    size: 30,
+                    borderRadius: 14,
                   ),
                 ),
                 const SizedBox(width: 14),
