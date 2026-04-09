@@ -132,12 +132,24 @@ class _AddMealSheetState extends State<AddMealSheet>
       _selectedRecipeId = widget.existing!.recipeId;
       _ingredients.addAll(widget.existing!.ingredients);
     } else {
-      // Auto-select the first unoccupied meal slot for the day
+      // Auto-select the first unoccupied meal slot for the day.
+      // If all slots are occupied, keep the default and pre-fill it.
       final occupiedTimes = widget.dayMeals.map((m) => m.mealTime).toSet();
       final firstEmpty = MealTime.values
           .where((mt) => !occupiedTimes.contains(mt))
           .firstOrNull;
-      if (firstEmpty != null) _mealTime = firstEmpty;
+      if (firstEmpty != null) {
+        _mealTime = firstEmpty;
+      }
+      // Pre-fill _prefilledExisting for whichever slot is initially selected.
+      final slotMeal = _slotMeal(_mealTime);
+      if (slotMeal != null) {
+        _prefilledExisting = slotMeal;
+        _nameCtrl.text = slotMeal.name;
+        _emoji = slotMeal.emoji;
+        _selectedRecipeId = slotMeal.recipeId;
+        _ingredients.addAll(slotMeal.ingredients);
+      }
     }
   }
 
@@ -325,6 +337,7 @@ class _AddMealSheetState extends State<AddMealSheet>
                           recipes: widget.recipes,
                           dayMeals: widget.dayMeals,
                           onSave: widget.onSave,
+                          onUpdate: widget.onUpdate,
                           onClose: () => Navigator.pop(context),
                         ),
                         // Tab 1: Manual form

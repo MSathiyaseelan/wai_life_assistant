@@ -61,6 +61,7 @@ class MealConversationFlow extends StatefulWidget {
   final List<RecipeModel> recipes;
   final List<MealEntry> dayMeals;
   final void Function(MealEntry) onSave;
+  final void Function(MealEntry)? onUpdate;
   final VoidCallback onClose;
 
   const MealConversationFlow({
@@ -70,6 +71,7 @@ class MealConversationFlow extends StatefulWidget {
     required this.recipes,
     required this.dayMeals,
     required this.onSave,
+    this.onUpdate,
     required this.onClose,
   });
 
@@ -161,17 +163,31 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
   }
 
   void _save() {
-    final entry = MealEntry(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: _data.mealName,
-      mealTime: _data.mealTime,
-      date: widget.date,
-      walletId: widget.walletId,
-      emoji: _data.emoji,
-      recipeId: _data.recipeId,
-      ingredients: [],
-    );
-    widget.onSave(entry);
+    // If the chosen slot already has a meal, update it instead of adding.
+    final existing = widget.dayMeals
+        .where((m) => m.mealTime == _data.mealTime)
+        .firstOrNull;
+
+    if (existing != null && widget.onUpdate != null) {
+      widget.onUpdate!(existing.copyWith(
+        name: _data.mealName,
+        emoji: _data.emoji,
+        recipeId: _data.recipeId,
+        ingredients: [],
+      ));
+    } else {
+      final entry = MealEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: _data.mealName,
+        mealTime: _data.mealTime,
+        date: widget.date,
+        walletId: widget.walletId,
+        emoji: _data.emoji,
+        recipeId: _data.recipeId,
+        ingredients: [],
+      );
+      widget.onSave(entry);
+    }
     setState(() {
       if (_messages.isNotEmpty) {
         _messages[_messages.length - 1] = _messages.last.markDone();
