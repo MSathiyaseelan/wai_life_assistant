@@ -409,6 +409,15 @@ Future<void> _showEditFamily(
   WalletModel wallet,
   bool isDark,
   AppStateNotifier appState,
+) =>
+    showEditFamilySheet(context, family, wallet, isDark, appState);
+
+Future<void> showEditFamilySheet(
+  BuildContext context,
+  FamilyModel family,
+  WalletModel wallet,
+  bool isDark,
+  AppStateNotifier appState,
 ) {
   return showModalBottomSheet(
     context: context,

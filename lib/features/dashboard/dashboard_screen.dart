@@ -18,7 +18,6 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
 import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
-import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
@@ -73,7 +72,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Page controller for swipeable wallet cards
   late final PageController _walletPageController;
-  int _walletPageIndex = 0;
 
   // PlanIt data — merged from all loaded wallets, keyed by walletId
   final Map<String, List<ReminderModel>>    _remindersMap    = {};
@@ -773,31 +771,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         .toList();
                     final allCards = [personalW, ...familyWs];
 
-                    double cardHeight(String wid) {
-                      final txToday = _todayTx(wid);
-                      // base = top-padding(14) + label(14) + spacing(2)
-                      //       + balance(28) + bottom-padding(10)
-                      //       + middle-container(96)
-                      const base = 168.0;
-                      if (txToday.isEmpty) return base;
-                      final rows = txToday.take(3).length;
-                      return base + rows * 55.0 + (txToday.length > 3 ? 22.0 : 0.0);
-                    }
-
-                    final currentIdx = _walletPageIndex.clamp(0, allCards.length - 1);
-                    final height = cardHeight(allCards[currentIdx].id);
+                    const height = 168.0;
 
                     return Column(
                       children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeInOut,
-                          height: height.clamp(168.0, 380.0),
+                        SizedBox(
+                          height: height,
                           child: PageView.builder(
                             controller: _walletPageController,
                             itemCount: allCards.length,
                             onPageChanged: (idx) {
-                              setState(() => _walletPageIndex = idx);
                               AppStateScope.read(context)
                                   .switchWallet(allCards[idx].id);
                             },
@@ -825,14 +808,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 child: _MoneyPulseCard(
                                   label: label,
                                   wallet: w,
-                                  isDark: isDark,
                                   todayTx: txToday,
                                   balance: bal,
                                   hidden: _balanceHidden,
                                   onToggleHide: () => setState(
                                       () => _balanceHidden = !_balanceHidden),
-                                  onTxTap: (tx) =>
-                                      _showDashTxEdit(tx, isDark, surfBg),
                                 ),
                               );
                             },
@@ -955,7 +935,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       final meals = _todayMeals
                           .where((e) => e.walletId == wid)
                           .toList();
-                      if (meals.isEmpty) return 84.0;
+                      if (meals.isEmpty) return 100.0;
                       // Card is a horizontal Row across MealTime columns.
                       // Height = tallest column, not sum.
                       // header padding(24) + label(13) + date(17) ≈ 54
@@ -974,7 +954,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final plateH = allCards
                         .map((w) => plateHeight(w.id))
                         .fold<double>(0, (a, b) => a > b ? a : b)
-                        .clamp(84.0, 500.0);
+                        .clamp(100.0, 500.0);
 
                     return Column(
                       children: [
@@ -1193,104 +1173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ── Wallet Switcher Sheet ───────────────────────────────────────────────────
   // ── Edit existing transaction (tap from dashboard card) ────────────────────
-  void _showDashTxEdit(TxModel tx, bool isDark, Color surfBg) {
-    final appState = AppStateScope.of(context);
-    final otherWallets = appState.wallets
-        .where((w) => w.id != tx.walletId)
-        .toList();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => TxDetailSheet(
-        tx: tx,
-        isDark: isDark,
-        otherWallets: otherWallets,
-        onMove: (target) {
-          Navigator.pop(context);
-          _moveTxToWallet(tx, target);
-        },
-        onEdit: (updated) async {
-          setState(() {
-            final idx = _transactions.indexWhere((t) => t.id == updated.id);
-            if (idx >= 0) _transactions[idx] = updated;
-          });
-          WalletService.instance.ensureCategory(updated.category, updated.type.name);
-          try {
-            final fields = <String, dynamic>{
-              'type': updated.type.name,
-              'amount': updated.amount,
-              'category': updated.category,
-              'date': updated.date.toIso8601String().substring(0, 10),
-              'pay_mode': updated.payMode?.name,
-              'note': updated.note,
-              'person': updated.person,
-            };
-            if (updated.title != null) fields['title'] = updated.title;
-            await WalletService.instance.updateTransaction(updated.id, fields);
-            WalletService.txChangeSignal.value++;
-          } catch (e) {
-            debugPrint('[Dashboard] updateTransaction failed: $e');
-          }
-        },
-        onDelete: () async {
-          setState(() => _transactions.removeWhere((t) => t.id == tx.id));
-          try {
-            await WalletService.instance.deleteTransaction(tx.id);
-            WalletService.txChangeSignal.value++;
-          } catch (e) {
-            if (!mounted) return;
-            setState(() => _transactions.add(tx));
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to delete: $e')),
-            );
-          }
-        },
-      ),
-    );
-  }
 
-  Future<void> _moveTxToWallet(TxModel tx, WalletModel target) async {
-    setState(() => _transactions.removeWhere((t) => t.id == tx.id));
-    try {
-      await WalletService.instance.deleteTransaction(tx.id);
-      await WalletService.instance.addTransaction(
-        walletId: target.id,
-        type: tx.type.name,
-        amount: tx.amount,
-        category: tx.category,
-        payMode: tx.payMode?.name,
-        title: tx.title,
-        note: tx.note,
-        person: tx.person,
-        persons: tx.persons,
-        dueDate: tx.dueDate,
-        date: tx.date,
-      );
-      WalletService.txChangeSignal.value++;
-      if (mounted) await AppStateScope.of(context).reload();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Moved to ${target.name} ${target.isPersonal ? '👤' : '👨‍👩‍👧'}',
-              style: const TextStyle(
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            backgroundColor: const Color(0xFF00C897),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            margin: const EdgeInsets.all(16),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('[Dashboard] moveTx failed: $e');
-      if (mounted) setState(() => _transactions.insert(0, tx));
-    }
-  }
 
   // ── Quick Add Transaction ───────────────────────────────────────────────────
   void _showQuickAdd(
@@ -2626,21 +2509,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 class _MoneyPulseCard extends StatelessWidget {
   final String label;
   final WalletModel wallet;
-  final bool isDark, hidden;
+  final bool hidden;
   final List<TxModel> todayTx;
   final double balance;
   final VoidCallback onToggleHide;
-  final void Function(TxModel)? onTxTap;
 
   const _MoneyPulseCard({
     required this.label,
     required this.wallet,
-    required this.isDark,
     required this.todayTx,
     required this.balance,
     required this.hidden,
     required this.onToggleHide,
-    this.onTxTap,
   });
 
   String _fmt(double v) {
@@ -2653,14 +2533,6 @@ class _MoneyPulseCard extends StatelessWidget {
     return '₹${v.toStringAsFixed(0)}';
   }
 
-  String _fmtCompact(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) {
-      final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
-      return '${s}k';
-    }
-    return v.toStringAsFixed(0);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -2776,98 +2648,6 @@ class _MoneyPulseCard extends StatelessWidget {
               ),
             ),
           ),
-
-          // Bottom — today's transactions list (max 3, compact)
-          if (todayTx.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              child: Column(
-                children: [
-                  ...todayTx.take(3).map((t) => GestureDetector(
-                    onTap: onTxTap != null ? () => onTxTap!(t) : null,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(t.type.emoji,
-                              style: const TextStyle(fontSize: 16)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  t.title?.isNotEmpty == true
-                                      ? t.title!
-                                      : t.category,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Nunito',
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (t.title?.isNotEmpty == true)
-                                  Text(
-                                    t.category,
-                                    style: const TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 10,
-                                      fontFamily: 'Nunito',
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  )
-                                else if (t.note != null)
-                                  Text(
-                                    t.note!,
-                                    style: const TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 10,
-                                      fontFamily: 'Nunito',
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '${t.type.isPositive ? '+' : '-'}'
-                            '${hidden ? '••' : '₹${_fmtCompact(t.amount)}'}',
-                            style: TextStyle(
-                              color: t.type.isPositive
-                                  ? Colors.greenAccent
-                                  : Colors.redAccent[100],
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                              fontFamily: 'DM Mono',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )),
-                  if (todayTx.length > 3)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '+${todayTx.length - 3} more today',
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -3277,20 +3057,30 @@ class _TodaysPlateCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Nothing planned yet",
+                  label,
                   style: TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                     fontFamily: 'Nunito',
                     color: tc,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Nothing planned yet",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: sub,
                   ),
                 ),
                 Text(
                   'Open Pantry to plan today\'s meals',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontFamily: 'Nunito',
-                    color: sub,
+                    color: sub.withValues(alpha: 0.7),
                   ),
                 ),
               ],

@@ -244,7 +244,36 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   const SizedBox(height: 14),
 
                   // ── Family name ──────────────────────────────────────────
-                  _sectionLabel('Family Name'),
+                  Row(
+                    children: [
+                      _sectionLabel('Family Name'),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {
+                          final wallet = widget.appState.wallets.firstWhere(
+                            (w) => w.id == family.walletId,
+                            orElse: () => personalWallet,
+                          );
+                          _showEditFamily(context, family, wallet);
+                        },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Edit',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -255,32 +284,13 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                           : Colors.black.withValues(alpha: 0.04),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            family.name,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontFamily: 'Nunito',
-                              color: tc,
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            // Edit family name — opens edit form
-                            final wallet = widget.appState.wallets
-                                .firstWhere(
-                              (w) => w.id == family.walletId,
-                              orElse: () => personalWallet,
-                            );
-                            _showEditFamily(context, family, wallet);
-                          },
-                          child: Icon(Icons.edit_rounded,
-                              size: 16, color: AppColors.primary),
-                        ),
-                      ],
+                    child: Text(
+                      family.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -1019,16 +1029,12 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     FamilyModel family,
     WalletModel wallet,
   ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _FamilyFormSheetProxy(
-        isDark: widget.isDark,
-        existing: family,
-        wallet: wallet,
-        appState: widget.appState,
-      ),
+    showEditFamilySheet(
+      context,
+      family,
+      wallet,
+      widget.isDark,
+      widget.appState,
     ).then((_) => setState(() {}));
   }
 
@@ -1039,7 +1045,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   ) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: Text(
           'Change Role — ${member.name}',
           style: const TextStyle(
@@ -1068,7 +1074,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                       color: AppColors.primary)
                   : null,
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogCtx);
                 setState(() => member.role = role);
                 // TODO: persist role change to backend
               },
@@ -1086,7 +1092,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   ) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text(
           'Remove Member',
           style: TextStyle(
@@ -1104,13 +1110,13 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel',
                 style: TextStyle(fontFamily: 'Nunito')),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogCtx);
               setState(() => family.members.remove(member));
               // TODO: persist removal to backend
             },
@@ -1330,57 +1336,3 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PROXY WIDGET — wraps the private _FamilyFormSheet via showAddFamilySheet API
-// Editing an existing family reuses the same form sheet as creation.
-// We re-use the public showAddFamilySheet but pass `existing` by temporarily
-// exposing through the family switcher's internal function via reflection.
-// Instead, we replicate the call pattern directly here.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _FamilyFormSheetProxy extends StatelessWidget {
-  final bool isDark;
-  final FamilyModel existing;
-  final WalletModel wallet;
-  final AppStateNotifier appState;
-
-  const _FamilyFormSheetProxy({
-    required this.isDark,
-    required this.existing,
-    required this.wallet,
-    required this.appState,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Delegate to the FamilySwitcherSheet internal edit flow via a helper
-    // function exposed from family_switcher_sheet.dart.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.pop(context); // pop this proxy
-      _showEditFamilyFromSettings(context, existing, wallet, isDark, appState);
-    });
-    // Return empty container while the postFrameCallback fires
-    return const SizedBox.shrink();
-  }
-}
-
-/// Thin wrapper to call the package-private edit sheet from outside the file.
-void _showEditFamilyFromSettings(
-  BuildContext context,
-  FamilyModel family,
-  WalletModel wallet,
-  bool isDark,
-  AppStateNotifier appState,
-) {
-  // We open the FamilySwitcherSheet in edit mode by constructing it directly.
-  // Since _showEditFamily is private to family_switcher_sheet.dart, we use
-  // showAddFamilySheet with `existing` patched through the public API.
-  // The cleanest solution is to expose a public helper — for now we call
-  // FamilySwitcherSheet.show() which opens the switcher where user can tap Edit.
-  FamilySwitcherSheet.show(
-    context,
-    currentWalletId: wallet.id,
-    onSelect: (id) => appState.switchWallet(id),
-    isDashboard: true,
-  );
-}
