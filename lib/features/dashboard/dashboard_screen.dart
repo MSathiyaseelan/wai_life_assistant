@@ -21,6 +21,7 @@ import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart'
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/dashboard/family_settings_section.dart';
 import 'package:wai_life_assistant/core/supabase/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
@@ -123,6 +124,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _userPlan     = (profile['plan']      as String?) ?? 'Free';
           _userPhotoUrl = (profile['photo_url'] as String?) ?? '';
         });
+        // Sync default scope preferences from DB into local AppPrefs.
+        final prefs = AppPrefs.instance;
+        await prefs.init();
+        final ws = (profile['wallet_scope'] as String?) ?? 'personal';
+        final ps = (profile['pantry_scope'] as String?) ?? 'personal';
+        final ls = (profile['planit_scope'] as String?) ?? 'personal';
+        if (prefs.walletScope != ws) prefs.walletScope = ws;
+        if (prefs.pantryScope != ps) prefs.pantryScope = ps;
+        if (prefs.planItScope != ls) prefs.planItScope = ls;
       }
     } catch (e) {
       debugPrint('[Dashboard] _loadProfile error: $e');

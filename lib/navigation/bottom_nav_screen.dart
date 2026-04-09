@@ -7,6 +7,7 @@ import 'package:wai_life_assistant/features/planit/planit_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 
 const _kThemePrefKey = 'theme_mode';
 
@@ -100,6 +101,26 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  // Tab index → which AppPrefs scope key to read.
+  // 1 = Wallet, 2 = Pantry, 3 = PlanIt (Dashboard and LifeStyle have no scope pref).
+  void _applyScope(int tabIndex) {
+    final prefs = AppPrefs.instance;
+    if (!prefs.ready) return;
+    final scope = switch (tabIndex) {
+      1 => prefs.walletScope,
+      2 => prefs.pantryScope,
+      3 => prefs.planItScope,
+      _ => null,
+    };
+    if (scope == null) return;
+    final wallets = _appState.wallets;
+    if (wallets.isEmpty) return;
+    final target = scope == 'family'
+        ? wallets.firstWhere((w) => !w.isPersonal, orElse: () => wallets.first)
+        : wallets.firstWhere((w) => w.isPersonal, orElse: () => wallets.first);
+    _appState.switchWallet(target.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -162,10 +183,13 @@ class _AppShellState extends State<AppShell> {
                           Expanded(
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: () => setState(() {
-                                if (i == 0 && _idx != 0) _dashboardRefreshCount++;
-                                _idx = i;
-                              }),
+                              onTap: () {
+                                _applyScope(i);
+                                setState(() {
+                                  if (i == 0 && _idx != 0) _dashboardRefreshCount++;
+                                  _idx = i;
+                                });
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 220),
                                 curve: Curves.easeOutBack,

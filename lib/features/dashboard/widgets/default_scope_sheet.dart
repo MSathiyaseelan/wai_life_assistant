@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 import '_prefs_sheet_base.dart';
 
 class DefaultScopeSheet extends StatefulWidget {
@@ -18,6 +19,14 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
   void initState() {
     super.initState();
     _p.init().then((_) { if (mounted) setState(() => _loading = false); });
+  }
+
+  void _persist() {
+    ProfileService.instance.updateDefaultScopes(
+      walletScope: _p.walletScope,
+      pantryScope: _p.pantryScope,
+      planItScope: _p.planItScope,
+    ).catchError((e) => debugPrint('[DefaultScope] persist error: $e'));
   }
 
   @override
@@ -67,7 +76,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
               _ScopePicker(
                 isDark: isDark, surf: surf, tc: tc,
                 value: _p.walletScope,
-                onChanged: (v) => setState(() => _p.walletScope = v),
+                onChanged: (v) { setState(() => _p.walletScope = v); _persist(); },
               ),
               const SizedBox(height: 16),
 
@@ -76,7 +85,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
               _ScopePicker(
                 isDark: isDark, surf: surf, tc: tc,
                 value: _p.pantryScope,
-                onChanged: (v) => setState(() => _p.pantryScope = v),
+                onChanged: (v) { setState(() => _p.pantryScope = v); _persist(); },
               ),
               const SizedBox(height: 16),
 
@@ -85,7 +94,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
               _ScopePicker(
                 isDark: isDark, surf: surf, tc: tc,
                 value: _p.planItScope,
-                onChanged: (v) => setState(() => _p.planItScope = v),
+                onChanged: (v) { setState(() => _p.planItScope = v); _persist(); },
               ),
             ],
           );

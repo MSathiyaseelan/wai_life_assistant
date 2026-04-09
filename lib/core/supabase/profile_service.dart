@@ -75,6 +75,19 @@ class ProfileService {
     }).eq('id', _uid);
   }
 
+  /// Persist default scope preferences (Personal / Family) for each tab.
+  Future<void> updateDefaultScopes({
+    required String walletScope,
+    required String pantryScope,
+    required String planItScope,
+  }) async {
+    await _db.from('profiles').update({
+      'wallet_scope': walletScope,
+      'pantry_scope': pantryScope,
+      'planit_scope': planItScope,
+    }).eq('id', _uid);
+  }
+
   // ── FamilySwitcher seed data ──────────────────────────────────────────────
 
   /// Loads everything the FamilySwitcherSheet needs in a single round-trip:
