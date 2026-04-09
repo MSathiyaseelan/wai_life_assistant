@@ -128,6 +128,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       children: [
         // ── Section header ────────────────────────────────────────────────────
         GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),

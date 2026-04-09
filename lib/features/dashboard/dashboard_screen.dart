@@ -930,17 +930,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         .toList();
                     final allCards = [personalW, ...familyWs];
 
-                    // Height: empty state ~84px; header 61px + 42px/group + 52px/meal
+                    // Height: header(54) + content padding(28) + icon+label+dash col(58) + per meal(46)
                     double plateHeight(String wid) {
                       final meals = _todayMeals
                           .where((e) => e.walletId == wid)
                           .toList();
-                      if (meals.isEmpty) return 100.0;
-                      // Card is a horizontal Row across MealTime columns.
-                      // Height = tallest column, not sum.
-                      // header padding(24) + label(13) + date(17) ≈ 54
-                      // outer content padding(28) + icon+label column(58)
-                      // per entry in tallest column: padding(8)+text(~24)+status(10)+margin(4) ≈ 46
                       final byTime = <Object, int>{};
                       for (final m in meals) {
                         byTime[m.mealTime] =
@@ -954,7 +948,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final plateH = allCards
                         .map((w) => plateHeight(w.id))
                         .fold<double>(0, (a, b) => a > b ? a : b)
-                        .clamp(100.0, 500.0);
+                        .clamp(156.0, 500.0);
 
                     return Column(
                       children: [
@@ -1717,10 +1711,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── Settings ────────────────────────────────────────────────────────────────
-  void _showSettings(BuildContext ctx, bool isDark) async {
-    // Always fetch fresh profile before opening so phone/dob/plan are current.
-    await _loadProfile();
-    if (!ctx.mounted) return;
+  void _showSettings(BuildContext ctx, bool isDark) {
+    // Load fresh profile in the background — don't block opening the sheet.
+    _loadProfile();
 
     final appState = AppStateScope.read(ctx);
     final nameCtrl = TextEditingController(text: _userName);
@@ -1797,6 +1790,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     // ── ACCOUNT section ──────────────────────────────────
                     GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => ss(() => accountExpanded = !accountExpanded),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
@@ -2303,6 +2297,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 16),
                     // ── PREFERENCES section ───────────────────────────────
                     GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () =>
                           ss(() => preferencesExpanded = !preferencesExpanded),
                       child: Padding(
@@ -3041,55 +3036,6 @@ class _TodaysPlateCard extends StatelessWidget {
       mealsMap.putIfAbsent(m.mealTime, () => []).add(m);
     }
 
-    if (meals.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          children: [
-            const Text('🍽️', style: TextStyle(fontSize: 28)),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'Nunito',
-                    color: tc,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "Nothing planned yet",
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito',
-                    color: sub,
-                  ),
-                ),
-                Text(
-                  'Open Pantry to plan today\'s meals',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontFamily: 'Nunito',
-                    color: sub.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
@@ -3136,7 +3082,7 @@ class _TodaysPlateCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${meals.length} meals',
+                  meals.isEmpty ? 'Nothing planned' : '${meals.length} meal${meals.length == 1 ? '' : 's'}',
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Nunito',

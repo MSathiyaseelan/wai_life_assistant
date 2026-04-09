@@ -420,6 +420,14 @@ class _PantryScreenState extends State<PantryScreen>
     super.dispose();
   }
 
+  // ── Pull-to-refresh ───────────────────────────────────────────────────────
+  Future<void> _refresh() => Future.wait([
+    _loadMeals(),
+    _loadRecipes(),
+    _loadGroceries(),
+    _loadFoodPrefs(),
+  ]);
+
   // ── Wallet switch ──────────────────────────────────────────────────────────
   void _switchWallet(String id) => widget.onWalletChange(id);
 
@@ -1572,10 +1580,13 @@ class _PantryScreenState extends State<PantryScreen>
       );
     }
     return PrimaryScrollController.none(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          WeekCalendarStrip(
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            WeekCalendarStrip(
             selectedDate: _selectedDate,
             onDateSelected: (d) => setState(() => _selectedDate = d),
           ),
@@ -1611,6 +1622,7 @@ class _PantryScreenState extends State<PantryScreen>
           const SizedBox(height: 24),
         ],
       ),
+      ),
     );
   }
 
@@ -1621,17 +1633,21 @@ class _PantryScreenState extends State<PantryScreen>
       );
     }
     return PrimaryScrollController.none(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          RecipeBoxSection(
-            recipes: _recipes,
-            onRecipeTapped: _showRecipeDetail,
-            onRecipeAdded: _addRecipe,
-            onUntagRecipe: _deleteRecipe,
-          ),
-          const SizedBox(height: 24),
-        ],
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            RecipeBoxSection(
+              recipes: _recipes,
+              onRecipeTapped: _showRecipeDetail,
+              onRecipeAdded: _addRecipe,
+              onUntagRecipe: _deleteRecipe,
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -1655,7 +1671,9 @@ class _PantryScreenState extends State<PantryScreen>
     // Use Column not ListView — ShoppingBasketSection manages its own scrolling
     // via internal ListView inside a fixed/expanded area. A wrapping ListView
     // creates a scroll conflict that causes content to stick.
-    return Column(
+    return RefreshIndicator(
+      onRefresh: _refresh,
+      child: Column(
       children: [
         if (expiring.isNotEmpty) _ExpiryBanner(items: expiring, isDark: isDark),
         Expanded(
@@ -1673,6 +1691,7 @@ class _PantryScreenState extends State<PantryScreen>
           ),
         ),
       ],
+      ),
     );
   }
 

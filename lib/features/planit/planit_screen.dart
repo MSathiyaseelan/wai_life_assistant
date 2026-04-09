@@ -205,8 +205,14 @@ class _PlanItScreenState extends State<PlanItScreen> {
     return Scaffold(
       backgroundColor: bg,
       appBar: _buildAppBar(isDark, textColor),
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _loadedKey = null;
+          await _loadAllData();
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           // ── Module list ───────────────────────────────────────────────────
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -218,6 +224,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
