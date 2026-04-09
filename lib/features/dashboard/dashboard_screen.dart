@@ -73,6 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Page controller for swipeable wallet cards
   late final PageController _walletPageController;
+  int _walletPageIndex = 0;
 
   // PlanIt data — merged from all loaded wallets, keyed by walletId
   final Map<String, List<ReminderModel>>    _remindersMap    = {};
@@ -780,21 +781,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const base = 168.0;
                       if (txToday.isEmpty) return base;
                       final rows = txToday.take(3).length;
-                      return base + rows * 47.0 + (txToday.length > 3 ? 22.0 : 0.0);
+                      return base + rows * 55.0 + (txToday.length > 3 ? 22.0 : 0.0);
                     }
 
-                    final height = allCards
-                        .map((w) => cardHeight(w.id))
-                        .fold<double>(0, (a, b) => a > b ? a : b);
+                    final currentIdx = _walletPageIndex.clamp(0, allCards.length - 1);
+                    final height = cardHeight(allCards[currentIdx].id);
 
                     return Column(
                       children: [
-                        SizedBox(
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
                           height: height.clamp(168.0, 380.0),
                           child: PageView.builder(
                             controller: _walletPageController,
                             itemCount: allCards.length,
                             onPageChanged: (idx) {
+                              setState(() => _walletPageIndex = idx);
                               AppStateScope.read(context)
                                   .switchWallet(allCards[idx].id);
                             },
@@ -2681,6 +2684,7 @@ class _MoneyPulseCard extends StatelessWidget {
         .fold(0.0, (s, t) => s + t.amount);
 
     return Container(
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
