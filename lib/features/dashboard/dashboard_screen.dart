@@ -1092,6 +1092,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _FabAction(
+                      icon: Icons.bolt_rounded,
+                      label: 'Quick Add',
+                      color: AppColors.primary,
+                      onTap: () {
+                        setState(() => _fabExpanded = false);
+                        _showQuickAdd(context, isDark, surfBg, null);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _FabAction(
                       icon: Icons.auto_awesome_rounded,
                       label: 'AI Parse',
                       color: Colors.deepPurple,
@@ -1132,16 +1142,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           },
                           onOpenFlow: () => _showQuickAdd(context, isDark, surfBg, null),
                         );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FabAction(
-                      icon: Icons.bolt_rounded,
-                      label: 'Quick Add',
-                      color: AppColors.primary,
-                      onTap: () {
-                        setState(() => _fabExpanded = false);
-                        _showQuickAdd(context, isDark, surfBg, null);
                       },
                     ),
                     const SizedBox(height: 12),
@@ -3782,34 +3782,29 @@ class _FabAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: null,
+            onPressed: onTap,
+            backgroundColor: color,
+            child: Icon(icon, color: Colors.white, size: 20),
           ),
-          child: Text(
+          const SizedBox(height: 4),
+          Text(
             label,
             style: TextStyle(
               color: color,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               fontFamily: 'Nunito',
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        FloatingActionButton.small(
-          heroTag: null,
-          onPressed: onTap,
-          backgroundColor: color,
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

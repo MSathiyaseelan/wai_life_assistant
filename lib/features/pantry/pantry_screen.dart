@@ -22,6 +22,7 @@ import 'package:wai_life_assistant/features/pantry/flows/pantry_flow_selector.da
 import 'package:wai_life_assistant/features/pantry/flows/PantryIntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -45,6 +46,8 @@ class _PantryScreenState extends State<PantryScreen>
   bool _isListening = false;
   bool _isParsingAI = false;
   final _chatBarKey = GlobalKey<ChatInputBarState>();
+  final SpeechToText _speech = SpeechToText();
+  String _speechLocale = 'en-IN';
 
   // Meal Map — loaded from DB
   List<MealEntry> _meals = [];
@@ -413,48 +416,51 @@ class _PantryScreenState extends State<PantryScreen>
   @override
   void dispose() {
     _sectionTab.dispose();
+    _speech.stop();
     super.dispose();
   }
 
   // ── Wallet switch ──────────────────────────────────────────────────────────
   void _switchWallet(String id) => widget.onWalletChange(id);
 
-  // ── Mic toggle — simulates STT, fills bar with transcribed text ────────────
-  void _onMicTap() {
+  // ── Mic toggle ────────────────────────────────────────────────────────────
+  Future<void> _onMicTap() async {
     HapticFeedback.mediumImpact();
     if (_isListening) {
+      await _speech.stop();
       setState(() => _isListening = false);
-    } else {
-      setState(() => _isListening = true);
-      // Simulate STT — replace with speech_to_text plugin callback in production
-      Future.delayed(const Duration(seconds: 3), () {
-        if (!mounted || !_isListening) return;
-        setState(() => _isListening = false);
-        // Sample phrases that STT would return, context-aware per active tab
-        final samples = switch (_sectionTab.index) {
-          0 => [
-            'had idli sambar for breakfast today',
-            'paneer butter masala for dinner',
-            'add dal rice lunch tomorrow',
-            'masala chai evening snack',
-          ],
-          1 => [
-            'save butter chicken recipe',
-            'add pasta recipe',
-            'recipe for rasam',
-          ],
-          _ => [
-            'add milk 2 litre',
-            'buy onions 1 kg',
-            'need 3 eggs',
-            'add tomatoes vegetables',
-            'get bread 1 packet',
-          ],
-        };
-        final sample = (samples..shuffle()).first;
-        _chatBarKey.currentState?.setTextFromSpeech(sample);
-      });
+      return;
     }
+    final available = await _speech.initialize(
+      onStatus: (s) {
+        if ((s == 'done' || s == 'notListening') && mounted) {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (e) {
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+    if (!available || !mounted) return;
+    setState(() => _isListening = true);
+    await _speech.listen(
+      localeId: _speechLocale,
+      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+      ),
+      onResult: (result) {
+        if (!mounted) return;
+        if (result.finalResult) {
+          setState(() => _isListening = false);
+          if (result.recognizedWords.trim().isNotEmpty) {
+            _chatBarKey.currentState?.setTextFromSpeech(result.recognizedWords);
+          }
+        }
+      },
+    );
   }
 
   // ── NLP submit — call edge function, fall back to local parser ──────────────
