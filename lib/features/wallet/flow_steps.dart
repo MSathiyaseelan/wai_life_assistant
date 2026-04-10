@@ -1056,56 +1056,30 @@ class _TitleStepState extends State<TitleStep> {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => widget.onConfirm(''),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    side: BorderSide(
-                      color: isDark ? AppColors.subDark : AppColors.subLight,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    'Skip',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                      color: subColor,
-                    ),
-                  ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _hasText ? () => widget.onConfirm(_ctrl.text.trim()) : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.color,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: widget.color.withValues(alpha: 0.3),
+                elevation: 3,
+                shadowColor: widget.color.withValues(alpha: 0.4),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => widget.onConfirm(_ctrl.text.trim()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.color,
-                    foregroundColor: Colors.white,
-                    elevation: 3,
-                    shadowColor: widget.color.withValues(alpha: 0.4),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    _hasText ? 'Add Title →' : 'No Title →',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      fontSize: 14,
-                    ),
-                  ),
+              child: const Text(
+                'Next →',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                  fontSize: 14,
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),

@@ -70,22 +70,22 @@ extension FlowTypeExt on FlowType {
       case FlowType.expense:
         return [
           FlowStep.amount,
-          FlowStep.category,
+          FlowStep.title,
           FlowStep.owner,
           FlowStep.paymode,
           FlowStep.date,
-          FlowStep.title,
+          FlowStep.category,
           FlowStep.note,
           FlowStep.confirm,
         ];
       case FlowType.income:
         return [
           FlowStep.amount,
-          FlowStep.category,
+          FlowStep.title,
           FlowStep.owner,
           FlowStep.paymode,
           FlowStep.date,
-          FlowStep.title,
+          FlowStep.category,
           FlowStep.note,
           FlowStep.confirm,
         ];
@@ -228,7 +228,14 @@ extension FlowStepExt on FlowStep {
       case FlowStep.dueDate:
         return 'Set a due date?';
       case FlowStep.title:
-        return 'Give it a short title? (optional)';
+        switch (flow) {
+          case FlowType.expense:
+            return 'What is this spend for?';
+          case FlowType.income:
+            return 'What is this income from?';
+          default:
+            return 'Give it a short title? (optional)';
+        }
       case FlowStep.note:
         return 'Add a note? (optional)';
       case FlowStep.confirm:
@@ -242,7 +249,7 @@ extension FlowStepExt on FlowStep {
 class FlowData {
   double? amount;
   String? category;
-  String? owner;           // display label for chat bubble
+  String? owner; // display label for chat bubble
   String? selectedWalletId; // actual wallet ID chosen in the owner step
   String? paymode; // 'Cash' | 'Online'
   String? date;
@@ -274,14 +281,16 @@ class FlowData {
     if (paymode == 'Cash') pm = PayMode.cash;
     if (paymode == 'Online') pm = PayMode.online;
 
-    final cat = category ?? switch (flowType) {
-      FlowType.income    => 'Income',
-      FlowType.lend      => 'Lend',
-      FlowType.borrow    => 'Borrow',
-      FlowType.request   => 'Request',
-      FlowType.returned  => 'Returned',
-      _                  => 'Expense',
-    };
+    final cat =
+        category ??
+        switch (flowType) {
+          FlowType.income => 'Income',
+          FlowType.lend => 'Lend',
+          FlowType.borrow => 'Borrow',
+          FlowType.request => 'Request',
+          FlowType.returned => 'Returned',
+          _ => 'Expense',
+        };
 
     return TxModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -311,7 +320,12 @@ class FlowData {
     if (splitType != null) rows.add(MapEntry('Split type', splitType!));
     if (person != null) rows.add(MapEntry('Person', person!));
     if (pickedDate != null) {
-      rows.add(MapEntry('Date', '${pickedDate!.day}/${pickedDate!.month}/${pickedDate!.year}'));
+      rows.add(
+        MapEntry(
+          'Date',
+          '${pickedDate!.day}/${pickedDate!.month}/${pickedDate!.year}',
+        ),
+      );
     } else if (date != null) {
       rows.add(MapEntry('Date', date!));
     }
