@@ -75,11 +75,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late final PageController _walletPageController;
 
   // PlanIt data — merged from all loaded wallets, keyed by walletId
-  final Map<String, List<ReminderModel>>    _remindersMap    = {};
-  final Map<String, List<TaskModel>>        _tasksMap        = {};
-  final Map<String, List<SpecialDayModel>>  _specialDaysMap  = {};
-  final Map<String, List<WishModel>>        _wishesMap       = {};
-  final Map<String, List<FunctionModel>>    _functionsMap    = {};
+  final Map<String, List<ReminderModel>> _remindersMap = {};
+  final Map<String, List<TaskModel>> _tasksMap = {};
+  final Map<String, List<SpecialDayModel>> _specialDaysMap = {};
+  final Map<String, List<WishModel>> _wishesMap = {};
+  final Map<String, List<FunctionModel>> _functionsMap = {};
   final Set<String> _loadedPlanItWalletIds = {};
 
   List<TxModel> _todayTx(String wid) => _transactions
@@ -99,7 +99,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _walletPageController = PageController();
-    _platePageController  = PageController();
+    _platePageController = PageController();
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     PantryService.mealChangeSignal.addListener(_onMealChange);
@@ -119,9 +119,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           final name = (profile['name'] as String?)?.trim() ?? '';
           if (name.isNotEmpty) _userName = name;
-          _userPhone    = (profile['phone']     as String?) ?? '';
-          _userDob      = (profile['dob']       as String?) ?? '';
-          _userPlan     = (profile['plan']      as String?) ?? 'Free';
+          _userPhone = (profile['phone'] as String?) ?? '';
+          _userDob = (profile['dob'] as String?) ?? '';
+          _userPlan = (profile['plan'] as String?) ?? 'Free';
           _userPhotoUrl = (profile['photo_url'] as String?) ?? '';
         });
         // Sync default scope preferences from DB into local AppPrefs.
@@ -150,8 +150,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final d = DateTime.parse(iso);
       const months = [
-        'Jan','Feb','Mar','Apr','May','Jun',
-        'Jul','Aug','Sep','Oct','Nov','Dec',
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${d.day} ${months[d.month - 1]} ${d.year}';
     } catch (_) {
@@ -187,7 +197,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final w in wallets) {
       if (w.id.isEmpty || _loadedWalletIds.contains(w.id)) continue;
       _loadedWalletIds.add(w.id);
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadTransactions(w.id));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _loadTransactions(w.id),
+      );
     }
   }
 
@@ -195,14 +207,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final w in wallets) {
       if (w.id.isEmpty || _loadedPlanItWalletIds.contains(w.id)) continue;
       _loadedPlanItWalletIds.add(w.id);
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadPlanItData(w.id));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _loadPlanItData(w.id),
+      );
     }
   }
 
   Future<void> _refresh() async {
-    final txToReload      = List<String>.from(_loadedWalletIds);
-    final mealToReload    = List<String>.from(_loadedMealWalletIds);
-    final planItToReload  = List<String>.from(_loadedPlanItWalletIds);
+    final txToReload = List<String>.from(_loadedWalletIds);
+    final mealToReload = List<String>.from(_loadedMealWalletIds);
+    final planItToReload = List<String>.from(_loadedPlanItWalletIds);
     _loadedWalletIds.clear();
     _loadedMealWalletIds.clear();
     _loadedPlanItWalletIds.clear();
@@ -258,6 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _loadTodayMeals(wid);
     }
   }
+
   void _onTxChange() {
     for (final wid in List<String>.from(_loadedWalletIds)) {
       _loadTransactions(wid);
@@ -279,6 +294,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (_) => NotificationSheet(isDark: isDark),
     ).then((_) => _loadUnreadCount());
   }
+
   void _onSplitGroupsChanged() {
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -292,8 +308,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final i = current.indexWhere((g) => g.id == updated.id);
     if (i != -1) current[i] = updated;
     // Remove if no longer active
-    pinnedSplitGroupsNotifier.value =
-        current.where((g) => !g.isFullySettled).toList();
+    pinnedSplitGroupsNotifier.value = current
+        .where((g) => !g.isFullySettled)
+        .toList();
   }
 
   @override
@@ -322,11 +339,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _remindersMap[walletId]   = (results[0]).map(ReminderModel.fromRow).toList();
-        _tasksMap[walletId]       = (results[1]).map(TaskModel.fromRow).toList();
-        _specialDaysMap[walletId] = (results[2]).map(SpecialDayModel.fromRow).toList();
-        _wishesMap[walletId]      = (results[3]).map(WishModel.fromRow).toList();
-        _functionsMap[walletId]   = (results[4]).map(FunctionModel.fromJson).toList();
+        _remindersMap[walletId] = (results[0])
+            .map(ReminderModel.fromRow)
+            .toList();
+        _tasksMap[walletId] = (results[1]).map(TaskModel.fromRow).toList();
+        _specialDaysMap[walletId] = (results[2])
+            .map(SpecialDayModel.fromRow)
+            .toList();
+        _wishesMap[walletId] = (results[3]).map(WishModel.fromRow).toList();
+        _functionsMap[walletId] = (results[4])
+            .map(FunctionModel.fromJson)
+            .toList();
       });
     } catch (e) {
       debugPrint('[Dashboard] _loadPlanItData error: $e');
@@ -337,7 +360,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (final w in wallets) {
       if (w.id.isEmpty || _loadedMealWalletIds.contains(w.id)) continue;
       _loadedMealWalletIds.add(w.id);
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadTodayMeals(w.id));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _loadTodayMeals(w.id),
+      );
     }
   }
 
@@ -402,7 +427,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (idx >= 0) {
               final list = List<MealReaction>.from(_todayMeals[idx].reactions);
               final ri = list.lastIndexWhere(
-                (r) => r.id == null &&
+                (r) =>
+                    r.id == null &&
                     r.memberName == reaction.memberName &&
                     r.reactionEmoji == reaction.reactionEmoji,
               );
@@ -416,14 +442,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       onReactionUpdated: (reactionIndex, updated) async {
         final mealIdx = _todayMeals.indexWhere((e) => e.id == m.id);
-        final dbId = mealIdx >= 0 && reactionIndex < _todayMeals[mealIdx].reactions.length
+        final dbId =
+            mealIdx >= 0 &&
+                reactionIndex < _todayMeals[mealIdx].reactions.length
             ? _todayMeals[mealIdx].reactions[reactionIndex].id
             : null;
         setState(() {
           if (mealIdx >= 0) {
-            final list = List<MealReaction>.from(_todayMeals[mealIdx].reactions);
+            final list = List<MealReaction>.from(
+              _todayMeals[mealIdx].reactions,
+            );
             list[reactionIndex] = updated.copyWith(id: dbId ?? updated.id);
-            _todayMeals[mealIdx] = _todayMeals[mealIdx].copyWith(reactions: list);
+            _todayMeals[mealIdx] = _todayMeals[mealIdx].copyWith(
+              reactions: list,
+            );
           }
         });
         if (dbId == null) return;
@@ -437,14 +469,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       onReactionDeleted: (reactionIndex) async {
         final mealIdx = _todayMeals.indexWhere((e) => e.id == m.id);
-        final dbId = mealIdx >= 0 && reactionIndex < _todayMeals[mealIdx].reactions.length
+        final dbId =
+            mealIdx >= 0 &&
+                reactionIndex < _todayMeals[mealIdx].reactions.length
             ? _todayMeals[mealIdx].reactions[reactionIndex].id
             : null;
         setState(() {
           if (mealIdx >= 0) {
             final list = List<MealReaction>.from(_todayMeals[mealIdx].reactions)
               ..removeAt(reactionIndex);
-            _todayMeals[mealIdx] = _todayMeals[mealIdx].copyWith(reactions: list);
+            _todayMeals[mealIdx] = _todayMeals[mealIdx].copyWith(
+              reactions: list,
+            );
           }
         });
         if (dbId == null) return;
@@ -499,15 +535,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final due = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
         final daysLeft = due.difference(today).inDays;
         if (daysLeft >= 0 && daysLeft <= 7) {
-          list.add(_PlanNudge(
-            emoji: r.emoji,
-            title: r.title,
-            subtitle: daysLeft == 0 ? 'Due today' : 'In ${daysLeft}d',
-            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-            color: r.priority.color,
-            tag: 'Alert',
-            walletLabel: wLabel,
-          ));
+          list.add(
+            _PlanNudge(
+              emoji: r.emoji,
+              title: r.title,
+              subtitle: daysLeft == 0 ? 'Due today' : 'In ${daysLeft}d',
+              urgency: daysLeft == 0
+                  ? 3
+                  : daysLeft <= 2
+                  ? 2
+                  : 1,
+              color: r.priority.color,
+              tag: 'Alert',
+              walletLabel: wLabel,
+            ),
+          );
         }
       }
     }
@@ -519,15 +561,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final due = DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day);
         final daysLeft = due.difference(today).inDays;
         if (daysLeft >= 0 && daysLeft <= 7) {
-          list.add(_PlanNudge(
-            emoji: t.emoji,
-            title: t.title,
-            subtitle: daysLeft == 0 ? 'Due today' : 'Due in ${daysLeft}d',
-            urgency: daysLeft == 0 ? 3 : t.priority.index >= 2 ? 2 : 1,
-            color: t.priority.color,
-            tag: 'Task',
-            walletLabel: wLabel,
-          ));
+          list.add(
+            _PlanNudge(
+              emoji: t.emoji,
+              title: t.title,
+              subtitle: daysLeft == 0 ? 'Due today' : 'Due in ${daysLeft}d',
+              urgency: daysLeft == 0
+                  ? 3
+                  : t.priority.index >= 2
+                  ? 2
+                  : 1,
+              color: t.priority.color,
+              tag: 'Task',
+              walletLabel: wLabel,
+            ),
+          );
         }
       }
     }
@@ -540,15 +588,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
             : DateTime(sd.date.year, sd.date.month, sd.date.day);
         final daysLeft = projected.difference(today).inDays;
         if (daysLeft >= 0 && daysLeft <= 7) {
-          list.add(_PlanNudge(
-            emoji: sd.emoji,
-            title: sd.title,
-            subtitle: daysLeft == 0 ? '🎉 Today!' : 'In ${daysLeft}d',
-            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-            color: sd.type.color,
-            tag: 'Special Day',
-            walletLabel: wLabel,
-          ));
+          list.add(
+            _PlanNudge(
+              emoji: sd.emoji,
+              title: sd.title,
+              subtitle: daysLeft == 0 ? '🎉 Today!' : 'In ${daysLeft}d',
+              urgency: daysLeft == 0
+                  ? 3
+                  : daysLeft <= 2
+                  ? 2
+                  : 1,
+              color: sd.type.color,
+              tag: 'Special Day',
+              walletLabel: wLabel,
+            ),
+          );
         }
       }
     }
@@ -557,18 +611,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final wLabel = _walletLabel(entry.key);
       for (final w in entry.value) {
         if (w.purchased || w.targetDate == null) continue;
-        final due = DateTime(w.targetDate!.year, w.targetDate!.month, w.targetDate!.day);
+        final due = DateTime(
+          w.targetDate!.year,
+          w.targetDate!.month,
+          w.targetDate!.day,
+        );
         final daysLeft = due.difference(today).inDays;
         if (daysLeft >= 0 && daysLeft <= 7) {
-          list.add(_PlanNudge(
-            emoji: w.emoji,
-            title: w.title,
-            subtitle: daysLeft == 0 ? 'Target today' : 'Target in ${daysLeft}d',
-            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-            color: w.priority.color,
-            tag: 'Wish',
-            walletLabel: wLabel,
-          ));
+          list.add(
+            _PlanNudge(
+              emoji: w.emoji,
+              title: w.title,
+              subtitle: daysLeft == 0
+                  ? 'Target today'
+                  : 'Target in ${daysLeft}d',
+              urgency: daysLeft == 0
+                  ? 3
+                  : daysLeft <= 2
+                  ? 2
+                  : 1,
+              color: w.priority.color,
+              tag: 'Wish',
+              walletLabel: wLabel,
+            ),
+          );
         }
       }
     }
@@ -577,18 +643,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final wLabel = _walletLabel(entry.key);
       for (final f in entry.value) {
         if (f.functionDate == null) continue;
-        final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
+        final fDate = DateTime(
+          f.functionDate!.year,
+          f.functionDate!.month,
+          f.functionDate!.day,
+        );
         final daysLeft = fDate.difference(today).inDays;
         if (daysLeft >= 0 && daysLeft <= 7) {
-          list.add(_PlanNudge(
-            emoji: '🎉',
-            title: f.title,
-            subtitle: daysLeft == 0 ? 'Today!' : 'In ${daysLeft}d',
-            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
-            color: AppColors.primary,
-            tag: 'Function',
-            walletLabel: wLabel,
-          ));
+          list.add(
+            _PlanNudge(
+              emoji: '🎉',
+              title: f.title,
+              subtitle: daysLeft == 0 ? 'Today!' : 'In ${daysLeft}d',
+              urgency: daysLeft == 0
+                  ? 3
+                  : daysLeft <= 2
+                  ? 2
+                  : 1,
+              color: AppColors.primary,
+              tag: 'Function',
+              walletLabel: wLabel,
+            ),
+          );
         }
       }
     }
@@ -605,7 +681,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final allFunctions = _functionsMap.values.expand((l) => l);
     return allFunctions.where((f) {
       if (f.functionDate == null) return false;
-      final fDate = DateTime(f.functionDate!.year, f.functionDate!.month, f.functionDate!.day);
+      final fDate = DateTime(
+        f.functionDate!.year,
+        f.functionDate!.month,
+        f.functionDate!.day,
+      );
       return !fDate.isBefore(today) && !fDate.isAfter(end);
     }).toList();
   }
@@ -624,7 +704,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final now = DateTime.now();
     return d.year == now.year && d.month == now.month && d.day == now.day;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -645,54 +724,109 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: bg,
       floatingActionButton: _buildFab(context, isDark, surfBg, walletId),
       body: GestureDetector(
-        onTap: () { if (_fabExpanded) setState(() => _fabExpanded = false); },
+        onTap: () {
+          if (_fabExpanded) setState(() => _fabExpanded = false);
+        },
         child: RefreshIndicator(
-        onRefresh: _refresh,
-        child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          // ── Sliver App Bar ──────────────────────────────────────────────
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: cardBg,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            toolbarHeight: 64,
-            title: Row(
-              children: [
-                // Greeting
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _greeting(),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: sub,
-                          fontWeight: FontWeight.w600,
-                        ),
+          onRefresh: _refresh,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // ── Sliver App Bar ──────────────────────────────────────────────
+              SliverAppBar(
+                pinned: true,
+                backgroundColor: cardBg,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                toolbarHeight: 64,
+                title: Row(
+                  children: [
+                    // Greeting
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _greeting(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '$_userName 👋',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w900,
+                              color: tc,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        '$_userName 👋',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w900,
-                          color: tc,
-                        ),
+                    ),
+                    // Notifications
+                    GestureDetector(
+                      onTap: () => _openNotifications(isDark),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: surfBg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _unreadNotifCount > 0
+                                  ? Icons.notifications_rounded
+                                  : Icons.notifications_outlined,
+                              size: 20,
+                              color: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
+                            ),
+                          ),
+                          if (_unreadNotifCount > 0)
+                            Positioned(
+                              top: -2,
+                              right: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.expense,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  _unreadNotifCount > 99
+                                      ? '99+'
+                                      : '$_unreadNotifCount',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontFamily: 'Nunito',
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    height: 1,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                // Notifications
-                GestureDetector(
-                  onTap: () => _openNotifications(isDark),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
+                    ),
+                    const SizedBox(width: 8),
+                    // Settings
+                    GestureDetector(
+                      onTap: () => _showSettings(context, isDark),
+                      child: Container(
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
@@ -700,389 +834,392 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          _unreadNotifCount > 0
-                              ? Icons.notifications_rounded
-                              : Icons.notifications_outlined,
-                          size: 20,
-                          color: isDark ? AppColors.subDark : AppColors.subLight,
+                          Icons.tune_rounded,
+                          size: 18,
+                          color: isDark
+                              ? AppColors.subDark
+                              : AppColors.subLight,
                         ),
                       ),
-                      if (_unreadNotifCount > 0)
-                        Positioned(
-                          top: -2,
-                          right: -2,
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: const BoxDecoration(
-                              color: AppColors.expense,
-                              shape: BoxShape.circle,
-                            ),
-                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                            child: Text(
-                              _unreadNotifCount > 99 ? '99+' : '$_unreadNotifCount',
-                              style: const TextStyle(
-                                fontSize: 9,
-                                fontFamily: 'Nunito',
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                height: 1,
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Body Content ────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ①  TODAY ───────────────────────────────────────────────
+                      _SectionHeader(
+                        emoji: '💳',
+                        title: 'Today',
+                        sub: sub,
+                        action: 'Wallet →',
+                        onAction: () {},
+                      ),
+                      const SizedBox(height: 10),
+                      // Swipeable wallet summary cards (personal + family)
+                      Builder(
+                        builder: (ctx) {
+                          final personalW = appState.wallets.firstWhere(
+                            (w) => w.isPersonal,
+                            orElse: () => personalWallet,
+                          );
+                          final familyWs = appState.wallets
+                              .where((w) => !w.isPersonal)
+                              .toList();
+                          final allCards = [personalW, ...familyWs];
+
+                          const height = 168.0;
+
+                          return Column(
+                            children: [
+                              SizedBox(
+                                height: height,
+                                child: PageView.builder(
+                                  controller: _walletPageController,
+                                  itemCount: allCards.length,
+                                  onPageChanged: (idx) {
+                                    AppStateScope.read(
+                                      context,
+                                    ).switchWallet(allCards[idx].id);
+                                  },
+                                  itemBuilder: (ctx, idx) {
+                                    final w = allCards[idx];
+                                    final label = w.isPersonal
+                                        ? 'Personal'
+                                        : (appState.families
+                                                  .where(
+                                                    (f) => f.walletId == w.id,
+                                                  )
+                                                  .firstOrNull
+                                                  ?.name ??
+                                              w.name);
+                                    final txToday = _todayTx(w.id);
+                                    final bal = txToday.fold<double>(
+                                      0.0,
+                                      (s, t) => t.type.isPositive
+                                          ? s + t.amount
+                                          : (t.type == TxType.expense ||
+                                                t.type == TxType.lend ||
+                                                t.type == TxType.split)
+                                          ? s - t.amount
+                                          : s,
+                                    );
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        right: idx < allCards.length - 1
+                                            ? 8.0
+                                            : 0,
+                                      ),
+                                      child: _MoneyPulseCard(
+                                        label: label,
+                                        wallet: w,
+                                        todayTx: txToday,
+                                        balance: bal,
+                                        hidden: _balanceHidden,
+                                        onToggleHide: () => setState(
+                                          () =>
+                                              _balanceHidden = !_balanceHidden,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
-                              textAlign: TextAlign.center,
+                              if (allCards.length > 1) ...[
+                                const SizedBox(height: 8),
+                                AnimatedBuilder(
+                                  animation: _walletPageController,
+                                  builder: (ctx, _) {
+                                    final page =
+                                        _walletPageController.hasClients
+                                        ? (_walletPageController.page ?? 0)
+                                              .round()
+                                        : 0;
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: List.generate(allCards.length, (
+                                        i,
+                                      ) {
+                                        final active = page == i;
+                                        return AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 3,
+                                          ),
+                                          width: active ? 16 : 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: active
+                                                ? AppColors.primary
+                                                : sub.withValues(alpha: 0.3),
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+
+                      // ①b  SPLIT ACTIVITY (if any active splits) ─────────────
+                      if (_activeSplits(walletId).isNotEmpty) ...[
+                        _SectionHeader(
+                          emoji: '⚖️',
+                          title: 'Split Activity',
+                          sub: sub,
+                          action: 'View all →',
+                          onAction: () {},
+                        ),
+                        const SizedBox(height: 8),
+                        ..._activeSplits(walletId).map(
+                          (s) => _SplitNudgeCard(
+                            tx: s,
+                            isDark: isDark,
+                            onAddMyShare: () =>
+                                _showQuickAdd(context, isDark, surfBg, s),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+
+                      // ①c  PINNED SPLIT GROUPS ──────────────────────────────────
+                      if (_pinnedGroups.isNotEmpty) ...[
+                        _SectionHeader(
+                          emoji: '📌',
+                          title: 'Active Splits',
+                          sub: sub,
+                          action: 'Wallet →',
+                          onAction: () {},
+                        ),
+                        const SizedBox(height: 8),
+                        ..._pinnedGroups.map(
+                          (g) => _PinnedSplitCard(
+                            group: g,
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            onAddExpense: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SplitGroupDetailScreen(
+                                  group: g,
+                                  onGroupUpdated: _onPinnedGroupUpdated,
+                                  autoOpenAddExpense: true,
+                                ),
+                              ),
+                            ),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => SplitGroupDetailScreen(
+                                  group: g,
+                                  onGroupUpdated: _onPinnedGroupUpdated,
+                                ),
+                              ),
                             ),
                           ),
                         ),
+                        const SizedBox(height: 6),
+                      ],
+
+                      // ②  TODAY'S PLATE ────────────────────────────────────────
+                      _SectionHeader(
+                        emoji: '🍽️',
+                        title: "Today's Plate",
+                        sub: sub,
+                        action: 'Pantry →',
+                        onAction: () {},
+                      ),
+                      const SizedBox(height: 10),
+                      Builder(
+                        builder: (ctx) {
+                          final personalW = appState.wallets.firstWhere(
+                            (w) => w.isPersonal,
+                            orElse: () => personalWallet,
+                          );
+                          final familyWs = appState.wallets
+                              .where((w) => !w.isPersonal)
+                              .toList();
+                          final allCards = [personalW, ...familyWs];
+
+                          // Height: header(54) + content padding(28) + icon+label+dash col(58) + per meal(46)
+                          double plateHeight(String wid) {
+                            final meals = _todayMeals
+                                .where((e) => e.walletId == wid)
+                                .toList();
+                            final byTime = <Object, int>{};
+                            for (final m in meals) {
+                              byTime[m.mealTime] =
+                                  (byTime[m.mealTime] ?? 0) + 1;
+                            }
+                            final maxCol = byTime.values.fold(
+                              0,
+                              (a, b) => a > b ? a : b,
+                            );
+                            return 54.0 + 28.0 + 58.0 + maxCol * 46.0 + 32.0;
+                          }
+
+                          final plateH = allCards
+                              .map((w) => plateHeight(w.id))
+                              .fold<double>(0, (a, b) => a > b ? a : b)
+                              .clamp(156.0, 500.0);
+
+                          return Column(
+                            children: [
+                              SizedBox(
+                                height: plateH,
+                                child: PageView.builder(
+                                  controller: _platePageController,
+                                  itemCount: allCards.length,
+                                  physics: allCards.length > 1
+                                      ? const PageScrollPhysics()
+                                      : const NeverScrollableScrollPhysics(),
+                                  itemBuilder: (ctx, idx) {
+                                    final w = allCards[idx];
+                                    final label = w.isPersonal
+                                        ? 'Personal'
+                                        : (appState.families
+                                                  .where(
+                                                    (f) => f.walletId == w.id,
+                                                  )
+                                                  .firstOrNull
+                                                  ?.name ??
+                                              w.name);
+                                    final meals = _todayMeals
+                                        .where((e) => e.walletId == w.id)
+                                        .toList();
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        right: idx < allCards.length - 1
+                                            ? 8.0
+                                            : 0,
+                                      ),
+                                      child: _TodaysPlateCard(
+                                        label: label,
+                                        meals: meals,
+                                        isDark: isDark,
+                                        cardBg: cardBg,
+                                        onMealTap: _showMealDetail,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              if (allCards.length > 1) ...[
+                                const SizedBox(height: 8),
+                                AnimatedBuilder(
+                                  animation: _platePageController,
+                                  builder: (ctx, _) {
+                                    final page = _platePageController.hasClients
+                                        ? (_platePageController.page ?? 0)
+                                              .round()
+                                        : 0;
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: List.generate(allCards.length, (
+                                        i,
+                                      ) {
+                                        final active = page == i;
+                                        return AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 3,
+                                          ),
+                                          width: active ? 16 : 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            color: active
+                                                ? const Color(0xFF4CAF50)
+                                                : sub.withValues(alpha: 0.3),
+                                            borderRadius: BorderRadius.circular(
+                                              3,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ③  PLAN-IT NUDGES ───────────────────────────────────────
+                      if (_nudges.isNotEmpty) ...[
+                        _SectionHeader(
+                          emoji: '📋',
+                          title: 'Needs Attention',
+                          sub: sub,
+                          action: 'PlanIt →',
+                          onAction: () {},
+                        ),
+                        const SizedBox(height: 8),
+                        _NudgesCard(
+                          nudges: _nudges,
+                          isDark: isDark,
+                          cardBg: cardBg,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // ④  UPCOMING FUNCTIONS ───────────────────────────────────
+                      if (_upcomingFunctions.isNotEmpty ||
+                          _upcomingAttending.isNotEmpty) ...[
+                        _SectionHeader(
+                          emoji: '🎊',
+                          title: 'Upcoming Functions',
+                          sub: sub,
+                          action: 'Functions →',
+                          onAction: () {},
+                        ),
+                        const SizedBox(height: 8),
+                        _UpcomingFunctionsCard(
+                          myFunctions: _upcomingFunctions,
+                          attending: _upcomingAttending,
+                          isDark: isDark,
+                          cardBg: cardBg,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Settings
-                GestureDetector(
-                  onTap: () => _showSettings(context, isDark),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: surfBg,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.tune_rounded,
-                      size: 18,
-                      color: isDark ? AppColors.subDark : AppColors.subLight,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Body Content ────────────────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ①  TODAY ───────────────────────────────────────────────
-                  _SectionHeader(
-                    emoji: '💳',
-                    title: 'Today',
-                    sub: sub,
-                    action: 'Wallet →',
-                    onAction: () {},
-                  ),
-                  const SizedBox(height: 10),
-                  // Swipeable wallet summary cards (personal + family)
-                  Builder(builder: (ctx) {
-                    final personalW = appState.wallets.firstWhere(
-                        (w) => w.isPersonal, orElse: () => personalWallet);
-                    final familyWs = appState.wallets
-                        .where((w) => !w.isPersonal)
-                        .toList();
-                    final allCards = [personalW, ...familyWs];
-
-                    const height = 168.0;
-
-                    return Column(
-                      children: [
-                        SizedBox(
-                          height: height,
-                          child: PageView.builder(
-                            controller: _walletPageController,
-                            itemCount: allCards.length,
-                            onPageChanged: (idx) {
-                              AppStateScope.read(context)
-                                  .switchWallet(allCards[idx].id);
-                            },
-                            itemBuilder: (ctx, idx) {
-                              final w = allCards[idx];
-                              final label = w.isPersonal
-                                  ? 'Personal'
-                                  : (appState.families
-                                          .where((f) => f.walletId == w.id)
-                                          .firstOrNull
-                                          ?.name ??
-                                      w.name);
-                              final txToday = _todayTx(w.id);
-                              final bal = txToday.fold<double>(0.0, (s, t) =>
-                                  t.type.isPositive
-                                      ? s + t.amount
-                                      : (t.type == TxType.expense ||
-                                              t.type == TxType.lend ||
-                                              t.type == TxType.split)
-                                          ? s - t.amount
-                                          : s);
-                              return Padding(
-                                padding: EdgeInsets.only(
-                                    right: idx < allCards.length - 1 ? 8.0 : 0),
-                                child: _MoneyPulseCard(
-                                  label: label,
-                                  wallet: w,
-                                  todayTx: txToday,
-                                  balance: bal,
-                                  hidden: _balanceHidden,
-                                  onToggleHide: () => setState(
-                                      () => _balanceHidden = !_balanceHidden),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        if (allCards.length > 1) ...[
-                          const SizedBox(height: 8),
-                          AnimatedBuilder(
-                            animation: _walletPageController,
-                            builder: (ctx, _) {
-                              final page = _walletPageController.hasClients
-                                  ? (_walletPageController.page ?? 0).round()
-                                  : 0;
-                              return Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(allCards.length, (i) {
-                                  final active = page == i;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 3),
-                                    width: active ? 16 : 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: active
-                                          ? AppColors.primary
-                                          : sub.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  );
-                                }),
-                              );
-                            },
-                          ),
-                        ],
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: 10),
-
-                  // ①b  SPLIT ACTIVITY (if any active splits) ─────────────
-                  if (_activeSplits(walletId).isNotEmpty) ...[
-                    _SectionHeader(
-                      emoji: '⚖️',
-                      title: 'Split Activity',
-                      sub: sub,
-                      action: 'View all →',
-                      onAction: () {},
-                    ),
-                    const SizedBox(height: 8),
-                    ..._activeSplits(walletId).map(
-                      (s) => _SplitNudgeCard(
-                        tx: s,
-                        isDark: isDark,
-                        onAddMyShare: () =>
-                            _showQuickAdd(context, isDark, surfBg, s),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-
-                  // ①c  PINNED SPLIT GROUPS ──────────────────────────────────
-                  if (_pinnedGroups.isNotEmpty) ...[
-                    _SectionHeader(
-                      emoji: '📌',
-                      title: 'Active Splits',
-                      sub: sub,
-                      action: 'Wallet →',
-                      onAction: () {},
-                    ),
-                    const SizedBox(height: 8),
-                    ..._pinnedGroups.map(
-                      (g) => _PinnedSplitCard(
-                        group: g,
-                        isDark: isDark,
-                        cardBg: cardBg,
-                        onAddExpense: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SplitGroupDetailScreen(
-                              group: g,
-                              onGroupUpdated: _onPinnedGroupUpdated,
-                              autoOpenAddExpense: true,
-                            ),
-                          ),
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SplitGroupDetailScreen(
-                              group: g,
-                              onGroupUpdated: _onPinnedGroupUpdated,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-
-                  // ②  TODAY'S PLATE ────────────────────────────────────────
-                  _SectionHeader(
-                    emoji: '🍽️',
-                    title: "Today's Plate",
-                    sub: sub,
-                    action: 'Pantry →',
-                    onAction: () {},
-                  ),
-                  const SizedBox(height: 10),
-                  Builder(builder: (ctx) {
-                    final personalW = appState.wallets.firstWhere(
-                        (w) => w.isPersonal, orElse: () => personalWallet);
-                    final familyWs = appState.wallets
-                        .where((w) => !w.isPersonal)
-                        .toList();
-                    final allCards = [personalW, ...familyWs];
-
-                    // Height: header(54) + content padding(28) + icon+label+dash col(58) + per meal(46)
-                    double plateHeight(String wid) {
-                      final meals = _todayMeals
-                          .where((e) => e.walletId == wid)
-                          .toList();
-                      final byTime = <Object, int>{};
-                      for (final m in meals) {
-                        byTime[m.mealTime] =
-                            (byTime[m.mealTime] ?? 0) + 1;
-                      }
-                      final maxCol =
-                          byTime.values.fold(0, (a, b) => a > b ? a : b);
-                      return 54.0 + 28.0 + 58.0 + maxCol * 46.0 + 16.0;
-                    }
-
-                    final plateH = allCards
-                        .map((w) => plateHeight(w.id))
-                        .fold<double>(0, (a, b) => a > b ? a : b)
-                        .clamp(156.0, 500.0);
-
-                    return Column(
-                      children: [
-                        SizedBox(
-                          height: plateH,
-                          child: PageView.builder(
-                            controller: _platePageController,
-                            itemCount: allCards.length,
-                            physics: allCards.length > 1
-                                ? const PageScrollPhysics()
-                                : const NeverScrollableScrollPhysics(),
-                            itemBuilder: (ctx, idx) {
-                              final w = allCards[idx];
-                              final label = w.isPersonal
-                                  ? 'Personal'
-                                  : (appState.families
-                                          .where((f) => f.walletId == w.id)
-                                          .firstOrNull
-                                          ?.name ??
-                                      w.name);
-                              final meals = _todayMeals
-                                  .where((e) => e.walletId == w.id)
-                                  .toList();
-                              return Padding(
-                                padding: EdgeInsets.only(
-                                    right:
-                                        idx < allCards.length - 1 ? 8.0 : 0),
-                                child: _TodaysPlateCard(
-                                  label: label,
-                                  meals: meals,
-                                  isDark: isDark,
-                                  cardBg: cardBg,
-                                  onMealTap: _showMealDetail,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        if (allCards.length > 1) ...[
-                          const SizedBox(height: 8),
-                          AnimatedBuilder(
-                            animation: _platePageController,
-                            builder: (ctx, _) {
-                              final page = _platePageController.hasClients
-                                  ? (_platePageController.page ?? 0).round()
-                                  : 0;
-                              return Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(allCards.length, (i) {
-                                  final active = page == i;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    margin: const EdgeInsets.symmetric(
-                                        horizontal: 3),
-                                    width: active ? 16 : 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: active
-                                          ? const Color(0xFF4CAF50)
-                                          : sub.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  );
-                                }),
-                              );
-                            },
-                          ),
-                        ],
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: 16),
-
-                  // ③  PLAN-IT NUDGES ───────────────────────────────────────
-                  if (_nudges.isNotEmpty) ...[
-                    _SectionHeader(
-                      emoji: '📋',
-                      title: 'Needs Attention',
-                      sub: sub,
-                      action: 'PlanIt →',
-                      onAction: () {},
-                    ),
-                    const SizedBox(height: 8),
-                    _NudgesCard(
-                      nudges: _nudges,
-                      isDark: isDark,
-                      cardBg: cardBg,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // ④  UPCOMING FUNCTIONS ───────────────────────────────────
-                  if (_upcomingFunctions.isNotEmpty ||
-                      _upcomingAttending.isNotEmpty) ...[
-                    _SectionHeader(
-                      emoji: '🎊',
-                      title: 'Upcoming Functions',
-                      sub: sub,
-                      action: 'Functions →',
-                      onAction: () {},
-                    ),
-                    const SizedBox(height: 8),
-                    _UpcomingFunctionsCard(
-                      myFunctions: _upcomingFunctions,
-                      attending: _upcomingAttending,
-                      isDark: isDark,
-                      cardBg: cardBg,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                ],
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-      ),
+        ),
       ),
     );
   }
 
   // ── FAB ──────────────────────────────────────────────────────────────────────
-  Widget _buildFab(BuildContext context, bool isDark, Color surfBg, String walletId) {
+  Widget _buildFab(
+    BuildContext context,
+    bool isDark,
+    Color surfBg,
+    String walletId,
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -1117,34 +1254,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           onSave: (tx) async {
                             setState(() => _transactions.insert(0, tx));
                             try {
-                              final row = await WalletService.instance.addTransaction(
-                                walletId: tx.walletId,
-                                type: tx.type.name,
-                                amount: tx.amount,
-                                category: tx.category,
-                                payMode: tx.payMode?.name,
-                                title: tx.title,
-                                note: tx.note,
-                                person: tx.person,
-                                persons: tx.persons,
-                                dueDate: tx.dueDate,
-                                date: tx.date,
-                              );
+                              final row = await WalletService.instance
+                                  .addTransaction(
+                                    walletId: tx.walletId,
+                                    type: tx.type.name,
+                                    amount: tx.amount,
+                                    category: tx.category,
+                                    payMode: tx.payMode?.name,
+                                    title: tx.title,
+                                    note: tx.note,
+                                    person: tx.person,
+                                    persons: tx.persons,
+                                    dueDate: tx.dueDate,
+                                    date: tx.date,
+                                  );
                               if (!mounted) return;
                               final saved = TxModel.fromRow(row);
                               setState(() {
-                                final idx = _transactions.indexWhere((t) => t.id == tx.id);
+                                final idx = _transactions.indexWhere(
+                                  (t) => t.id == tx.id,
+                                );
                                 if (idx >= 0) _transactions[idx] = saved;
                               });
                               WalletService.txChangeSignal.value++;
-                              WalletService.instance.ensureCategory(saved.category, saved.type.name);
+                              WalletService.instance.ensureCategory(
+                                saved.category,
+                                saved.type.name,
+                              );
                             } catch (e) {
                               debugPrint('[Dashboard] AI parse save error: $e');
                               if (!mounted) return;
-                              setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+                              setState(
+                                () => _transactions.removeWhere(
+                                  (t) => t.id == tx.id,
+                                ),
+                              );
                             }
                           },
-                          onOpenFlow: () => _showQuickAdd(context, isDark, surfBg, null),
+                          onOpenFlow: () =>
+                              _showQuickAdd(context, isDark, surfBg, null),
                         );
                       },
                     ),
@@ -1177,7 +1325,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ── Wallet Switcher Sheet ───────────────────────────────────────────────────
   // ── Edit existing transaction (tap from dashboard card) ────────────────────
-
 
   // ── Quick Add Transaction ───────────────────────────────────────────────────
   void _showQuickAdd(
@@ -1434,8 +1581,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'Title (optional)',
+                      hintText: 'Title',
                       prefixIcon: Icon(Icons.label_outline_rounded, size: 16),
+                      prefixIconConstraints: BoxConstraints(minWidth: 28, minHeight: 0),
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
@@ -1460,8 +1609,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'What\'s this for?',
+                      hintText: 'Add a note?',
                       prefixIcon: Icon(Icons.notes_rounded, size: 16),
+                      prefixIconConstraints: BoxConstraints(minWidth: 28, minHeight: 0),
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
@@ -1475,7 +1626,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: WalletService.instance
-                          .categoriesFor(txType == TxType.income ? 'income' : 'expense')
+                          .categoriesFor(
+                            txType == TxType.income ? 'income' : 'expense',
+                          )
                           .map(
                             (c) => GestureDetector(
                               onTap: () => ss(() => cat = c),
@@ -1488,7 +1641,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: cat == c
-                                      ? AppColors.primary.withValues(alpha: 0.12)
+                                      ? AppColors.primary.withValues(
+                                          alpha: 0.12,
+                                        )
                                       : surfBg,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
@@ -1534,9 +1689,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           type: txType.name,
                           amount: amt,
                           category: cat,
-                          title: titleCtrl.text.trim().isEmpty ? null : titleCtrl.text.trim(),
-                          note: noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
-                          payMode: (txType == TxType.expense || txType == TxType.income)
+                          title: titleCtrl.text.trim().isEmpty
+                              ? null
+                              : titleCtrl.text.trim(),
+                          note: noteCtrl.text.trim().isEmpty
+                              ? null
+                              : noteCtrl.text.trim(),
+                          payMode:
+                              (txType == TxType.expense ||
+                                  txType == TxType.income)
                               ? payMode.name
                               : null,
                         );
@@ -1574,13 +1735,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-
   // ── Theme picker ─────────────────────────────────────────────────────────────
   void _showThemePicker(BuildContext ctx, bool isDark) {
     final options = [
-      (ThemeMode.light,  Icons.light_mode_rounded,       'Light'),
-      (ThemeMode.dark,   Icons.dark_mode_rounded,         'Dark'),
-      (ThemeMode.system, Icons.brightness_auto_rounded,  'System default'),
+      (ThemeMode.light, Icons.light_mode_rounded, 'Light'),
+      (ThemeMode.dark, Icons.dark_mode_rounded, 'Dark'),
+      (ThemeMode.system, Icons.brightness_auto_rounded, 'System default'),
     ];
     showModalBottomSheet(
       context: ctx,
@@ -1632,7 +1792,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   decoration: BoxDecoration(
                     color: selected
                         ? AppColors.primary.withValues(alpha: 0.1)
-                        : (isDark ? AppColors.surfDark : const Color(0xFFEDEEF5)),
+                        : (isDark
+                              ? AppColors.surfDark
+                              : const Color(0xFFEDEEF5)),
                     borderRadius: BorderRadius.circular(14),
                     border: selected
                         ? Border.all(
@@ -1660,8 +1822,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: selected
                                 ? AppColors.primary
                                 : (isDark
-                                    ? AppColors.textDark
-                                    : AppColors.textLight),
+                                      ? AppColors.textDark
+                                      : AppColors.textLight),
                           ),
                         ),
                       ),
@@ -1708,16 +1870,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return () {};
     }
     return () => showModalBottomSheet(
-          context: ctx,
-          backgroundColor: Colors.transparent,
-          isScrollControlled: true,
-          builder: (_) => DraggableScrollableSheet(
-            initialChildSize: 0.75,
-            maxChildSize: 0.95,
-            minChildSize: 0.4,
-            builder: (_, _) => sheet!,
-          ),
-        );
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        minChildSize: 0.4,
+        builder: (_, _) => sheet!,
+      ),
+    );
   }
 
   // ── Settings ────────────────────────────────────────────────────────────────
@@ -1732,17 +1894,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool accountExpanded = false;
     bool preferencesExpanded = false;
     final themeLabel = switch (widget.themeMode) {
-      ThemeMode.light  => 'Light',
-      ThemeMode.dark   => 'Dark',
+      ThemeMode.light => 'Light',
+      ThemeMode.dark => 'Dark',
       ThemeMode.system => 'System',
     };
     final settings = [
       _SettingItem('🎨', const Color(0xFFFFE0E0), 'Theme', themeLabel),
-      _SettingItem('🌐', const Color(0xFFE0EEFF), 'Language & Voice', 'English'),
-      _SettingItem('₹',  const Color(0xFFE0F0FF), 'Currency', 'INR'),
+      _SettingItem(
+        '🌐',
+        const Color(0xFFE0EEFF),
+        'Language & Voice',
+        'English',
+      ),
+      _SettingItem('₹', const Color(0xFFE0F0FF), 'Currency', 'INR'),
       _SettingItem('📅', const Color(0xFFE0F8EC), 'Date & Time', 'DD/MM/YYYY'),
       _SettingItem('🏠', const Color(0xFFFFEDD5), 'Default Scope', 'Per tab'),
-      _SettingItem('✦',  const Color(0xFFE8E0FF), 'AI Parser Settings', 'Always confirm'),
+      _SettingItem(
+        '✦',
+        const Color(0xFFE8E0FF),
+        'AI Parser Settings',
+        'Always confirm',
+      ),
       _SettingItem('🔔', const Color(0xFFE0F8EC), 'Notifications', 'On'),
       _SettingItem('🔒', const Color(0xFFFFF0E0), 'Privacy & Security', ''),
       _SettingItem('☁️', const Color(0xFFE8F5FF), 'Backup & Sync', 'On'),
@@ -1760,88 +1932,496 @@ class _DashboardScreenState extends State<DashboardScreen> {
         minChildSize: 0.5,
         builder: (_, sc) => StatefulBuilder(
           builder: (ctx2, ss) => Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.cardLight,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(top: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(28),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Settings',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Nunito',
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Settings',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito',
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              // ── Account + Settings ──────────────────────────────
-              Expanded(
-                child: ListView(
-                  controller: sc,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
-                  children: [
-                    // ── ACCOUNT section ──────────────────────────────────
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => ss(() => accountExpanded = !accountExpanded),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                        child: Row(
-                          children: [
-                            Text(
-                              'ACCOUNT',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
-                                fontFamily: 'Nunito',
+                // ── Account + Settings ──────────────────────────────
+                Expanded(
+                  child: ListView(
+                    controller: sc,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
+                    children: [
+                      // ── ACCOUNT section ──────────────────────────────────
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () =>
+                            ss(() => accountExpanded = !accountExpanded),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                          child: Row(
+                            children: [
+                              Text(
+                                'ACCOUNT',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                  fontFamily: 'Nunito',
+                                  color: isDark
+                                      ? AppColors.subDark
+                                      : AppColors.subLight,
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                accountExpanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                size: 18,
                                 color: isDark
                                     ? AppColors.subDark
                                     : AppColors.subLight,
                               ),
-                            ),
-                            const Spacer(),
-                            Icon(
-                              accountExpanded
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              size: 18,
-                              color: isDark
-                                  ? AppColors.subDark
-                                  : AppColors.subLight,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    if (accountExpanded) ...[
-                    // Profile (expandable)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: surfBg,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        children: [
-                          ListTile(
+                      if (accountExpanded) ...[
+                        // Profile (expandable)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: surfBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: [
+                              ListTile(
+                                leading: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.person_rounded,
+                                    size: 18,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                title: const Text(
+                                  'Profile',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Name, photo, phone, date of birth',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontFamily: 'Nunito',
+                                    color: isDark
+                                        ? AppColors.subDark
+                                        : AppColors.subLight,
+                                  ),
+                                ),
+                                trailing: Icon(
+                                  profileExpanded
+                                      ? Icons.keyboard_arrow_up_rounded
+                                      : Icons.keyboard_arrow_down_rounded,
+                                  size: 20,
+                                  color: isDark
+                                      ? AppColors.subDark
+                                      : AppColors.subLight,
+                                ),
+                                onTap: () => ss(
+                                  () => profileExpanded = !profileExpanded,
+                                ),
+                              ),
+                              if (profileExpanded)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    0,
+                                    14,
+                                    14,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Divider(
+                                        height: 1,
+                                        color: isDark
+                                            ? Colors.white12
+                                            : Colors.black12,
+                                      ),
+                                      const SizedBox(height: 14),
+                                      // Profile photo
+                                      GestureDetector(
+                                        onTap: () => _pickProfilePhoto(ss),
+                                        child: Row(
+                                          children: [
+                                            Stack(
+                                              children: [
+                                                Container(
+                                                  width: 54,
+                                                  height: 54,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.primary
+                                                        .withValues(
+                                                          alpha: 0.12,
+                                                        ),
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  alignment: Alignment.center,
+                                                  child: _userPhotoUrl.isEmpty
+                                                      ? Text(
+                                                          _initials(_userName),
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 18,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w900,
+                                                                color: AppColors
+                                                                    .primary,
+                                                                fontFamily:
+                                                                    'Nunito',
+                                                              ),
+                                                        )
+                                                      : ClipOval(
+                                                          child: Image.network(
+                                                            _userPhotoUrl,
+                                                            width: 54,
+                                                            height: 54,
+                                                            fit: BoxFit.cover,
+                                                          ),
+                                                        ),
+                                                ),
+                                                Positioned(
+                                                  bottom: 0,
+                                                  right: 0,
+                                                  child: Container(
+                                                    width: 18,
+                                                    height: 18,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color:
+                                                              AppColors.primary,
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                    child: const Icon(
+                                                      Icons.camera_alt_rounded,
+                                                      size: 10,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(width: 12),
+                                            const Text(
+                                              'Tap to change photo',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontFamily: 'Nunito',
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Name field
+                                      TextField(
+                                        controller: nameCtrl,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontFamily: 'Nunito',
+                                          color: isDark
+                                              ? AppColors.textDark
+                                              : AppColors.textLight,
+                                        ),
+                                        decoration: InputDecoration(
+                                          filled: true,
+                                          fillColor: isDark
+                                              ? Colors.white.withValues(
+                                                  alpha: 0.06,
+                                                )
+                                              : Colors.black.withValues(
+                                                  alpha: 0.04,
+                                                ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          prefixIcon: const Icon(
+                                            Icons.person_outline_rounded,
+                                            size: 16,
+                                          ),
+                                          hintText: 'Full name',
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 14,
+                                                vertical: 12,
+                                              ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      // Phone (read-only — used for login)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 14,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? Colors.white.withValues(
+                                                  alpha: 0.06,
+                                                )
+                                              : Colors.black.withValues(
+                                                  alpha: 0.04,
+                                                ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.phone_rounded,
+                                              size: 16,
+                                              color: isDark
+                                                  ? AppColors.subDark
+                                                  : AppColors.subLight,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    _userPhone.isNotEmpty
+                                                        ? _userPhone
+                                                        : '—',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontFamily: 'Nunito',
+                                                      color: isDark
+                                                          ? AppColors.textDark
+                                                          : AppColors.textLight,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    'Used for login',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontFamily: 'Nunito',
+                                                      color: isDark
+                                                          ? AppColors.subDark
+                                                          : AppColors.subLight,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.lock_outline_rounded,
+                                              size: 12,
+                                              color: isDark
+                                                  ? AppColors.subDark
+                                                  : AppColors.subLight,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      // Date of birth (for birthday reminders)
+                                      GestureDetector(
+                                        onTap: () async {
+                                          final picked = await showDatePicker(
+                                            context: ctx,
+                                            initialDate: _userDob.isEmpty
+                                                ? DateTime(1995)
+                                                : DateTime.tryParse(_userDob) ??
+                                                      DateTime(1995),
+                                            firstDate: DateTime(1900),
+                                            lastDate: DateTime.now(),
+                                          );
+                                          if (picked != null && mounted) {
+                                            final iso =
+                                                '${picked.year.toString().padLeft(4, "0")}-'
+                                                '${picked.month.toString().padLeft(2, "0")}-'
+                                                '${picked.day.toString().padLeft(2, "0")}';
+                                            setState(() => _userDob = iso);
+                                            ss(() {});
+                                            ProfileService.instance
+                                                .updateProfile(dob: iso);
+                                          }
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 14,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: isDark
+                                                ? Colors.white.withValues(
+                                                    alpha: 0.06,
+                                                  )
+                                                : Colors.black.withValues(
+                                                    alpha: 0.04,
+                                                  ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.cake_rounded,
+                                                size: 16,
+                                                color: isDark
+                                                    ? AppColors.subDark
+                                                    : AppColors.subLight,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      _userDob.isEmpty
+                                                          ? 'Date of birth'
+                                                          : _fmtDob(_userDob),
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontFamily: 'Nunito',
+                                                        color: _userDob.isEmpty
+                                                            ? (isDark
+                                                                  ? AppColors
+                                                                        .subDark
+                                                                  : AppColors
+                                                                        .subLight)
+                                                            : (isDark
+                                                                  ? AppColors
+                                                                        .textDark
+                                                                  : AppColors
+                                                                        .textLight),
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      'For birthday reminders',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontFamily: 'Nunito',
+                                                        color: isDark
+                                                            ? AppColors.subDark
+                                                            : AppColors
+                                                                  .subLight,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons.edit_calendar_rounded,
+                                                size: 14,
+                                                color: isDark
+                                                    ? AppColors.subDark
+                                                    : AppColors.subLight,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 14),
+                                      // Save button
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          onPressed: () async {
+                                            final name = nameCtrl.text.trim();
+                                            if (name.isNotEmpty) {
+                                              setState(() => _userName = name);
+                                              try {
+                                                await ProfileService.instance
+                                                    .updateProfile(name: name);
+                                              } catch (e) {
+                                                debugPrint(
+                                                  '[Dashboard] save: $e',
+                                                );
+                                              }
+                                            }
+                                            ss(() => profileExpanded = false);
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.primary,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Save Changes',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              fontFamily: 'Nunito',
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Change Phone Number
+                        Container(
+                          decoration: BoxDecoration(
+                            color: surfBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: ListTile(
                             leading: Container(
                               width: 38,
                               height: 38,
@@ -1850,13 +2430,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Icon(
-                                Icons.person_rounded,
+                                Icons.phone_forwarded_rounded,
                                 size: 18,
                                 color: AppColors.primary,
                               ),
                             ),
                             title: const Text(
-                              'Profile',
+                              'Change Phone Number',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -1864,7 +2444,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ),
                             subtitle: Text(
-                              'Name, photo, phone, date of birth',
+                              'OTP verification required',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontFamily: 'Nunito',
@@ -1873,634 +2453,270 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     : AppColors.subLight,
                               ),
                             ),
-                            trailing: Icon(
-                              profileExpanded
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              size: 20,
-                              color: isDark
-                                  ? AppColors.subDark
-                                  : AppColors.subLight,
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 13,
                             ),
-                            onTap: () =>
-                                ss(() => profileExpanded = !profileExpanded),
+                            onTap: () {},
                           ),
-                          if (profileExpanded)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Divider(
-                                    height: 1,
-                                    color: isDark
-                                        ? Colors.white12
-                                        : Colors.black12,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  // Profile photo
-                                  GestureDetector(
-                                    onTap: () => _pickProfilePhoto(ss),
-                                    child: Row(
-                                      children: [
-                                        Stack(
-                                          children: [
-                                            Container(
-                                              width: 54,
-                                              height: 54,
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary
-                                                    .withValues(alpha: 0.12),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              alignment: Alignment.center,
-                                              child: _userPhotoUrl.isEmpty
-                                                  ? Text(
-                                                      _initials(_userName),
-                                                      style: const TextStyle(
-                                                        fontSize: 18,
-                                                        fontWeight:
-                                                            FontWeight.w900,
-                                                        color: AppColors.primary,
-                                                        fontFamily: 'Nunito',
-                                                      ),
-                                                    )
-                                                  : ClipOval(
-                                                      child: Image.network(
-                                                        _userPhotoUrl,
-                                                        width: 54,
-                                                        height: 54,
-                                                        fit: BoxFit.cover,
-                                                      ),
-                                                    ),
-                                            ),
-                                            Positioned(
-                                              bottom: 0,
-                                              right: 0,
-                                              child: Container(
-                                                width: 18,
-                                                height: 18,
-                                                decoration: const BoxDecoration(
-                                                  color: AppColors.primary,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: const Icon(
-                                                  Icons.camera_alt_rounded,
-                                                  size: 10,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Text(
-                                          'Tap to change photo',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontFamily: 'Nunito',
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  // Name field
-                                  TextField(
-                                    controller: nameCtrl,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontFamily: 'Nunito',
-                                      color: isDark
-                                          ? AppColors.textDark
-                                          : AppColors.textLight,
-                                    ),
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: isDark
-                                          ? Colors.white.withValues(alpha: 0.06)
-                                          : Colors.black
-                                              .withValues(alpha: 0.04),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      prefixIcon: const Icon(
-                                        Icons.person_outline_rounded,
-                                        size: 16,
-                                      ),
-                                      hintText: 'Full name',
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  // Phone (read-only — used for login)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 14,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isDark
-                                          ? Colors.white.withValues(alpha: 0.06)
-                                          : Colors.black
-                                              .withValues(alpha: 0.04),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.phone_rounded,
-                                          size: 16,
-                                          color: isDark
-                                              ? AppColors.subDark
-                                              : AppColors.subLight,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                _userPhone.isNotEmpty
-                                                    ? _userPhone
-                                                    : '—',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontFamily: 'Nunito',
-                                                  color: isDark
-                                                      ? AppColors.textDark
-                                                      : AppColors.textLight,
-                                                ),
-                                              ),
-                                              Text(
-                                                'Used for login',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontFamily: 'Nunito',
-                                                  color: isDark
-                                                      ? AppColors.subDark
-                                                      : AppColors.subLight,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.lock_outline_rounded,
-                                          size: 12,
-                                          color: isDark
-                                              ? AppColors.subDark
-                                              : AppColors.subLight,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  // Date of birth (for birthday reminders)
-                                  GestureDetector(
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: ctx,
-                                        initialDate: _userDob.isEmpty
-                                            ? DateTime(1995)
-                                            : DateTime.tryParse(_userDob) ??
-                                                DateTime(1995),
-                                        firstDate: DateTime(1900),
-                                        lastDate: DateTime.now(),
-                                      );
-                                      if (picked != null && mounted) {
-                                        final iso =
-                                            '${picked.year.toString().padLeft(4, "0")}-'
-                                            '${picked.month.toString().padLeft(2, "0")}-'
-                                            '${picked.day.toString().padLeft(2, "0")}';
-                                        setState(() => _userDob = iso);
-                                        ss(() {});
-                                        ProfileService.instance
-                                            .updateProfile(dob: iso);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 14,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? Colors.white
-                                                .withValues(alpha: 0.06)
-                                            : Colors.black
-                                                .withValues(alpha: 0.04),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.cake_rounded,
-                                            size: 16,
-                                            color: isDark
-                                                ? AppColors.subDark
-                                                : AppColors.subLight,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  _userDob.isEmpty
-                                                      ? 'Date of birth'
-                                                      : _fmtDob(_userDob),
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    fontFamily: 'Nunito',
-                                                    color: _userDob.isEmpty
-                                                        ? (isDark
-                                                            ? AppColors.subDark
-                                                            : AppColors
-                                                                .subLight)
-                                                        : (isDark
-                                                            ? AppColors.textDark
-                                                            : AppColors
-                                                                .textLight),
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'For birthday reminders',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontFamily: 'Nunito',
-                                                    color: isDark
-                                                        ? AppColors.subDark
-                                                        : AppColors.subLight,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.edit_calendar_rounded,
-                                            size: 14,
-                                            color: isDark
-                                                ? AppColors.subDark
-                                                : AppColors.subLight,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  // Save button
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () async {
-                                        final name = nameCtrl.text.trim();
-                                        if (name.isNotEmpty) {
-                                          setState(() => _userName = name);
-                                          try {
-                                            await ProfileService.instance
-                                                .updateProfile(name: name);
-                                          } catch (e) {
-                                            debugPrint(
-                                              '[Dashboard] save: $e',
-                                            );
-                                          }
-                                        }
-                                        ss(() => profileExpanded = false);
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.primary,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Save Changes',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          fontFamily: 'Nunito',
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                        ),
+                        const SizedBox(height: 8),
+                        // Delete Account
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: ListTile(
+                            leading: Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.delete_forever_rounded,
+                                size: 18,
+                                color: Colors.red,
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Change Phone Number
-                    Container(
-                      decoration: BoxDecoration(
-                        color: surfBg,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ListTile(
-                        leading: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.phone_forwarded_rounded,
-                            size: 18,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        title: const Text(
-                          'Change Phone Number',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                          ),
-                        ),
-                        subtitle: Text(
-                          'OTP verification required',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'Nunito',
-                            color: isDark
-                                ? AppColors.subDark
-                                : AppColors.subLight,
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 13,
-                        ),
-                        onTap: () {},
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Delete Account
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.07),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ListTile(
-                        leading: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.delete_forever_rounded,
-                            size: 18,
-                            color: Colors.red,
-                          ),
-                        ),
-                        title: const Text(
-                          'Delete Account',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: Colors.red,
-                          ),
-                        ),
-                        subtitle: Text(
-                          'Permanent — requires OTP confirmation',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'Nunito',
-                            color: Colors.red.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        trailing: const Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 13,
-                          color: Colors.red,
-                        ),
-                        onTap: () {},
-                      ),
-                    ),
-                    ], // accountExpanded
-                    const SizedBox(height: 16),
-                    // ── FAMILY section ────────────────────────────────────
-                    FamilySettingsSection(
-                      appState: appState,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 16),
-                    // ── PREFERENCES section ───────────────────────────────
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () =>
-                          ss(() => preferencesExpanded = !preferencesExpanded),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-                        child: Row(
-                          children: [
-                            Text(
-                              'PREFERENCES',
+                            title: const Text(
+                              'Delete Account',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.8,
+                                fontWeight: FontWeight.w800,
                                 fontFamily: 'Nunito',
+                                color: Colors.red,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'Permanent — requires OTP confirmation',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'Nunito',
+                                color: Colors.red.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            trailing: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 13,
+                              color: Colors.red,
+                            ),
+                            onTap: () {},
+                          ),
+                        ),
+                      ], // accountExpanded
+                      const SizedBox(height: 16),
+                      // ── FAMILY section ────────────────────────────────────
+                      FamilySettingsSection(appState: appState, isDark: isDark),
+                      const SizedBox(height: 16),
+                      // ── PREFERENCES section ───────────────────────────────
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => ss(
+                          () => preferencesExpanded = !preferencesExpanded,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                          child: Row(
+                            children: [
+                              Text(
+                                'PREFERENCES',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.8,
+                                  fontFamily: 'Nunito',
+                                  color: isDark
+                                      ? AppColors.subDark
+                                      : AppColors.subLight,
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                preferencesExpanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                size: 18,
                                 color: isDark
                                     ? AppColors.subDark
                                     : AppColors.subLight,
                               ),
-                            ),
-                            const Spacer(),
-                            Icon(
-                              preferencesExpanded
-                                  ? Icons.keyboard_arrow_up_rounded
-                                  : Icons.keyboard_arrow_down_rounded,
-                              size: 18,
-                              color: isDark
-                                  ? AppColors.subDark
-                                  : AppColors.subLight,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    if (preferencesExpanded)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: surfBg,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        children: settings.asMap().entries.map((entry) {
-                          final i = entry.key;
-                          final s = entry.value;
-                          final subColor = isDark
-                              ? AppColors.subDark
-                              : AppColors.subLight;
-                          return Column(
-                            children: [
-                              if (i > 0)
-                                Divider(
-                                  height: 1,
-                                  indent: 60,
-                                  endIndent: 16,
-                                  color: isDark
-                                      ? Colors.white.withValues(alpha: 0.06)
-                                      : Colors.black.withValues(alpha: 0.06),
-                                ),
-                              ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 2,
-                                ),
-                                leading: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: s.iconBg,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    s.emoji,
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                ),
-                                title: Text(
-                                  s.title,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    fontFamily: 'Nunito',
-                                    color: isDark
-                                        ? AppColors.textDark
-                                        : AppColors.textLight,
-                                  ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (s.value.isNotEmpty)
-                                      Text(
-                                        s.value,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontFamily: 'Nunito',
+                      if (preferencesExpanded)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: surfBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            children: settings.asMap().entries.map((entry) {
+                              final i = entry.key;
+                              final s = entry.value;
+                              final subColor = isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight;
+                              return Column(
+                                children: [
+                                  if (i > 0)
+                                    Divider(
+                                      height: 1,
+                                      indent: 60,
+                                      endIndent: 16,
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.06)
+                                          : Colors.black.withValues(
+                                              alpha: 0.06,
+                                            ),
+                                    ),
+                                  ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 2,
+                                    ),
+                                    leading: Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        color: s.iconBg,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        s.emoji,
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      s.title,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: isDark
+                                            ? AppColors.textDark
+                                            : AppColors.textLight,
+                                      ),
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (s.value.isNotEmpty)
+                                          Text(
+                                            s.value,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontFamily: 'Nunito',
+                                              color: subColor,
+                                            ),
+                                          ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.chevron_right_rounded,
+                                          size: 18,
                                           color: subColor,
                                         ),
+                                      ],
+                                    ),
+                                    onTap: _prefsTap(ctx, isDark, s.title),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      // ── Subscription tile (last) ──────────────────────────
+                      const SizedBox(height: 16),
+                      GestureDetector(
+                        onTap: _prefsTap(context, isDark, 'Subscription'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: _userPlan == 'Free'
+                                  ? const [Color(0xFFD97706), Color(0xFFB45309)]
+                                  : _userPlan == 'Family'
+                                  ? const [Color(0xFF6C63FF), Color(0xFF3D35CC)]
+                                  : const [
+                                      Color(0xFFD97706),
+                                      Color(0xFFB45309),
+                                    ],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                _userPlan == 'Free'
+                                    ? '⭐'
+                                    : _userPlan == 'Family'
+                                    ? '👨‍👩‍👧'
+                                    : '⭐',
+                                style: const TextStyle(fontSize: 26),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'WAI $_userPlan',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        color: Colors.white,
+                                        fontFamily: 'Nunito',
                                       ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      Icons.chevron_right_rounded,
-                                      size: 18,
-                                      color: subColor,
+                                    ),
+                                    Text(
+                                      _userPlan == 'Free'
+                                          ? 'Upgrade to unlock all features'
+                                          : 'Manage your subscription',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.white70,
+                                        fontFamily: 'Nunito',
+                                      ),
                                     ),
                                   ],
                                 ),
-                                onTap: _prefsTap(ctx, isDark, s.title),
                               ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    // ── Subscription tile (last) ──────────────────────────
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: _prefsTap(context, isDark, 'Subscription'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: _userPlan == 'Free'
-                                ? const [Color(0xFFD97706), Color(0xFFB45309)]
-                                : _userPlan == 'Family'
-                                    ? const [Color(0xFF6C63FF), Color(0xFF3D35CC)]
-                                    : const [Color(0xFFD97706), Color(0xFFB45309)],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              _userPlan == 'Free'
-                                  ? '⭐'
-                                  : _userPlan == 'Family'
-                                      ? '👨‍👩‍👧'
-                                      : '⭐',
-                              style: const TextStyle(fontSize: 26),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'WAI $_userPlan',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                      fontFamily: 'Nunito',
-                                    ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(40),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  _userPlan == 'Free' ? 'UPGRADE' : 'MANAGE',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                    fontFamily: 'Nunito',
                                   ),
-                                  Text(
-                                    _userPlan == 'Free'
-                                        ? 'Upgrade to unlock all features'
-                                        : 'Manage your subscription',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.white70,
-                                      fontFamily: 'Nunito',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(40),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                _userPlan == 'Free' ? 'UPGRADE' : 'MANAGE',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  fontFamily: 'Nunito',
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -2538,26 +2754,31 @@ class _MoneyPulseCard extends StatelessWidget {
     return '₹${v.toStringAsFixed(0)}';
   }
 
-
   @override
   Widget build(BuildContext context) {
     final cashIn = todayTx
         .where((t) => t.payMode == PayMode.cash && t.type.isPositive)
         .fold(0.0, (s, t) => s + t.amount);
     final cashOut = todayTx
-        .where((t) => t.payMode == PayMode.cash &&
-            (t.type == TxType.expense ||
-                t.type == TxType.lend ||
-                t.type == TxType.split))
+        .where(
+          (t) =>
+              t.payMode == PayMode.cash &&
+              (t.type == TxType.expense ||
+                  t.type == TxType.lend ||
+                  t.type == TxType.split),
+        )
         .fold(0.0, (s, t) => s + t.amount);
     final onlineIn = todayTx
         .where((t) => t.payMode == PayMode.online && t.type.isPositive)
         .fold(0.0, (s, t) => s + t.amount);
     final onlineOut = todayTx
-        .where((t) => t.payMode == PayMode.online &&
-            (t.type == TxType.expense ||
-                t.type == TxType.lend ||
-                t.type == TxType.split))
+        .where(
+          (t) =>
+              t.payMode == PayMode.online &&
+              (t.type == TxType.expense ||
+                  t.type == TxType.lend ||
+                  t.type == TxType.split),
+        )
         .fold(0.0, (s, t) => s + t.amount);
 
     return Container(
@@ -2930,7 +3151,8 @@ class _PinnedSplitCard extends StatelessWidget {
                       if (pending > 0) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2,
+                            horizontal: 6,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.lend.withValues(alpha: 0.12),
@@ -2989,7 +3211,10 @@ class _PinnedSplitCard extends StatelessWidget {
             GestureDetector(
               onTap: onAddExpense,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.split,
                   borderRadius: BorderRadius.circular(10),
@@ -3050,7 +3275,9 @@ class _TodaysPlateCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.18)),
+        border: Border.all(
+          color: const Color(0xFF4CAF50).withValues(alpha: 0.18),
+        ),
       ),
       child: Column(
         children: [
@@ -3092,7 +3319,9 @@ class _TodaysPlateCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  meals.isEmpty ? 'Nothing planned' : '${meals.length} meal${meals.length == 1 ? '' : 's'}',
+                  meals.isEmpty
+                      ? 'Nothing planned'
+                      : '${meals.length} meal${meals.length == 1 ? '' : 's'}',
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Nunito',
@@ -3117,8 +3346,8 @@ class _TodaysPlateCard extends StatelessWidget {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: mt.color.withValues(alpha: 
-                            entries.isEmpty ? 0.06 : 0.15,
+                          color: mt.color.withValues(
+                            alpha: entries.isEmpty ? 0.06 : 0.15,
                           ),
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -3155,7 +3384,9 @@ class _TodaysPlateCard extends StatelessWidget {
                               color: mt.color.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(8),
                               border: onMealTap != null
-                                  ? Border.all(color: mt.color.withValues(alpha: 0.2))
+                                  ? Border.all(
+                                      color: mt.color.withValues(alpha: 0.2),
+                                    )
                                   : null,
                             ),
                             child: Column(
@@ -3346,7 +3577,9 @@ class _NudgesCard extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: n.color.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: n.color.withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: n.color.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               n.tag,
@@ -3366,7 +3599,9 @@ class _NudgesCard extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.10),
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.10,
+                                ),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -3390,8 +3625,8 @@ class _NudgesCard extends StatelessWidget {
                     height: 1,
                     indent: 42,
                     endIndent: 14,
-                    color: (isDark ? Colors.white : Colors.black).withValues(alpha: 
-                      0.05,
+                    color: (isDark ? Colors.white : Colors.black).withValues(
+                      alpha: 0.05,
                     ),
                   ),
               ],
@@ -3642,8 +3877,8 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                   height: 1,
                   indent: 72,
                   endIndent: 14,
-                  color: (isDark ? Colors.white : Colors.black).withValues(alpha: 
-                    0.05,
+                  color: (isDark ? Colors.white : Colors.black).withValues(
+                    alpha: 0.05,
                   ),
                 ),
             ],
