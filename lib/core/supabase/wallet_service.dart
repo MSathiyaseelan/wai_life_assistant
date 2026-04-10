@@ -472,15 +472,27 @@ class WalletService {
     DateTime? proofDate,
     DateTime? extensionDate,
     String? extensionReason,
+    String? extensionResponseMsg,
+    // Fallback when shareId is not yet populated (use tx+participant)
+    String? transactionId,
+    String? participantId,
   }) async {
-    await _db.from('split_shares').update({
+    final data = {
       'status': status,
-      if (proofNote != null)       'proof_note': proofNote,
-      if (proofImagePath != null)  'proof_image_path': proofImagePath,
-      if (proofDate != null)       'proof_date': proofDate.toIso8601String(),
-      if (extensionDate != null)   'extension_date': extensionDate.toIso8601String(),
-      if (extensionReason != null) 'extension_reason': extensionReason,
-    }).eq('id', shareId);
+      if (proofNote != null)              'proof_note': proofNote,
+      if (proofImagePath != null)         'proof_image_path': proofImagePath,
+      if (proofDate != null)              'proof_date': proofDate.toIso8601String(),
+      if (extensionDate != null)          'extension_date': extensionDate.toIso8601String(),
+      if (extensionReason != null)        'extension_reason': extensionReason,
+      if (extensionResponseMsg != null)   'extension_response_msg': extensionResponseMsg,
+    };
+    if (shareId.isNotEmpty) {
+      await _db.from('split_shares').update(data).eq('id', shareId);
+    } else if (transactionId != null && participantId != null) {
+      await _db.from('split_shares').update(data)
+          .eq('transaction_id', transactionId)
+          .eq('participant_id', participantId);
+    }
   }
 
   /// Upload a payment proof image to Supabase Storage and return a signed URL

@@ -123,6 +123,7 @@ class SplitParticipant {
 
 // ── Per-person share in a transaction ────────────────────────────────────────
 class SplitShare {
+  String id; // DB UUID — empty string until persisted
   final String participantId;
   double amount;
   double? percentage;
@@ -132,11 +133,13 @@ class SplitShare {
   DateTime? proofDate;
   DateTime? extensionDate;
   String? extensionReason;
+  String? extensionResponseMsg; // agree/disagree message from payer
   int? reminderCount;
   DateTime? lastReminderAt;
   String? lastReminderBy;
 
   SplitShare({
+    this.id = '',
     required this.participantId,
     required this.amount,
     this.percentage,
@@ -146,6 +149,7 @@ class SplitShare {
     this.proofDate,
     this.extensionDate,
     this.extensionReason,
+    this.extensionResponseMsg,
     this.reminderCount,
     this.lastReminderAt,
     this.lastReminderBy,
@@ -223,7 +227,7 @@ class SplitGroupMsg {
     return SplitGroupMsg(
       id: row['id'] as String,
       groupId: row['group_id'] as String,
-      senderId: row['sender_id'] as String,
+      senderId: row['sender_id'] as String? ?? '',
       senderName: row['sender_name'] as String? ?? '',
       senderEmoji: row['sender_emoji'] as String? ?? '👤',
       text: row['text'] as String? ?? '',
@@ -391,12 +395,24 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
       .map((t) {
         final shares = (t['split_shares'] as List? ?? [])
             .map((s) => SplitShare(
+                  id: s['id'] as String? ?? '',
                   participantId: s['participant_id'] as String,
                   amount: (s['amount'] as num).toDouble(),
                   percentage: s['percentage'] != null
                       ? (s['percentage'] as num).toDouble()
                       : null,
                   status: settleStatusFromString(s['status'] as String? ?? 'pending'),
+                  extensionDate: s['extension_date'] != null
+                      ? DateTime.tryParse(s['extension_date'] as String)
+                      : null,
+                  extensionReason: s['extension_reason'] as String?,
+                  extensionResponseMsg: s['extension_response_msg'] as String?,
+                  proofNote: s['proof_note'] as String?,
+                  proofImagePath: s['proof_image_path'] as String?,
+                  proofDate: s['proof_date'] != null
+                      ? DateTime.tryParse(s['proof_date'] as String)
+                      : null,
+                  reminderCount: s['reminder_count'] as int?,
                 ))
             .toList();
         return SplitGroupTx(

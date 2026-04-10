@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
@@ -334,7 +335,16 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     final ctrl = TextEditingController();
     DateTime pickedDate = DateTime.now().add(const Duration(days: 5));
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final totalAmt = pending.fold(0.0, (s, e) => s + e.share.amount);
+
+    // Use the group's net settlement plan filtered to entries where I am the payer.
+    // This correctly nets out mutual debts across all transactions.
+    final mySettlements = _group.settlementPlan
+        .where((e) => e.fromId == _myId)
+        .toList();
 
     showModalBottomSheet(
       context: context,
@@ -348,8 +358,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           child: Container(
             decoration: BoxDecoration(
               color: isDark ? AppColors.cardDark : AppColors.cardLight,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
             child: Column(
@@ -359,8 +368,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 // Handle
                 Center(
                   child: Container(
-                    width: 40,
-                    height: 4,
+                    width: 40, height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: Colors.grey.withValues(alpha: 0.3),
@@ -384,19 +392,50 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                     Text('Request Extension',
                         style: TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w900,
-                          fontFamily: 'Nunito',
-                          color: isDark ? AppColors.textDark : AppColors.textLight,
+                          fontFamily: 'Nunito', color: tc,
                         )),
                     Text(
                       'For ₹${totalAmt.toStringAsFixed(0)} across ${pending.length} payment${pending.length > 1 ? 's' : ''}',
-                      style: TextStyle(
-                        fontSize: 12, fontFamily: 'Nunito',
-                        color: isDark ? AppColors.subDark : AppColors.subLight,
-                      ),
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                     ),
                   ]),
                 ]),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+
+                // ── To whom section ──────────────────────────────────────────
+                Text('You need to settle with',
+                    style: TextStyle(fontSize: 11, fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700, color: sub)),
+                const SizedBox(height: 8),
+                ...mySettlements.map((entry) {
+                  final payerName = _participantName(entry.toId);
+                  final payerEmoji = _participantEmoji(entry.toId);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.expense.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.expense.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(children: [
+                      Text(payerEmoji, style: const TextStyle(fontSize: 18)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(payerName,
+                            style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w700, color: tc)),
+                      ),
+                      Text('₹${entry.amount.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 13, fontFamily: 'DM Mono',
+                            fontWeight: FontWeight.w900, color: AppColors.expense,
+                          )),
+                    ]),
+                  );
+                }),
+                const SizedBox(height: 14),
+
                 // Date picker
                 GestureDetector(
                   onTap: () async {
@@ -435,10 +474,9 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   maxLines: 2,
                   decoration: InputDecoration(
                     hintText: 'Reason e.g. salary credit on 5th',
-                    hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12,
-                        color: isDark ? AppColors.subDark : AppColors.subLight),
+                    hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
                     filled: true,
-                    fillColor: isDark ? AppColors.surfDark : const Color(0xFFEDEEF5),
+                    fillColor: surfBg,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -464,22 +502,25 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                     child: FilledButton(
                       onPressed: () {
                         if (ctrl.text.trim().isEmpty) return;
+                        final reason = ctrl.text.trim();
                         for (final e in pending) {
                           e.share.status = SettleStatus.extensionRequested;
                           e.share.extensionDate = pickedDate;
-                          e.share.extensionReason = ctrl.text.trim();
+                          e.share.extensionReason = reason;
+                          // Persist to DB
+                          _persistShareStatus(
+                            share: e.share,
+                            txId: e.tx.id,
+                            status: 'extension_requested',
+                            extensionDate: pickedDate,
+                            extensionReason: reason,
+                          );
                         }
                         Navigator.pop(ctx);
-                        _group.messages.add(SplitGroupMsg(
-                          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-                          groupId: _group.id,
-                          senderId: _myId,
-                          senderName: _participantName(_myId),
-                          senderEmoji: _participantEmoji(_myId),
-                          text: 'Requested extension till ${_fmtDate(pickedDate)}: ${ctrl.text.trim()}',
-                          time: DateTime.now(),
+                        _addAndPersistMessage(
+                          text: '⏰ Requested extension till ${_fmtDate(pickedDate)}: $reason',
                           type: MsgType.extensionReq,
-                        ));
+                        );
                         _update();
                       },
                       style: FilledButton.styleFrom(
@@ -498,6 +539,65 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         ),
       ),
     );
+  }
+
+  // ── Persist share status to DB (fire-and-forget) ───────────────────────────
+  void _persistShareStatus({
+    required SplitShare share,
+    required String txId,
+    required String status,
+    DateTime? extensionDate,
+    String? extensionReason,
+    String? extensionResponseMsg,
+    String? proofNote,
+    String? proofImagePath,
+    DateTime? proofDate,
+  }) {
+    if (!AuthService.instance.isLoggedIn) return;
+    WalletService.instance.updateShareStatus(
+      shareId: share.id,
+      transactionId: txId,
+      participantId: share.participantId,
+      status: status,
+      extensionDate: extensionDate,
+      extensionReason: extensionReason,
+      extensionResponseMsg: extensionResponseMsg,
+      proofNote: proofNote,
+      proofImagePath: proofImagePath,
+      proofDate: proofDate,
+    ).catchError((e) => debugPrint('[SplitGroupDetail] updateShareStatus failed: $e'));
+  }
+
+  // ── Add message locally + persist to DB ───────────────────────────────────
+  Future<void> _addAndPersistMessage({
+    required String text,
+    MsgType type = MsgType.text,
+  }) async {
+    final msg = SplitGroupMsg(
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      groupId: _group.id,
+      senderId: _myId,
+      senderName: _participantName(_myId),
+      senderEmoji: _participantEmoji(_myId),
+      text: text,
+      time: DateTime.now(),
+      type: type,
+    );
+    setState(() => _group.messages.add(msg));
+    widget.onGroupUpdated(_group);
+    if (!AuthService.instance.isLoggedIn) return;
+    try {
+      await WalletService.instance.postMessage(
+        groupId: _group.id,
+        senderId: _myId,
+        senderName: _participantName(_myId),
+        senderEmoji: _participantEmoji(_myId),
+        text: text,
+        type: type.name,
+      );
+    } catch (e) {
+      debugPrint('[SplitGroupDetail] postMessage failed: $e');
+    }
   }
 
   // ── Send reminder ──────────────────────────────────────────────────────────
@@ -698,37 +798,36 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                       onPressed: () async {
                         final nav = Navigator.of(context);
                         final messenger = ScaffoldMessenger.of(context);
-                        // Compose WhatsApp URL — requires WhatsApp installed
                         final phone = p.phone!.replaceAll(RegExp(r'[^\d]'), '');
                         final encoded = Uri.encodeComponent(message);
-                        final waUrl = 'https://wa.me/91$phone?text=$encoded';
-                        await Clipboard.setData(ClipboardData(text: waUrl));
+                        final waUri = Uri.parse('https://wa.me/91$phone?text=$encoded');
                         onReminderSent?.call();
                         nav.pop();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: const Row(
-                              children: [
-                                Text('💬', style: TextStyle(fontSize: 18)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'WhatsApp link copied!',
-                                  style: TextStyle(
-                                    fontFamily: 'Nunito',
-                                    fontWeight: FontWeight.w700,
+                        if (await canLaunchUrl(waUri)) {
+                          await launchUrl(waUri, mode: LaunchMode.externalApplication);
+                        } else {
+                          // Fallback: copy message to clipboard
+                          await Clipboard.setData(ClipboardData(text: message));
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: const Row(
+                                children: [
+                                  Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'WhatsApp not found — message copied!',
+                                    style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
+                              backgroundColor: const Color(0xFF25D366),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              margin: const EdgeInsets.all(16),
+                              duration: const Duration(seconds: 2),
                             ),
-                            backgroundColor: const Color(0xFF25D366),
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            margin: const EdgeInsets.all(16),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
+                          );
+                        }
                       },
                       icon: const Text('💬', style: TextStyle(fontSize: 14)),
                       label: const Text(
@@ -2218,6 +2317,30 @@ class _ShareRow extends StatelessWidget {
                           color: color.withValues(alpha: 0.8),
                         ),
                       ),
+                    if (share.extensionResponseMsg != null &&
+                        share.extensionResponseMsg!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            st == SettleStatus.extensionGranted ? '🤝 ' : '❌ ',
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                          Expanded(
+                            child: Text(
+                              share.extensionResponseMsg!,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'Nunito',
+                                fontStyle: FontStyle.italic,
+                                color: color.withValues(alpha: 0.9),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2329,7 +2452,6 @@ class _ShareRow extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context, SettleStatus st) {
-    // What actions are available depends on who's looking and the current status
     final actions = <Widget>[];
 
     // I AM the payer — someone submitted proof or wants extension
@@ -2338,31 +2460,24 @@ class _ShareRow extends StatelessWidget {
         actions.addAll([
           _ActionBtn('✅ Mark Received', AppColors.income, () {
             share.status = SettleStatus.settled;
-            onAddChatMsg(
-              'Marked ₹${share.amount.toStringAsFixed(0)} from $personName as settled ✓',
-            );
+            _persistShare(context, 'settled');
+            onAddChatMsg('Marked ₹${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
             onUpdate();
           }),
           _ActionBtn('❌ Dispute', AppColors.expense, () {
             share.status = SettleStatus.pending;
             share.proofNote = null;
+            _persistShare(context, 'pending');
             onUpdate();
           }),
         ]);
       } else if (st == SettleStatus.extensionRequested) {
         actions.addAll([
-          _ActionBtn('✅ Grant Extension', const Color(0xFF00BCD4), () {
-            share.status = SettleStatus.extensionGranted;
-            onAddChatMsg(
-              'Extension granted for $personName till ${share.extensionDate != null ? _fmtDate(share.extensionDate!) : 'agreed date'} 🤝',
-            );
-            onUpdate();
+          _ActionBtn('✅ Agree', const Color(0xFF00BCD4), () {
+            _showExtensionResponseSheet(context, agree: true);
           }),
-          _ActionBtn('❌ Decline', AppColors.expense, () {
-            share.status = SettleStatus.pending;
-            share.extensionDate = null;
-            share.extensionReason = null;
-            onUpdate();
+          _ActionBtn('❌ Disagree', AppColors.expense, () {
+            _showExtensionResponseSheet(context, agree: false);
           }),
         ]);
       }
@@ -2379,6 +2494,184 @@ class _ShareRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Wrap(spacing: 6, runSpacing: 6, children: actions),
+    );
+  }
+
+  void _persistShare(BuildContext context, String status, {String? responseMsg}) {
+    WalletService.instance.updateShareStatus(
+      shareId: share.id,
+      transactionId: tx.id,
+      participantId: share.participantId,
+      status: status,
+      extensionDate: share.extensionDate,
+      extensionReason: share.extensionReason,
+      extensionResponseMsg: responseMsg,
+    ).catchError((e) => debugPrint('[ShareRow] updateShareStatus failed: $e'));
+  }
+
+  void _showExtensionResponseSheet(BuildContext context, {required bool agree}) {
+    final ctrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final color = agree ? const Color(0xFF00BCD4) : AppColors.expense;
+    final dateStr = share.extensionDate != null ? _fmtDate(share.extensionDate!) : 'agreed date';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.cardLight,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Row(children: [
+                Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(agree ? '🤝' : '❌', style: const TextStyle(fontSize: 20)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(agree ? 'Grant Extension' : 'Decline Extension',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito', color: tc)),
+                    Text(
+                      agree
+                          ? 'Extension for $personName till $dateStr'
+                          : 'Decline $personName\'s extension request',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                    ),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 16),
+
+              // Extension details (shown to payer for context)
+              if (share.extensionDate != null || share.extensionReason != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9C27B0).withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (share.extensionDate != null)
+                        Text('Requested till: $dateStr',
+                            style: const TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w700, color: Color(0xFF9C27B0))),
+                      if (share.extensionReason != null) ...[
+                        const SizedBox(height: 2),
+                        Text(share.extensionReason!,
+                            style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      ],
+                    ],
+                  ),
+                ),
+
+              // Message field
+              TextField(
+                controller: ctrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: agree
+                      ? 'Add a note e.g. Sure, please pay by then!'
+                      : 'Add a reason e.g. Need it urgently',
+                  hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.all(14),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      final msg = ctrl.text.trim();
+                      Navigator.pop(context);
+                      if (agree) {
+                        share.status = SettleStatus.extensionGranted;
+                        share.extensionResponseMsg = msg.isEmpty ? null : msg;
+                        _persistShare(context, 'extension_granted', responseMsg: msg.isEmpty ? null : msg);
+                        onAddChatMsg(
+                          '🤝 Extension granted for $personName till $dateStr'
+                          '${msg.isNotEmpty ? ': $msg' : ''}',
+                        );
+                      } else {
+                        share.status = SettleStatus.pending;
+                        share.extensionDate = null;
+                        share.extensionReason = null;
+                        share.extensionResponseMsg = msg.isEmpty ? null : msg;
+                        _persistShare(context, 'pending', responseMsg: msg.isEmpty ? null : msg);
+                        onAddChatMsg(
+                          '❌ Extension declined for $personName'
+                          '${msg.isNotEmpty ? ': $msg' : ''}',
+                        );
+                      }
+                      onUpdate();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(
+                      agree ? 'Grant Extension' : 'Decline',
+                      style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -2898,6 +3191,40 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
       _splitType = rawSplit.contains('unequal') ? SplitType.unequal
                  : rawSplit.contains('percent') ? SplitType.percentage
                  : SplitType.equal;
+
+      // Map participants to per-person share fields
+      final rawParticipants = data['participants'];
+      if (rawParticipants is List && rawParticipants.isNotEmpty) {
+        // If AI returned per-person amounts, switch to unequal split
+        final firstEntry = rawParticipants.first;
+        if (firstEntry is Map) {
+          final hasAmount = firstEntry.containsKey('amount');
+          final hasPct = firstEntry.containsKey('percentage') || firstEntry.containsKey('percent');
+          if (hasAmount || hasPct) {
+            _splitType = hasPct ? SplitType.percentage : SplitType.unequal;
+            for (final entry in rawParticipants) {
+              if (entry is! Map) continue;
+              final nameRaw = (entry['name'] as String? ?? '').toLowerCase().trim();
+              if (nameRaw.isEmpty) continue;
+              // Match by name or "you" keyword
+              final match = widget.group.participants.where((p) {
+                final pName = (p.isMe ? 'you' : p.name.toLowerCase());
+                return pName.contains(nameRaw) ||
+                    nameRaw.contains(p.name.toLowerCase().split(' ')[0]) ||
+                    (p.isMe && (nameRaw == 'you' || nameRaw == 'me'));
+              }).firstOrNull;
+              if (match == null) continue;
+              final val = (entry['amount'] ?? entry['percentage'] ?? entry['percent']) as num?;
+              if (val != null) {
+                final v = val.toDouble();
+                _shareCtrl[match.id]?.text = v == v.roundToDouble()
+                    ? v.toInt().toString()
+                    : v.toStringAsFixed(2);
+              }
+            }
+          }
+        }
+      }
 
       setState(() => _aiLoading = false);
       _mode.animateTo(1);
