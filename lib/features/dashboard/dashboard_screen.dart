@@ -18,6 +18,7 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
 import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
+import 'package:wai_life_assistant/features/wallet/category_detector.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
@@ -1338,7 +1339,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final noteCtrl = TextEditingController(text: splitRef?.note ?? '');
     var txType = splitRef != null ? TxType.split : TxType.expense;
     var payMode = PayMode.online;
-    var cat = splitRef?.category ?? 'Food';
+    var cat = splitRef?.category ?? '';
+    var autoDetectedCat = ''; // tracks last auto-detected value
+    CategoryDetector.ensureLoaded();
 
     showModalBottomSheet(
       context: ctx,
@@ -1579,6 +1582,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       fontFamily: 'Nunito',
                       color: isDark ? AppColors.textDark : AppColors.textLight,
                     ),
+                    onChanged: (val) {
+                      final isIncome = txType == TxType.income;
+                      final detected = CategoryDetector.detect(val, isIncome: isIncome);
+                      if (detected != null) {
+                        ss(() { cat = detected; autoDetectedCat = detected; });
+                      }
+                    },
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Title',
@@ -1625,13 +1635,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     height: 36,
                     child: ListView(
                       scrollDirection: Axis.horizontal,
-                      children: WalletService.instance
-                          .categoriesFor(
-                            txType == TxType.income ? 'income' : 'expense',
-                          )
+                      children: () {
+                            final all = WalletService.instance.categoriesFor(
+                              txType == TxType.income ? 'income' : 'expense',
+                            );
+                            final sorted = [
+                              if (autoDetectedCat.isNotEmpty && all.contains(autoDetectedCat)) autoDetectedCat,
+                              ...all.where((c) => c != autoDetectedCat),
+                            ];
+                            return sorted;
+                          }()
                           .map(
                             (c) => GestureDetector(
-                              onTap: () => ss(() => cat = c),
+                              onTap: () {
+                                ss(() => cat = c);
+                                final title = titleCtrl.text.trim();
+                                if (title.isNotEmpty && c != autoDetectedCat) {
+                                  CategoryDetector.learn(title, c);
+                                  autoDetectedCat = c;
+                                }
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 100),
                                 margin: const EdgeInsets.only(right: 7),
@@ -1688,7 +1711,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           walletId: walletId,
                           type: txType.name,
                           amount: amt,
-                          category: cat,
+                          category: cat.isEmpty ? 'Expense' : cat,
                           title: titleCtrl.text.trim().isEmpty
                               ? null
                               : titleCtrl.text.trim(),
@@ -1704,7 +1727,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (!mounted) return;
                         setState(() => _transactions.add(TxModel.fromRow(row)));
                         WalletService.txChangeSignal.value++;
-                        WalletService.instance.ensureCategory(cat, txType.name);
+                        WalletService.instance.ensureCategory(cat.isEmpty ? 'Expense' : cat, txType.name);
                       } catch (e) {
                         debugPrint('[Dashboard] quickAdd error: $e');
                       }

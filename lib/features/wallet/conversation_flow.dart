@@ -3,6 +3,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'category_detector.dart';
 import 'flow_steps.dart';
 import 'chat_bubble.dart';
 
@@ -64,11 +65,17 @@ class _ConversationFlowState extends State<ConversationFlow> {
   late List<FlowStep> _steps;
   int _stepIdx = 0;
 
+  // Auto-detected category pending user confirmation
+  String _autoDetectedCategory = '';
+  // Per-step question text overrides (set when auto-detect changes the prompt)
+  final Map<FlowStep, String> _questionOverrides = {};
+
   @override
   void initState() {
     super.initState();
     _data = FlowData();
     _steps = widget.flowType.steps;
+    CategoryDetector.ensureLoaded();
     // Post first bot question
     WidgetsBinding.instance.addPostFrameCallback((_) => _pushBotQuestion(0));
   }
@@ -98,7 +105,7 @@ class _ConversationFlowState extends State<ConversationFlow> {
   void _pushBotQuestion(int idx) {
     if (idx >= _steps.length) return;
     final step = _steps[idx];
-    final question = step.botQuestion(widget.flowType);
+    final question = _questionOverrides.remove(step) ?? step.botQuestion(widget.flowType);
 
     // Show typing indicator briefly
     setState(() => _showTyping = true);
@@ -143,6 +150,39 @@ class _ConversationFlowState extends State<ConversationFlow> {
     if (_stepIdx < _steps.length) {
       _pushBotQuestion(_stepIdx);
     }
+  }
+
+  // ── Category auto-detection from title ─────────────────────────────────────
+
+  String? _detectCategory(String title) => CategoryDetector.detect(
+        title,
+        isIncome: widget.flowType == FlowType.income,
+      );
+
+  // ── Answer title with optional category auto-skip ───────────────────────────
+
+  void _answerTitle(String title) {
+    setState(() {
+      if (_messages.isNotEmpty) {
+        _messages[_messages.length - 1] = _messages[_messages.length - 1].done();
+      }
+      _messages.add(_Message(role: ChatRole.user, text: '🏷️ $title', animate: true));
+    });
+    _scrollToBottom();
+    _data.title = title;
+    _stepIdx++;
+
+    // Try to auto-detect category — keep the step but pre-fill detected value
+    if (_steps.contains(FlowStep.category)) {
+      final detected = _detectCategory(title);
+      if (detected != null) {
+        setState(() => _autoDetectedCategory = detected);
+        _questionOverrides[FlowStep.category] =
+            '✨ Detected $detected — confirm or pick a different one';
+      }
+    }
+
+    if (_stepIdx < _steps.length) _pushBotQuestion(_stepIdx);
   }
 
   // ── Save ────────────────────────────────────────────────────────────────────
@@ -196,12 +236,82 @@ class _ConversationFlowState extends State<ConversationFlow> {
 
       // ── Category ────────────────────────────────────────────────────────────
       case FlowStep.category:
-        return ChipStep(
-          options: cats,
-          color: color,
-          onSelect: (cat) => _answer(step, cat, () {
+        void confirmCategory(String cat) {
+          final isManual = cat != _autoDetectedCategory;
+          _answer(step, cat, () {
             _data.category = cat;
-          }),
+            setState(() => _autoDetectedCategory = '');
+            if (isManual && _data.title != null && _data.title!.isNotEmpty) {
+              CategoryDetector.learn(_data.title!, cat);
+            }
+          });
+        }
+        final detected = _autoDetectedCategory;
+        if (detected.isEmpty) {
+          return ChipStep(options: cats, color: color, onSelect: confirmCategory);
+        }
+        // Auto-detected: show confirm chip + full list to change
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final subColor = isDark ? AppColors.subDark : AppColors.subLight;
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => confirmCategory(detected),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: color, width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: color, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        detected,
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Confirm',
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          color: color.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'or pick a different one',
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontSize: 11,
+                  color: subColor,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ChipStep(
+                options: [detected, ...cats.where((c) => c != detected)],
+                color: color,
+                onSelect: confirmCategory,
+              ),
+            ],
+          ),
         );
 
       // ── Owner ────────────────────────────────────────────────────────────────
@@ -298,12 +408,7 @@ class _ConversationFlowState extends State<ConversationFlow> {
       case FlowStep.title:
         return TitleStep(
           color: color,
-          onConfirm: (title) {
-            final display = title.isEmpty ? 'No title' : '🏷️ $title';
-            _answer(step, display, () {
-              _data.title = title;
-            });
-          },
+          onConfirm: (title) => _answerTitle(title),
         );
 
       // ── Note ─────────────────────────────────────────────────────────────────
