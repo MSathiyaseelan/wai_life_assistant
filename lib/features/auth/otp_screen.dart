@@ -6,6 +6,9 @@ import '../../core/theme/app_colors.dart';
 import '../../core/supabase/profile_service.dart';
 import 'auth_service.dart';
 
+// TODO: Set to false once OTP delivery is working in production
+const bool kBypassOtp = true;
+
 class OtpScreen extends StatefulWidget {
   final String phone;
   const OtpScreen({super.key, required this.phone});
@@ -84,7 +87,11 @@ class _OtpScreenState extends State<OtpScreen> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      await AuthService.instance.verifyOtp(widget.phone, _otp);
+      if (kBypassOtp) {
+        await AuthService.instance.bypassVerify();
+      } else {
+        await AuthService.instance.verifyOtp(widget.phone, _otp);
+      }
       if (!mounted) return;
       await ProfileService.instance.bootstrapNewUser();
       final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);

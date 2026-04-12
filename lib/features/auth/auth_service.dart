@@ -51,6 +51,16 @@ class AuthService {
     debugPrint('[Auth] OTP verified, uid=${_client.auth.currentUser?.id}');
   }
 
+  /// Dev-only bypass: signs in anonymously to get a real session without OTP.
+  /// Remove or gate this behind a compile flag before going to production.
+  Future<void> bypassVerify() async {
+    final res = await _client.auth.signInAnonymously();
+    if (res.session == null) {
+      throw AuthException('Anonymous sign-in failed — enable it in Supabase dashboard.');
+    }
+    debugPrint('[Auth] Bypass login, uid=${_client.auth.currentUser?.id}');
+  }
+
   /// Resend OTP — same as sendOtp, exposed separately for the resend button.
   Future<void> resendOtp(String phone) => sendOtp(phone);
 
