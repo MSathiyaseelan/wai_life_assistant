@@ -277,7 +277,7 @@ class FlowData {
       txDate = now;
     }
 
-    PayMode? pm;
+    PayMode pm = PayMode.online; // default: Online/UPI
     if (paymode == 'Cash') pm = PayMode.cash;
     if (paymode == 'Online') pm = PayMode.online;
 

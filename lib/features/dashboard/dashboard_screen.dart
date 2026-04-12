@@ -876,7 +876,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               .toList();
                           final allCards = [personalW, ...familyWs];
 
-                          const height = 168.0;
+                          const height = 220.0;
 
                           return Column(
                             children: [
@@ -2862,7 +2862,7 @@ class _MoneyPulseCard extends StatelessWidget {
             ),
           ),
 
-          // Middle — today's Cash / Online summary (same structure as WalletSummaryCard)
+          // Middle — today's Cash / Online summary
           Container(
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -2898,7 +2898,326 @@ class _MoneyPulseCard extends StatelessWidget {
               ),
             ),
           ),
+
+          // Bottom — most recent transaction + "+n more" link
+          if (todayTx.isNotEmpty)
+            GestureDetector(
+              onTap: () => _showTodayTxSheet(context),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    // Most recent transaction
+                    Expanded(
+                      child: _buildRecentTxRow(todayTx.first),
+                    ),
+                    // "+n more" badge
+                    if (todayTx.length > 1) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '+${todayTx.length - 1} more',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right_rounded,
+                        size: 14, color: Colors.white60),
+                  ],
+                ),
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRecentTxRow(TxModel tx) {
+    final isPositive = tx.type.isPositive;
+    final amt = hidden
+        ? '••••'
+        : isPositive
+            ? '+₹${tx.amount.toStringAsFixed(0)}'
+            : '-₹${tx.amount.toStringAsFixed(0)}';
+    final amtColor = isPositive
+        ? const Color(0xFF80FFD0)
+        : const Color(0xFFFFB3BE);
+    return Row(
+      children: [
+        Text(tx.type.emoji, style: const TextStyle(fontSize: 13)),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            tx.title?.isNotEmpty == true ? tx.title! : tx.category,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: Colors.white,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          amt,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'DM Mono',
+            color: amtColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showTodayTxSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _TodayTxSheet(
+        label: label,
+        transactions: todayTx,
+        hidden: hidden,
+      ),
+    );
+  }
+}
+
+// ── Today payment section (Cash / Online) ────────────────────────────────────
+// ── Today's transactions bottom sheet ────────────────────────────────────────
+class _TodayTxSheet extends StatelessWidget {
+  final String label;
+  final List<TxModel> transactions;
+  final bool hidden;
+
+  const _TodayTxSheet({
+    required this.label,
+    required this.transactions,
+    required this.hidden,
+  });
+
+  String _fmtAmt(TxModel tx) {
+    if (hidden) return '••••';
+    final prefix = tx.type.isPositive ? '+₹' : '-₹';
+    final v = tx.amount;
+    if (v >= 100000) return '$prefix${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) {
+      final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '$prefix${s}k';
+    }
+    return '$prefix${v.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.35,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            // Handle + header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Text('🗓️', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Today's Transactions",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Nunito',
+                              color: tc,
+                            ),
+                          ),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${transactions.length} item${transactions.length == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Divider(
+                    height: 1,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : Colors.black.withValues(alpha: 0.07),
+                  ),
+                ],
+              ),
+            ),
+            // Transaction list
+            Expanded(
+              child: ListView.separated(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                itemCount: transactions.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
+                  final tx = transactions[i];
+                  final isPositive = tx.type.isPositive;
+                  final amtColor = isPositive
+                      ? AppColors.income
+                      : AppColors.expense;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 11),
+                    decoration: BoxDecoration(
+                      color: surfBg,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        // Emoji badge
+                        Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: amtColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(tx.type.emoji,
+                              style: const TextStyle(fontSize: 16)),
+                        ),
+                        const SizedBox(width: 10),
+                        // Title + category
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tx.title?.isNotEmpty == true
+                                    ? tx.title!
+                                    : tx.category,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: tc,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Row(
+                                children: [
+                                  Text(
+                                    tx.category,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                                  if (tx.payMode != null) ...[
+                                    Text(' · ',
+                                        style: TextStyle(
+                                            fontSize: 10, color: sub)),
+                                    Text(
+                                      tx.payMode == PayMode.cash
+                                          ? '💵 Cash'
+                                          : '📲 Online',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Amount
+                        Text(
+                          _fmtAmt(tx),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'DM Mono',
+                            color: amtColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

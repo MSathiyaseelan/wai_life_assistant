@@ -23,6 +23,7 @@ import 'package:wai_life_assistant/features/pantry/flows/PantryIntentConfirmShee
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -41,6 +42,9 @@ class _PantryScreenState extends State<PantryScreen>
   // ── State ──────────────────────────────────────────────────────────────────
   DateTime _selectedDate = DateTime.now();
   late TabController _sectionTab; // 0=MealMap, 1=Basket, 2=RecipeBox
+
+  // Prevents duplicate snackbars when multiple loads fail at the same time
+  bool _offlineSnackShown = false; // intentionally non-final, reset after snack
 
   // Chat bar — mic + NLP
   bool _isListening = false;
@@ -340,7 +344,7 @@ class _PantryScreenState extends State<PantryScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _recipesLoading = false);
-      _showSavedSnack('Failed to load recipes', AppColors.expense);
+      _showLoadError();
     }
   }
 
@@ -357,7 +361,7 @@ class _PantryScreenState extends State<PantryScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _mealsLoading = false);
-      _showSavedSnack('Failed to load meals', AppColors.expense);
+      _showLoadError();
     }
   }
 
@@ -385,7 +389,7 @@ class _PantryScreenState extends State<PantryScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _groceriesLoading = false);
-      _showSavedSnack('Failed to load basket', AppColors.expense);
+      _showLoadError();
     }
   }
 
@@ -678,6 +682,18 @@ class _PantryScreenState extends State<PantryScreen>
     } else {
       _onFabTap(_sectionTab.index);
     }
+  }
+
+  void _showLoadError() {
+    if (!mounted || _offlineSnackShown) return;
+    _offlineSnackShown = true;
+    final isOffline = !NetworkService.instance.isOnline.value;
+    _showSavedSnack(
+      isOffline ? 'No internet connection' : 'Something went wrong, please try again',
+      AppColors.expense,
+    );
+    // Reset flag after snackbar duration so future errors can show again
+    Future.delayed(const Duration(seconds: 4), () => _offlineSnackShown = false);
   }
 
   void _showSavedSnack(String msg, Color color) {
