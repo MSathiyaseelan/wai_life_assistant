@@ -163,45 +163,49 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
         ],
         const SizedBox(height: 12),
 
-        // Tab content — Expanded fills all remaining space so inner ListView scrolls freely
+        // Tab content — IndexedStack avoids competing for horizontal swipe
+        // gestures with the parent TabBarView (unlike TabBarView with
+        // NeverScrollableScrollPhysics which still enters the gesture arena).
         Expanded(
-          child: TabBarView(
-            controller: _tabCtrl,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-              // In-stock list
-              _GroceryList(
-                items: _inStock,
-                isDark: isDark,
-                emptyMsg: 'No items in stock',
-                emptyEmoji: '📦',
-                onToggleBuy: widget.onItemToggleBuy,
-                onToggleStock: widget.onItemToggleStock,
-                onDelete: widget.onItemDeleted,
-                onUpdate: widget.onItemUpdated,
-                trailing: (item) => _StockTrail(
-                  item: item,
+          child: AnimatedBuilder(
+            animation: _tabCtrl,
+            builder: (_, _) => IndexedStack(
+              index: _tabCtrl.index,
+              children: [
+                // In-stock list
+                _GroceryList(
+                  items: _inStock,
                   isDark: isDark,
-                  onToggleBuy: () => widget.onItemToggleBuy(item),
+                  emptyMsg: 'No items in stock',
+                  emptyEmoji: '📦',
+                  onToggleBuy: widget.onItemToggleBuy,
+                  onToggleStock: widget.onItemToggleStock,
+                  onDelete: widget.onItemDeleted,
+                  onUpdate: widget.onItemUpdated,
+                  trailing: (item) => _StockTrail(
+                    item: item,
+                    isDark: isDark,
+                    onToggleBuy: () => widget.onItemToggleBuy(item),
+                  ),
                 ),
-              ),
-              // To-buy list
-              _GroceryList(
-                items: _toBuy,
-                isDark: isDark,
-                emptyMsg: 'Nothing on the list!',
-                emptyEmoji: '🎉',
-                onToggleBuy: widget.onItemToggleBuy,
-                onToggleStock: widget.onItemToggleStock,
-                onDelete: widget.onItemDeleted,
-                onUpdate: widget.onItemUpdated,
-                trailing: (item) => _BuyTrail(
-                  item: item,
+                // To-buy list
+                _GroceryList(
+                  items: _toBuy,
                   isDark: isDark,
-                  onMarkBought: () => widget.onItemMarkBought(item),
+                  emptyMsg: 'Nothing on the list!',
+                  emptyEmoji: '🎉',
+                  onToggleBuy: widget.onItemToggleBuy,
+                  onToggleStock: widget.onItemToggleStock,
+                  onDelete: widget.onItemDeleted,
+                  onUpdate: widget.onItemUpdated,
+                  trailing: (item) => _BuyTrail(
+                    item: item,
+                    isDark: isDark,
+                    onMarkBought: () => widget.onItemMarkBought(item),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
 
@@ -275,21 +279,7 @@ class _GroceryList extends StatelessWidget {
             DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day)
                 .isBefore(DateTime(now.year, now.month, now.day));
 
-        return Dismissible(
-          key: ValueKey(item.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 16),
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: AppColors.expense.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.delete_outline, color: AppColors.expense),
-          ),
-          onDismissed: (_) => onDelete(item),
-          child: GestureDetector(
+        return GestureDetector(
             onTap: () => _showEditSheet(ctx, item),
             child: Container(
               margin: const EdgeInsets.only(bottom: 8),
@@ -372,7 +362,6 @@ class _GroceryList extends StatelessWidget {
                 ],
               ),
             ),
-          ),
         );
       },
     );
@@ -383,7 +372,12 @@ class _GroceryList extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _EditItemSheet(item: item, isDark: isDark, onUpdate: onUpdate),
+      builder: (_) => _EditItemSheet(
+        item: item,
+        isDark: isDark,
+        onUpdate: onUpdate,
+        onDelete: onDelete,
+      ),
     );
   }
 }
@@ -505,11 +499,13 @@ class _EditItemSheet extends StatefulWidget {
   final GroceryItem item;
   final bool isDark;
   final Future<void> Function(GroceryItem, Map<String, dynamic>) onUpdate;
+  final void Function(GroceryItem) onDelete;
 
   const _EditItemSheet({
     required this.item,
     required this.isDark,
     required this.onUpdate,
+    required this.onDelete,
   });
 
   @override
@@ -718,6 +714,27 @@ class _EditItemSheetState extends State<_EditItemSheet> {
                       fontWeight: FontWeight.w900,
                       fontSize: 15,
                       fontFamily: 'Nunito',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Delete button
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onDelete(widget.item);
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.expense),
+                  label: const Text(
+                    'Delete Item',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                      color: AppColors.expense,
                     ),
                   ),
                 ),

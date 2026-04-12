@@ -67,6 +67,9 @@ class _WalletScreenState extends State<WalletScreen>
   // Transaction groups (named expense bundles)
   List<TxGroup> _txGroups = [];
 
+  // Drag-and-drop state
+  TxModel? _draggingTx;
+
   // Wallets list (from AppStateScope)
   List<WalletModel> _allWallets = [];
 
@@ -985,6 +988,7 @@ class _WalletScreenState extends State<WalletScreen>
       walletId: widget.activeWalletId,
       onSave: (group) {
         setState(() => _splitGroups.insert(0, group));
+        _syncPinnedGroups();
         _persistSplitGroup(group); // fire-and-forget
       },
     );
@@ -1031,7 +1035,9 @@ class _WalletScreenState extends State<WalletScreen>
             transactions: group.transactions,
             messages: group.messages,
             createdAt: group.createdAt,
+            pinnedToDashboard: group.pinnedToDashboard,
           );
+          _syncPinnedGroups();
         }
       });
     } catch (e) {
@@ -1740,6 +1746,53 @@ class _WalletScreenState extends State<WalletScreen>
               ),
             ),
           if (extraHeader != null) SliverToBoxAdapter(child: extraHeader),
+          // Ungroup drop zone — only visible while dragging a grouped tx
+          if (_draggingTx?.groupId != null)
+            SliverToBoxAdapter(
+              child: DragTarget<TxModel>(
+                onWillAcceptWithDetails: (d) => d.data.groupId != null,
+                onAcceptWithDetails: (d) {
+                  HapticFeedback.mediumImpact();
+                  _unassignTxFromGroup(d.data);
+                },
+                builder: (_, candidates, _) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: candidates.isNotEmpty
+                        ? AppColors.expense.withValues(alpha: 0.18)
+                        : AppColors.expense.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.expense.withValues(
+                          alpha: candidates.isNotEmpty ? 0.7 : 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.link_off_rounded,
+                          size: 16,
+                          color: AppColors.expense
+                              .withValues(alpha: candidates.isNotEmpty ? 1.0 : 0.6)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Drop here to remove from group',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: AppColors.expense
+                              .withValues(alpha: candidates.isNotEmpty ? 1.0 : 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           // Transactions list or empty state
           if (entries.isEmpty)
             SliverFillRemaining(child: _buildEmpty(isDark))
@@ -2204,22 +2257,42 @@ class _WalletScreenState extends State<WalletScreen>
             ],
           ),
         ),
-        // TxGroup master cards first
-        ...sectionGroups.map((g) => TxGroupCard(
-              group: g,
-              isDark: isDark,
-              onTxTap: (tx) => _showDetail(tx),
-              onTxLongPress: (tx) => _duplicateTx(tx),
-              onAddExpense: () => _addToGroup(g),
-              onRename: (name, emoji) => _renameTxGroup(g, name, emoji),
-              onDeleteGroup: () => _deleteTxGroup(g),
+        // TxGroup master cards — each wrapped in DragTarget
+        ...sectionGroups.map((g) => DragTarget<TxModel>(
+              onWillAcceptWithDetails: (d) => d.data.groupId != g.id,
+              onAcceptWithDetails: (d) {
+                HapticFeedback.mediumImpact();
+                _assignTxToGroup(d.data, g);
+              },
+              builder: (_, candidates, _) => AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                decoration: candidates.isNotEmpty
+                    ? BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.6),
+                            width: 2),
+                      )
+                    : null,
+                child: TxGroupCard(
+                  group: g,
+                  isDark: isDark,
+                  onTxTap: (tx) => _showDetail(tx),
+                  onTxLongPress: (tx) => _duplicateTx(tx),
+                  onAddExpense: () => _addToGroup(g),
+                  onRename: (name, emoji) => _renameTxGroup(g, name, emoji),
+                  onDeleteGroup: () => _deleteTxGroup(g),
+                  onTxDragStarted: (tx) => setState(() => _draggingTx = tx),
+                  onTxDragEnded: () => setState(() => _draggingTx = null),
+                ),
+              ),
             )),
-        // Individual (ungrouped) tiles
+        // Individual (ungrouped) tiles — draggable + drop target
         ...entry.value.map((tx) {
           final currentUid = AuthService.instance.currentUser?.id;
           final isRecipient =
               tx.type == TxType.request && tx.userId != currentUid;
-          return TxTile(
+          final tile = TxTile(
             tx: tx,
             onTap: () => _showDetail(tx),
             onLongPress: () => _duplicateTx(tx),
@@ -2229,6 +2302,50 @@ class _WalletScreenState extends State<WalletScreen>
             onReject: isRecipient
                 ? () => _handleRequestResponse(tx, accept: false)
                 : null,
+          );
+          return DragTarget<TxModel>(
+            onWillAcceptWithDetails: (d) => d.data.id != tx.id,
+            onAcceptWithDetails: (d) {
+              HapticFeedback.mediumImpact();
+              // If the dragged tx is already in a group, add this ungrouped tx
+              // to that same group. Otherwise create a brand-new group.
+              if (d.data.groupId != null) {
+                final grp = _txGroups.firstWhere((g) => g.id == d.data.groupId,
+                    orElse: () => TxGroup(
+                        id: '', walletId: tx.walletId,
+                        name: '', emoji: '📦', transactions: []));
+                if (grp.id.isNotEmpty) {
+                  _assignTxToGroup(tx, grp);
+                }
+              } else {
+                _showCreateGroupSheet(d.data, tx);
+              }
+            },
+            builder: (_, candidates, _) => Stack(
+              children: [
+                LongPressDraggable<TxModel>(
+                  data: tx,
+                  delay: const Duration(milliseconds: 300),
+                  onDragStarted: () => setState(() => _draggingTx = tx),
+                  onDragEnd: (_) => setState(() => _draggingTx = null),
+                  feedback: _TxDragFeedback(tx: tx, isDark: isDark),
+                  childWhenDragging: Opacity(opacity: 0.35, child: tile),
+                  child: tile,
+                ),
+                if (candidates.isNotEmpty)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.5),
+                            width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           );
         }),
       ],
@@ -2476,6 +2593,226 @@ class _WalletScreenState extends State<WalletScreen>
     } catch (e) {
       debugPrint('[Wallet] deleteTxGroup failed: $e');
     }
+  }
+
+  // ── Drag-and-drop: create new group from two transactions ──────────────────
+
+  void _showCreateGroupSheet(TxModel tx1, TxModel tx2) {
+    final ctrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('Create Group',
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito', color: tc)),
+              const SizedBox(height: 6),
+              // Preview of the two txs being grouped
+              Row(children: [
+                _GroupPreviewChip(tx: tx1, isDark: isDark),
+                const SizedBox(width: 8),
+                Icon(Icons.add_rounded, size: 16, color: sub),
+                const SizedBox(width: 8),
+                _GroupPreviewChip(tx: tx2, isDark: isDark),
+              ]),
+              const SizedBox(height: 16),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, fontFamily: 'Nunito', color: tc),
+                decoration: InputDecoration(
+                  hintText: 'Group name…',
+                  hintStyle: TextStyle(fontFamily: 'Nunito', color: sub),
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 13),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final name = ctrl.text.trim();
+                    if (name.isEmpty) return;
+                    Navigator.pop(context);
+                    _createGroupWithTxs(name, tx1, tx2);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Create Group',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          fontFamily: 'Nunito')),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createGroupWithTxs(
+      String name, TxModel tx1, TxModel tx2) async {
+    try {
+      final row = await WalletService.instance.createTxGroup(
+        walletId: tx1.walletId,
+        name: name,
+        emoji: '📦',
+      );
+      final groupId = row['id'] as String;
+      await WalletService.instance.setTxGroup(tx1.id, groupId);
+      await WalletService.instance.setTxGroup(tx2.id, groupId);
+      for (final tx in [tx1, tx2]) {
+        final idx = _transactions.indexWhere((t) => t.id == tx.id);
+        if (idx >= 0) {
+          _transactions[idx] = TxModel(
+            id: tx.id, type: tx.type, amount: tx.amount,
+            category: tx.category, date: tx.date, walletId: tx.walletId,
+            payMode: tx.payMode, title: tx.title, note: tx.note,
+            person: tx.person, persons: tx.persons, status: tx.status,
+            dueDate: tx.dueDate, userId: tx.userId, groupId: groupId,
+          );
+        }
+      }
+      WalletService.txChangeSignal.value++;
+      if (mounted) await _loadTxGroups();
+    } catch (e) {
+      debugPrint('[Wallet] createGroupWithTxs failed: $e');
+    }
+  }
+}
+
+// ── Drag feedback card ────────────────────────────────────────────────────────
+class _TxDragFeedback extends StatelessWidget {
+  final TxModel tx;
+  final bool isDark;
+  const _TxDragFeedback({required this.tx, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(tx.type.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Text(
+              tx.title?.isNotEmpty == true ? tx.title! : tx.category,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '₹${tx.amount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'DM Mono',
+                color: AppColors.expense,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Small chip shown in the "Create Group" sheet preview ─────────────────────
+class _GroupPreviewChip extends StatelessWidget {
+  final TxModel tx;
+  final bool isDark;
+  const _GroupPreviewChip({required this.tx, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final surfBg =
+        isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: surfBg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(tx.type.emoji, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 5),
+          Text(
+            tx.title?.isNotEmpty == true ? tx.title! : tx.category,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Nunito',
+                color: tc),
+          ),
+        ],
+      ),
+    );
   }
 }
 

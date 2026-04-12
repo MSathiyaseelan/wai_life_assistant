@@ -499,9 +499,13 @@ class _PantryScreenState extends State<PantryScreen>
     ));
 
     try {
+      final subFeature = switch (_sectionTab.index) {
+        0 => 'meal',
+        _ => 'basket',
+      };
       final result = await AIParser.parseText(
         feature: 'pantry',
-        subFeature: 'basket',
+        subFeature: subFeature,
         text: text,
       );
       sc.hideCurrentSnackBar();
@@ -1305,6 +1309,32 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _addGrocery(GroceryItem i) async {
+    // Duplicate check: if adding to In Stock, merge with existing same-name item
+    if (i.inStock) {
+      final existingIdx = _groceries.indexWhere((g) =>
+          g.inStock &&
+          g.walletId == i.walletId &&
+          g.name.toLowerCase().trim() == i.name.toLowerCase().trim());
+      if (existingIdx >= 0) {
+        final existing = _groceries[existingIdx];
+        final Map<String, dynamic> updates = {};
+        if (existing.unit == i.unit) {
+          // Same unit — accumulate quantity
+          updates['quantity'] = existing.quantity + i.quantity;
+        } else {
+          // Different unit — replace with new quantity/unit
+          updates['quantity'] = i.quantity;
+          updates['unit'] = i.unit;
+        }
+        await _updateGrocery(existing, updates);
+        _showSavedSnack(
+          '${existing.name} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
+          AppColors.income,
+        );
+        return;
+      }
+    }
+
     setState(() => _groceries.add(i)); // optimistic
     try {
       final row = await PantryService.instance.addGroceryItem(
@@ -1377,18 +1407,16 @@ class _PantryScreenState extends State<PantryScreen>
     return Scaffold(
       backgroundColor: bg,
       resizeToAvoidBottomInset: true,
-      // ── Chat input bar at bottom — replaces FAB as primary entry point ──────
-      bottomNavigationBar: ChatInputBar(
+      // ── Chat input bar at bottom — hidden on Recipe Box tab ─────────────────
+      bottomNavigationBar: _sectionTab.index == 1 ? null : ChatInputBar(
         key: _chatBarKey,
         onSubmit: _onChatSubmit,
         onMicTap: _onMicTap,
         onAddTap: _openFlowSelector,
         isListening: _isListening,
-        hintText: switch (_sectionTab.index) {
-          0 => 'e.g. "had idli sambar for breakfast today"',
-          1 => 'e.g. "add chicken biryani recipe"',
-          _ => 'e.g. "add 2kg tomatoes to basket"',
-        },
+        hintText: _sectionTab.index == 0
+            ? 'e.g. "had idli sambar for breakfast today"'
+            : 'e.g. "add 2kg tomatoes to basket"',
       ),
       body: NestedScrollView(
         headerSliverBuilder: (_, _) => [

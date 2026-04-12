@@ -3195,9 +3195,10 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
       // Map participants to per-person share fields
       final rawParticipants = data['participants'];
       if (rawParticipants is List && rawParticipants.isNotEmpty) {
-        // If AI returned per-person amounts, switch to unequal split
         final firstEntry = rawParticipants.first;
+
         if (firstEntry is Map) {
+          // Case A: AI returned per-person amounts/percentages → unequal/percentage split
           final hasAmount = firstEntry.containsKey('amount');
           final hasPct = firstEntry.containsKey('percentage') || firstEntry.containsKey('percent');
           if (hasAmount || hasPct) {
@@ -3206,7 +3207,6 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
               if (entry is! Map) continue;
               final nameRaw = (entry['name'] as String? ?? '').toLowerCase().trim();
               if (nameRaw.isEmpty) continue;
-              // Match by name or "you" keyword
               final match = widget.group.participants.where((p) {
                 final pName = (p.isMe ? 'you' : p.name.toLowerCase());
                 return pName.contains(nameRaw) ||
@@ -3221,6 +3221,33 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                     ? v.toInt().toString()
                     : v.toStringAsFixed(2);
               }
+            }
+          }
+        } else if (firstEntry is String && _splitType == SplitType.equal) {
+          // Case B: AI returned a string list of names for an "equally" split but
+          // the subset doesn't cover the whole group → show per-person amounts
+          final names = rawParticipants.whereType<String>().toList();
+          final matched = <SplitParticipant>[];
+          for (final nameRaw in names) {
+            final n = nameRaw.toLowerCase().trim();
+            final match = widget.group.participants.where((p) {
+              final pName = (p.isMe ? 'you' : p.name.toLowerCase());
+              return pName.contains(n) ||
+                  n.contains(p.name.toLowerCase().split(' ')[0]) ||
+                  (p.isMe && (n == 'you' || n == 'me'));
+            }).firstOrNull;
+            if (match != null) matched.add(match);
+          }
+          // Only switch to unequal when participants are a strict subset
+          if (matched.isNotEmpty && matched.length != widget.group.participants.length) {
+            _splitType = SplitType.unequal;
+            final total = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
+            final each = matched.isEmpty ? 0.0 : total / matched.length;
+            final eachStr = each == each.roundToDouble()
+                ? each.toInt().toString()
+                : each.toStringAsFixed(2);
+            for (final p in matched) {
+              _shareCtrl[p.id]?.text = eachStr;
             }
           }
         }

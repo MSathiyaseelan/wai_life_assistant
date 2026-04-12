@@ -28,6 +28,7 @@ import 'package:wai_life_assistant/core/supabase/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
+import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/currency_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sheet.dart';
@@ -59,7 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userDob = '';
   String _userPlan = 'Free';
   String _userPhotoUrl = '';
-  bool _balanceHidden = false;
+  bool _balanceHidden = true;
   bool _fabExpanded = false;
   // Today's meals — merged list from all loaded wallets
   List<MealEntry> _todayMeals = [];
@@ -3151,7 +3152,7 @@ class _PinnedSplitCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
               ),
               alignment: Alignment.center,
-              child: Text(group.emoji, style: const TextStyle(fontSize: 22)),
+              child: EmojiOrImage(value: group.emoji, size: 26, borderRadius: 13),
             ),
             const SizedBox(width: 12),
             // Name + meta

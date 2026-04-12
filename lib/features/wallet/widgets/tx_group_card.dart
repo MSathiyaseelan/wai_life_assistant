@@ -28,6 +28,12 @@ class TxGroupCard extends StatefulWidget {
   /// Delete the whole group (txs become ungrouped)
   final VoidCallback onDeleteGroup;
 
+  /// Called when a member tile drag starts (for parent to track _draggingTx)
+  final void Function(TxModel tx)? onTxDragStarted;
+
+  /// Called when a member tile drag ends
+  final VoidCallback? onTxDragEnded;
+
   const TxGroupCard({
     super.key,
     required this.group,
@@ -37,6 +43,8 @@ class TxGroupCard extends StatefulWidget {
     required this.onAddExpense,
     required this.onRename,
     required this.onDeleteGroup,
+    this.onTxDragStarted,
+    this.onTxDragEnded,
   });
 
   @override
@@ -356,11 +364,22 @@ class _TxGroupCardState extends State<TxGroupCard>
                       ? Colors.white.withValues(alpha: 0.06)
                       : Colors.black.withValues(alpha: 0.05),
                 ),
-                // Member tiles
-                ...g.transactions.map((tx) => TxTile(
-                      tx: tx,
-                      onTap: () => widget.onTxTap(tx),
-                      onLongPress: () => widget.onTxLongPress(tx),
+                // Member tiles — each is draggable so user can remove from group
+                ...g.transactions.map((tx) => LongPressDraggable<TxModel>(
+                      data: tx,
+                      delay: const Duration(milliseconds: 300),
+                      onDragStarted: () => widget.onTxDragStarted?.call(tx),
+                      onDragEnd: (_) => widget.onTxDragEnded?.call(),
+                      feedback: _TxDragFeedback(tx: tx),
+                      childWhenDragging: Opacity(
+                        opacity: 0.35,
+                        child: TxTile(tx: tx),
+                      ),
+                      child: TxTile(
+                        tx: tx,
+                        onTap: () => widget.onTxTap(tx),
+                        onLongPress: () => widget.onTxLongPress(tx),
+                      ),
                     )),
                 // Add expense button
                 Padding(
@@ -402,6 +421,60 @@ class _TxGroupCardState extends State<TxGroupCard>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Drag feedback card shown while dragging a transaction ────────────────────
+class _TxDragFeedback extends StatelessWidget {
+  final TxModel tx;
+  const _TxDragFeedback({required this.tx});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.22),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(tx.type.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Text(
+              tx.title?.isNotEmpty == true ? tx.title! : tx.category,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '₹${tx.amount.toStringAsFixed(0)}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                fontFamily: 'DM Mono',
+                color: AppColors.expense,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
