@@ -10,6 +10,7 @@ class ConversationScreen extends StatelessWidget {
   final FlowType flowType;
   final String walletId;
   final List<WalletModel> wallets;
+  final List<TxModel> transactions;
   final void Function(TxModel tx) onComplete;
 
   const ConversationScreen({
@@ -17,6 +18,7 @@ class ConversationScreen extends StatelessWidget {
     required this.flowType,
     required this.walletId,
     required this.wallets,
+    this.transactions = const [],
     required this.onComplete,
   });
 
@@ -68,6 +70,7 @@ class ConversationScreen extends StatelessWidget {
         flowType: flowType,
         walletId: walletId,
         wallets: wallets,
+        transactions: transactions,
         onComplete: (tx) {
           onComplete(tx);
           // Pop back after a short delay so user sees the success card

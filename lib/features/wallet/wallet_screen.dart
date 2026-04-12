@@ -371,6 +371,7 @@ class _WalletScreenState extends State<WalletScreen>
           flowType: flowType,
           walletId: widget.activeWalletId,
           wallets: _allWallets,
+          transactions: _transactions,
           onComplete: _onTransactionSaved,
         ),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(

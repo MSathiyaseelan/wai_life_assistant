@@ -132,7 +132,7 @@ class _AmountStepState extends State<AmountStep> {
                 backgroundColor: _parsed > 0 ? widget.color : surfBg,
                 foregroundColor: _parsed > 0 ? Colors.white : subColor,
                 elevation: _parsed > 0 ? 4 : 0,
-                shadowColor: widget.color.withOpacity(0.4),
+                shadowColor: widget.color.withValues(alpha: 0.4),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
@@ -573,16 +573,19 @@ class PersonStep extends StatefulWidget {
   State<PersonStep> createState() => _PersonStepState();
 }
 
+// Simple record for a contact entry with name + phone
+typedef _Contact = ({String name, String phone});
+
 class _PersonStepState extends State<PersonStep> {
   // Static cache — loaded once per app session, reused on subsequent opens
-  static List<String>? _cachedNames;
+  static List<_Contact>? _cachedContacts;
   static bool _cacheLoading = false;
 
-  final Set<String> _selected = {};
+  final Set<String> _selected = {}; // stores names
   final _searchCtrl = TextEditingController();
 
-  List<String> _allNames = [];
-  List<String> _filtered = [];
+  List<_Contact> _allContacts = [];
+  List<_Contact> _filtered = [];
   bool _loading = true;
   bool _denied = false;
 
@@ -590,10 +593,9 @@ class _PersonStepState extends State<PersonStep> {
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearch);
-    if (_cachedNames != null) {
-      // Instant load from cache
-      _allNames = _cachedNames!;
-      _filtered = _cachedNames!;
+    if (_cachedContacts != null) {
+      _allContacts = _cachedContacts!;
+      _filtered = _cachedContacts!;
       _loading = false;
     } else {
       _loadContacts();
@@ -608,12 +610,11 @@ class _PersonStepState extends State<PersonStep> {
 
   Future<void> _loadContacts() async {
     if (_cacheLoading) {
-      // Another instance is already loading — poll until done
       while (_cacheLoading) {
         await Future.delayed(const Duration(milliseconds: 100));
       }
-      if (mounted && _cachedNames != null) {
-        setState(() { _allNames = _cachedNames!; _filtered = _cachedNames!; _loading = false; });
+      if (mounted && _cachedContacts != null) {
+        setState(() { _allContacts = _cachedContacts!; _filtered = _cachedContacts!; _loading = false; });
       } else if (mounted) {
         setState(() { _loading = false; _denied = true; });
       }
@@ -627,16 +628,24 @@ class _PersonStepState extends State<PersonStep> {
         if (mounted) setState(() { _loading = false; _denied = true; });
         return;
       }
-      final contacts = await FlutterContacts.getContacts(withProperties: false);
-      final names = contacts
-          .map((c) => c.displayName.trim())
-          .where((n) => n.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      _cachedNames = names;
+      final raw = await FlutterContacts.getContacts(withProperties: true);
+      final seen = <String>{};
+      final contacts = <_Contact>[];
+      for (final c in raw) {
+        final name = c.displayName.trim();
+        if (name.isEmpty || seen.contains(name)) continue;
+        seen.add(name);
+        final phone = c.phones.isNotEmpty
+            ? (c.phones.first.normalizedNumber.isNotEmpty
+                ? c.phones.first.normalizedNumber
+                : c.phones.first.number)
+            : '';
+        contacts.add((name: name, phone: phone));
+      }
+      contacts.sort((a, b) => a.name.compareTo(b.name));
+      _cachedContacts = contacts;
       _cacheLoading = false;
-      if (mounted) setState(() { _allNames = names; _filtered = names; _loading = false; });
+      if (mounted) setState(() { _allContacts = contacts; _filtered = contacts; _loading = false; });
     } catch (_) {
       _cacheLoading = false;
       if (mounted) setState(() { _loading = false; _denied = true; });
@@ -647,8 +656,12 @@ class _PersonStepState extends State<PersonStep> {
     final q = _searchCtrl.text.toLowerCase();
     setState(() {
       _filtered = q.isEmpty
-          ? _allNames
-          : _allNames.where((n) => n.toLowerCase().contains(q)).toList();
+          ? _allContacts
+          : _allContacts
+              .where((c) =>
+                  c.name.toLowerCase().contains(q) ||
+                  c.phone.contains(q))
+              .toList();
     });
   }
 
@@ -742,74 +755,98 @@ class _PersonStepState extends State<PersonStep> {
               ),
             )
           else
-            SizedBox(
+            Container(
               height: 260,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: (isDark ? AppColors.subDark : AppColors.subLight)
+                      .withValues(alpha: 0.3),
+                  width: 1,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: ListView.builder(
-              itemCount: _filtered.length,
-              itemBuilder: (_, i) {
-                final name = _filtered[i];
-                final isSel = _selected.contains(name);
-                final tc = isDark ? AppColors.textDark : AppColors.textLight;
-                return GestureDetector(
-                  onTap: () => _tap(name),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSel
-                          ? widget.color.withValues(alpha: 0.12)
-                          : (isDark ? AppColors.surfDark : AppColors.bgLight),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isSel ? widget.color : Colors.transparent,
-                        width: 1.5,
+                itemCount: _filtered.length,
+                itemBuilder: (_, i) {
+                  final contact = _filtered[i];
+                  final isSel = _selected.contains(contact.name);
+                  final tc = isDark ? AppColors.textDark : AppColors.textLight;
+                  return GestureDetector(
+                    onTap: () => _tap(contact.name),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSel
+                            ? (isDark ? AppColors.surfDark : AppColors.bgLight)
+                                .withValues(alpha: 0.5)
+                            : (isDark ? AppColors.surfDark : AppColors.bgLight),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          // Emoji avatar — plain text, matches Splits group sheet
+                          const Text('🧑',
+                              style: TextStyle(fontSize: 22)),
+                          const SizedBox(width: 12),
+                          // Name + phone
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  contact.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                    color: tc,
+                                  ),
+                                ),
+                                if (contact.phone.isNotEmpty)
+                                  Text(
+                                    contact.phone,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (widget.multiSelect && isSel)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.income.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Added',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: AppColors.income,
+                                ),
+                              ),
+                            )
+                          else
+                            Icon(Icons.add_circle_rounded,
+                                color: widget.color, size: 22),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: isSel
-                                ? widget.color.withValues(alpha: 0.25)
-                                : (isDark ? AppColors.cardDark : Colors.white),
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            name[0].toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: isSel ? widget.color : sub,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Nunito',
-                              color: isSel ? widget.color : tc,
-                            ),
-                          ),
-                        ),
-                        if (isSel)
-                          Icon(Icons.check_circle_rounded, color: widget.color, size: 20),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-            ), // end SizedBox
+                  );
+                },
+              ),
+            ), // end Container
 
           // Multi-select confirm
           if (widget.multiSelect && _selected.isNotEmpty) ...[
@@ -822,7 +859,7 @@ class _PersonStepState extends State<PersonStep> {
                   backgroundColor: widget.color,
                   foregroundColor: Colors.white,
                   elevation: 4,
-                  shadowColor: widget.color.withOpacity(0.4),
+                  shadowColor: widget.color.withValues(alpha: 0.4),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -922,58 +959,29 @@ class _NoteStepState extends State<NoteStep> {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              // Skip
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => widget.onConfirm(''),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    side: BorderSide(
-                      color: isDark ? AppColors.subDark : AppColors.subLight,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    'Skip',
-                    style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w700,
-                      color: subColor,
-                    ),
-                  ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => widget.onConfirm(_ctrl.text.trim()),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.color,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                shadowColor: widget.color.withValues(alpha: 0.4),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              const SizedBox(width: 10),
-              // Add note
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => widget.onConfirm(_ctrl.text.trim()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.color,
-                    foregroundColor: Colors.white,
-                    elevation: 3,
-                    shadowColor: widget.color.withOpacity(0.4),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    _hasText ? 'Add Note →' : 'No Note →',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      fontSize: 14,
-                    ),
-                  ),
+              child: Text(
+                _hasText ? 'Add Note →' : 'Skip →',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                  fontSize: 14,
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),

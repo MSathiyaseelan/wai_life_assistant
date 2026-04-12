@@ -40,6 +40,9 @@ class ConversationFlow extends StatefulWidget {
   final String walletId;
   final List<WalletModel> wallets;
 
+  /// All transactions — used by Returned Money to validate lend history.
+  final List<TxModel> transactions;
+
   /// Called after user saves — receives the new TxModel
   final void Function(TxModel tx) onComplete;
 
@@ -48,6 +51,7 @@ class ConversationFlow extends StatefulWidget {
     required this.flowType,
     required this.walletId,
     required this.wallets,
+    this.transactions = const [],
     required this.onComplete,
   });
 
@@ -215,6 +219,66 @@ class _ConversationFlowState extends State<ConversationFlow> {
       _showTyping = false;
     });
     _pushBotQuestion(0);
+  }
+
+  // ── Returned Money: validate person has an outstanding lend ─────────────────
+
+  void _validateReturnedPerson(FlowStep step, String name) {
+    final key = name.trim().toLowerCase();
+
+    // Check both directions: they owe you (lend) OR you owe them (borrow)
+    final lentTotal = widget.transactions
+        .where((t) => t.type == TxType.lend &&
+            (t.person?.trim().toLowerCase() ?? '') == key)
+        .fold(0.0, (s, t) => s + t.amount);
+
+    final borrowedTotal = widget.transactions
+        .where((t) => t.type == TxType.borrow &&
+            (t.person?.trim().toLowerCase() ?? '') == key)
+        .fold(0.0, (s, t) => s + t.amount);
+
+    final returnedTotal = widget.transactions
+        .where((t) => t.type == TxType.returned &&
+            (t.person?.trim().toLowerCase() ?? '') == key)
+        .fold(0.0, (s, t) => s + t.amount);
+
+    final hasAnyRecord = lentTotal > 0 || borrowedTotal > 0;
+
+    if (!hasAnyRecord) {
+      _rejectPerson(name, '❌ No lend or borrow record found for $name. Nothing tracked to be returned.');
+      return;
+    }
+
+    // Outstanding = lent (they owe you) + borrowed (you owe them) - already returned
+    final outstanding = lentTotal + borrowedTotal - returnedTotal;
+    if (outstanding <= 0) {
+      _rejectPerson(name, '✅ All amounts with $name are already settled. No outstanding balance remaining.');
+      return;
+    }
+
+    // Valid — proceed with the step
+    _answer(step, name, () => _data.person = name);
+  }
+
+  void _rejectPerson(String name, String botMsg) {
+    // Show user's selection bubble, then a bot error, then close the screen
+    setState(() {
+      if (_messages.isNotEmpty) {
+        _messages[_messages.length - 1] = _messages[_messages.length - 1].done();
+      }
+      _messages.add(_Message(role: ChatRole.user, text: name, animate: true));
+      _showTyping = true;
+    });
+    _scrollToBottom();
+
+    Future.delayed(const Duration(milliseconds: 520), () {
+      if (!mounted) return;
+      setState(() {
+        _showTyping = false;
+        _messages.add(_Message(role: ChatRole.bot, text: botMsg, animate: true));
+      });
+      _scrollToBottom();
+    });
   }
 
   // ── Build step input widget ─────────────────────────────────────────────────
@@ -389,9 +453,13 @@ class _ConversationFlowState extends State<ConversationFlow> {
         return PersonStep(
           color: color,
           multiSelect: false,
-          onSelectSingle: (p) => _answer(step, p, () {
-            _data.person = p;
-          }),
+          onSelectSingle: (p) {
+            if (widget.flowType == FlowType.returned) {
+              _validateReturnedPerson(step, p);
+            } else {
+              _answer(step, p, () => _data.person = p);
+            }
+          },
           onSelectMulti: (_) {},
         );
 
@@ -438,7 +506,6 @@ class _ConversationFlowState extends State<ConversationFlow> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = widget.flowType.color;
 
     return Column(
