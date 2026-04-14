@@ -32,7 +32,12 @@ class _OtpScreenState extends State<OtpScreen> {
     super.initState();
     _startResendTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _nodes[0].requestFocus();
+      if (kBypassOtp) {
+        // Auto-proceed without waiting for digit input
+        _verify();
+      } else {
+        _nodes[0].requestFocus();
+      }
     });
   }
 
@@ -81,7 +86,7 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
-    if (_otp.length < 6) {
+    if (!kBypassOtp && _otp.length < 6) {
       setState(() => _error = 'Please enter the 6-digit OTP');
       return;
     }
@@ -93,9 +98,17 @@ class _OtpScreenState extends State<OtpScreen> {
         await AuthService.instance.verifyOtp(widget.phone, _otp);
       }
       if (!mounted) return;
-      await ProfileService.instance.bootstrapNewUser();
-      final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
-      if (migrated) debugPrint('[OTP] Profile data migrated for ${widget.phone}');
+      // Skip setup if profile already exists for this UID (bypass re-uses the
+      // same anonymous session, so bootstrap + phone-link would hit unique
+      // constraints on repeated logins).
+      final existing = await ProfileService.instance.fetchProfile();
+      if (existing == null) {
+        await ProfileService.instance.bootstrapNewUser();
+        final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
+        if (migrated) debugPrint('[OTP] Profile data migrated for ${widget.phone}');
+      } else {
+        debugPrint('[OTP] Profile already exists, skipping setup');
+      }
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -105,9 +118,11 @@ class _OtpScreenState extends State<OtpScreen> {
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Invalid OTP. Please try again.');
+      setState(() => _error = kBypassOtp
+          ? 'Bypass failed: $e'
+          : 'Invalid OTP. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -265,20 +280,25 @@ class _OtpScreenState extends State<OtpScreen> {
                       if (_error != null) ...[
                         const SizedBox(height: 10),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.error_outline_rounded,
-                              size: 14,
-                              color: AppColors.error,
+                            const Padding(
+                              padding: EdgeInsets.only(top: 1),
+                              child: Icon(
+                                Icons.error_outline_rounded,
+                                size: 14,
+                                color: AppColors.error,
+                              ),
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              _error!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.error,
-                                fontFamily: 'Nunito',
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.error,
+                                  fontFamily: 'Nunito',
+                                ),
                               ),
                             ),
                           ],

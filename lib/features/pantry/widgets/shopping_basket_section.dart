@@ -114,8 +114,9 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
               labelColor: Colors.white,
-              unselectedLabelColor:
-                  isDark ? AppColors.subDark : AppColors.subLight,
+              unselectedLabelColor: isDark
+                  ? AppColors.subDark
+                  : AppColors.subLight,
               labelStyle: const TextStyle(
                 fontWeight: FontWeight.w800,
                 fontSize: 12,
@@ -213,7 +214,6 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
       ],
     );
   }
-
 }
 
 // ── Grocery list ─────────────────────────────────────────────────────────────
@@ -275,93 +275,97 @@ class _GroceryList extends StatelessWidget {
 
         // Check expiry warning
         final now = DateTime.now();
-        final isExpiringSoon = item.expiryDate != null &&
-            DateTime(item.expiryDate!.year, item.expiryDate!.month, item.expiryDate!.day)
-                .isBefore(DateTime(now.year, now.month, now.day));
+        final isExpiringSoon =
+            item.expiryDate != null &&
+            DateTime(
+              item.expiryDate!.year,
+              item.expiryDate!.month,
+              item.expiryDate!.day,
+            ).isBefore(DateTime(now.year, now.month, now.day));
 
         return GestureDetector(
-            onTap: () => _showEditSheet(ctx, item),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(14),
-                border: isExpiringSoon
-                    ? Border.all(
-                        color: AppColors.lend.withValues(alpha: 0.6),
-                        width: 1.5,
-                      )
-                    : null,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Text(c, style: const TextStyle(fontSize: 20)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.name,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: isDark
-                                ? AppColors.textDark
-                                : AppColors.textLight,
-                          ),
+          onTap: () => _showEditSheet(ctx, item),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: isExpiringSoon
+                  ? Border.all(
+                      color: AppColors.lend.withValues(alpha: 0.6),
+                      width: 1.5,
+                    )
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.05),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Text(c, style: const TextStyle(fontSize: 20)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                          color: isDark
+                              ? AppColors.textDark
+                              : AppColors.textLight,
                         ),
-                        Row(
-                          children: [
-                            Text(
-                              '${item.quantity} ${item.unit}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'Nunito',
-                                color: isDark
-                                    ? AppColors.subDark
-                                    : AppColors.subLight,
+                      ),
+                      Row(
+                        children: [
+                          Text(
+                            '${item.quantity} ${item.unit}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
+                            ),
+                          ),
+                          if (isExpiringSoon) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.lend.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                '⚠️ Expiring soon',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.lend,
+                                ),
                               ),
                             ),
-                            if (isExpiringSoon) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 1,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.lend.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  '⚠️ Expiring soon',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.lend,
-                                  ),
-                                ),
-                              ),
-                            ],
                           ],
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ),
-                  trailing(item),
-                ],
-              ),
+                ),
+                trailing(item),
+              ],
             ),
+          ),
         );
       },
     );
@@ -403,7 +407,7 @@ class _StockTrail extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        item.toBuy ? '📋 Listed' : '+ List',
+        item.toBuy ? '📋 Listed' : '+ To Buy',
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w800,
@@ -531,7 +535,9 @@ class _EditItemSheetState extends State<_EditItemSheet> {
           : widget.item.quantity.toString(),
     );
     _noteCtrl = TextEditingController(text: widget.item.note ?? '');
-    _selectedUnit = _units.contains(widget.item.unit) ? widget.item.unit : _units[0];
+    _selectedUnit = _units.contains(widget.item.unit)
+        ? widget.item.unit
+        : _units[0];
     _selectedCat = widget.item.category;
   }
 
@@ -552,7 +558,9 @@ class _EditItemSheetState extends State<_EditItemSheet> {
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: bg,
@@ -580,8 +588,10 @@ class _EditItemSheetState extends State<_EditItemSheet> {
               // Header
               Row(
                 children: [
-                  Text(widget.item.category.emoji,
-                      style: const TextStyle(fontSize: 22)),
+                  Text(
+                    widget.item.category.emoji,
+                    style: const TextStyle(fontSize: 22),
+                  ),
                   const SizedBox(width: 10),
                   const Text(
                     'Edit Item',
@@ -604,8 +614,15 @@ class _EditItemSheetState extends State<_EditItemSheet> {
               _label('QUANTITY', sub),
               SizedBox(
                 width: 120,
-                child: _field(_qtyCtrl, 'Qty', surfBg, tc,
-                    inputType: const TextInputType.numberWithOptions(decimal: true)),
+                child: _field(
+                  _qtyCtrl,
+                  'Qty',
+                  surfBg,
+                  tc,
+                  inputType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
 
@@ -623,15 +640,16 @@ class _EditItemSheetState extends State<_EditItemSheet> {
                         duration: const Duration(milliseconds: 150),
                         margin: const EdgeInsets.only(right: 6),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 7),
+                          horizontal: 14,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
                           color: sel
                               ? AppColors.expense.withValues(alpha: 0.15)
                               : surfBg,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color:
-                                sel ? AppColors.expense : Colors.transparent,
+                            color: sel ? AppColors.expense : Colors.transparent,
                             width: 1.5,
                           ),
                         ),
@@ -663,7 +681,9 @@ class _EditItemSheetState extends State<_EditItemSheet> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: sel
                             ? AppColors.expense.withValues(alpha: 0.15)
@@ -727,7 +747,11 @@ class _EditItemSheetState extends State<_EditItemSheet> {
                     Navigator.pop(context);
                     widget.onDelete(widget.item);
                   },
-                  icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.expense),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: AppColors.expense,
+                  ),
                   label: const Text(
                     'Delete Item',
                     style: TextStyle(
@@ -761,18 +785,18 @@ class _EditItemSheetState extends State<_EditItemSheet> {
   }
 
   Widget _label(String text, Color color) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            fontFamily: 'Nunito',
-            color: color,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.8,
+        fontFamily: 'Nunito',
+        color: color,
+      ),
+    ),
+  );
 
   Widget _field(
     TextEditingController ctrl,
@@ -780,25 +804,26 @@ class _EditItemSheetState extends State<_EditItemSheet> {
     Color surfBg,
     Color tc, {
     TextInputType? inputType,
-  }) =>
-      TextField(
-        controller: ctrl,
-        keyboardType: inputType,
-        style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(
-              fontFamily: 'Nunito', fontSize: 12, color: AppColors.subLight),
-          filled: true,
-          fillColor: surfBg,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        ),
-      );
+  }) => TextField(
+    controller: ctrl,
+    keyboardType: inputType,
+    style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(
+        fontFamily: 'Nunito',
+        fontSize: 12,
+        color: AppColors.subLight,
+      ),
+      filled: true,
+      fillColor: surfBg,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    ),
+  );
 }
 
 // ── Scan Bill sheet ───────────────────────────────────────────────────────────
@@ -826,7 +851,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
   List<_ScannedItem> _scannedItems = [];
   String? _error;
   bool _pushToWallet = false;
-  bool _limitChecking = true;   // true while checking on open
+  bool _limitChecking = true; // true while checking on open
   bool _limitReached = false;
 
   // ── Scan limit check ────────────────────────────────────────────────────────
@@ -849,7 +874,8 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
         setState(() => _limitChecking = false);
         return;
       }
-      final month = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+      final month =
+          '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
 
       final results = await Future.wait([
         client
@@ -902,10 +928,13 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       // Increment + check limit right before the API call (not on button tap)
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId != null) {
-        final allowed = await Supabase.instance.client.rpc(
-          'check_feature_limit',
-          params: {'p_user_id': userId, 'p_feature': 'bill_scan'},
-        ) as bool? ?? true;
+        final allowed =
+            await Supabase.instance.client.rpc(
+                  'check_feature_limit',
+                  params: {'p_user_id': userId, 'p_feature': 'bill_scan'},
+                )
+                as bool? ??
+            true;
         if (!mounted) return;
         if (!allowed) {
           setState(() {
@@ -1009,7 +1038,8 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
             type: 'expense',
             amount: total,
             category: 'groceries',
-            note: 'Bill scan — ${selected.length} item${selected.length == 1 ? '' : 's'}',
+            note:
+                'Bill scan — ${selected.length} item${selected.length == 1 ? '' : 's'}',
           );
         } catch (_) {
           // Non-critical — basket save already succeeded
@@ -1021,15 +1051,20 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
     final messenger = ScaffoldMessenger.of(context);
     final count = selected.length;
     Navigator.pop(context);
-    messenger.showSnackBar(SnackBar(
-      content: Text(
-        '$count item${count == 1 ? '' : 's'} added to stock ✓',
-        style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '$count item${count == 1 ? '' : 's'} added to stock ✓',
+          style: const TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        backgroundColor: AppColors.income,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
-      backgroundColor: AppColors.income,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+    );
   }
 
   // ── UI ──────────────────────────────────────────────────────────────────────
@@ -1097,11 +1132,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           Text(
             'Pick a screenshot or photo of a bill/receipt.\nClaude AI will extract the items for you.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'Nunito',
-              color: sub,
-            ),
+            style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
@@ -1127,7 +1158,8 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: CircularProgressIndicator(
-                color: AppColors.income, strokeWidth: 2,
+                color: AppColors.income,
+                strokeWidth: 2,
               ),
             )
           else if (_limitReached)
@@ -1283,8 +1315,9 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
                   ),
                   TextButton(
                     onPressed: () => setState(() {
-                      final allSelected =
-                          _scannedItems.every((i) => i.selected);
+                      final allSelected = _scannedItems.every(
+                        (i) => i.selected,
+                      );
                       for (final i in _scannedItems) {
                         i.selected = !allSelected;
                       }
@@ -1343,9 +1376,11 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.account_balance_wallet_rounded,
-                      size: 18,
-                      color: _pushToWallet ? AppColors.lend : sub),
+                  Icon(
+                    Icons.account_balance_wallet_rounded,
+                    size: 18,
+                    color: _pushToWallet ? AppColors.lend : sub,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1360,23 +1395,31 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
                             color: _pushToWallet ? AppColors.lend : tc,
                           ),
                         ),
-                        if (_pushToWallet) Builder(builder: (_) {
-                          final total = _scannedItems
-                              .where((i) => i.selected)
-                              .fold<double>(0.0, (s, i) =>
-                                  s + (double.tryParse(i.priceCtrl.text) ??
-                                      i.price ?? 0.0));
-                          return Text(
-                            total > 0
-                                ? '₹${total.toStringAsFixed(2)} logged as grocery expense'
-                                : 'Enter prices above to track amount',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'Nunito',
-                              color: sub,
-                            ),
-                          );
-                        }),
+                        if (_pushToWallet)
+                          Builder(
+                            builder: (_) {
+                              final total = _scannedItems
+                                  .where((i) => i.selected)
+                                  .fold<double>(
+                                    0.0,
+                                    (s, i) =>
+                                        s +
+                                        (double.tryParse(i.priceCtrl.text) ??
+                                            i.price ??
+                                            0.0),
+                                  );
+                              return Text(
+                                total > 0
+                                    ? '₹${total.toStringAsFixed(2)} logged as grocery expense'
+                                    : 'Enter prices above to track amount',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),
@@ -1424,7 +1467,9 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.income,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppColors.income.withValues(alpha: 0.3),
+                    disabledBackgroundColor: AppColors.income.withValues(
+                      alpha: 0.3,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -1450,13 +1495,13 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
   }
 
   Widget _handle() => Container(
-        width: 40,
-        height: 4,
-        decoration: BoxDecoration(
-          color: Colors.grey.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(2),
-        ),
-      );
+    width: 40,
+    height: 4,
+    decoration: BoxDecoration(
+      color: Colors.grey.withValues(alpha: 0.3),
+      borderRadius: BorderRadius.circular(2),
+    ),
+  );
 }
 
 // ── Scanned item data model ───────────────────────────────────────────────────
@@ -1486,7 +1531,8 @@ class _ScannedItem {
     qtyCtrl = TextEditingController(text: _fmtQty(quantity));
     unitCtrl = TextEditingController(text: unit);
     priceCtrl = TextEditingController(
-        text: price != null ? price!.toStringAsFixed(2) : '');
+      text: price != null ? price!.toStringAsFixed(2) : '',
+    );
   }
 
   static String _fmtQty(double q) =>
@@ -1537,16 +1583,14 @@ class _ScannedItemTile extends StatelessWidget {
                 item.selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color:
-                    item.selected ? AppColors.income : sub.withValues(alpha: 0.5),
+                color: item.selected
+                    ? AppColors.income
+                    : sub.withValues(alpha: 0.5),
                 size: 22,
               ),
               const SizedBox(width: 10),
               // Category emoji
-              Text(
-                item.category.emoji,
-                style: const TextStyle(fontSize: 18),
-              ),
+              Text(item.category.emoji, style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
               // Editable name
               Expanded(
@@ -1568,8 +1612,9 @@ class _ScannedItemTile extends StatelessWidget {
                 width: 36,
                 child: TextField(
                   controller: item.qtyCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
@@ -1597,19 +1642,29 @@ class _ScannedItemTile extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('₹', style: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')),
+                  Text(
+                    '₹',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: sub,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
                   SizedBox(
                     width: 46,
                     child: TextField(
                       controller: item.priceCtrl,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       style: TextStyle(
                         fontSize: 12,
                         fontFamily: 'Nunito',
                         color: tc,
                       ),
-                      decoration: const InputDecoration.collapsed(hintText: '0'),
+                      decoration: const InputDecoration.collapsed(
+                        hintText: '0',
+                      ),
                     ),
                   ),
                 ],

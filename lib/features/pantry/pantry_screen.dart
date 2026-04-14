@@ -13,7 +13,11 @@ import 'package:wai_life_assistant/features/pantry/widgets/meal_map_section.dart
 import 'package:wai_life_assistant/features/pantry/widgets/family_food_prefs_card.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/recipe_box_section.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/shopping_basket_section.dart';
+import 'dart:io';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:wai_life_assistant/features/pantry/widgets/week_calendar_strip.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_recipe_sheet.dart';
@@ -891,6 +895,46 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
+  /// Parse an ingredient string like "Chicken (500 g)" or "Chicken 500g"
+  /// into separate name, quantity, and unit for creating a GroceryItem.
+  ({String name, double qty, String unit}) _splitIngredient(String raw) {
+    final s = raw.trim();
+    // "Name (qty unit)" or "Name (qty)"
+    final pm = RegExp(r'^(.+?)\s*\(([^)]+)\)\s*$').firstMatch(s);
+    if (pm != null) {
+      final name = pm.group(1)!.trim();
+      final inner = pm.group(2)!.trim();
+      final qm = RegExp(r'^([\d./]+)\s*(.*)$').firstMatch(inner);
+      if (qm != null) {
+        return (
+          name: name,
+          qty: double.tryParse(qm.group(1)!) ?? 1.0,
+          unit: qm.group(2)!.trim().isEmpty ? 'pcs' : qm.group(2)!.trim(),
+        );
+      }
+      return (name: name, qty: 1.0, unit: inner.isEmpty ? 'pcs' : inner);
+    }
+    // "Name 500g" — digits immediately followed by letters
+    final am = RegExp(r'^(.+?)\s+([\d./]+)([a-zA-Z]+)$').firstMatch(s);
+    if (am != null) {
+      return (
+        name: am.group(1)!.trim(),
+        qty: double.tryParse(am.group(2)!) ?? 1.0,
+        unit: am.group(3)!,
+      );
+    }
+    // "Name 2 cups" or "Name 2"
+    final nm = RegExp(r'^(.+?)\s+([\d./]+)(?:\s+([a-zA-Z]+))?$').firstMatch(s);
+    if (nm != null) {
+      return (
+        name: nm.group(1)!.trim(),
+        qty: double.tryParse(nm.group(2)!) ?? 1.0,
+        unit: nm.group(3) ?? 'pcs',
+      );
+    }
+    return (name: s, qty: 1.0, unit: 'pcs');
+  }
+
   /// Extract the core ingredient name from strings like "2 cups basmati rice" → "basmati rice".
   String _extractIngredientName(String raw) {
     return raw
@@ -1005,17 +1049,17 @@ class _PantryScreenState extends State<PantryScreen>
         isDark: isDark,
         onAddToBasket: (items) {
           for (final label in items) {
-            final item = GroceryItem(
+            final parsed = _splitIngredient(label);
+            _addGrocery(GroceryItem(
               id: DateTime.now().microsecondsSinceEpoch.toString(),
-              name: label,
+              name: parsed.name,
               category: GroceryCategory.other,
-              quantity: 1,
-              unit: 'pcs',
+              quantity: parsed.qty,
+              unit: parsed.unit,
               walletId: widget.activeWalletId,
               inStock: false,
               toBuy: true,
-            );
-            _addGrocery(item);
+            ));
           }
           _showSavedSnack('${items.length} item(s) added to To Buy 🛒', AppColors.primary);
         },
@@ -1229,12 +1273,13 @@ class _PantryScreenState extends State<PantryScreen>
         .toList(),
     onAddMissingToBasket: (items) {
       for (final label in items) {
+        final parsed = _splitIngredient(label);
         _addGrocery(GroceryItem(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
-          name: label,
+          name: parsed.name,
           category: GroceryCategory.other,
-          quantity: 1,
-          unit: 'pcs',
+          quantity: parsed.qty,
+          unit: parsed.unit,
           walletId: widget.activeWalletId,
           inStock: false,
           toBuy: true,
@@ -1242,6 +1287,7 @@ class _PantryScreenState extends State<PantryScreen>
       }
       _showSavedSnack('${items.length} item(s) added to 🛒 To Buy', AppColors.primary);
     },
+    onInlineUpdate: _updateRecipe,
     onEdit: () {
       Navigator.pop(context);
       AddRecipeSheet.show(
@@ -1332,30 +1378,29 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _addGrocery(GroceryItem i) async {
-    // Duplicate check: if adding to In Stock, merge with existing same-name item
-    if (i.inStock) {
-      final existingIdx = _groceries.indexWhere((g) =>
-          g.inStock &&
-          g.walletId == i.walletId &&
-          g.name.toLowerCase().trim() == i.name.toLowerCase().trim());
-      if (existingIdx >= 0) {
-        final existing = _groceries[existingIdx];
-        final Map<String, dynamic> updates = {};
-        if (existing.unit == i.unit) {
-          // Same unit — accumulate quantity
-          updates['quantity'] = existing.quantity + i.quantity;
-        } else {
-          // Different unit — replace with new quantity/unit
-          updates['quantity'] = i.quantity;
-          updates['unit'] = i.unit;
-        }
-        await _updateGrocery(existing, updates);
-        _showSavedSnack(
-          '${existing.name} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
-          AppColors.income,
-        );
-        return;
+    // Duplicate check: merge with existing same-name item in the same section
+    final section = i.inStock ? 'inStock' : 'toBuy';
+    final existingIdx = _groceries.indexWhere((g) =>
+        g.walletId == i.walletId &&
+        (section == 'inStock' ? g.inStock : g.toBuy) &&
+        g.name.toLowerCase().trim() == i.name.toLowerCase().trim());
+    if (existingIdx >= 0) {
+      final existing = _groceries[existingIdx];
+      final Map<String, dynamic> updates = {};
+      if (existing.unit == i.unit) {
+        // Same unit — accumulate quantity
+        updates['quantity'] = existing.quantity + i.quantity;
+      } else {
+        // Different unit — replace with new quantity/unit
+        updates['quantity'] = i.quantity;
+        updates['unit'] = i.unit;
       }
+      await _updateGrocery(existing, updates);
+      _showSavedSnack(
+        '${existing.name} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
+        AppColors.income,
+      );
+      return;
     }
 
     setState(() => _groceries.add(i)); // optimistic
@@ -3613,21 +3658,128 @@ class _CreateListSheetState extends State<_CreateListSheet> {
 
   int get _selectedCount => _checked.where((v) => v).length;
 
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  List<GroceryItem> get _selectedItems => [
+    for (var i = 0; i < widget.items.length; i++)
+      if (_checked[i]) widget.items[i],
+  ];
+
+  String _fmtQty(GroceryItem g) {
+    final q = g.quantity == g.quantity.truncateToDouble()
+        ? g.quantity.toInt().toString()
+        : g.quantity.toString();
+    return '$q ${g.unit}';
+  }
+
+  String _dateStr() {
+    final now = DateTime.now();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun',
+                    'Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${now.day} ${months[now.month - 1]} ${now.year}';
+  }
+
+  // Plain text for Share
   String _buildListText() {
+    final selected = _selectedItems;
+    if (selected.isEmpty) return '';
     final buf = StringBuffer();
-    buf.writeln('🛒 Shopping List');
-    buf.writeln('─' * 20);
-    int n = 1;
-    for (var i = 0; i < widget.items.length; i++) {
-      if (!_checked[i]) continue;
-      final item = widget.items[i];
-      final qty = item.quantity == item.quantity.truncateToDouble()
-          ? item.quantity.toInt().toString()
-          : item.quantity.toString();
-      buf.writeln('$n. ${item.category.emoji} ${item.name} — $qty ${item.unit}');
-      n++;
+    buf.writeln('🛒 Shopping List  ·  ${_dateStr()}');
+    buf.writeln('─' * 30);
+    for (var i = 0; i < selected.length; i++) {
+      final g = selected[i];
+      buf.writeln('${i + 1}. ${g.category.emoji} ${g.name} — ${_fmtQty(g)}');
     }
-    return buf.toString().trim();
+    buf.writeln('─' * 30);
+    buf.write('📦 ${selected.length} item${selected.length == 1 ? '' : 's'}');
+    return buf.toString();
+  }
+
+  // CSV for Excel
+  Future<void> _exportCsv() async {
+    final selected = _selectedItems;
+    if (selected.isEmpty) return;
+    final buf = StringBuffer();
+    buf.writeln('#,Item,Category,Quantity,Unit');
+    for (var i = 0; i < selected.length; i++) {
+      final g = selected[i];
+      final q = g.quantity == g.quantity.truncateToDouble()
+          ? g.quantity.toInt().toString()
+          : g.quantity.toString();
+      buf.writeln('${i + 1},"${g.name}","${g.category.label}","$q","${g.unit}"');
+    }
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/shopping_list.csv');
+    await file.writeAsString(buf.toString());
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'text/csv', name: 'shopping_list.csv')],
+      subject: 'Shopping List',
+    );
+  }
+
+  // PDF export
+  Future<void> _exportPdf() async {
+    final selected = _selectedItems;
+    if (selected.isEmpty) return;
+
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build: (ctx) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Shopping List',
+              style: pw.TextStyle(
+                fontSize: 22,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.Text(
+              _dateStr(),
+              style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey600),
+            ),
+            pw.SizedBox(height: 18),
+            pw.Table.fromTextArray(
+              headers: ['#', 'Item', 'Category', 'Qty'],
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo100),
+              cellHeight: 28,
+              cellAlignments: {
+                0: pw.Alignment.center,
+                1: pw.Alignment.centerLeft,
+                2: pw.Alignment.centerLeft,
+                3: pw.Alignment.centerRight,
+              },
+              data: [
+                for (var i = 0; i < selected.length; i++)
+                  [
+                    '${i + 1}',
+                    selected[i].name,
+                    selected[i].category.label,
+                    _fmtQty(selected[i]),
+                  ],
+              ],
+            ),
+            pw.SizedBox(height: 12),
+            pw.Text(
+              '${selected.length} item${selected.length == 1 ? '' : 's'} total',
+              style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/shopping_list.pdf');
+    await file.writeAsBytes(await doc.save());
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'application/pdf', name: 'shopping_list.pdf')],
+      subject: 'Shopping List',
+    );
   }
 
   @override
@@ -3789,16 +3941,73 @@ class _CreateListSheetState extends State<_CreateListSheet> {
           ),
           const SizedBox(height: 18),
 
-          // Share button
+          // Export row: Excel + PDF
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectedCount == 0 ? null : _exportCsv,
+                  icon: const Icon(Icons.table_chart_rounded, size: 16),
+                  label: const Text(
+                    'Excel',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF1D6F42),
+                    side: BorderSide(
+                      color: _selectedCount == 0
+                          ? Colors.grey.withValues(alpha: 0.3)
+                          : const Color(0xFF1D6F42),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectedCount == 0 ? null : _exportPdf,
+                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                  label: const Text(
+                    'PDF',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFCC2222),
+                    side: BorderSide(
+                      color: _selectedCount == 0
+                          ? Colors.grey.withValues(alpha: 0.3)
+                          : const Color(0xFFCC2222),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Share as plain text
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _selectedCount == 0
                   ? null
-                  : () {
-                      final text = _buildListText();
-                      Share.share(text, subject: 'Shopping List');
-                    },
+                  : () => Share.share(_buildListText(), subject: 'Shopping List'),
               icon: const Icon(Icons.share_rounded, size: 18),
               label: Text(
                 _selectedCount == 0
@@ -3813,8 +4022,7 @@ class _CreateListSheetState extends State<_CreateListSheet> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.lend,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor:
-                    AppColors.lend.withValues(alpha: 0.3),
+                disabledBackgroundColor: AppColors.lend.withValues(alpha: 0.3),
                 elevation: 3,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(

@@ -915,9 +915,39 @@ class _PrvTag extends StatelessWidget {
   );
 }
 
+// ── Ingredient parsing ────────────────────────────────────────────────────────
+
+/// Splits an ingredient string into a display name and a qty+unit string.
+/// Handles formats: "Name (2 Pcs)", "Name 500g", "Name 2 cups", "Name 2", "Name".
+class _IngParsed {
+  final String name;
+  final String qtyUnit; // e.g. "2 Pcs", "500g", "3 tbsp", ""
+  const _IngParsed(this.name, this.qtyUnit);
+  String toRaw() => qtyUnit.isEmpty ? name : '$name ($qtyUnit)';
+}
+
+_IngParsed _parseIng(String raw) {
+  final s = raw.trim();
+  // "Name (qty unit)" or "Name (qty)"
+  final pm = RegExp(r'^(.+?)\s*\(([^)]+)\)\s*$').firstMatch(s);
+  if (pm != null) return _IngParsed(pm.group(1)!.trim(), pm.group(2)!.trim());
+  // "Name 500g" — digits immediately followed by letters
+  final am = RegExp(r'^(.+?)\s+([\d./½¼¾]+[a-zA-Z]+)$').firstMatch(s);
+  if (am != null) return _IngParsed(am.group(1)!.trim(), am.group(2)!.trim());
+  // "Name 2 cups" or "Name 2" — digits with optional trailing word
+  final nm = RegExp(r'^(.+?)\s+([\d./½¼¾]+(?:\s+[a-zA-Z]+)?)$').firstMatch(s);
+  if (nm != null) {
+    final qPart = nm.group(2)!.trim();
+    if (RegExp(r'^[\d./½¼¾]').hasMatch(qPart)) {
+      return _IngParsed(nm.group(1)!.trim(), qPart);
+    }
+  }
+  return _IngParsed(s, '');
+}
+
 // ── Recipe Detail Sheet ───────────────────────────────────────────────────────
 
-class RecipeDetailSheet extends StatelessWidget {
+class RecipeDetailSheet extends StatefulWidget {
   final RecipeModel recipe;
   final void Function(MealEntry)? onLogMeal;
   final void Function(GroceryItem)? onAddToBasket;
@@ -926,6 +956,8 @@ class RecipeDetailSheet extends StatelessWidget {
   final List<GroceryItem> groceries;
   /// Called with the list of missing ingredient names to add to To Buy.
   final void Function(List<String>)? onAddMissingToBasket;
+  /// Called when the user edits an ingredient quantity inline.
+  final void Function(RecipeModel)? onInlineUpdate;
 
   const RecipeDetailSheet({
     super.key,
@@ -935,6 +967,7 @@ class RecipeDetailSheet extends StatelessWidget {
     this.onEdit,
     this.groceries = const [],
     this.onAddMissingToBasket,
+    this.onInlineUpdate,
   });
 
   static Future<void> show(
@@ -945,6 +978,7 @@ class RecipeDetailSheet extends StatelessWidget {
     VoidCallback? onEdit,
     List<GroceryItem> groceries = const [],
     void Function(List<String>)? onAddMissingToBasket,
+    void Function(RecipeModel)? onInlineUpdate,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -957,11 +991,59 @@ class RecipeDetailSheet extends StatelessWidget {
         onEdit: onEdit,
         groceries: groceries,
         onAddMissingToBasket: onAddMissingToBasket,
+        onInlineUpdate: onInlineUpdate,
       ),
     );
   }
 
-  /// Extract the core name from an ingredient string like "2 cups basmati rice".
+  @override
+  State<RecipeDetailSheet> createState() => _RecipeDetailSheetState();
+}
+
+class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
+  late List<String> _ingredients;
+  late List<TextEditingController> _qtyCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ingredients = List.from(widget.recipe.ingredients);
+    _qtyCtrl = _ingredients
+        .map((ing) => TextEditingController(text: _parseIng(ing).qtyUnit))
+        .toList();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _qtyCtrl) c.dispose();
+    super.dispose();
+  }
+
+  void _commitIngredient(int index) {
+    final parsed = _parseIng(_ingredients[index]);
+    final newQtyUnit = _qtyCtrl[index].text.trim();
+    final newRaw = newQtyUnit.isEmpty ? parsed.name : '${parsed.name} ($newQtyUnit)';
+    if (newRaw == _ingredients[index]) return;
+    setState(() => _ingredients[index] = newRaw);
+    if (widget.onInlineUpdate != null) {
+      widget.onInlineUpdate!(RecipeModel(
+        id: widget.recipe.id,
+        walletId: widget.recipe.walletId,
+        name: widget.recipe.name,
+        emoji: widget.recipe.emoji,
+        cuisine: widget.recipe.cuisine,
+        suitableFor: widget.recipe.suitableFor,
+        ingredients: List.from(_ingredients),
+        socialLink: widget.recipe.socialLink,
+        note: widget.recipe.note,
+        cookTimeMin: widget.recipe.cookTimeMin,
+        isFavourite: widget.recipe.isFavourite,
+        libraryRecipeId: widget.recipe.libraryRecipeId,
+      ));
+    }
+  }
+
+  /// Extract the core name from an ingredient string for stock matching.
   String _extractName(String raw) {
     return raw
         .toLowerCase()
@@ -973,11 +1055,11 @@ class RecipeDetailSheet extends StatelessWidget {
   }
 
   void _checkAvailability(BuildContext context) {
-    final inStock = groceries.where((g) => g.inStock).toList();
-    final inToBuy = groceries.where((g) => g.toBuy).toList();
+    final inStock = widget.groceries.where((g) => g.inStock).toList();
+    final inToBuy = widget.groceries.where((g) => g.toBuy).toList();
     final checked = <_IngredientStatus>[];
 
-    for (final ingredient in recipe.ingredients) {
+    for (final ingredient in _ingredients) {
       final name = _extractName(ingredient);
       bool matches(GroceryItem g) =>
           name.isNotEmpty &&
@@ -995,10 +1077,10 @@ class RecipeDetailSheet extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _IngredientCheckSheet(
-        recipeName: recipe.name,
+        recipeName: widget.recipe.name,
         items: checked,
         isDark: isDark,
-        onAddToBasket: onAddMissingToBasket,
+        onAddToBasket: widget.onAddMissingToBasket,
       ),
     );
   }
@@ -1048,7 +1130,7 @@ class RecipeDetailSheet extends StatelessWidget {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          recipe.emoji,
+                          widget.recipe.emoji,
                           style: const TextStyle(fontSize: 32),
                         ),
                       ),
@@ -1058,7 +1140,7 @@ class RecipeDetailSheet extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              recipe.name,
+                              widget.recipe.name,
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w900,
@@ -1073,15 +1155,15 @@ class RecipeDetailSheet extends StatelessWidget {
                               children: [
                                 _Tag(
                                   label:
-                                      '${recipe.cuisine.emoji} ${recipe.cuisine.label}',
+                                      '${widget.recipe.cuisine.emoji} ${widget.recipe.cuisine.label}',
                                   color: AppColors.lend,
                                 ),
-                                if (recipe.cookTimeMin != null)
+                                if (widget.recipe.cookTimeMin != null)
                                   _Tag(
-                                    label: '⏱ ${recipe.cookTimeMin} min',
+                                    label: '⏱ ${widget.recipe.cookTimeMin} min',
                                     color: sub,
                                   ),
-                                if (recipe.isFavourite)
+                                if (widget.recipe.isFavourite)
                                   _Tag(
                                     label: '❤️ Favourite',
                                     color: AppColors.expense,
@@ -1091,9 +1173,9 @@ class RecipeDetailSheet extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (onEdit != null)
+                      if (widget.onEdit != null)
                         IconButton(
-                          onPressed: onEdit,
+                          onPressed: widget.onEdit,
                           icon: const Icon(Icons.edit_rounded),
                           color: AppColors.lend,
                           tooltip: 'Edit Recipe',
@@ -1106,7 +1188,7 @@ class RecipeDetailSheet extends StatelessWidget {
                   const _SectionTitle(title: 'Suitable For'),
                   const SizedBox(height: 8),
                   Row(
-                    children: recipe.suitableFor
+                    children: widget.recipe.suitableFor
                         .map(
                           (mt) => Container(
                             margin: const EdgeInsets.only(right: 8),
@@ -1140,7 +1222,7 @@ class RecipeDetailSheet extends StatelessWidget {
                   Row(
                     children: [
                       const Expanded(child: _SectionTitle(title: 'Ingredients')),
-                      if (recipe.ingredients.isNotEmpty)
+                      if (_ingredients.isNotEmpty)
                         GestureDetector(
                           onTap: () => _checkAvailability(context),
                           child: Container(
@@ -1179,49 +1261,100 @@ class RecipeDetailSheet extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
-                      children: recipe.ingredients
+                      children: _ingredients
                           .asMap()
                           .entries
                           .map(
-                            (e) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 5),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 22,
-                                    height: 22,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.income.withOpacity(0.15),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      '${e.key + 1}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.income,
+                            (e) {
+                              final parsed = _parseIng(e.value);
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 5),
+                                child: Row(
+                                  children: [
+                                    // Index bubble
+                                    Container(
+                                      width: 22,
+                                      height: 22,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.income.withOpacity(0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        '${e.key + 1}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.income,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    e.value,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontFamily: 'Nunito',
-                                      color: tc,
+                                    const SizedBox(width: 10),
+                                    // Ingredient name (left, expands)
+                                    Expanded(
+                                      child: Text(
+                                        parsed.name,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontFamily: 'Nunito',
+                                          color: tc,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                                    // Editable qty+unit (right)
+                                    if (widget.onInlineUpdate != null)
+                                      SizedBox(
+                                        width: 90,
+                                        child: TextField(
+                                          controller: _qtyCtrl[e.key],
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontFamily: 'Nunito',
+                                            color: sub,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                          textAlign: TextAlign.right,
+                                          decoration: InputDecoration(
+                                            hintText: 'qty unit',
+                                            hintStyle: TextStyle(
+                                              fontSize: 11,
+                                              color: sub.withValues(alpha: 0.45),
+                                            ),
+                                            border: InputBorder.none,
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.zero,
+                                            suffixIcon: Icon(
+                                              Icons.edit_rounded,
+                                              size: 11,
+                                              color: sub.withValues(alpha: 0.4),
+                                            ),
+                                            suffixIconConstraints:
+                                                const BoxConstraints(maxWidth: 16, maxHeight: 16),
+                                          ),
+                                          onSubmitted: (_) => _commitIngredient(e.key),
+                                          onTapOutside: (_) => _commitIngredient(e.key),
+                                        ),
+                                      )
+                                    else
+                                      Text(
+                                        parsed.qtyUnit,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontFamily: 'Nunito',
+                                          color: sub,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
                           )
                           .toList(),
                     ),
                   ),
 
-                  if (recipe.note != null) ...[
+                  if (widget.recipe.note != null) ...[
                     const SizedBox(height: 16),
                     const _SectionTitle(title: '💡 Tips & Notes'),
                     const SizedBox(height: 8),
@@ -1235,7 +1368,7 @@ class RecipeDetailSheet extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        recipe.note!,
+                        widget.recipe.note!,
                         style: TextStyle(
                           fontSize: 13,
                           fontFamily: 'Nunito',
@@ -1246,7 +1379,7 @@ class RecipeDetailSheet extends StatelessWidget {
                     ),
                   ],
 
-                  if (recipe.socialLink != null) ...[
+                  if (widget.recipe.socialLink != null) ...[
                     const SizedBox(height: 16),
                     const _SectionTitle(title: 'Recipe Link'),
                     const SizedBox(height: 8),
@@ -1269,7 +1402,7 @@ class RecipeDetailSheet extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              recipe.socialLink!,
+                              widget.recipe.socialLink!,
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontFamily: 'Nunito',
@@ -1287,9 +1420,9 @@ class RecipeDetailSheet extends StatelessWidget {
 
                   // ── Action buttons ───────────────────────────────────────────
                   _RecipeActions(
-                    recipe: recipe,
-                    onLogMeal: onLogMeal,
-                    onAddToBasket: onAddToBasket,
+                    recipe: widget.recipe,
+                    onLogMeal: widget.onLogMeal,
+                    onAddToBasket: widget.onAddToBasket,
                   ),
 
                   const SizedBox(height: 24),
@@ -1781,7 +1914,7 @@ class _IngredientCheckSheetState extends State<_IngredientCheckSheet> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              item.label,
+                              _parseIng(item.label).name,
                               style: TextStyle(
                                 fontSize: 13, fontFamily: 'Nunito',
                                 fontWeight: FontWeight.w700,
@@ -1791,6 +1924,20 @@ class _IngredientCheckSheetState extends State<_IngredientCheckSheet> {
                               ),
                             ),
                           ),
+                          if (_parseIng(item.label).qtyUnit.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: Text(
+                                _parseIng(item.label).qtyUnit,
+                                style: TextStyle(
+                                  fontSize: 11, fontFamily: 'Nunito',
+                                  fontWeight: FontWeight.w700,
+                                  color: item.alreadyInToBuy
+                                      ? sub.withValues(alpha: 0.5)
+                                      : sub,
+                                ),
+                              ),
+                            ),
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
