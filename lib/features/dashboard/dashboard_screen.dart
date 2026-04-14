@@ -17,9 +17,10 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
-import 'package:wai_life_assistant/features/wallet/AI/showSparkBottomSheet.dart';
+import 'package:wai_life_assistant/features/wallet/AI/SparkBottomSheet.dart';
 import 'package:wai_life_assistant/features/wallet/category_detector.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
+import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -61,7 +62,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userPlan = 'Free';
   String _userPhotoUrl = '';
   bool _balanceHidden = true;
-  bool _fabExpanded = false;
   // Today's meals — merged list from all loaded wallets
   List<MealEntry> _todayMeals = [];
   final Set<String> _loadedMealWalletIds = {};
@@ -368,6 +368,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _updateMeal(MealEntry updated) async {
+    setState(() {
+      final idx = _todayMeals.indexWhere((e) => e.id == updated.id);
+      if (idx >= 0) _todayMeals[idx] = updated;
+    });
+    try {
+      await PantryService.instance.updateMealEntry(updated.id, {
+        'name': updated.name,
+        'emoji': updated.emoji,
+        'meal_time': updated.mealTime.name,
+        'date': '${updated.date.year}-${updated.date.month.toString().padLeft(2, '0')}-${updated.date.day.toString().padLeft(2, '0')}',
+        'recipe_id': updated.recipeId,
+        'recipe_ids': updated.recipeIds,
+        'note': updated.note,
+        'ingredients': updated.ingredients,
+      });
+    } catch (_) {
+      _loadTodayMeals(updated.walletId); // revert by reloading on error
+    }
+  }
+
   Future<void> _loadTodayMeals(String walletId) async {
     if (walletId.isEmpty) return;
     _loadedMealWalletIds.add(walletId);
@@ -391,9 +412,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
       meal: m,
       isDark: isDark,
       currentUserName: _userName,
-      onEdit: () {
+      onEdit: () async {
         Navigator.pop(context);
-        _loadTodayMeals(m.walletId);
+        // Fetch the wallet's recipes on-demand so the edit sheet has them.
+        List<RecipeModel> recipes = [];
+        try {
+          final rows = await PantryService.instance.fetchRecipes(m.walletId);
+          recipes = rows.map(RecipeModel.fromMap).toList();
+        } catch (_) {}
+        if (!mounted) return;
+        AddMealSheet.show(
+          context,
+          date: m.date,
+          walletId: m.walletId,
+          recipes: recipes,
+          existing: m,
+          onSave: (entry) async {
+            // Not called in edit mode, but required by the API.
+          },
+          onUpdate: _updateMeal,
+          dayMeals: _todayMeals
+              .where((e) => e.walletId == m.walletId)
+              .toList(),
+        );
       },
       onDelete: () async {
         Navigator.pop(context);
@@ -726,9 +767,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: bg,
       floatingActionButton: _buildFab(context, isDark, surfBg, walletId),
       body: GestureDetector(
-        onTap: () {
-          if (_fabExpanded) setState(() => _fabExpanded = false);
-        },
+        onTap: () => FocusScope.of(context).unfocus(),
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: CustomScrollView(
@@ -1222,97 +1261,63 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color surfBg,
     String walletId,
   ) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          child: _fabExpanded
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _FabAction(
-                      icon: Icons.bolt_rounded,
-                      label: 'Quick Add',
-                      color: AppColors.primary,
-                      onTap: () {
-                        setState(() => _fabExpanded = false);
-                        _showQuickAdd(context, isDark, surfBg, null);
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _FabAction(
-                      icon: Icons.auto_awesome_rounded,
-                      label: 'AI Parse',
-                      color: Colors.deepPurple,
-                      onTap: () {
-                        setState(() => _fabExpanded = false);
-                        showSparkBottomSheet(
-                          context,
-                          walletId: walletId,
-                          onSave: (tx) async {
-                            setState(() => _transactions.insert(0, tx));
-                            try {
-                              final row = await WalletService.instance
-                                  .addTransaction(
-                                    walletId: tx.walletId,
-                                    type: tx.type.name,
-                                    amount: tx.amount,
-                                    category: tx.category,
-                                    payMode: tx.payMode?.name,
-                                    title: tx.title,
-                                    note: tx.note,
-                                    person: tx.person,
-                                    persons: tx.persons,
-                                    dueDate: tx.dueDate,
-                                    date: tx.date,
-                                  );
-                              if (!mounted) return;
-                              final saved = TxModel.fromRow(row);
-                              setState(() {
-                                final idx = _transactions.indexWhere(
-                                  (t) => t.id == tx.id,
-                                );
-                                if (idx >= 0) _transactions[idx] = saved;
-                              });
-                              WalletService.txChangeSignal.value++;
-                              WalletService.instance.ensureCategory(
-                                saved.category,
-                                saved.type.name,
-                              );
-                            } catch (e) {
-                              debugPrint('[Dashboard] AI parse save error: $e');
-                              if (!mounted) return;
-                              setState(
-                                () => _transactions.removeWhere(
-                                  (t) => t.id == tx.id,
-                                ),
-                              );
-                            }
-                          },
-                          onOpenFlow: () =>
-                              _showQuickAdd(context, isDark, surfBg, null),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                )
-              : const SizedBox.shrink(),
-        ),
-        FloatingActionButton(
-          onPressed: () => setState(() => _fabExpanded = !_fabExpanded),
-          backgroundColor: AppColors.primary,
-          child: AnimatedRotation(
-            turns: _fabExpanded ? 0.125 : 0,
-            duration: const Duration(milliseconds: 200),
-            child: const Icon(Icons.add_rounded, color: Colors.white),
-          ),
-        ),
-      ],
+    return FloatingActionButton(
+      onPressed: () => _showFabSheet(context, isDark, surfBg, walletId),
+      backgroundColor: AppColors.primary,
+      child: const Icon(Icons.add_rounded, color: Colors.white),
+    );
+  }
+
+  void _showFabSheet(
+    BuildContext context,
+    bool isDark,
+    Color surfBg,
+    String walletId,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DashFabSheet(
+        isDark: isDark,
+        surfBg: surfBg,
+        walletId: walletId,
+        onAiSave: (tx) async {
+          setState(() => _transactions.insert(0, tx));
+          try {
+            final row = await WalletService.instance.addTransaction(
+              walletId: tx.walletId,
+              type: tx.type.name,
+              amount: tx.amount,
+              category: tx.category,
+              payMode: tx.payMode?.name,
+              title: tx.title,
+              note: tx.note,
+              person: tx.person,
+              persons: tx.persons,
+              dueDate: tx.dueDate,
+              date: tx.date,
+            );
+            if (!mounted) return;
+            final saved = TxModel.fromRow(row);
+            setState(() {
+              final idx = _transactions.indexWhere((t) => t.id == tx.id);
+              if (idx >= 0) _transactions[idx] = saved;
+            });
+            WalletService.txChangeSignal.value++;
+            WalletService.instance.ensureCategory(saved.category, saved.type.name);
+          } catch (e) {
+            debugPrint('[Dashboard] AI parse save error: $e');
+            if (!mounted) return;
+            setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+          }
+        },
+        onQuickSave: (tx) {
+          setState(() => _transactions.add(tx));
+          WalletService.txChangeSignal.value++;
+          WalletService.instance.ensureCategory(tx.category, tx.type.name);
+        },
+      ),
     );
   }
 
@@ -4300,41 +4305,477 @@ class _PlanNudge {
   });
 }
 
-// ── FAB action button ─────────────────────────────────────────────────────────
-class _FabAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
+// ── FAB tabbed sheet ──────────────────────────────────────────────────────────
 
-  const _FabAction({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
+class _DashFabSheet extends StatefulWidget {
+  final bool isDark;
+  final Color surfBg;
+  final String walletId;
+  final void Function(TxModel tx) onAiSave;
+  final void Function(TxModel tx) onQuickSave;
+
+  const _DashFabSheet({
+    required this.isDark,
+    required this.surfBg,
+    required this.walletId,
+    required this.onAiSave,
+    required this.onQuickSave,
   });
 
   @override
+  State<_DashFabSheet> createState() => _DashFabSheetState();
+}
+
+class _DashFabSheetState extends State<_DashFabSheet>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
+    final isDark = widget.isDark;
+    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Tab bar
+            TabBar(
+              controller: _tabCtrl,
+              labelStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Nunito',
+              ),
+              labelColor: AppColors.primary,
+              unselectedLabelColor: sub,
+              indicatorColor: AppColors.primary,
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: const [
+                Tab(text: '✨  AI Parse'),
+                Tab(text: '⚡  Quick Add'),
+              ],
+            ),
+            // Tab content
+            SizedBox(
+              height: 380,
+              child: TabBarView(
+                controller: _tabCtrl,
+                children: [
+                  // ── AI Parse tab ──────────────────────────────────────
+                  SparkBottomSheet(
+                    embedded: true,
+                    walletId: widget.walletId,
+                    onSave: (tx) {
+                      Navigator.pop(context);
+                      widget.onAiSave(tx);
+                    },
+                    onOpenFlow: () => Navigator.pop(context),
+                  ),
+                  // ── Quick Add tab ─────────────────────────────────────
+                  _QuickAddTab(
+                    isDark: isDark,
+                    surfBg: widget.surfBg,
+                    walletId: widget.walletId,
+                    onSaved: (tx) {
+                      Navigator.pop(context);
+                      widget.onQuickSave(tx);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Quick Add tab content ─────────────────────────────────────────────────────
+
+class _QuickAddTab extends StatefulWidget {
+  final bool isDark;
+  final Color surfBg;
+  final String walletId;
+  final void Function(TxModel tx) onSaved;
+
+  const _QuickAddTab({
+    required this.isDark,
+    required this.surfBg,
+    required this.walletId,
+    required this.onSaved,
+  });
+
+  @override
+  State<_QuickAddTab> createState() => _QuickAddTabState();
+}
+
+class _QuickAddTabState extends State<_QuickAddTab> {
+  final _amtCtrl = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  TxType _txType = TxType.expense;
+  PayMode _payMode = PayMode.online;
+  String _cat = '';
+  String _autoDetectedCat = '';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    CategoryDetector.ensureLoaded();
+  }
+
+  @override
+  void dispose() {
+    _amtCtrl.dispose();
+    _titleCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final amt = double.tryParse(_amtCtrl.text.trim());
+    if (amt == null || amt <= 0) return;
+    HapticFeedback.lightImpact();
+    setState(() => _saving = true);
+    try {
+      final row = await WalletService.instance.addTransaction(
+        walletId: widget.walletId,
+        type: _txType.name,
+        amount: amt,
+        category: _cat.isEmpty ? 'Expense' : _cat,
+        title: _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
+        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        payMode: (_txType == TxType.expense || _txType == TxType.income)
+            ? _payMode.name
+            : null,
+      );
+      if (!mounted) return;
+      widget.onSaved(TxModel.fromRow(row));
+    } catch (e) {
+      debugPrint('[Dashboard] quickAdd error: $e');
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final surfBg = widget.surfBg;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FloatingActionButton.small(
-            heroTag: null,
-            onPressed: onTap,
-            backgroundColor: color,
-            child: Icon(icon, color: Colors.white, size: 20),
+          // Type selector
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [TxType.expense, TxType.income, TxType.lend, TxType.borrow]
+                  .map((t) => GestureDetector(
+                        onTap: () => setState(() => _txType = t),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 120),
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _txType == t
+                                ? t.color.withValues(alpha: 0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _txType == t
+                                  ? t.color
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(t.emoji,
+                                  style: const TextStyle(fontSize: 12)),
+                              const SizedBox(width: 5),
+                              Text(
+                                t.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: _txType == t ? t.color : sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Nunito',
+          const SizedBox(height: 12),
+
+          // Amount input
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  '₹',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'DM Mono',
+                    color: _txType.color,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: _amtCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    autofocus: false,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'DM Mono',
+                      color: _txType.color,
+                    ),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      hintText: '0',
+                      hintStyle: TextStyle(
+                        color: _txType.color.withValues(alpha: 0.3),
+                        fontFamily: 'DM Mono',
+                      ),
+                    ),
+                  ),
+                ),
+                if (_txType == TxType.expense || _txType == TxType.income)
+                  GestureDetector(
+                    onTap: () => setState(() => _payMode =
+                        _payMode == PayMode.cash
+                            ? PayMode.online
+                            : PayMode.cash),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _payMode == PayMode.cash
+                            ? AppColors.cash.withValues(alpha: 0.12)
+                            : AppColors.online.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        _payMode == PayMode.cash ? '💵 Cash' : '📲 Online',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                          color: _payMode == PayMode.cash
+                              ? AppColors.cash
+                              : AppColors.online,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Title
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TextField(
+              controller: _titleCtrl,
+              style: TextStyle(
+                  fontSize: 13, fontFamily: 'Nunito', color: tc),
+              onChanged: (val) {
+                final detected = CategoryDetector.detect(val,
+                    isIncome: _txType == TxType.income);
+                if (detected != null) {
+                  setState(() {
+                    _cat = detected;
+                    _autoDetectedCat = detected;
+                  });
+                }
+              },
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Title',
+                prefixIcon:
+                    Icon(Icons.label_outline_rounded, size: 16),
+                prefixIconConstraints:
+                    BoxConstraints(minWidth: 28, minHeight: 0),
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Note
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: TextField(
+              controller: _noteCtrl,
+              style: TextStyle(
+                  fontSize: 13, fontFamily: 'Nunito', color: tc),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Add a note?',
+                prefixIcon: Icon(Icons.notes_rounded, size: 16),
+                prefixIconConstraints:
+                    BoxConstraints(minWidth: 28, minHeight: 0),
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // Category chips
+          if (_txType == TxType.expense || _txType == TxType.income)
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: () {
+                  final all = WalletService.instance.categoriesFor(
+                      _txType == TxType.income ? 'income' : 'expense');
+                  return [
+                    if (_autoDetectedCat.isNotEmpty &&
+                        all.contains(_autoDetectedCat))
+                      _autoDetectedCat,
+                    ...all.where((c) => c != _autoDetectedCat),
+                  ];
+                }()
+                    .map((c) => GestureDetector(
+                          onTap: () {
+                            setState(() => _cat = c);
+                            final title = _titleCtrl.text.trim();
+                            if (title.isNotEmpty && c != _autoDetectedCat) {
+                              CategoryDetector.learn(title, c);
+                              setState(() => _autoDetectedCat = c);
+                            }
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 100),
+                            margin: const EdgeInsets.only(right: 7),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _cat == c
+                                  ? AppColors.primary
+                                      .withValues(alpha: 0.12)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _cat == c
+                                    ? AppColors.primary
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Text(
+                              c,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Nunito',
+                                color: _cat == c ? AppColors.primary : sub,
+                              ),
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Save button
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: _txType.color,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: _saving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      'Save ${_txType.label}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ],

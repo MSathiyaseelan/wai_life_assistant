@@ -160,7 +160,7 @@ class PantryService {
     required String emoji,
     required String mealTime,   // MealTime.name
     required DateTime date,
-    String? recipeId,
+    List<String> recipeIds = const [],
     String? note,
     List<String> ingredients = const [],
   }) async {
@@ -172,7 +172,8 @@ class PantryService {
       'emoji':       emoji,
       'meal_time':   mealTime,
       'date':        dateStr,
-      'recipe_id':   recipeId,
+      'recipe_id':   recipeIds.firstOrNull,  // keep legacy column in sync
+      'recipe_ids':  recipeIds,
       'note':        note,
       'ingredients': ingredients,
     }).select().single();

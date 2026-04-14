@@ -12,11 +12,16 @@ class SparkBottomSheet extends StatefulWidget {
   final void Function(TxModel tx) onSave;
   final VoidCallback onOpenFlow;
 
+  /// When true, strips the outer Container decoration, drag handle and header
+  /// so the content can be embedded inside another sheet (e.g. a tab).
+  final bool embedded;
+
   const SparkBottomSheet({
     super.key,
     required this.walletId,
     required this.onSave,
     required this.onOpenFlow,
+    this.embedded = false,
   });
 
   @override
@@ -168,21 +173,11 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
     final bg = isDark ? AppColors.cardDark : Colors.white;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
-    return Container(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!widget.embedded) ...[
           // Handle
           Center(
             child: Container(
@@ -195,7 +190,6 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
             ),
           ),
           const SizedBox(height: 14),
-
           // Header
           Row(
             children: [
@@ -214,146 +208,151 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                   ),
                   Text(
                     'Tell me what happened',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'Nunito',
-                      color: sub,
-                    ),
+                    style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                   ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 16),
+        ] else ...[
+          Text(
+            'Tell me what happened',
+            style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+          ),
+          const SizedBox(height: 12),
+        ],
 
-          // Input row
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  enabled: !_isLoading,
-                  onSubmitted: (_) => _parseInput(),
-                  style: TextStyle(
-                    fontSize: 14,
+        // Input row
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                enabled: !_isLoading,
+                onSubmitted: (_) => _parseInput(),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'Nunito',
+                  color: isDark ? AppColors.textDark : AppColors.textLight,
+                ),
+                decoration: InputDecoration(
+                  hintText: _isListening ? _spokenText : 'e.g. coffee 120 by UPI',
+                  hintStyle: TextStyle(
                     fontFamily: 'Nunito',
-                    color: isDark ? AppColors.textDark : AppColors.textLight,
+                    fontSize: 13,
+                    color: _isListening
+                        ? AppColors.primary.withValues(alpha: 0.7)
+                        : sub,
                   ),
-                  decoration: InputDecoration(
-                    hintText:
-                        _isListening ? _spokenText : 'e.g. coffee 120 by UPI',
-                    hintStyle: TextStyle(
+                  filled: true,
+                  fillColor: isDark ? AppColors.surfDark : const Color(0xFFEDEEF5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            _isLoading
+                ? const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                    ),
+                  )
+                : FilledButton(
+                    onPressed: _parseInput,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      minimumSize: const Size(44, 44),
+                      padding: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                  ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Mic button
+        TextButton.icon(
+          onPressed: _isLoading ? null : (_isListening ? _stopListening : _onTapToSpeak),
+          icon: Icon(
+            _isListening ? Icons.stop_circle_rounded : Icons.mic_rounded,
+            color: _isListening ? Colors.redAccent : AppColors.primary,
+            size: 20,
+          ),
+          label: Text(
+            _isListening ? 'Listening… tap to stop' : 'Tap to speak',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w700,
+              color: _isListening ? Colors.redAccent : AppColors.primary,
+            ),
+          ),
+        ),
+
+        // Error message
+        if (_errorMsg != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _errorMsg!,
+                    style: const TextStyle(
+                      fontSize: 12,
                       fontFamily: 'Nunito',
-                      fontSize: 13,
-                      color: _isListening
-                          ? AppColors.primary.withValues(alpha: 0.7)
-                          : sub,
-                    ),
-                    filled: true,
-                    fillColor: isDark
-                        ? AppColors.surfDark
-                        : const Color(0xFFEDEEF5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
+                      color: Colors.redAccent,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              _isLoading
-                  ? const SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        ),
-                      ),
-                    )
-                  : FilledButton(
-                      onPressed: _parseInput,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        minimumSize: const Size(44, 44),
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // Mic button
-          TextButton.icon(
-            onPressed: _isLoading
-                ? null
-                : (_isListening ? _stopListening : _onTapToSpeak),
-            icon: Icon(
-              _isListening ? Icons.stop_circle_rounded : Icons.mic_rounded,
-              color: _isListening ? Colors.redAccent : AppColors.primary,
-              size: 20,
-            ),
-            label: Text(
-              _isListening ? 'Listening… tap to stop' : 'Tap to speak',
-              style: TextStyle(
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w700,
-                color: _isListening ? Colors.redAccent : AppColors.primary,
-              ),
+              ],
             ),
           ),
-
-          // Error message
-          if (_errorMsg != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: Colors.redAccent,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _errorMsg!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'Nunito',
-                        color: Colors.redAccent,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 4),
         ],
+        const SizedBox(height: 4),
+      ],
+    );
+
+    if (widget.embedded) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: content,
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
       ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: content,
     );
   }
 }

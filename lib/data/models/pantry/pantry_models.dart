@@ -240,7 +240,10 @@ class MealEntry {
   final String name;
   final MealTime mealTime;
   final DateTime date;
-  final String? recipeId; // links to RecipeModel
+  /// All recipes linked to this meal (multi-select support).
+  final List<String> recipeIds;
+  /// Convenience getter — first recipe ID, or null if none selected.
+  String? get recipeId => recipeIds.firstOrNull;
   final String? note;
   final String walletId; // 'personal' or family id
   final String emoji;
@@ -258,14 +261,15 @@ class MealEntry {
     required this.mealTime,
     required this.date,
     required this.walletId,
-    this.recipeId,
+    List<String>? recipeIds,
     this.note,
     this.emoji = '🍽️',
     this.mealStatus = MealStatus.planned,
     this.servingsCount = 1,
     List<String>? ingredients,
     List<MealReaction>? reactions,
-  }) : _ingredients = ingredients,
+  }) : recipeIds = recipeIds ?? const [],
+       _ingredients = ingredients,
        _reactions = reactions;
 
   MealEntry copyWith({
@@ -274,7 +278,7 @@ class MealEntry {
     DateTime? date,
     String? note,
     String? emoji,
-    String? recipeId,
+    List<String>? recipeIds,
     MealStatus? mealStatus,
     int? servingsCount,
     List<String>? ingredients,
@@ -282,7 +286,7 @@ class MealEntry {
   }) => MealEntry(
     id: id,
     walletId: walletId,
-    recipeId: recipeId ?? this.recipeId,
+    recipeIds: recipeIds ?? this.recipeIds,
     name: name ?? this.name,
     mealTime: mealTime ?? this.mealTime,
     date: date ?? this.date,
@@ -302,6 +306,9 @@ class MealEntry {
             .map((r) => MealReaction.fromMap(r as Map<String, dynamic>))
             .toList()
         : <MealReaction>[];
+    // Support new recipe_ids array column; fall back to legacy recipe_id.
+    final recipeIds = (m['recipe_ids'] as List<dynamic>?)?.cast<String>()
+        ?? (m['recipe_id'] != null ? [m['recipe_id'] as String] : <String>[]);
     return MealEntry(
       id: m['id'] as String,
       walletId: m['wallet_id'] as String,
@@ -312,7 +319,7 @@ class MealEntry {
         orElse: () => MealTime.lunch,
       ),
       date: DateTime.parse(m['date'] as String),
-      recipeId: m['recipe_id'] as String?,
+      recipeIds: recipeIds,
       note: m['note'] as String?,
       mealStatus: MealStatus.values.firstWhere(
         (s) => s.name == (m['meal_status'] as String?),

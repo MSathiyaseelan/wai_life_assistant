@@ -29,7 +29,7 @@ class _MealFlowData {
   MealTime mealTime = MealTime.lunch;
   String mealName = '';
   String emoji = '🍛';
-  String? recipeId;
+  List<String> recipeIds = [];
 }
 
 // ── Message model ─────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
     _data.mealTime = firstEmpty ?? MealTime.lunch;
     _data.mealName = '';
     _data.emoji = '🍛';
-    _data.recipeId = null;
+    _data.recipeIds = [];
   }
 
   void _scrollToBottom() {
@@ -156,7 +156,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
     // Skip emoji step when a recipe is selected — it already provides an emoji
     if (_stepIdx < _steps.length &&
         _steps[_stepIdx] == _MealStep.emoji &&
-        _data.recipeId != null) {
+        _data.recipeIds.isNotEmpty) {
       _stepIdx++;
     }
     if (_stepIdx < _steps.length) _pushBotQuestion(_stepIdx);
@@ -172,7 +172,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
       widget.onUpdate!(existing.copyWith(
         name: _data.mealName,
         emoji: _data.emoji,
-        recipeId: _data.recipeId,
+        recipeIds: _data.recipeIds,
         ingredients: [],
       ));
     } else {
@@ -183,7 +183,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
         date: widget.date,
         walletId: widget.walletId,
         emoji: _data.emoji,
-        recipeId: _data.recipeId,
+        recipeIds: _data.recipeIds,
         ingredients: [],
       );
       widget.onSave(entry);
@@ -229,15 +229,20 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
           color: _data.mealTime.color,
           mealTime: _data.mealTime,
           recipes: widget.recipes,
-          onConfirm: (name, emoji, recipeId) => _answer(
-            step,
-            recipeId != null ? '📖 $name' : '🍴 $name',
-            () {
-              _data.mealName = name;
-              _data.emoji = emoji;
-              _data.recipeId = recipeId;
-            },
-          ),
+          onConfirm: (name, emoji, recipeIds) {
+            final display = recipeIds.isNotEmpty
+                ? '📖 ${widget.recipes.where((r) => recipeIds.contains(r.id)).map((r) => r.name).join(' + ')}'
+                : '🍴 $name';
+            _answer(
+              step,
+              display,
+              () {
+                _data.mealName = name;
+                _data.emoji = emoji;
+                _data.recipeIds = recipeIds;
+              },
+            );
+          },
         );
       case _MealStep.emoji:
         return _EmojiStep(
@@ -253,6 +258,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
           data: _data,
           date: widget.date,
           color: _data.mealTime.color,
+          recipes: widget.recipes,
           onSave: _save,
           onRestart: _restart,
         );
@@ -444,8 +450,8 @@ class _NameStep extends StatefulWidget {
   final Color color;
   final MealTime mealTime;
   final List<RecipeModel> recipes;
-  /// Called with (name, emoji, recipeId). recipeId is null when typed manually.
-  final void Function(String name, String emoji, String? recipeId) onConfirm;
+  /// Called with (name, emoji, recipeIds). recipeIds is empty when typed manually.
+  final void Function(String name, String emoji, List<String> recipeIds) onConfirm;
 
   const _NameStep({
     required this.color,
@@ -460,7 +466,7 @@ class _NameStep extends StatefulWidget {
 
 class _NameStepState extends State<_NameStep> {
   final _ctrl = TextEditingController();
-  RecipeModel? _selected;
+  final List<RecipeModel> _selected = [];
 
   List<RecipeModel> get _sorted {
     final matched = widget.recipes
@@ -480,14 +486,31 @@ class _NameStepState extends State<_NameStep> {
 
   void _pickRecipe(RecipeModel r) {
     setState(() {
-      _selected = r;
-      _ctrl.text = r.name;
+      final idx = _selected.indexWhere((s) => s.id == r.id);
+      if (idx >= 0) {
+        // ── Deselect: remove this recipe's name from the field (best-effort) ──
+        _selected.removeAt(idx);
+        var text = _ctrl.text;
+        if (text.contains(' + ${r.name}')) {
+          text = text.replaceFirst(' + ${r.name}', '');
+        } else if (text.startsWith('${r.name} + ')) {
+          text = text.replaceFirst('${r.name} + ', '');
+        } else if (text == r.name) {
+          text = '';
+        }
+        _ctrl.text = text.trim();
+      } else {
+        // ── Select: append this recipe's name to whatever is in the field ──
+        _selected.add(r);
+        final current = _ctrl.text.trim();
+        _ctrl.text = current.isEmpty ? r.name : '$current + ${r.name}';
+      }
     });
   }
 
   void _clearRecipe() {
     setState(() {
-      _selected = null;
+      _selected.clear();
       _ctrl.clear();
     });
   }
@@ -495,9 +518,9 @@ class _NameStepState extends State<_NameStep> {
   void _submit() {
     final val = _ctrl.text.trim();
     if (val.isEmpty) return;
-    final emoji = _selected?.emoji ?? '🍛';
-    final recipeId = _selected?.id;
-    widget.onConfirm(val, emoji, recipeId);
+    final emoji = _selected.firstOrNull?.emoji ?? '🍛';
+    final recipeIds = _selected.map((r) => r.id).toList();
+    widget.onConfirm(val, emoji, recipeIds);
   }
 
   @override
@@ -540,7 +563,25 @@ class _NameStepState extends State<_NameStep> {
                       color: sub,
                     ),
                   ),
-                  if (_selected != null) ...[
+                  if (_selected.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: widget.color.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_selected.length} selected',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                          color: widget.color,
+                        ),
+                      ),
+                    ),
                     const Spacer(),
                     GestureDetector(
                       onTap: _clearRecipe,
@@ -565,7 +606,7 @@ class _NameStepState extends State<_NameStep> {
                   itemCount: _sorted.length,
                   itemBuilder: (_, i) {
                     final r = _sorted[i];
-                    final sel = r.id == _selected?.id;
+                    final sel = _selected.any((s) => s.id == r.id);
                     return GestureDetector(
                       onTap: () => _pickRecipe(r),
                       child: AnimatedContainer(
@@ -842,6 +883,7 @@ class _ConfirmStep extends StatelessWidget {
   final _MealFlowData data;
   final DateTime date;
   final Color color;
+  final List<RecipeModel> recipes;
   final VoidCallback onSave;
   final VoidCallback onRestart;
 
@@ -849,6 +891,7 @@ class _ConfirmStep extends StatelessWidget {
     required this.data,
     required this.date,
     required this.color,
+    required this.recipes,
     required this.onSave,
     required this.onRestart,
   });
@@ -962,6 +1005,37 @@ class _ConfirmStep extends StatelessWidget {
                 ),
               ],
             ),
+            // Linked recipes row
+            if (data.recipeIds.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Builder(builder: (context) {
+                final linked = recipes
+                    .where((r) => data.recipeIds.contains(r.id))
+                    .toList();
+                if (linked.isEmpty) return const SizedBox.shrink();
+                return Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: linked.map((r) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${r.emoji}  ${r.name}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: color,
+                      ),
+                    ),
+                  )).toList(),
+                );
+              }),
+            ],
             const SizedBox(height: 16),
 
             // Action buttons

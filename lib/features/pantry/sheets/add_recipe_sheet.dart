@@ -1333,7 +1333,7 @@ class _RecipeActionsState extends State<_RecipeActions> {
         mealTime: _selectedTime,
         date: DateTime.now(),
         walletId: 'personal',
-        recipeId: widget.recipe.id,
+        recipeIds: [widget.recipe.id],
         emoji: widget.recipe.emoji,
       ),
     );

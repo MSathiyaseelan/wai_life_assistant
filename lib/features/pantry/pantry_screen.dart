@@ -200,7 +200,7 @@ class _PantryScreenState extends State<PantryScreen>
     final temps = toInsert.map((m) => MealEntry(
       id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
       name: m.name, mealTime: m.mealTime, date: targetDate,
-      walletId: widget.activeWalletId, emoji: m.emoji, note: m.note, recipeId: m.recipeId,
+      walletId: widget.activeWalletId, emoji: m.emoji, note: m.note, recipeIds: m.recipeIds,
     )).toList();
     setState(() => _meals.addAll(temps));
     _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} to ${_shortDay(targetDay)}');
@@ -211,7 +211,7 @@ class _PantryScreenState extends State<PantryScreen>
         final row = await PantryService.instance.addMealEntry(
           walletId: widget.activeWalletId,
           name: m.name, emoji: m.emoji, mealTime: m.mealTime.name,
-          date: targetDate, recipeId: m.recipeId, note: m.note,
+          date: targetDate, recipeIds: m.recipeIds, note: m.note,
         );
         if (!mounted) return;
         final saved = MealEntry.fromMap(row);
@@ -255,7 +255,7 @@ class _PantryScreenState extends State<PantryScreen>
       id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${item.meal.id}',
       name: item.meal.name, mealTime: item.meal.mealTime, date: item.targetDate,
       walletId: widget.activeWalletId, emoji: item.meal.emoji,
-      note: item.meal.note, recipeId: item.meal.recipeId,
+      note: item.meal.note, recipeIds: item.meal.recipeIds,
     )).toList();
     setState(() => _meals.addAll(temps));
     _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} into this week');
@@ -267,7 +267,7 @@ class _PantryScreenState extends State<PantryScreen>
           walletId: widget.activeWalletId,
           name: item.meal.name, emoji: item.meal.emoji,
           mealTime: item.meal.mealTime.name, date: item.targetDate,
-          recipeId: item.meal.recipeId, note: item.meal.note,
+          recipeIds: item.meal.recipeIds, note: item.meal.note,
         );
         if (!mounted) return;
         final saved = MealEntry.fromMap(row);
@@ -800,7 +800,7 @@ class _PantryScreenState extends State<PantryScreen>
         emoji: m.emoji,
         mealTime: m.mealTime.name,
         date: m.date,
-        recipeId: m.recipeId,
+        recipeIds: m.recipeIds,
         note: m.note,
         ingredients: m.ingredients,
       );
@@ -812,7 +812,7 @@ class _PantryScreenState extends State<PantryScreen>
       });
       PantryService.mealChangeSignal.value++;
       // Ingredient analysis — for recipe-linked meals or manually-entered ingredients
-      if ((m.recipeId != null || m.ingredients.isNotEmpty) && mounted) {
+      if ((m.recipeIds.isNotEmpty || m.ingredients.isNotEmpty) && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(m));
       }
     } catch (e) {
@@ -838,7 +838,8 @@ class _PantryScreenState extends State<PantryScreen>
         'meal_time': updated.mealTime.name,
         'date':
             '${updated.date.year}-${updated.date.month.toString().padLeft(2, '0')}-${updated.date.day.toString().padLeft(2, '0')}',
-        'recipe_id': updated.recipeId,
+        'recipe_id': updated.recipeId,      // keep legacy column in sync
+        'recipe_ids': updated.recipeIds,
         'note': updated.note,
         'ingredients': updated.ingredients,
       });
@@ -875,8 +876,10 @@ class _PantryScreenState extends State<PantryScreen>
         status: status.name,
         servingsCount: servingsCount,
       );
-      if (status == MealStatus.cooked && m.recipeId != null) {
-        await _reduceStockForMeal(m.recipeId!);
+      if (status == MealStatus.cooked && m.recipeIds.isNotEmpty) {
+        for (final rid in m.recipeIds) {
+          await _reduceStockForMeal(rid);
+        }
       }
     } catch (_) {
       if (!mounted) return;
@@ -947,11 +950,15 @@ class _PantryScreenState extends State<PantryScreen>
     // Use recipe ingredients when linked, otherwise fall back to manually entered ones
     final List<String> ingredientList;
     final String mealName;
-    if (m.recipeId != null) {
-      final rIdx = _recipes.indexWhere((r) => r.id == m.recipeId);
-      if (rIdx < 0) return;
-      ingredientList = _recipes[rIdx].ingredients;
-      mealName = _recipes[rIdx].name;
+    if (m.recipeIds.isNotEmpty) {
+      final combined = <String>[];
+      for (final rid in m.recipeIds) {
+        final rIdx = _recipes.indexWhere((r) => r.id == rid);
+        if (rIdx >= 0) combined.addAll(_recipes[rIdx].ingredients);
+      }
+      if (combined.isEmpty) return;
+      ingredientList = combined;
+      mealName = m.name;
     } else {
       ingredientList = m.ingredients;
       mealName = m.name;
@@ -1142,7 +1149,7 @@ class _PantryScreenState extends State<PantryScreen>
         },
         onStatusChanged: (status, servingsCount) =>
             _updateMealStatus(m, status, servingsCount),
-        onCheckStock: (m.recipeId != null || m.ingredients.isNotEmpty) ? () => _analyzeIngredients(m) : null,
+        onCheckStock: (m.recipeIds.isNotEmpty || m.ingredients.isNotEmpty) ? () => _analyzeIngredients(m) : null,
       ),
     );
   }
@@ -1252,7 +1259,7 @@ class _PantryScreenState extends State<PantryScreen>
         mealTime: meal.mealTime,
         date: meal.date,
         walletId: widget.activeWalletId,
-        recipeId: meal.recipeId,
+        recipeIds: meal.recipeIds,
         emoji: meal.emoji,
       );
       _addMeal(entry);

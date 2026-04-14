@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AIParser {
@@ -62,6 +63,7 @@ class AIParser {
     required Map<String, dynamic> body,
   }) async {
     try {
+      debugPrint('[AIParser] invoking → feature=$feature sub=$subFeature input=$inputType');
       final response = await _supabase.functions.invoke(
         'parse',
         body: {
@@ -71,8 +73,64 @@ class AIParser {
           ...body,
         },
       );
-      return AIParseResult.fromJson(response.data);
-    } catch (e) {
+
+      // Check HTTP status before attempting to parse
+      final status = response.status;
+      final dynamic raw = response.data;
+
+      debugPrint('[AIParser] status=$status');
+      debugPrint('[AIParser] raw type=${raw.runtimeType}');
+      debugPrint('[AIParser] raw=$raw');
+
+      if (status != 200) {
+        // Extract a readable error message from whatever the body is
+        String errMsg;
+        if (raw is Map<String, dynamic>) {
+          errMsg = raw['error'] as String? ?? raw['message'] as String? ?? 'Server error ($status)';
+        } else if (raw is String && raw.isNotEmpty) {
+          // Try to parse as JSON error, otherwise use raw text
+          try {
+            final decoded = jsonDecode(raw) as Map<String, dynamic>;
+            errMsg = decoded['error'] as String? ?? decoded['message'] as String? ?? 'Server error ($status)';
+          } catch (_) {
+            errMsg = raw.length > 120 ? '${raw.substring(0, 120)}…' : raw;
+          }
+        } else {
+          errMsg = 'Server error ($status)';
+        }
+        return AIParseResult.error(errMsg);
+      }
+
+      // Edge functions sometimes return data as a raw JSON string instead of
+      // an already-decoded map (especially for image payloads). Normalise here.
+      final Map<String, dynamic> json;
+      if (raw is Map<String, dynamic>) {
+        json = raw;
+      } else if (raw is String) {
+        try {
+          json = jsonDecode(raw) as Map<String, dynamic>;
+        } on FormatException {
+          return AIParseResult.error('Could not read AI response. Please try again.');
+        }
+      } else {
+        return AIParseResult.error('Unexpected response format from AI service.');
+      }
+
+      return AIParseResult.fromJson(json);
+    } on FunctionException catch (e) {
+      final details = e.details;
+      String errMsg;
+      if (details is Map) {
+        errMsg = details['error'] as String? ?? details['message'] as String? ?? 'Server error (${e.status})';
+      } else {
+        errMsg = e.reasonPhrase ?? 'Server error (${e.status})';
+      }
+      debugPrint('[AIParser] FunctionException status=${e.status} error=$errMsg');
+      return AIParseResult.error(errMsg);
+    } catch (e, st) {
+      debugPrint('[AIParser] EXCEPTION type=${e.runtimeType}');
+      debugPrint('[AIParser] EXCEPTION message=$e');
+      debugPrint('[AIParser] EXCEPTION stacktrace=$st');
       return AIParseResult.error(e.toString());
     }
   }

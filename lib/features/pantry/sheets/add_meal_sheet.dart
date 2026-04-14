@@ -64,7 +64,7 @@ class _AddMealSheetState extends State<AddMealSheet>
   final _ingredientCtrl = TextEditingController();
   MealTime _mealTime = MealTime.lunch;
   String _emoji = '🍛';
-  String? _selectedRecipeId;
+  Set<String> _selectedRecipeIds = {};
   final List<String> _ingredients = [];
   late DateTime _selectedDate;
 
@@ -89,15 +89,38 @@ class _AddMealSheetState extends State<AddMealSheet>
 
   void _pickRecipe(RecipeModel r) {
     setState(() {
-      _selectedRecipeId = r.id;
-      _nameCtrl.text = r.name;
-      _emoji = r.emoji;
+      if (_selectedRecipeIds.contains(r.id)) {
+        // ── Deselect: remove this recipe's name from the field (best-effort) ──
+        _selectedRecipeIds.remove(r.id);
+        var text = _nameCtrl.text;
+        if (text.contains(' + ${r.name}')) {
+          text = text.replaceFirst(' + ${r.name}', '');
+        } else if (text.startsWith('${r.name} + ')) {
+          text = text.replaceFirst('${r.name} + ', '');
+        } else if (text == r.name) {
+          text = '';
+        }
+        _nameCtrl.text = text.trim();
+        if (_selectedRecipeIds.isEmpty) {
+          _emoji = '🍛';
+        } else {
+          _emoji = _sortedRecipes
+              .firstWhere((rec) => _selectedRecipeIds.contains(rec.id))
+              .emoji;
+        }
+      } else {
+        // ── Select: append this recipe's name to whatever is in the field ──
+        _selectedRecipeIds.add(r.id);
+        final current = _nameCtrl.text.trim();
+        _nameCtrl.text = current.isEmpty ? r.name : '$current + ${r.name}';
+        if (_selectedRecipeIds.length == 1) _emoji = r.emoji;
+      }
     });
   }
 
   void _clearRecipe() {
     setState(() {
-      _selectedRecipeId = null;
+      _selectedRecipeIds.clear();
       _nameCtrl.clear();
       _emoji = '🍛';
     });
@@ -129,7 +152,7 @@ class _AddMealSheetState extends State<AddMealSheet>
       _nameCtrl.text = widget.existing!.name;
       _mealTime = widget.existing!.mealTime;
       _emoji = widget.existing!.emoji;
-      _selectedRecipeId = widget.existing!.recipeId;
+      _selectedRecipeIds = widget.existing!.recipeIds.toSet();
       _ingredients.addAll(widget.existing!.ingredients);
     } else {
       // Auto-select the first unoccupied meal slot for the day.
@@ -147,7 +170,7 @@ class _AddMealSheetState extends State<AddMealSheet>
         _prefilledExisting = slotMeal;
         _nameCtrl.text = slotMeal.name;
         _emoji = slotMeal.emoji;
-        _selectedRecipeId = slotMeal.recipeId;
+        _selectedRecipeIds = slotMeal.recipeIds.toSet();
         _ingredients.addAll(slotMeal.ingredients);
       }
     }
@@ -189,12 +212,12 @@ class _AddMealSheetState extends State<AddMealSheet>
         _prefilledExisting = slotMeal;
         _nameCtrl.text = slotMeal.name;
         _emoji = slotMeal.emoji;
-        _selectedRecipeId = slotMeal.recipeId;
+        _selectedRecipeIds = slotMeal.recipeIds.toSet();
       } else if (_prefilledExisting != null) {
         _prefilledExisting = null;
         _nameCtrl.clear();
         _emoji = '🍛';
-        _selectedRecipeId = null;
+        _selectedRecipeIds = {};
       }
     });
   }
@@ -204,7 +227,8 @@ class _AddMealSheetState extends State<AddMealSheet>
     if (name.isEmpty) return;
 
     final ingredients =
-        _selectedRecipeId == null ? List<String>.from(_ingredients) : <String>[];
+        _selectedRecipeIds.isEmpty ? List<String>.from(_ingredients) : <String>[];
+    final recipeIds = _selectedRecipeIds.toList();
 
     if (widget.existing != null) {
       widget.onUpdate!(
@@ -212,7 +236,7 @@ class _AddMealSheetState extends State<AddMealSheet>
           name: name,
           mealTime: _mealTime,
           emoji: _emoji,
-          recipeId: _selectedRecipeId,
+          recipeIds: recipeIds,
           ingredients: ingredients,
         ),
       );
@@ -222,7 +246,7 @@ class _AddMealSheetState extends State<AddMealSheet>
           name: name,
           mealTime: _mealTime,
           emoji: _emoji,
-          recipeId: _selectedRecipeId,
+          recipeIds: recipeIds,
           ingredients: ingredients,
         ),
       );
@@ -235,7 +259,7 @@ class _AddMealSheetState extends State<AddMealSheet>
           date: _selectedDate,
           walletId: widget.walletId,
           emoji: _emoji,
-          recipeId: _selectedRecipeId,
+          recipeIds: recipeIds,
           ingredients: ingredients,
         ),
       );
@@ -527,7 +551,25 @@ class _AddMealSheetState extends State<AddMealSheet>
                     color: isDark ? AppColors.subDark : AppColors.subLight,
                   ),
                 ),
-                if (_selectedRecipeId != null) ...[
+                if (_selectedRecipeIds.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${_selectedRecipeIds.length} selected',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
                   const Spacer(),
                   GestureDetector(
                     onTap: _clearRecipe,
@@ -552,7 +594,7 @@ class _AddMealSheetState extends State<AddMealSheet>
                 itemCount: _sortedRecipes.length,
                 itemBuilder: (_, i) {
                   final r = _sortedRecipes[i];
-                  final sel = r.id == _selectedRecipeId;
+                  final sel = _selectedRecipeIds.contains(r.id);
                   return GestureDetector(
                     onTap: () => _pickRecipe(r),
                     child: AnimatedContainer(
@@ -677,7 +719,7 @@ class _AddMealSheetState extends State<AddMealSheet>
           const SizedBox(height: 14),
 
           // ── Ingredients (manual meals only) ───────────────────────────
-          if (_selectedRecipeId == null) ...[
+          if (_selectedRecipeIds.isEmpty) ...[
             Row(
               children: [
                 Text(
