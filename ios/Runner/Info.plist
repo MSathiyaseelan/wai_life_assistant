@@ -30,6 +30,8 @@
 	<string>Main</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Used to pick contacts for lend, borrow and request transactions</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock WAI</string>
 	<key>NSCameraUsageDescription</key>
 <string>We need camera access to set group image</string>
 <key>NSPhotoLibraryUsageDescription</key>

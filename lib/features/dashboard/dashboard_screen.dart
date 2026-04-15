@@ -1946,8 +1946,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       _SettingItem('🔔', const Color(0xFFE0F8EC), 'Notifications', 'On'),
       _SettingItem('🔒', const Color(0xFFFFF0E0), 'Privacy & Security', ''),
-      _SettingItem('☁️', const Color(0xFFE8F5FF), 'Backup & Sync', 'On'),
-      _SettingItem('👨‍👩‍👧', const Color(0xFFEEF0FF), 'Family & Wallets', ''),
       _SettingItem('ℹ️', const Color(0xFFF0F0F0), 'About', 'v1.0.0'),
     ];
 

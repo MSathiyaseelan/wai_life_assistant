@@ -81,8 +81,11 @@ class PrivacyPrefs extends ChangeNotifier {
     return v != null && v.isNotEmpty;
   }
 
+  int get pinLength => _prefs?.getInt('${_pfx}pin_length') ?? 4;
+
   Future<void> savePin(String pin) async {
     await _ss.write(key: _pinKey, value: pin);
+    await _prefs?.setInt('${_pfx}pin_length', pin.length);
   }
 
   Future<bool> checkPin(String pin) async {

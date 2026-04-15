@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/features/auth/app_lock_screen.dart';
 
 const _kThemePrefKey = 'theme_mode';
 
@@ -125,7 +126,8 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AppStateScope(
+    return AppLockGuard(
+      child: AppStateScope(
       notifier: _appState,
       child: ListenableBuilder(
         listenable: _appState,
@@ -254,6 +256,7 @@ class _AppShellState extends State<AppShell> {
           );
         },
       ),
+    ),
     );
   }
 }

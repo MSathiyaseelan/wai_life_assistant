@@ -4,6 +4,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'nlp_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -699,7 +700,7 @@ class _AmountField extends StatelessWidget {
     child: Row(
       children: [
         Text(
-          '₹',
+          AppPrefs.instance.currencySymbol,
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
