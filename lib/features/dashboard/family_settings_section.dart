@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/core/supabase/invite_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
@@ -107,6 +109,63 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
 
   FamilyModel? get _family =>
       widget.appState.families.isEmpty ? null : widget.appState.families.first;
+
+  // ── Invite actions ────────────────────────────────────────────────────────────
+
+  bool _sendingInvite = false;
+
+  Future<void> _sendPhoneInvite(FamilyModel family) async {
+    final phone = _inviteCtrl.text.trim();
+    if (phone.isEmpty || _sendingInvite) return;
+    HapticFeedback.lightImpact();
+    setState(() => _sendingInvite = true);
+    try {
+      final result = await InviteService.instance.sendInvite(
+        familyId: family.id,
+        phone:    phone,
+      );
+      if (!mounted) return;
+      _inviteCtrl.clear();
+      final userFound = result['user_found'] as bool? ?? false;
+      final msg = userFound
+          ? 'Invite sent! They\'ll see it in their notifications.'
+          : 'Invite created. Share the link so they can join once they sign up.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.primary,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed to send invite: $e'),
+        backgroundColor: AppColors.expense,
+      ));
+    } finally {
+      if (mounted) setState(() => _sendingInvite = false);
+    }
+  }
+
+  Future<void> _shareInviteLink(FamilyModel family) async {
+    HapticFeedback.lightImpact();
+    try {
+      final result = await InviteService.instance.createInviteLink(
+        familyId: family.id,
+      );
+      final token = result['token'] as String? ?? '';
+      if (!mounted) return;
+      await Share.share(
+        'Join "${family.name}" on WAI Life Assistant!\n'
+        'Use invite code: $token\n'
+        '(Code expires in 7 days)',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed to generate invite link: $e'),
+        backgroundColor: AppColors.expense,
+      ));
+    }
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -410,20 +469,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                         ),
                         const SizedBox(width: 8),
                         GestureDetector(
-                          onTap: () {
-                            final phone = _inviteCtrl.text.trim();
-                            if (phone.isEmpty) return;
-                            HapticFeedback.lightImpact();
-                            // TODO: send invite
-                            _inviteCtrl.clear();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Invite sent to $phone'),
-                                backgroundColor: AppColors.primary,
-                              ),
-                            );
-                          },
+                          onTap: () => _sendPhoneInvite(family),
                           child: Container(
                             height: 42,
                             padding: const EdgeInsets.symmetric(
@@ -449,10 +495,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                     const SizedBox(height: 8),
                     // Share invite link
                     GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        // TODO: generate & share invite link
-                      },
+                      onTap: () => _shareInviteLink(family),
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(

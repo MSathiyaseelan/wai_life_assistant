@@ -51,6 +51,12 @@ class AppNotification {
     );
   }
 
+  /// True when this notification is a family invite (not a transaction).
+  bool get isInvite => txType == 'invite';
+
+  /// The invite_id is stored in txId for invite-type notifications.
+  String? get inviteId => isInvite ? txId : null;
+
   AppNotification copyWith({bool? isRead}) => AppNotification(
     id:          id,
     userId:      userId,
