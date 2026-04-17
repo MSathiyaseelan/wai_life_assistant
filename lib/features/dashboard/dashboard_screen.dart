@@ -36,6 +36,7 @@ import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sh
 import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -45,11 +46,13 @@ class DashboardScreen extends StatefulWidget {
   final int refreshCount;
   final ThemeMode themeMode;
   final void Function(ThemeMode)? onSetTheme;
+  final void Function(int tabIndex)? onTabSwitch;
   const DashboardScreen({
     super.key,
     this.refreshCount = 0,
     this.themeMode = ThemeMode.system,
     this.onSetTheme,
+    this.onTabSwitch,
   });
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -894,6 +897,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ── AI Assistant ──────────────────────────────────────────
+                      AIAssistantWidget(
+                        walletId: appState.activeWalletId,
+                        onNavigate: widget.onTabSwitch,
+                      ),
+                      const SizedBox(height: 16),
+
                       // ①  TODAY ───────────────────────────────────────────────
                       _SectionHeader(
                         emoji: '💳',

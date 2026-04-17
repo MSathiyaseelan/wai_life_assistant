@@ -253,7 +253,7 @@ serve(async (req: Request) => {
     return errorResponse("Missing required fields: feature, sub_feature, input_type");
   }
 
-  const validFeatures = ["wallet", "pantry", "planit", "mylife", "functions", "lifestyle"];
+  const validFeatures = ["wallet", "pantry", "planit", "mylife", "functions", "lifestyle", "dashboard"];
   if (!validFeatures.includes(feature)) {
     return errorResponse(`Invalid feature. Must be one of: ${validFeatures.join(", ")}`);
   }

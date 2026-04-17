@@ -138,6 +138,7 @@ class _AppShellState extends State<AppShell> {
               refreshCount: _dashboardRefreshCount,
               themeMode: widget.themeMode,
               onSetTheme: widget.onSetTheme,
+              onTabSwitch: (idx) => setState(() => _idx = idx),
             ),
             WalletScreen(
               activeWalletId: walletId,
