@@ -10,6 +10,21 @@ import 'package:wai_life_assistant/features/wallet/services/sms_regex_parser.dar
 import 'package:wai_life_assistant/services/ai_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SmsHistoryItem — one result from a historical SMS scan
+// ─────────────────────────────────────────────────────────────────────────────
+
+class SmsHistoryItem {
+  final SMSTransaction tx;
+  final String sender;
+  final DateTime? messageDate;
+  const SmsHistoryItem({
+    required this.tx,
+    required this.sender,
+    this.messageDate,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SMSParserService
 //
 // Approach 1 (automatic): scan-on-open — reads inbox on each app open,
@@ -147,6 +162,48 @@ class SMSParserService {
 
     // Layer 2: AI via Supabase edge function
     return _parseWithAI(text, '');
+  }
+
+  /// Scans the SMS inbox for bank messages in [from]..[to] and parses them
+  /// using regex only (no AI — keeps bulk scanning free and fast).
+  /// Returns newest-first list of [SmsHistoryItem].
+  static Future<List<SmsHistoryItem>> scanHistory({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    if (!Platform.isAndroid) return [];
+
+    final status = await Permission.sms.status;
+    if (!status.isGranted) return [];
+
+    List<SmsMessage> messages;
+    try {
+      final query = SmsQuery();
+      messages = await query.querySms(kinds: [SmsQueryKind.inbox]);
+    } catch (e) {
+      debugPrint('[SMS] history scan error: $e');
+      return [];
+    }
+
+    final fromMs = from.millisecondsSinceEpoch;
+    final toMs   = to.millisecondsSinceEpoch;
+    final results = <SmsHistoryItem>[];
+
+    for (final m in messages) {
+      final msgMs = m.date?.millisecondsSinceEpoch ?? 0;
+      if (msgMs < fromMs || msgMs > toMs) continue;
+      final body   = m.body ?? '';
+      final sender = m.sender ?? '';
+      if (!isBankSMS(sender, body)) continue;
+
+      final tx = SMSRegexParser.tryParse(body, fallbackDate: m.date);
+      if (tx != null && tx.isTransaction) {
+        results.add(SmsHistoryItem(tx: tx, sender: sender, messageDate: m.date));
+      }
+    }
+
+    results.sort((a, b) => b.tx.transactionDate.compareTo(a.tx.transactionDate));
+    return results;
   }
 
   // ── Bank SMS detector (public — used by scanner) ─────────────────────────

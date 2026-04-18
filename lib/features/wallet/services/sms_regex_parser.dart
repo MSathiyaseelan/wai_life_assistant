@@ -12,8 +12,8 @@ class SMSRegexParser {
 
   // ── Public entry point ────────────────────────────────────────────────────
 
-  static SMSTransaction? tryParse(String sms) {
-    final today = DateTime.now().toIso8601String().split('T')[0];
+  static SMSTransaction? tryParse(String sms, {DateTime? fallbackDate}) {
+    final today = (fallbackDate ?? DateTime.now()).toIso8601String().split('T')[0];
 
     // Try each pattern in order of specificity
     return _tryHdfcDebit(sms, today) ??

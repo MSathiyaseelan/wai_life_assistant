@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
+import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9,14 +10,21 @@ import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.d
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SMSPermissionScreen extends StatelessWidget {
-  const SMSPermissionScreen({super.key});
+  final String? walletId;
+  final VoidCallback? onImported;
 
-  static Future<void> show(BuildContext context) {
+  const SMSPermissionScreen({super.key, this.walletId, this.onImported});
+
+  static Future<void> show(
+    BuildContext context, {
+    String? walletId,
+    VoidCallback? onImported,
+  }) {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const SMSPermissionScreen(),
+      builder: (_) => SMSPermissionScreen(walletId: walletId, onImported: onImported),
     );
   }
 
@@ -138,6 +146,29 @@ class SMSPermissionScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (walletId != null) ...[
+            const Divider(height: 24),
+            TextButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await SmsHistoryImportScreen.show(
+                  context,
+                  walletId: walletId!,
+                  onImported: onImported,
+                );
+              },
+              icon: const Icon(Icons.history, size: 16, color: Color(0xFF6366F1)),
+              label: const Text(
+                'Import past transactions instead',
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: Color(0xFF6366F1),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

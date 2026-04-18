@@ -4,6 +4,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
@@ -378,6 +379,31 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                   foregroundColor: const Color(0xFF6366F1),
                 ),
               ),
+
+        // Import past SMS button
+        TextButton.icon(
+          onPressed: (_isLoading || _isListening || _isSmsLoading)
+              ? null
+              : () {
+                  Navigator.pop(context);
+                  SmsHistoryImportScreen.show(
+                    context,
+                    walletId: widget.walletId,
+                    onImported: () => widget.onSave,
+                  );
+                },
+          icon: const Icon(Icons.history_rounded, size: 18),
+          label: const Text(
+            'Import past transactions',
+            style: TextStyle(
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF6366F1),
+          ),
+        ),
 
         // Error message
         if (_errorMsg != null) ...[
