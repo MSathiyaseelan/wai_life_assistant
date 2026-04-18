@@ -34,6 +34,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   bool _savingPerms = false;
 
   final _inviteCtrl = TextEditingController();
+  final _codeCtrl   = TextEditingController();
+  bool _joiningCode = false;
 
   // Permission state — initialised from FamilyModel, persisted to DB on change.
   String _invitePerm = 'admin_only';
@@ -104,6 +106,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   @override
   void dispose() {
     _inviteCtrl.dispose();
+    _codeCtrl.dispose();
     super.dispose();
   }
 
@@ -127,9 +130,22 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       if (!mounted) return;
       _inviteCtrl.clear();
       final userFound = result['user_found'] as bool? ?? false;
+      final token = result['token'] as String? ?? '';
+
+      // Always share the invite link so the invitee receives it via
+      // WhatsApp, SMS, or any messaging app — regardless of whether
+      // they already have a WAI account.
+      await Share.share(
+        'Hey! You\'re invited to join "${family.name}" on WAI Life Assistant.\n'
+        'Use this invite code to join: $token\n'
+        '(Code expires in 7 days)\n\n'
+        'Download WAI: https://play.google.com/store/apps/details?id=com.example.wai_life_assistant',
+      );
+
+      if (!mounted) return;
       final msg = userFound
-          ? 'Invite sent! They\'ll see it in their notifications.'
-          : 'Invite created. Share the link so they can join once they sign up.';
+          ? 'Invite sent! They\'ll also see it in their WAI notifications.'
+          : 'Invite shared! Ask them to enter the code after signing up.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg),
         backgroundColor: AppColors.primary,
@@ -164,6 +180,42 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         content: Text('Failed to generate invite link: $e'),
         backgroundColor: AppColors.expense,
       ));
+    }
+  }
+
+  Future<void> _joinWithCode() async {
+    final code = _codeCtrl.text.trim().toUpperCase();
+    if (code.isEmpty || _joiningCode) return;
+    HapticFeedback.lightImpact();
+    setState(() => _joiningCode = true);
+    try {
+      final result = await InviteService.instance.joinByToken(code);
+      if (!mounted) return;
+      final success    = result['success'] as bool? ?? false;
+      final familyName = result['family_name'] as String? ?? 'the family';
+      final reason     = result['reason'] as String?;
+      if (success) {
+        _codeCtrl.clear();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('You joined $familyName!'),
+          backgroundColor: AppColors.income,
+        ));
+        await widget.appState.reload();
+        if (mounted) setState(() {});
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(reason ?? 'Invalid or expired invite code.'),
+          backgroundColor: AppColors.expense,
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Failed to join: $e'),
+        backgroundColor: AppColors.expense,
+      ));
+    } finally {
+      if (mounted) setState(() => _joiningCode = false);
     }
   }
 
@@ -227,6 +279,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
 
           // ── Create Family (enabled only when below maxFamilyGroups) ─────────
           _buildCreateFamilyTile(context),
+          const SizedBox(height: 8),
+          _buildJoinWithCodeTile(context),
         ],
       ],
     );
@@ -418,6 +472,18 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                           fontSize: 10,
                           fontFamily: 'Nunito',
                           color: sub,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () async {
+                          await widget.appState.reload();
+                          if (mounted) setState(() {});
+                        },
+                        child: Icon(
+                          Icons.refresh_rounded,
+                          size: 16,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
@@ -963,6 +1029,116 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           }).toList(),
         ),
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // JOIN WITH CODE TILE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildJoinWithCodeTile(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _surfBg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: const Text('🔗', style: TextStyle(fontSize: 18)),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Join with Invite Code',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                  color: _tc,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: widget.isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TextField(
+                    controller: _codeCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                      letterSpacing: 1.5,
+                      color: _tc,
+                    ),
+                    decoration: InputDecoration.collapsed(
+                      hintText: 'Enter 8-digit code',
+                      hintStyle: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        letterSpacing: 0,
+                        color: _sub,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _joiningCode ? null : _joinWithCode,
+                child: Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.income,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: _joiningCode
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Join',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

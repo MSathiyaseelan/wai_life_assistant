@@ -1702,11 +1702,7 @@ class _PantryScreenState extends State<PantryScreen>
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           children: [
-            WeekCalendarStrip(
-            selectedDate: _selectedDate,
-            onDateSelected: (d) => setState(() => _selectedDate = d),
-          ),
-          FamilyFoodPrefsCard(
+            FamilyFoodPrefsCard(
             members: _buildMembers(),
             foodPrefs: _foodPrefs
                 .where((p) => p.walletId == widget.activeWalletId)
@@ -1717,6 +1713,10 @@ class _PantryScreenState extends State<PantryScreen>
             onSave: _saveFoodPrefs,
           ),
           _SectionDivider(isDark: isDark),
+          WeekCalendarStrip(
+            selectedDate: _selectedDate,
+            onDateSelected: (d) => setState(() => _selectedDate = d),
+          ),
           MealMapSection(
             meals: _meals,
             recipes: _recipes,

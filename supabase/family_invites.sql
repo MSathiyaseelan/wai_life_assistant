@@ -81,15 +81,19 @@ BEGIN
   VALUES (p_family_id, v_uid, p_phone, v_invited_uid, p_role)
   RETURNING id, token INTO v_invite_id, v_token;
 
-  -- If user exists in WAI, push in-app notification
+  -- If user exists in WAI, push in-app notification (best-effort — never block invite creation)
   IF v_invited_uid IS NOT NULL THEN
-    INSERT INTO notifications
-      (user_id, family_id, tx_id, actor_id, actor_name, actor_emoji,
-       tx_type, tx_category, tx_amount, tx_title)
-    VALUES
-      (v_invited_uid, p_family_id, v_invite_id::text, v_uid,
-       v_inviter_name, v_family_emoji,
-       'invite', 'Family Invite', 0, v_family_name);
+    BEGIN
+      INSERT INTO notifications
+        (user_id, family_id, tx_id, actor_id, actor_name, actor_emoji,
+         tx_type, tx_category, tx_amount, tx_title)
+      VALUES
+        (v_invited_uid, p_family_id, v_invite_id, v_uid,
+         v_inviter_name, v_family_emoji,
+         'invite', 'Family Invite', 0, v_family_name);
+    EXCEPTION WHEN OTHERS THEN
+      NULL; -- notification failure must not roll back the invite
+    END;
   END IF;
 
   RETURN json_build_object(
@@ -169,7 +173,7 @@ BEGIN
   -- Mark notification read
   UPDATE notifications
   SET is_read = TRUE
-  WHERE tx_id = p_invite_id::text
+  WHERE tx_id = p_invite_id
     AND tx_type = 'invite'
     AND user_id = v_uid;
 
@@ -198,7 +202,7 @@ BEGIN
 
   UPDATE notifications
   SET is_read = TRUE
-  WHERE tx_id = p_invite_id::text
+  WHERE tx_id = p_invite_id
     AND tx_type = 'invite'
     AND user_id = v_uid;
 END;
