@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/fcm_service.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_screen.dart';
 import 'package:wai_life_assistant/features/pantry/pantry_screen.dart';
 import 'package:wai_life_assistant/features/planit/planit_screen.dart';
@@ -84,6 +85,19 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _appState.init();
+    FcmService.pendingTab.addListener(_onFcmTab);
+    // Handle tap from terminated state
+    final pending = FcmService.pendingTab.value;
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onFcmTab());
+    }
+  }
+
+  void _onFcmTab() {
+    final tab = FcmService.pendingTab.value;
+    if (tab == null) return;
+    setState(() => _idx = tab);
+    FcmService.pendingTab.value = null;
   }
 
   static const _tabs = [
@@ -98,6 +112,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    FcmService.pendingTab.removeListener(_onFcmTab);
     _appState.dispose();
     super.dispose();
   }

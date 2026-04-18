@@ -28,6 +28,7 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -815,6 +816,25 @@ class _PantryScreenState extends State<PantryScreen>
         if (idx >= 0) _meals[idx] = saved;
       });
       PantryService.mealChangeSignal.value++;
+
+      // Notify family members when a meal is added in family scope
+      final appState = AppStateScope.of(context);
+      if (!appState.isPersonal) {
+        final family = appState.families.firstWhere(
+          (f) => f.walletId == widget.activeWalletId,
+          orElse: () => appState.families.first,
+        );
+        FamilyNotificationTrigger.notify(
+          eventType: 'pantry.meal_added',
+          familyId: family.id,
+          eventData: {
+            'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
+            'meal_name': m.name,
+            'meal_type': m.mealTime.name,
+          },
+        );
+      }
+
       // Ingredient analysis — for recipe-linked meals or manually-entered ingredients
       if ((m.recipeIds.isNotEmpty || m.ingredients.isNotEmpty) && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(m));

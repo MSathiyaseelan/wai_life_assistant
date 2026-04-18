@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "471788972864",
+    "project_id": "waiapp-4edaf",
+    "storage_bucket": "waiapp-4edaf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:471788972864:android:2be4fd35d43e144a1568a5",
+        "android_client_info": {
+          "package_name": "com.example.wai_life_assistant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:471788972864:android:8523cd788a9bc8271568a5",
+        "android_client_info": {
+          "package_name": "com.example.waiapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
