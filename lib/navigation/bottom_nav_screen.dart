@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/fcm_service.dart';
+import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
+import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_screen.dart';
 import 'package:wai_life_assistant/features/pantry/pantry_screen.dart';
 import 'package:wai_life_assistant/features/planit/planit_screen.dart';
@@ -86,10 +88,14 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     _appState.init();
     FcmService.pendingTab.addListener(_onFcmTab);
-    // Handle tap from terminated state
     final pending = FcmService.pendingTab.value;
     if (pending != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onFcmTab());
+    }
+    SMSParserService.pendingSmsBody.addListener(_onPendingSms);
+    final pendingSms = SMSParserService.pendingSmsBody.value;
+    if (pendingSms != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onPendingSms());
     }
   }
 
@@ -98,6 +104,27 @@ class _AppShellState extends State<AppShell> {
     if (tab == null) return;
     setState(() => _idx = tab);
     FcmService.pendingTab.value = null;
+  }
+
+  Future<void> _onPendingSms() async {
+    final smsBody = SMSParserService.pendingSmsBody.value;
+    if (smsBody == null || !mounted) return;
+    SMSParserService.pendingSmsBody.value = null;
+
+    // Switch to wallet tab
+    setState(() => _idx = 1);
+
+    // Parse (regex first, AI fallback) then show confirm sheet
+    final parsed = await SMSParserService.parseSMSText(smsBody);
+    if (!mounted || parsed == null) return;
+
+    await IntentConfirmSheet.show(
+      context,
+      intent:     parsed.toParsedIntent(),
+      walletId:   _appState.activeWalletId,
+      onSave:     (_) => setState(() => _dashboardRefreshCount++),
+      onOpenFlow: () {},
+    );
   }
 
   static const _tabs = [

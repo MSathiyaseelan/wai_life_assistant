@@ -5,7 +5,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
-import 'nlp_parser.dart';
+import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTENT CONFIRM SHEET

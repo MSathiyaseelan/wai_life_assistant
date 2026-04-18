@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Priority;
@@ -67,6 +69,17 @@ Future<void> _onBackgroundAction(NotificationResponse response) async {
 
 Future<void> _handleAction(NotificationResponse response) async {
   final plugin = FlutterLocalNotificationsPlugin();
+
+  // SMS notification tap — route payload to SMSParserService via SharedPreferences
+  // (avoids cross-isolate ValueNotifier issues; app checks on resume)
+  const smsPrefix = 'sms:';
+  if (response.actionId == null &&
+      (response.payload?.startsWith(smsPrefix) ?? false)) {
+    final body = response.payload!.substring(smsPrefix.length);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('pending_sms_body', body);
+    return;
+  }
 
   // Stop: cancel the notification only
   if (response.actionId == 'stop') {

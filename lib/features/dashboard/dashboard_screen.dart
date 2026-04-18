@@ -17,7 +17,7 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
-import 'package:wai_life_assistant/features/wallet/AI/SparkBottomSheet.dart';
+import 'package:wai_life_assistant/features/wallet/ai/SparkBottomSheet.dart';
 import 'package:wai_life_assistant/features/wallet/category_detector.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';

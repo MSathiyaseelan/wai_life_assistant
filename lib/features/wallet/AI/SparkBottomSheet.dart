@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard;
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/services/ai_parser.dart';
-import 'IntentConfirmSheet.dart';
-import 'nlp_parser.dart';
+import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
+import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 
 class SparkBottomSheet extends StatefulWidget {
   final String walletId;
@@ -32,8 +34,9 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
   final _controller = TextEditingController();
   final SpeechToText _speech = SpeechToText();
 
-  bool _isListening = false;
-  bool _isLoading = false;
+  bool _isListening  = false;
+  bool _isLoading    = false;
+  bool _isSmsLoading = false;
   String _spokenText = '';
   String? _errorMsg;
 
@@ -87,6 +90,43 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       _controller.text = _spokenText;
       await _parseInput();
     }
+  }
+
+  // ── Paste bank SMS (Approach 2) ──────────────────────────────────────────────
+
+  Future<void> _pasteSms() async {
+    final clip = await Clipboard.getData('text/plain');
+    final text = clip?.text?.trim() ?? '';
+    if (text.isEmpty) {
+      setState(() => _errorMsg = 'Clipboard is empty. Copy your bank SMS first.');
+      return;
+    }
+
+    setState(() {
+      _isSmsLoading = true;
+      _errorMsg = null;
+    });
+
+    final parsed = await SMSParserService.parseSMSText(text);
+
+    if (!mounted) return;
+    setState(() => _isSmsLoading = false);
+
+    if (parsed == null || !parsed.isTransaction) {
+      setState(() => _errorMsg = 'Could not read a transaction from the clipboard text.');
+      return;
+    }
+
+    final intent = parsed.toParsedIntent();
+    if (!mounted) return;
+    Navigator.pop(context);
+    await IntentConfirmSheet.show(
+      context,
+      intent:      intent,
+      walletId:    widget.walletId,
+      onSave:      widget.onSave,
+      onOpenFlow:  widget.onOpenFlow,
+    );
   }
 
   // ── AI Parse ─────────────────────────────────────────────────────────────────
@@ -301,6 +341,43 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
             ),
           ),
         ),
+
+        // Paste bank SMS button (Approach 2)
+        _isSmsLoading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Reading SMS…',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'Nunito',
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : TextButton.icon(
+                onPressed: (_isLoading || _isListening) ? null : _pasteSms,
+                icon: const Icon(Icons.content_paste_rounded, size: 18),
+                label: const Text(
+                  'Paste bank SMS',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF6366F1),
+                ),
+              ),
 
         // Error message
         if (_errorMsg != null) ...[
