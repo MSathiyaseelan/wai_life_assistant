@@ -384,12 +384,14 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
         TextButton.icon(
           onPressed: (_isLoading || _isListening || _isSmsLoading)
               ? null
-              : () {
-                  Navigator.pop(context);
-                  SmsHistoryImportScreen.show(
-                    context,
+              : () async {
+                  // Capture navigator before popping — context becomes invalid after pop.
+                  final nav = Navigator.of(context);
+                  nav.pop();
+                  await SmsHistoryImportScreen.show(
+                    nav.context,
                     walletId: widget.walletId,
-                    onImported: () => widget.onSave,
+                    onImported: () {},
                   );
                 },
           icon: const Icon(Icons.history_rounded, size: 18),

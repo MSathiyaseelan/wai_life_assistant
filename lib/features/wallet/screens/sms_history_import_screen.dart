@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
@@ -77,6 +78,23 @@ class _SmsHistoryImportScreenState extends State<SmsHistoryImportScreen> {
 
   Future<void> _scan() async {
     setState(() { _loading = true; _error = null; _items = []; _checked = {}; });
+
+    // Check SMS permission first — READ_SMS must be in the manifest and granted.
+    final status = await Permission.sms.status;
+    if (!status.isGranted) {
+      // Try requesting it (works only if READ_SMS is declared in the manifest).
+      final requested = await Permission.sms.request();
+      if (!requested.isGranted) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'SMS permission not granted.\n\n'
+              'This feature requires the READ_SMS permission. '
+              'It is currently disabled — enable it in the app settings or contact support.';
+        });
+        return;
+      }
+    }
 
     final now  = DateTime.now();
     final from = now.subtract(Duration(days: _range.days));

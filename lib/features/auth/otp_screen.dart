@@ -98,16 +98,24 @@ class _OtpScreenState extends State<OtpScreen> {
         await AuthService.instance.verifyOtp(widget.phone, _otp);
       }
       if (!mounted) return;
-      // Skip setup if profile already exists for this UID (bypass re-uses the
-      // same anonymous session, so bootstrap + phone-link would hit unique
-      // constraints on repeated logins).
+      // If a profile exists for this UID, skip setup entirely.
+      // In bypass mode, cache-clear produces a new anonymous UID, so the profile
+      // won't be found by UID — bootstrapNewUser then hits the phone unique
+      // constraint. We catch that, then linkProfileByPhone migrates the existing
+      // profile (and all its data) to the new UID.
       final existing = await ProfileService.instance.fetchProfile();
       if (existing == null) {
-        await ProfileService.instance.bootstrapNewUser();
+        try {
+          await ProfileService.instance.bootstrapNewUser();
+        } catch (e) {
+          // Duplicate phone — another UID already owns this profile (bypass mode).
+          // linkProfileByPhone below will migrate it to the current UID.
+          debugPrint('[OTP] bootstrapNewUser skipped — profile exists for this phone: $e');
+        }
         final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
-        if (migrated) debugPrint('[OTP] Profile data migrated for ${widget.phone}');
+        if (migrated) debugPrint('[OTP] Profile migrated to new UID for ${widget.phone}');
       } else {
-        debugPrint('[OTP] Profile already exists, skipping setup');
+        debugPrint('[OTP] Profile already exists for this UID, skipping setup');
       }
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(

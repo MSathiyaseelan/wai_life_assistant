@@ -6,7 +6,7 @@ import 'core/supabase/supabase_config.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/network_service.dart';
-import 'features/wallet/services/sms_parser_service.dart';
+// import 'features/wallet/services/sms_parser_service.dart'; // re-enable with auto-scan
 import 'firebase_options.dart';
 import 'main.dart';
 import 'core/env/env.dart';
@@ -48,13 +48,10 @@ Future<void> bootstrapApp(String env) async {
   }
   await NetworkService.instance.init();
 
-  // SMS tracking — Approach 1 (background listener) + check pending from cold-start tap
-  try {
-    await SMSParserService.initialize();
-  } catch (e) {
-    debugPrint('[Bootstrap] SMS init failed: $e');
-  }
-  await SMSParserService.checkPending();
+  // SMS auto-scan disabled — READ_SMS permission removed until Play Store approval.
+  // Re-enable these two lines and restore the manifest permission when ready:
+  // try { await SMSParserService.initialize(); } catch (e) { debugPrint('[Bootstrap] SMS init failed: $e'); }
+  // await SMSParserService.checkPending();
 
   runApp(
     MultiProvider(
