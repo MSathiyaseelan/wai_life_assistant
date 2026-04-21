@@ -387,12 +387,19 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _onTransactionSaved(TxModel tx) {
-    // Optimistically show in list immediately
     setState(() => _transactions.insert(0, tx));
-    final group = _pendingGroupForNextTx;
-    _pendingGroupForNextTx = null;
-    _persistTransaction(tx, groupOverride: group); // fire-and-forget
+    // IntentConfirmSheet now persists directly and passes the DB row (UUID id).
+    // Only call _persistTransaction for flows that pass a local temp id.
+    if (!_isDbId(tx.id)) {
+      final group = _pendingGroupForNextTx;
+      _pendingGroupForNextTx = null;
+      _persistTransaction(tx, groupOverride: group);
+    }
   }
+
+  static bool _isDbId(String id) =>
+      RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+          .hasMatch(id);
 
   Future<void> _persistTransaction(TxModel tx, {TxGroup? groupOverride}) async {
     if (!AuthService.instance.isLoggedIn) {

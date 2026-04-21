@@ -1292,35 +1292,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         isDark: isDark,
         surfBg: surfBg,
         walletId: walletId,
-        onAiSave: (tx) async {
+        // IntentConfirmSheet now persists directly — onAiSave is UI-only.
+        onAiSave: (tx) {
           setState(() => _transactions.insert(0, tx));
-          try {
-            final row = await WalletService.instance.addTransaction(
-              walletId: tx.walletId,
-              type: tx.type.name,
-              amount: tx.amount,
-              category: tx.category,
-              payMode: tx.payMode?.name,
-              title: tx.title,
-              note: tx.note,
-              person: tx.person,
-              persons: tx.persons,
-              dueDate: tx.dueDate,
-              date: tx.date,
-            );
-            if (!mounted) return;
-            final saved = TxModel.fromRow(row);
-            setState(() {
-              final idx = _transactions.indexWhere((t) => t.id == tx.id);
-              if (idx >= 0) _transactions[idx] = saved;
-            });
-            WalletService.txChangeSignal.value++;
-            WalletService.instance.ensureCategory(saved.category, saved.type.name);
-          } catch (e) {
-            debugPrint('[Dashboard] AI parse save error: $e');
-            if (!mounted) return;
-            setState(() => _transactions.removeWhere((t) => t.id == tx.id));
-          }
+          WalletService.txChangeSignal.value++;
+          WalletService.instance.ensureCategory(tx.category, tx.type.name);
         },
         onQuickSave: (tx) {
           setState(() => _transactions.add(tx));

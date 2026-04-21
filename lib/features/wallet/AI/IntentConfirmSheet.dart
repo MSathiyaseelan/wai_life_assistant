@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
@@ -110,10 +111,31 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
     return WalletService.instance.categoriesFor('expense');
   }
 
-  void _save() {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (Supabase.instance.client.auth.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session expired — please log in again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (widget.walletId.isEmpty || widget.walletId == 'personal') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wallet not ready — please wait a moment and try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) {
-      // Shake animation would go here — for now just show error
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid amount'),
@@ -123,33 +145,49 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       return;
     }
 
+    if (_saving) return;
+    setState(() => _saving = true);
     HapticFeedback.mediumImpact();
 
-    final now = DateTime.now();
-    final tx = TxModel(
-      id: widget.existingId ?? '${now.millisecondsSinceEpoch}',
-      type: _flowType.txType,
-      payMode: _payMode,
-      amount: amount,
-      category:
-          _category ??
-          switch (_flowType) {
-            FlowType.income => 'Income',
-            FlowType.lend => 'Lend',
-            FlowType.borrow => 'Borrow',
-            FlowType.request => 'Request',
-            _ => 'Expense',
-          },
-      title: _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
-      note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      walletId: widget.walletId,
-      date: _date,
-      person: _personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim(),
-    );
+    final category = _category ??
+        switch (_flowType) {
+          FlowType.income  => 'Income',
+          FlowType.lend    => 'Lend',
+          FlowType.borrow  => 'Borrow',
+          FlowType.request => 'Request',
+          _                => 'Expense',
+        };
 
-    WalletService.instance.ensureCategory(tx.category, tx.type.name);
-    widget.onSave(tx);
-    Navigator.pop(context);
+    try {
+      WalletService.instance.ensureCategory(category, _flowType.txType.name);
+
+      final row = await WalletService.instance.addTransaction(
+        walletId: widget.walletId,
+        type:     _flowType.txType.name,
+        amount:   amount,
+        category: category,
+        payMode:  _payMode?.name,
+        title:    _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
+        note:     _noteCtrl.text.trim().isEmpty  ? null : _noteCtrl.text.trim(),
+        person:   _personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim(),
+        date:     _date,
+      );
+
+      if (!mounted) return;
+      final saved = TxModel.fromRow(row);
+      Navigator.pop(context);
+      widget.onSave(saved);
+    } catch (e, st) {
+      debugPrint('[IntentConfirmSheet] save error: $e\n$st');
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override

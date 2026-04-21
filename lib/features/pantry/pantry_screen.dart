@@ -337,7 +337,11 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadRecipes() async {
-    if (!mounted || widget.activeWalletId.isEmpty) return;
+    if (!mounted) return;
+    if (widget.activeWalletId.isEmpty) {
+      setState(() => _recipesLoading = false);
+      return;
+    }
     setState(() => _recipesLoading = true);
     try {
       final rows = await PantryService.instance.fetchRecipes(widget.activeWalletId);
@@ -354,7 +358,11 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadMeals() async {
-    if (!mounted || widget.activeWalletId.isEmpty) return;
+    if (!mounted) return;
+    if (widget.activeWalletId.isEmpty) {
+      setState(() => _mealsLoading = false);
+      return;
+    }
     setState(() => _mealsLoading = true);
     try {
       final rows = await PantryService.instance.fetchMealEntries(widget.activeWalletId);
@@ -382,7 +390,11 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _loadGroceries() async {
-    if (!mounted || widget.activeWalletId.isEmpty) return;
+    if (!mounted) return;
+    if (widget.activeWalletId.isEmpty) {
+      setState(() => _groceriesLoading = false);
+      return;
+    }
     setState(() => _groceriesLoading = true);
     try {
       final rows = await PantryService.instance.fetchGroceryItems(widget.activeWalletId);

@@ -75,6 +75,14 @@ class AppStateNotifier extends ChangeNotifier {
               !_wallets.any((w) => w.id == _activeWalletId)) {
             _activeWalletId = parsed.personal.id;
           }
+        } else {
+          // Profile not set up yet (e.g. bypass login with cache-cleared state).
+          // Fall back to a placeholder so screens don't hang on empty walletId.
+          debugPrint('[AppState] fetchSwitcherData returned null — using placeholder wallet');
+          if (_wallets.isEmpty) {
+            _wallets = [personalWallet];
+            _activeWalletId = personalWallet.id;
+          }
         }
       }
     } catch (e) {
