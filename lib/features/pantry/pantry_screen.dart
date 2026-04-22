@@ -587,23 +587,34 @@ class _PantryScreenState extends State<PantryScreen>
 
   /// Map edge-function JSON (single item or meal/recipe) to a [PantryIntent].
   PantryIntent _mapAiResult(Map<String, dynamic> d) {
-    final kindStr = d['kind'] as String? ?? 'basket';
+    // Infer kind from whichever signal is present:
+    //   explicit 'kind' field  >  presence of meal fields  >  default basket
+    final kindStr = d['kind'] as String? ??
+        (d['meal_name'] != null || d['meal_type'] != null || d['meal_time'] != null
+            ? 'meal'
+            : d['recipe_name'] != null
+                ? 'recipe'
+                : 'basket');
     final confidence = (d['confidence'] as num?)?.toDouble() ?? 0.5;
 
     switch (kindStr) {
       case 'meal':
-        final mtName = d['meal_time'] as String? ?? 'lunch';
+        // Accept both 'meal_time' (canonical) and 'meal_type' (AI variant).
+        final mtName = (d['meal_time'] ?? d['meal_type']) as String? ?? 'lunch';
         final mt = MealTime.values.firstWhere(
           (m) => m.name == mtName,
           orElse: () => MealTime.lunch,
         );
-        final dateStr = d['meal_date'] as String? ?? 'today';
+        // Accept both 'meal_date' (canonical) and 'date' (ISO string from AI).
+        final rawDate = (d['meal_date'] ?? d['date']) as String?;
         final now = DateTime.now();
-        final date = switch (dateStr) {
-          'yesterday' => now.subtract(const Duration(days: 1)),
-          'tomorrow'  => now.add(const Duration(days: 1)),
-          _           => now,
-        };
+        final date = rawDate == null
+            ? now
+            : switch (rawDate) {
+                'yesterday' => now.subtract(const Duration(days: 1)),
+                'tomorrow'  => now.add(const Duration(days: 1)),
+                _           => DateTime.tryParse(rawDate) ?? now,
+              };
         return PantryIntent(
           kind: PantryIntentKind.meal,
           mealName: d['meal_name'] as String?,
