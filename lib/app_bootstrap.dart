@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/env/environment_config.dart';
+import 'core/services/error_logger.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
@@ -37,6 +38,8 @@ Future<void> bootstrapApp(String env) async {
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
   );
+
+  await ErrorLogger.initialize();
 
   await NotificationService.instance.init();
   if (firebaseReady) {

@@ -50,6 +50,8 @@ dependencies:
   timezone: ^0.10.0
   flutter_timezone: ^3.0.0
   connectivity_plus: ^6.1.4
+  device_info_plus: ^10.1.0
+  package_info_plus: ^8.0.0
   shared_preferences: ^2.5.5
   share_plus: ^10.1.4
   url_launcher: ^6.3.1

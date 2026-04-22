@@ -2160,50 +2160,61 @@ class _WalletScreenState extends State<WalletScreen>
 
   // ── Empty state (non-splits) ─────────────────────────────────────────────────
   Widget _buildEmpty(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('🔍', style: TextStyle(fontSize: 50)),
-          const SizedBox(height: 14),
-          Text(
-            'No transactions found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Nunito',
-              color: isDark ? Colors.white38 : Colors.black38,
+    // LayoutBuilder + SingleChildScrollView + ConstrainedBox(minHeight) is the
+    // canonical pattern for content that should be centered when there is room
+    // but scroll rather than overflow when the keyboard reduces available space.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('🔍', style: TextStyle(fontSize: 50)),
+                const SizedBox(height: 14),
+                Text(
+                  'No transactions found',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: isDark ? Colors.white38 : Colors.black38,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tap + below to add one!',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white24 : Colors.black26,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: _openFlowSelector,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text(
+                    'Add Transaction',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Tap + below to add one!',
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark ? Colors.white24 : Colors.black26,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: _openFlowSelector,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text(
-              'Add Transaction',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Nunito',
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

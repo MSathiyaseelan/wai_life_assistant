@@ -198,9 +198,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   /// Loads transactions for every wallet not yet fetched, merging into [_transactions].
+  static bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   void _ensureWalletsLoaded(List<WalletModel> wallets) {
     for (final w in wallets) {
-      if (w.id.isEmpty || _loadedWalletIds.contains(w.id)) continue;
+      if (_isPlaceholder(w.id) || _loadedWalletIds.contains(w.id)) continue;
       _loadedWalletIds.add(w.id);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _loadTransactions(w.id),
@@ -210,7 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _ensurePlanItLoaded(List<WalletModel> wallets) {
     for (final w in wallets) {
-      if (w.id.isEmpty || _loadedPlanItWalletIds.contains(w.id)) continue;
+      if (_isPlaceholder(w.id) || _loadedPlanItWalletIds.contains(w.id)) continue;
       _loadedPlanItWalletIds.add(w.id);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _loadPlanItData(w.id),
@@ -235,7 +237,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Fetches transactions for [walletId] and merges them into [_transactions].
   Future<void> _loadTransactions(String walletId) async {
-    if (!AuthService.instance.isLoggedIn || walletId.isEmpty) return;
+    if (!AuthService.instance.isLoggedIn || _isPlaceholder(walletId)) return;
     _loadedWalletIds.add(walletId);
     try {
       final rows = await WalletService.instance.fetchTransactions(walletId);
@@ -332,7 +334,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadPlanItData(String walletId) async {
-    if (walletId.isEmpty) return;
+    if (_isPlaceholder(walletId)) return;
     _loadedPlanItWalletIds.add(walletId);
     try {
       final results = await Future.wait([
@@ -4332,8 +4334,15 @@ class _DashFabSheetState extends State<_DashFabSheet>
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
+    final mq          = MediaQuery.of(context);
+    final keyboardH   = mq.viewInsets.bottom;
+    final safeH       = mq.size.height - mq.padding.top - mq.padding.bottom;
+    // Overhead: top padding(12) + handle(4) + spacing(8) + tab bar(~48) + breathing room(8)
+    const sheetOverhead = 80.0;
+    final tabsH = (safeH - keyboardH - sheetOverhead).clamp(200.0, 380.0);
+
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(bottom: keyboardH),
       child: Container(
         decoration: BoxDecoration(
           color: cardColor,
@@ -4377,9 +4386,9 @@ class _DashFabSheetState extends State<_DashFabSheet>
                 Tab(text: '⚡  Quick Add'),
               ],
             ),
-            // Tab content
+            // Tab content — height shrinks when keyboard is visible
             SizedBox(
-              height: 380,
+              height: tabsH,
               child: TabBarView(
                 controller: _tabCtrl,
                 children: [
