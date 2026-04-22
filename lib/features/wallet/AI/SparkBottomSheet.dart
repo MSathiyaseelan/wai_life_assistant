@@ -19,12 +19,16 @@ class SparkBottomSheet extends StatefulWidget {
   /// so the content can be embedded inside another sheet (e.g. a tab).
   final bool embedded;
 
+  /// When true, automatically triggers _pasteSms() after the first frame.
+  final bool autoPasteSms;
+
   const SparkBottomSheet({
     super.key,
     required this.walletId,
     required this.onSave,
     required this.onOpenFlow,
     this.embedded = false,
+    this.autoPasteSms = false,
   });
 
   @override
@@ -40,6 +44,14 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
   bool _isSmsLoading = false;
   String _spokenText = '';
   String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoPasteSms) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _pasteSms());
+    }
+  }
 
   @override
   void dispose() {

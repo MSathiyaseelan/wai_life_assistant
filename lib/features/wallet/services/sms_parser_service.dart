@@ -160,8 +160,9 @@ class SMSParserService {
       return regexResult;
     }
 
-    // Layer 2: AI via Supabase edge function
-    return _parseWithAI(text, '');
+    // Layer 2: AI via Supabase edge function; fall back to regex if AI fails
+    final aiResult = await _parseWithAI(text, '');
+    return aiResult ?? regexResult;
   }
 
   /// Scans the SMS inbox for bank messages in [from]..[to] and parses them

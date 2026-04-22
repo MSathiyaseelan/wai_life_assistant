@@ -10,11 +10,9 @@ import 'core/env/environment_config.dart';
 import 'core/env/app_environment.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-
   // ── Handler 1: Flutter framework errors (widget build, layout, rendering) ──
+  // Set before ensureInitialized so it catches errors during binding setup.
   FlutterError.onError = (FlutterErrorDetails details) {
-    // Always log so errors are captured during development too.
     ErrorLogger.log(
       details.exception,
       stackTrace: details.stack,
@@ -27,15 +25,19 @@ void main() {
         'is_debug': kDebugMode,
       },
     );
-    // In debug: also show the red error overlay so it's immediately visible.
     if (kDebugMode) FlutterError.presentError(details);
   };
 
   const env = String.fromEnvironment('ENV', defaultValue: 'dev');
 
   // ── Handler 2: Dart async / isolate errors not caught anywhere else ────────
+  // ensureInitialized must be called inside the same zone as runApp, so it
+  // lives here rather than before runZonedGuarded.
   runZonedGuarded(
-    () async { await bootstrapApp(env); },
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+      await bootstrapApp(env);
+    },
     (error, stackTrace) {
       ErrorLogger.log(
         error,

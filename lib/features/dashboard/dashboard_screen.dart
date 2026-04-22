@@ -36,6 +36,7 @@ import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sh
 import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
+import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _wasOnline = true;
   int _unreadNotifCount = 0;
+  bool _pendingPasteSms = false;
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
@@ -115,6 +117,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadPinnedGroups();
     _loadProfile();
     _loadUnreadCount();
+    ShortcutService.pending.addListener(_onShortcut);
+    if (ShortcutService.pending.value == ShortcutService.pasteBankSms) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onShortcut());
+    }
+  }
+
+  void _onShortcut() {
+    final type = ShortcutService.pending.value;
+    if (type == null || !mounted) return;
+    ShortcutService.pending.value = null;
+    if (type == ShortcutService.pasteBankSms) {
+      setState(() => _pendingPasteSms = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ctx = context;
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final surfBg = Theme.of(ctx).colorScheme.surface;
+        final wallets = AppStateScope.of(ctx).wallets;
+        final walletId = wallets.isNotEmpty ? wallets.first.id : '';
+        _showFabSheet(ctx, isDark, surfBg, walletId, startPasteSms: true);
+        setState(() => _pendingPasteSms = false);
+      });
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -1284,8 +1309,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     BuildContext context,
     bool isDark,
     Color surfBg,
-    String walletId,
-  ) {
+    String walletId, {
+    bool startPasteSms = false,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1294,6 +1320,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         isDark: isDark,
         surfBg: surfBg,
         walletId: walletId,
+        startPasteSms: startPasteSms,
         // IntentConfirmSheet now persists directly — onAiSave is UI-only.
         onAiSave: (tx) {
           setState(() => _transactions.insert(0, tx));
@@ -4299,6 +4326,7 @@ class _DashFabSheet extends StatefulWidget {
   final String walletId;
   final void Function(TxModel tx) onAiSave;
   final void Function(TxModel tx) onQuickSave;
+  final bool startPasteSms;
 
   const _DashFabSheet({
     required this.isDark,
@@ -4306,6 +4334,7 @@ class _DashFabSheet extends StatefulWidget {
     required this.walletId,
     required this.onAiSave,
     required this.onQuickSave,
+    this.startPasteSms = false,
   });
 
   @override

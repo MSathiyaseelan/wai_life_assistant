@@ -52,6 +52,7 @@ dependencies:
   connectivity_plus: ^6.1.4
   device_info_plus: ^10.1.0
   package_info_plus: ^8.0.0
+  quick_actions: ^1.1.0
   shared_preferences: ^2.5.5
   share_plus: ^10.1.4
   url_launcher: ^6.3.1

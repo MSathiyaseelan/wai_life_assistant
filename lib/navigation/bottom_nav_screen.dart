@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:quick_actions/quick_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/fcm_service.dart';
+import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_screen.dart';
@@ -97,6 +99,24 @@ class _AppShellState extends State<AppShell> {
     if (pendingSms != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onPendingSms());
     }
+    _initShortcuts();
+  }
+
+  void _initShortcuts() {
+    const quickActions = QuickActions();
+    quickActions.initialize((type) {
+      if (type == ShortcutService.pasteBankSms && mounted) {
+        setState(() => _idx = 0);
+        ShortcutService.pending.value = type;
+      }
+    });
+    quickActions.setShortcutItems([
+      const ShortcutItem(
+        type: ShortcutService.pasteBankSms,
+        localizedTitle: 'Paste Bank SMS',
+        icon: 'ic_shortcut_paste_sms',
+      ),
+    ]);
   }
 
   void _onFcmTab() {
