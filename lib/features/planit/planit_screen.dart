@@ -636,29 +636,26 @@ class _PlanItScreenState extends State<PlanItScreen> {
   // TODO(v2): Rename back to _modules when all modules are ready for release.
   List<_ModuleInfo> get _allModules => [
     _ModuleInfo(
-      emoji: '🔔',
-      title: 'Alert Me',
-      subtitle: 'Reminders & snooze',
-      color: AppColors.expense,
-      badge: _dueReminders,
-      builder: (ctx, wid) => AlertMeScreen(
+      emoji: '🎊',
+      title: 'Functions',
+      subtitle: 'Celebrations & gifting',
+      color: const Color(0xFF6C63FF),
+      badge: null,
+      builder: (ctx, wid) => MyFunctionsScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
-        members: _members,
-        isPersonal: _currentWallet.isPersonal,
-        reminders: _reminders,
+        parentFunctions: _functions,
         familyWalletNames: _familyWalletNames,
       ),
-      quickAddBuilder: (ctx, wid) => AlertMeScreen(
+      quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
-        members: _members,
-        isPersonal: _currentWallet.isPersonal,
-        reminders: _reminders,
+        parentFunctions: _functions,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
+        initialTab: 2,
       ),
     ),
     _ModuleInfo(
@@ -686,26 +683,29 @@ class _PlanItScreenState extends State<PlanItScreen> {
       ),
     ),
     _ModuleInfo(
-      emoji: '🎊',
-      title: 'Functions',
-      subtitle: 'Celebrations & gifting',
-      color: const Color(0xFF6C63FF),
-      badge: null,
-      builder: (ctx, wid) => MyFunctionsScreen(
+      emoji: '🔔',
+      title: 'Alert Me',
+      subtitle: 'Reminders & snooze',
+      color: AppColors.expense,
+      badge: _dueReminders,
+      builder: (ctx, wid) => AlertMeScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
-        parentFunctions: _functions,
+        members: _members,
+        isPersonal: _currentWallet.isPersonal,
+        reminders: _reminders,
         familyWalletNames: _familyWalletNames,
       ),
-      quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
+      quickAddBuilder: (ctx, wid) => AlertMeScreen(
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
-        parentFunctions: _functions,
+        members: _members,
+        isPersonal: _currentWallet.isPersonal,
+        reminders: _reminders,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
-        initialTab: 2,
       ),
     ),
     _ModuleInfo(
