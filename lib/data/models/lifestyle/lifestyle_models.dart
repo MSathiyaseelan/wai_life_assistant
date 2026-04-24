@@ -733,6 +733,8 @@ class FunctionModel {
   String? customType;
   DateTime? functionDate;
   String? venue, address, notes;
+  bool isPlanned;
+  String icon;
   List<GiftEntry> gifts;
   List<MoiEntry> moi;
   List<FunctionVendor> vendors;
@@ -749,6 +751,8 @@ class FunctionModel {
     this.venue,
     this.address,
     this.notes,
+    this.isPlanned = false,
+    this.icon = '🎊',
     List<GiftEntry>? gifts,
     List<MoiEntry>? moi,
     List<FunctionVendor>? vendors,
@@ -791,6 +795,8 @@ class FunctionModel {
     venue: json['venue'] as String?,
     address: json['address'] as String?,
     notes: json['notes'] as String?,
+    isPlanned: json['is_planned'] as bool? ?? false,
+    icon: json['icon'] as String? ?? '🎊',
   );
 
   Map<String, dynamic> toJson() => {
@@ -803,6 +809,8 @@ class FunctionModel {
     if (venue != null) 'venue': venue,
     if (address != null) 'address': address,
     if (notes != null) 'notes': notes,
+    'is_planned': isPlanned,
+    'icon': icon,
   };
 }
 
@@ -971,6 +979,248 @@ class AttendedFunction {
     if (notes != null) 'notes': notes,
     'gifts': gifts.map((g) => g.toJson()).toList(),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLANNED FUNCTION — PARTICIPANTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ParticipantFamilyMember {
+  String name, relation;
+  ParticipantFamilyMember({required this.name, required this.relation});
+
+  factory ParticipantFamilyMember.fromJson(Map<String, dynamic> j) =>
+      ParticipantFamilyMember(
+        name: j['name'] as String? ?? '',
+        relation: j['relation'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {'name': name, 'relation': relation};
+}
+
+class FunctionParticipant {
+  String id, functionId, name;
+  String? place, relation, phone;
+  List<ParticipantFamilyMember> familyMembers;
+
+  FunctionParticipant({
+    required this.id,
+    required this.functionId,
+    required this.name,
+    this.place,
+    this.relation,
+    this.phone,
+    List<ParticipantFamilyMember>? familyMembers,
+  }) : familyMembers = familyMembers ?? [];
+
+  factory FunctionParticipant.fromJson(Map<String, dynamic> j) =>
+      FunctionParticipant(
+        id: j['id'] as String,
+        functionId: j['function_id'] as String,
+        name: j['name'] as String,
+        place: j['place'] as String?,
+        relation: j['relation'] as String?,
+        phone: j['phone'] as String?,
+        familyMembers: (j['family_members'] as List<dynamic>? ?? [])
+            .map((m) => ParticipantFamilyMember.fromJson(m as Map<String, dynamic>))
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'function_id': functionId,
+    'name': name,
+    if (place != null) 'place': place,
+    if (relation != null) 'relation': relation,
+    if (phone != null) 'phone': phone,
+    'family_members': familyMembers.map((m) => m.toJson()).toList(),
+  };
+
+  int get totalCount => 1 + familyMembers.length;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLANNED FUNCTION — CLOTHING GIFTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum FunctionClothingGender {
+  men('👨', 'Men'),
+  women('👩', 'Women'),
+  boy('👦', 'Boy'),
+  girl('👧', 'Girl'),
+  infant('👶', 'Infant');
+
+  final String emoji, label;
+  const FunctionClothingGender(this.emoji, this.label);
+}
+
+class ClothingMember {
+  String name;
+  FunctionClothingGender gender;
+  String? dressType, size, brand;
+  double? budget;
+  bool purchased;
+
+  ClothingMember({
+    required this.name,
+    required this.gender,
+    this.dressType,
+    this.size,
+    this.brand,
+    this.budget,
+    this.purchased = false,
+  });
+
+  factory ClothingMember.fromJson(Map<String, dynamic> j) => ClothingMember(
+    name: j['name'] as String? ?? '',
+    gender: FunctionClothingGender.values.firstWhere(
+      (e) => e.name == j['gender'],
+      orElse: () => FunctionClothingGender.men,
+    ),
+    dressType: j['dress_type'] as String?,
+    size: j['size'] as String?,
+    brand: j['brand'] as String?,
+    budget: (j['budget'] as num?)?.toDouble(),
+    purchased: j['purchased'] as bool? ?? false,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'gender': gender.name,
+    if (dressType != null) 'dress_type': dressType,
+    if (size != null) 'size': size,
+    if (brand != null) 'brand': brand,
+    if (budget != null) 'budget': budget,
+    'purchased': purchased,
+  };
+}
+
+class ClothingFamily {
+  String id, functionId, familyName;
+  List<ClothingMember> members;
+
+  ClothingFamily({
+    required this.id,
+    required this.functionId,
+    required this.familyName,
+    List<ClothingMember>? members,
+  }) : members = members ?? [];
+
+  factory ClothingFamily.fromJson(Map<String, dynamic> j) => ClothingFamily(
+    id: j['id'] as String,
+    functionId: j['function_id'] as String,
+    familyName: j['family_name'] as String,
+    members: (j['members'] as List<dynamic>? ?? [])
+        .map((m) => ClothingMember.fromJson(m as Map<String, dynamic>))
+        .toList(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'function_id': functionId,
+    'family_name': familyName,
+    'members': members.map((m) => m.toJson()).toList(),
+  };
+
+  double get totalBudget =>
+      members.fold(0, (s, m) => s + (m.budget ?? 0));
+  int get purchasedCount => members.where((m) => m.purchased).length;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLANNED FUNCTION — BRIDAL ESSENTIALS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum BridalStatus {
+  pending('⏳', 'Pending'),
+  booked('📋', 'Booked'),
+  done('✅', 'Done');
+
+  final String emoji, label;
+  const BridalStatus(this.emoji, this.label);
+}
+
+class BridalEssential {
+  String id, functionId, item;
+  String? category, details, vendor;
+  BridalStatus status;
+  double? cost;
+
+  BridalEssential({
+    required this.id,
+    required this.functionId,
+    required this.item,
+    this.category,
+    this.details,
+    this.vendor,
+    this.status = BridalStatus.pending,
+    this.cost,
+  });
+
+  factory BridalEssential.fromJson(Map<String, dynamic> j) => BridalEssential(
+    id: j['id'] as String,
+    functionId: j['function_id'] as String,
+    item: j['item'] as String,
+    category: j['category'] as String?,
+    details: j['details'] as String?,
+    vendor: j['vendor'] as String?,
+    status: BridalStatus.values.firstWhere(
+      (e) => e.name == j['status'],
+      orElse: () => BridalStatus.pending,
+    ),
+    cost: (j['cost'] as num?)?.toDouble(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'function_id': functionId,
+    'item': item,
+    if (category != null) 'category': category,
+    if (details != null) 'details': details,
+    if (vendor != null) 'vendor': vendor,
+    'status': status.name,
+    if (cost != null) 'cost': cost,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLANNED FUNCTION — RETURN GIFTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class FunctionReturnGift {
+  String id, functionId, giftName;
+  double? approxPrice;
+  String? whereToBuy, vendor;
+  int quantity;
+
+  FunctionReturnGift({
+    required this.id,
+    required this.functionId,
+    required this.giftName,
+    this.approxPrice,
+    this.whereToBuy,
+    this.vendor,
+    this.quantity = 1,
+  });
+
+  factory FunctionReturnGift.fromJson(Map<String, dynamic> j) =>
+      FunctionReturnGift(
+        id: j['id'] as String,
+        functionId: j['function_id'] as String,
+        giftName: j['gift_name'] as String,
+        approxPrice: (j['approx_price'] as num?)?.toDouble(),
+        whereToBuy: j['where_to_buy'] as String?,
+        vendor: j['vendor'] as String?,
+        quantity: j['quantity'] as int? ?? 1,
+      );
+
+  Map<String, dynamic> toJson() => {
+    'function_id': functionId,
+    'gift_name': giftName,
+    if (approxPrice != null) 'approx_price': approxPrice,
+    if (whereToBuy != null) 'where_to_buy': whereToBuy,
+    if (vendor != null) 'vendor': vendor,
+    'quantity': quantity,
+  };
+
+  double get totalCost => (approxPrice ?? 0) * quantity;
 }
 
 // Mock data

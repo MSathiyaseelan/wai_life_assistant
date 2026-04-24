@@ -92,4 +92,116 @@ class FunctionsService {
   Future<void> deleteAttended(String id) async {
     await _db.from('functions_attended').delete().eq('id', id);
   }
+
+  // ── Participants ─────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchParticipants(String functionId) async {
+    final rows = await _db
+        .from('function_participants')
+        .select()
+        .eq('function_id', functionId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addParticipant(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_participants')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateParticipant(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_participants').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteParticipant(String id) async {
+    await _db.from('function_participants').delete().eq('id', id);
+  }
+
+  // ── Clothing Families ────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchClothingFamilies(String functionId) async {
+    final rows = await _db
+        .from('function_clothing_families')
+        .select()
+        .eq('function_id', functionId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addClothingFamily(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_clothing_families')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateClothingFamily(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_clothing_families').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteClothingFamily(String id) async {
+    await _db.from('function_clothing_families').delete().eq('id', id);
+  }
+
+  // ── Bridal Essentials ────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchBridalEssentials(String functionId) async {
+    final rows = await _db
+        .from('function_bridal_essentials')
+        .select()
+        .eq('function_id', functionId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addBridalEssential(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_bridal_essentials')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateBridalEssential(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_bridal_essentials').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteBridalEssential(String id) async {
+    await _db.from('function_bridal_essentials').delete().eq('id', id);
+  }
+
+  // ── Return Gifts ─────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchReturnGifts(String functionId) async {
+    final rows = await _db
+        .from('function_return_gifts')
+        .select()
+        .eq('function_id', functionId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addReturnGift(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_return_gifts')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateReturnGift(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_return_gifts').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteReturnGift(String id) async {
+    await _db.from('function_return_gifts').delete().eq('id', id);
+  }
 }
