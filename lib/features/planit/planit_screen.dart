@@ -557,8 +557,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
               final when = f.functionDate != null
                   ? _daysLabel(f.functionDate!)
                   : '';
-              final who = f.whoFunction.isNotEmpty ? ' · ${f.whoFunction}' : '';
-              return '🎊 ${f.title}$who${when.isNotEmpty ? ' · $when' : ''}';
+              return '🎊 ${f.title}${when.isNotEmpty ? ' · $when' : ''}';
             })
             .toList();
       default:
@@ -647,6 +646,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         parentFunctions: _functions,
         familyWalletNames: _familyWalletNames,
+        members: _members,
       ),
       quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
         walletId: wid,
@@ -654,6 +654,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         parentFunctions: _functions,
         familyWalletNames: _familyWalletNames,
+        members: _members,
         openAdd: true,
         initialTab: 2,
       ),

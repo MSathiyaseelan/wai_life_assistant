@@ -22,7 +22,7 @@ void showPlanSheet(
         padding: EdgeInsets.only(bottom: keyboardHeight),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: screenHeight - topPadding - 24,
+            maxHeight: screenHeight - topPadding - 24 - keyboardHeight,
           ),
           child: Container(
             decoration: BoxDecoration(

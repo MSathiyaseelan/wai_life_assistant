@@ -6,6 +6,7 @@ import 'package:wai_life_assistant/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/supabase/functions_service.dart';
 import '../../widgets/life_widgets.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
+import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 const _funcColor = Color(0xFF6C63FF);
 
@@ -19,6 +20,7 @@ class MyFunctionsScreen extends StatefulWidget {
   final List<FunctionModel>? parentFunctions;
   /// Family wallet ID → display label. Non-empty only in Personal view.
   final Map<String, String> familyWalletNames;
+  final List<PlanMember> members;
   const MyFunctionsScreen({
     super.key,
     required this.walletId,
@@ -28,6 +30,7 @@ class MyFunctionsScreen extends StatefulWidget {
     this.initialTab = 0,
     this.parentFunctions,
     this.familyWalletNames = const {},
+    this.members = const [],
   });
   @override
   State<MyFunctionsScreen> createState() => _MyFunctionsScreenState();
@@ -65,26 +68,61 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   }
 
   Future<void> _loadData() async {
-    // Personal view: fetch from personal wallet + all family wallets.
+    // Personal view: functions_my from all wallets; upcoming+attended from personal wallet only.
     if (widget.familyWalletNames.isNotEmpty) {
-      try {
-        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
-        final results = await Future.wait(
-          allIds.map((id) => FunctionsService.instance.fetchMyFunctions(id)),
-        );
-        if (!mounted) return;
-        final loaded = results.expand((row) => row.map(FunctionModel.fromJson)).toList();
-        widget.parentFunctions?..clear()..addAll(loaded);
-        setState(() {
-          _functions..clear()..addAll(loaded);
-          _loading = false;
-        });
-      } catch (e) {
-        debugPrint('[MyFunctions] personal load error: $e');
-        if (mounted) setState(() => _loading = false);
+      final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
+      final svc = FunctionsService.instance;
+      final rawMyResults = await Future.wait(
+        allIds.map((id) => svc
+            .fetchMyFunctions(id)
+            .catchError((e) {
+              debugPrint('[MyFunctions] fetch error for wallet $id: $e');
+              return <Map<String, dynamic>>[];
+            })),
+      );
+      final rawUpcoming = await svc
+          .fetchUpcoming(widget.walletId)
+          .catchError((e) {
+            debugPrint('[MyFunctions] fetch upcoming error: $e');
+            return <Map<String, dynamic>>[];
+          });
+      final rawAttended = await svc
+          .fetchAttended(widget.walletId)
+          .catchError((e) {
+            debugPrint('[MyFunctions] fetch attended error: $e');
+            return <Map<String, dynamic>>[];
+          });
+      if (!mounted) return;
+
+      final loaded = <FunctionModel>[];
+      for (final row in rawMyResults.expand((r) => r)) {
+        try { loaded.add(FunctionModel.fromJson(row)); }
+        catch (e) { debugPrint('[MyFunctions] parse error: $e | row: $row'); }
       }
+      final upcoming = <UpcomingFunction>[];
+      for (final row in rawUpcoming) {
+        try { upcoming.add(UpcomingFunction.fromJson(row)); }
+        catch (e) { debugPrint('[MyFunctions] upcoming parse error: $e | row: $row'); }
+      }
+      final attended = <AttendedFunction>[];
+      for (final row in rawAttended) {
+        try { attended.add(AttendedFunction.fromJson(row)); }
+        catch (e) { debugPrint('[MyFunctions] attended parse error: $e | row: $row'); }
+      }
+
+      widget.parentFunctions?..clear()..addAll(loaded);
+      setState(() {
+        _functions..clear()..addAll(loaded);
+        _upcoming..clear()..addAll(upcoming);
+        _attended..clear()..addAll(attended);
+        _loading = false;
+      });
       return;
     }
+
+    List<Map<String, dynamic>> rawFunctions = [];
+    List<Map<String, dynamic>> rawUpcoming  = [];
+    List<Map<String, dynamic>> rawAttended  = [];
     try {
       final svc = FunctionsService.instance;
       final results = await Future.wait([
@@ -92,22 +130,37 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
         svc.fetchUpcoming(widget.walletId),
         svc.fetchAttended(widget.walletId),
       ]);
-      if (!mounted) return;
-      setState(() {
-        _functions
-          ..clear()
-          ..addAll(results[0].map(FunctionModel.fromJson));
-        _upcoming
-          ..clear()
-          ..addAll(results[1].map(UpcomingFunction.fromJson));
-        _attended
-          ..clear()
-          ..addAll(results[2].map(AttendedFunction.fromJson));
-        _loading = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      rawFunctions = results[0];
+      rawUpcoming  = results[1];
+      rawAttended  = results[2];
+    } catch (e) {
+      debugPrint('[MyFunctions] fetch error: $e');
     }
+    if (!mounted) return;
+
+    // Parse each list independently — a failure in one must not block others.
+    final functions = <FunctionModel>[];
+    for (final row in rawFunctions) {
+      try { functions.add(FunctionModel.fromJson(row)); }
+      catch (e) { debugPrint('[MyFunctions] functions parse error: $e | row: $row'); }
+    }
+    final upcoming = <UpcomingFunction>[];
+    for (final row in rawUpcoming) {
+      try { upcoming.add(UpcomingFunction.fromJson(row)); }
+      catch (e) { debugPrint('[MyFunctions] upcoming parse error: $e | row: $row'); }
+    }
+    final attended = <AttendedFunction>[];
+    for (final row in rawAttended) {
+      try { attended.add(AttendedFunction.fromJson(row)); }
+      catch (e) { debugPrint('[MyFunctions] attended parse error: $e | row: $row'); }
+    }
+
+    setState(() {
+      _functions..clear()..addAll(functions);
+      _upcoming..clear()..addAll(upcoming);
+      _attended..clear()..addAll(attended);
+      _loading = false;
+    });
   }
 
   @override
@@ -292,6 +345,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                             builder: (_) => _UpcomingDetail(
                               item: _myUpcoming[i],
                               isDark: isDark,
+                              members: widget.members,
                               onUpdate: () => setState(() {}),
                             ),
                           ),
@@ -405,6 +459,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
         isDark: isDark,
         surfBg: surfBg,
         walletId: widget.walletId,
+        upcomingList: _upcoming,
         onSave: (title, type, customType, venue, date, personName, familyName) async {
           final svc = FunctionsService.instance;
           try {
@@ -430,8 +485,34 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               ).toJson());
               if (mounted) setState(() => _attended.insert(0, AttendedFunction.fromJson(row)));
             }
-          } catch (_) {}
-          if (ctx.mounted) Navigator.pop(ctx);
+            if (ctx.mounted) Navigator.pop(ctx);
+          } catch (e) {
+            debugPrint('[Functions] save error: $e');
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+              );
+            }
+          }
+        },
+        onSaveAsPlanning: (title, type, customType, venue, date, personName, familyName) async {
+          final svc = FunctionsService.instance;
+          try {
+            final row = await svc.addUpcoming(UpcomingFunction(
+              id: '', walletId: widget.walletId, memberId: 'me', type: type,
+              personName: personName ?? '', familyName: familyName,
+              functionTitle: title, date: date, venue: venue,
+            ).toJson());
+            if (mounted) setState(() => _upcoming.insert(0, UpcomingFunction.fromJson(row)));
+            if (ctx.mounted) Navigator.pop(ctx);
+          } catch (e) {
+            debugPrint('[Functions] planning save error: $e');
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+              );
+            }
+          }
         },
       ),
     );
@@ -2534,9 +2615,7 @@ class _UpcomingCard extends StatelessWidget {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final title = item.personName.isNotEmpty
-        ? '${item.personName}\'s ${item.functionTitle}'
-        : item.functionTitle;
+    final title = item.functionTitle;
 
     return GestureDetector(
       onTap: onTap,
@@ -2595,6 +2674,17 @@ class _UpcomingCard extends StatelessWidget {
                               color: tc,
                             ),
                           ),
+                          if (item.personName.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              item.personName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: sub,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 4),
                           Wrap(
                             spacing: 6,
@@ -2698,10 +2788,12 @@ const _upcomingGiftCategories = [
 class _UpcomingDetail extends StatefulWidget {
   final UpcomingFunction item;
   final bool isDark;
+  final List<PlanMember> members;
   final VoidCallback onUpdate;
   const _UpcomingDetail({
     required this.item,
     required this.isDark,
+    required this.members,
     required this.onUpdate,
   });
   @override
@@ -2844,6 +2936,7 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
           _UpcomingVotingTab(
             item: item,
             isDark: isDark,
+            members: widget.members,
             onUpdate: () { setState(() {}); widget.onUpdate(); },
           ),
 
@@ -3080,10 +3173,12 @@ class _UpcomingPlanningTabState extends State<_UpcomingPlanningTab> {
 class _UpcomingVotingTab extends StatefulWidget {
   final UpcomingFunction item;
   final bool isDark;
+  final List<PlanMember> members;
   final VoidCallback onUpdate;
   const _UpcomingVotingTab({
     required this.item,
     required this.isDark,
+    required this.members,
     required this.onUpdate,
   });
   @override
@@ -3178,6 +3273,27 @@ class _UpcomingVotingTabState extends State<_UpcomingVotingTab> {
           const SizedBox(height: 12),
         ],
         // Member voting rows
+        if (widget.members.isEmpty) ...[
+          const SizedBox(height: 24),
+          Center(
+            child: Column(
+              children: [
+                const Text('🗳️', style: TextStyle(fontSize: 36)),
+                const SizedBox(height: 10),
+                Text(
+                  'No family group members',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Add members to your family group\nto enable voting.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
         Text(
           'Cast Your Vote',
           style: TextStyle(
@@ -3189,7 +3305,7 @@ class _UpcomingVotingTabState extends State<_UpcomingVotingTab> {
           ),
         ),
         const SizedBox(height: 12),
-        ...mockLifeMembers.map((member) {
+        ...widget.members.map((member) {
           final myVote = votes[member.id];
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
@@ -3285,6 +3401,7 @@ class _UpcomingVotingTabState extends State<_UpcomingVotingTab> {
             ),
           );
         }),
+        ], // end else members.isNotEmpty
       ],
     );
   }
@@ -4611,15 +4728,19 @@ class _FunctionAddSheet extends StatefulWidget {
   final bool isDark;
   final Color surfBg;
   final String walletId;
+  final List<UpcomingFunction> upcomingList;
   final void Function(String, FunctionType, String?, String?, DateTime?, String?, String?) onSave;
   // (title, type, customType, venue, date, personName, familyName)
+  final void Function(String, FunctionType, String?, String?, DateTime?, String?, String?)? onSaveAsPlanning;
 
   const _FunctionAddSheet({
     required this.tabIdx,
     required this.isDark,
     required this.surfBg,
     required this.walletId,
+    required this.upcomingList,
     required this.onSave,
+    this.onSaveAsPlanning,
   });
 
   @override
@@ -4642,6 +4763,10 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
   final _familyNameCtrl = TextEditingController();
   var _type = FunctionType.wedding;
   DateTime? _date;
+
+  bool _showExistingPicker = false;
+  bool _isPlanning = false;
+  UpcomingFunction? _selectedExisting;
 
   @override
   void initState() {
@@ -4690,17 +4815,17 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
       if (_mode.index == 0) _mode.animateTo(1);
       return;
     }
-    widget.onSave(
+    final needsPersonFields = widget.tabIdx == 1 || widget.tabIdx == 2 || _isPlanning;
+    final saveFn = _isPlanning ? (widget.onSaveAsPlanning ?? widget.onSave) : widget.onSave;
+    saveFn(
       title,
       _type,
       _type == FunctionType.other && _customTypeCtrl.text.trim().isNotEmpty
           ? _customTypeCtrl.text.trim() : null,
       _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
       _date,
-      (widget.tabIdx == 1 || widget.tabIdx == 2)
-          ? (_personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim()) : null,
-      (widget.tabIdx == 1 || widget.tabIdx == 2)
-          ? (_familyNameCtrl.text.trim().isEmpty ? null : _familyNameCtrl.text.trim()) : null,
+      needsPersonFields ? (_personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim()) : null,
+      needsPersonFields ? (_familyNameCtrl.text.trim().isEmpty ? null : _familyNameCtrl.text.trim()) : null,
     );
   }
 
@@ -4887,6 +5012,109 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
 
         // ── MANUAL TAB ─────────────────────────────────────────────────────
         if (_mode.index == 1) ...[
+          if (widget.tabIdx == 0) ...[
+            const SheetLabel(text: 'QUICK OPTIONS'),
+            Row(children: [
+              _QuickOptionChip(
+                icon: Icons.list_rounded,
+                label: 'From Existing',
+                active: _showExistingPicker,
+                color: _funcColor,
+                onTap: () => setState(() {
+                  _showExistingPicker = !_showExistingPicker;
+                  if (_showExistingPicker) _isPlanning = false;
+                }),
+              ),
+              const SizedBox(width: 8),
+              _QuickOptionChip(
+                icon: Icons.event_rounded,
+                label: 'Plan Upcoming',
+                active: _isPlanning,
+                color: AppColors.income,
+                onTap: () => setState(() {
+                  _isPlanning = !_isPlanning;
+                  if (_isPlanning) _showExistingPicker = false;
+                }),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            if (_showExistingPicker) ...[
+              if (widget.upcomingList.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('No upcoming functions saved yet.',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
+                )
+              else ...[
+                SizedBox(
+                  height: 120,
+                  child: ListView.separated(
+                    itemCount: widget.upcomingList.length,
+                    separatorBuilder: (_, i) => const SizedBox(height: 6),
+                    itemBuilder: (_, i) {
+                      final fn = widget.upcomingList[i];
+                      final isSelected = _selectedExisting?.id == fn.id;
+                      return GestureDetector(
+                        onTap: () => setState(() {
+                          _selectedExisting = fn;
+                          _titleCtrl.text = fn.functionTitle;
+                          _venueCtrl.text = fn.venue ?? '';
+                          _personCtrl.text = fn.personName;
+                          _familyNameCtrl.text = fn.familyName ?? '';
+                          _type = fn.type;
+                          _date = fn.date;
+                          _showExistingPicker = false;
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 120),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? _funcColor.withValues(alpha: 0.12) : surfBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isSelected ? _funcColor : Colors.transparent),
+                          ),
+                          child: Row(children: [
+                            Text(fn.type.emoji, style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 8),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(fn.functionTitle,
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: tc),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
+                              if (fn.personName.isNotEmpty)
+                                Text(fn.personName,
+                                    style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ])),
+                            if (fn.date != null)
+                              Text('${fn.date!.day}/${fn.date!.month}/${fn.date!.year}',
+                                  style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub)),
+                          ]),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+            if (_isPlanning) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.income.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.income.withValues(alpha: 0.3)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.event_rounded, size: 14, color: AppColors.income),
+                  const SizedBox(width: 6),
+                  const Expanded(child: Text('This will be saved as an Upcoming Function',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: AppColors.income))),
+                ]),
+              ),
+            ],
+          ],
           const SheetLabel(text: 'FUNCTION TYPE'),
           SizedBox(
             height: 44,
@@ -4914,7 +5142,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
             ),
           ),
           const SizedBox(height: 8),
-          if (widget.tabIdx == 1 || widget.tabIdx == 2) ...[
+          if (widget.tabIdx == 1 || widget.tabIdx == 2 || _isPlanning) ...[
             PlanInputField(controller: _personCtrl, hint: 'Person name (e.g. Priya)'),
             const SizedBox(height: 8),
             PlanInputField(controller: _familyNameCtrl, hint: 'Family name (e.g. Sharma family)'),
@@ -4945,6 +5173,38 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
           SaveButton(label: 'Save', color: _funcColor, onTap: _save),
         ],
       ],
+    );
+  }
+}
+
+// ── Quick option chip ──────────────────────────────────────────────────────────
+class _QuickOptionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final Color color;
+  final VoidCallback onTap;
+  const _QuickOptionChip({required this.icon, required this.label, required this.active, required this.color, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? color.withValues(alpha: 0.15) : (isDark ? AppColors.surfDark : const Color(0xFFEDEEF5)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: active ? color : Colors.transparent),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 13, color: active ? color : sub),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: active ? color : sub)),
+        ]),
+      ),
     );
   }
 }
