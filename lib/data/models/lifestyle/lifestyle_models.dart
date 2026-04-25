@@ -713,6 +713,41 @@ class MoiEntry {
     this.returnedForFunction,
     this.notes,
   });
+
+  factory MoiEntry.fromJson(Map<String, dynamic> j) => MoiEntry(
+    id: j['id'] as String,
+    personName: j['person_name'] as String,
+    familyName: j['family_name'] as String?,
+    place: j['place'] as String?,
+    phone: j['phone'] as String?,
+    relation: j['relation'] as String?,
+    amount: (j['amount'] as num).toDouble(),
+    kind: j['kind'] == 'returnMoi' ? MoiKind.returnMoi : MoiKind.newMoi,
+    returned: j['returned'] as bool? ?? false,
+    returnedAmount: j['returned_amount'] != null
+        ? (j['returned_amount'] as num).toDouble()
+        : null,
+    returnedOn: j['returned_on'] != null
+        ? DateTime.parse(j['returned_on'] as String)
+        : null,
+    returnedForFunction: j['returned_for_function'] as String?,
+    notes: j['notes'] as String?,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'person_name': personName,
+    'family_name': familyName,
+    'place': place,
+    'phone': phone,
+    'relation': relation,
+    'amount': amount,
+    'kind': kind.name,
+    'returned': returned,
+    'returned_amount': returnedAmount,
+    'returned_on': returnedOn?.toIso8601String().split('T').first,
+    'returned_for_function': returnedForFunction,
+    'notes': notes,
+  };
 }
 
 class FunctionChatMessage {

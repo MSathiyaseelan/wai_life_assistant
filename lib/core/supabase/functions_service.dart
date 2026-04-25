@@ -204,4 +204,37 @@ class FunctionsService {
   Future<void> deleteReturnGift(String id) async {
     await _db.from('function_return_gifts').delete().eq('id', id);
   }
+
+  // ── Moi Entries ──────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchMoiEntries(String functionId) async {
+    final rows = await _db
+        .from('function_moi_entries')
+        .select()
+        .eq('function_id', functionId)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addMoiEntry(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_moi_entries')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> addMoiEntries(List<Map<String, dynamic>> rows) async {
+    final withUid = rows.map((r) => {...r, 'user_id': _uid}).toList();
+    await _db.from('function_moi_entries').insert(withUid);
+  }
+
+  Future<void> updateMoiEntry(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_moi_entries').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteMoiEntry(String id) async {
+    await _db.from('function_moi_entries').delete().eq('id', id);
+  }
 }

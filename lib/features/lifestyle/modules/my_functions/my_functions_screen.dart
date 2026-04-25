@@ -6191,12 +6191,14 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
   late TabController _filter;
   final _searchCtrl = TextEditingController();
   String _search = '';
+  bool _loading = false;
 
   @override
   void initState() {
     super.initState();
     _filter = TabController(length: 3, vsync: this);
     _filter.addListener(() => setState(() {}));
+    _loadMoi();
   }
 
   @override
@@ -6204,6 +6206,25 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
     _filter.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadMoi() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      final rows = await FunctionsService.instance
+          .fetchMoiEntries(widget.fn.id);
+      if (!mounted) return;
+      setState(() {
+        widget.fn.moi
+          ..clear()
+          ..addAll(rows.map(MoiEntry.fromJson));
+      });
+    } catch (e) {
+      debugPrint('[MoiTab] load error: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   List<MoiEntry> get _all => widget.fn.moi;
@@ -6365,7 +6386,9 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
 
         // ── List ─────────────────────────────────────────────────────────────
         Expanded(
-          child: listToShow.isEmpty
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : listToShow.isEmpty
               ? PlanEmptyState(
                   emoji: '💰',
                   title: _search.isNotEmpty
@@ -6391,10 +6414,18 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                       listToShow[i].returnedOn = null;
                       widget.onUpdate();
                     }),
-                    onDelete: () => setState(() {
-                      fn.moi.remove(listToShow[i]);
+                    onDelete: () {
+                      final entry = listToShow[i];
+                      setState(() => fn.moi.remove(entry));
                       widget.onUpdate();
-                    }),
+                      if (entry.id.contains('-')) {
+                        FunctionsService.instance
+                            .deleteMoiEntry(entry.id)
+                            .catchError(
+                              (e) => debugPrint('[Moi] delete error: $e'),
+                            );
+                      }
+                    },
                   ),
                 ),
         ),
@@ -6429,15 +6460,6 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
 
   // ── Add Moi sheet ─────────────────────────────────────────────────────────
   void _showAddMoi(BuildContext ctx, bool isDark, Color surfBg) {
-    final nameCtrl = TextEditingController();
-    final familyNameCtrl = TextEditingController();
-    final placeCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final relationCtrl = TextEditingController();
-    final amountCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    var kind = MoiKind.newMoi;
-
     showModalBottomSheet(
       context: ctx,
       backgroundColor: Colors.transparent,
@@ -6446,209 +6468,11 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.cardLight,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(top: 12, bottom: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: StatefulBuilder(
-                    builder: (ctx2, ss) => Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Add Moi Entry',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              fontFamily: 'Nunito',
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Record moi received at this function',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontFamily: 'Nunito',
-                              color: isDark
-                                  ? AppColors.subDark
-                                  : AppColors.subLight,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Moi Type toggle
-                          const _SheetLabel(text: 'MOI TYPE'),
-                          Row(
-                            children: MoiKind.values.map((k) {
-                              final selected = kind == k;
-                              return Expanded(
-                                child: GestureDetector(
-                                  onTap: () => ss(() => kind = k),
-                                  child: Container(
-                                    margin: EdgeInsets.only(
-                                      right: k == MoiKind.newMoi ? 8 : 0,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: selected
-                                          ? k.color.withValues(alpha: 0.12)
-                                          : surfBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: selected
-                                            ? k.color
-                                            : Colors.transparent,
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          k.emoji,
-                                          style: const TextStyle(fontSize: 16),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          k.label,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                            fontFamily: 'Nunito',
-                                            color: selected
-                                                ? k.color
-                                                : (isDark
-                                                      ? AppColors.subDark
-                                                      : AppColors.subLight),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Fields
-                          _SheetLabel(text: 'PERSON DETAILS'),
-                          PlanInputField(controller: nameCtrl, hint: 'Name *'),
-                          const SizedBox(height: 8),
-                          PlanInputField(
-                            controller: familyNameCtrl,
-                            hint: 'Family name / Surname',
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: PlanInputField(
-                                  controller: placeCtrl,
-                                  hint: 'Place / Town',
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: PlanInputField(
-                                  controller: relationCtrl,
-                                  hint: 'Relation',
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          PlanInputField(
-                            controller: phoneCtrl,
-                            hint: 'Phone number',
-                            inputType: TextInputType.phone,
-                          ),
-                          const SizedBox(height: 14),
-
-                          const _SheetLabel(text: 'MOI AMOUNT'),
-                          PlanInputField(
-                            controller: amountCtrl,
-                            hint: 'Amount received (₹) *',
-                            inputType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          PlanInputField(
-                            controller: notesCtrl,
-                            hint: 'Notes (optional)',
-                            maxLines: 2,
-                          ),
-                          const SizedBox(height: 16),
-
-                          SaveButton(
-                            label: 'Save Moi Entry',
-                            color: kind.color,
-                            onTap: () {
-                              if (nameCtrl.text.trim().isEmpty) return;
-                              final amt = double.tryParse(
-                                amountCtrl.text.trim(),
-                              );
-                              if (amt == null || amt <= 0) return;
-                              setState(
-                                () => widget.fn.moi.add(
-                                  MoiEntry(
-                                    id: DateTime.now().millisecondsSinceEpoch
-                                        .toString(),
-                                    personName: nameCtrl.text.trim(),
-                                    familyName:
-                                        familyNameCtrl.text.trim().isEmpty
-                                        ? null
-                                        : familyNameCtrl.text.trim(),
-                                    amount: amt,
-                                    kind: kind,
-                                    place: placeCtrl.text.trim().isEmpty
-                                        ? null
-                                        : placeCtrl.text.trim(),
-                                    phone: phoneCtrl.text.trim().isEmpty
-                                        ? null
-                                        : phoneCtrl.text.trim(),
-                                    relation: relationCtrl.text.trim().isEmpty
-                                        ? null
-                                        : relationCtrl.text.trim(),
-                                    notes: notesCtrl.text.trim().isEmpty
-                                        ? null
-                                        : notesCtrl.text.trim(),
-                                  ),
-                                ),
-                              );
-                              widget.onUpdate();
-                              Navigator.pop(ctx);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        child: _AddMoiSheet(
+          fn: widget.fn,
+          isDark: isDark,
+          onDraft: (entries) => setState(() => widget.fn.moi.addAll(entries)),
+          onSave: _loadMoi,
         ),
       ),
     );
@@ -6824,6 +6648,24 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                                     : forFunctionCtrl.text.trim();
                               });
                               widget.onUpdate();
+                              if (entry.id.contains('-')) {
+                                FunctionsService.instance
+                                    .updateMoiEntry(entry.id, {
+                                      'returned': true,
+                                      'returned_amount': entry.returnedAmount,
+                                      'returned_on': entry.returnedOn
+                                          ?.toIso8601String()
+                                          .split('T')
+                                          .first,
+                                      'returned_for_function':
+                                          entry.returnedForFunction,
+                                    })
+                                    .catchError(
+                                      (e) => debugPrint(
+                                        '[Moi] mark returned error: $e',
+                                      ),
+                                    );
+                              }
                               Navigator.pop(ctx);
                             },
                           ),
@@ -7036,6 +6878,15 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                                     : notesCtrl.text.trim();
                               });
                               widget.onUpdate();
+                              if (entry.id.contains('-')) {
+                                FunctionsService.instance
+                                    .updateMoiEntry(entry.id, entry.toJson())
+                                    .catchError(
+                                      (e) => debugPrint(
+                                        '[Moi] edit error: $e',
+                                      ),
+                                    );
+                              }
                               Navigator.pop(ctx);
                             },
                           ),
@@ -7047,6 +6898,617 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK MOI ROW (data holder for spreadsheet)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BulkMoiRow {
+  final nameCtrl = TextEditingController();
+  final familyCtrl = TextEditingController();
+  final placeCtrl = TextEditingController();
+  final relationCtrl = TextEditingController();
+  final phoneCtrl = TextEditingController();
+  final amountCtrl = TextEditingController();
+  final notesCtrl = TextEditingController();
+  MoiKind kind = MoiKind.newMoi;
+
+  bool get isValid {
+    final name = nameCtrl.text.trim();
+    final amt = double.tryParse(amountCtrl.text.trim());
+    return name.isNotEmpty && amt != null && amt > 0;
+  }
+
+  MoiEntry? toEntry() {
+    final name = nameCtrl.text.trim();
+    final amt = double.tryParse(amountCtrl.text.trim());
+    if (name.isEmpty || amt == null || amt <= 0) return null;
+    return MoiEntry(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      personName: name,
+      familyName: familyCtrl.text.trim().isEmpty ? null : familyCtrl.text.trim(),
+      place: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
+      phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+      relation: relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim(),
+      amount: amt,
+      kind: kind,
+      notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+    );
+  }
+
+  Map<String, dynamic> toData(String functionId, String walletId) => {
+    'function_id': functionId,
+    'wallet_id': walletId,
+    'person_name': nameCtrl.text.trim(),
+    'family_name': familyCtrl.text.trim().isEmpty ? null : familyCtrl.text.trim(),
+    'place': placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
+    'phone': phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
+    'relation': relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim(),
+    'amount': double.parse(amountCtrl.text.trim()),
+    'kind': kind.name,
+    'returned': false,
+    'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+  };
+
+  void dispose() {
+    nameCtrl.dispose();
+    familyCtrl.dispose();
+    placeCtrl.dispose();
+    relationCtrl.dispose();
+    phoneCtrl.dispose();
+    amountCtrl.dispose();
+    notesCtrl.dispose();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD MOI SHEET  (single entry + bulk spreadsheet tabs)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AddMoiSheet extends StatefulWidget {
+  final FunctionModel fn;
+  final bool isDark;
+  final void Function(List<MoiEntry>) onDraft;
+  final void Function() onSave;
+
+  const _AddMoiSheet({
+    required this.fn,
+    required this.isDark,
+    required this.onDraft,
+    required this.onSave,
+  });
+
+  @override
+  State<_AddMoiSheet> createState() => _AddMoiSheetState();
+}
+
+class _AddMoiSheetState extends State<_AddMoiSheet>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  bool _saving = false;
+
+  // Single entry state
+  final _nameCtrl = TextEditingController();
+  final _familyCtrl = TextEditingController();
+  final _placeCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _relationCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  MoiKind _kind = MoiKind.newMoi;
+
+  // Bulk entry state
+  final List<_BulkMoiRow> _rows = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    _tab.addListener(() => setState(() {}));
+    _rows.add(_BulkMoiRow());
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    _nameCtrl.dispose();
+    _familyCtrl.dispose();
+    _placeCtrl.dispose();
+    _phoneCtrl.dispose();
+    _relationCtrl.dispose();
+    _amountCtrl.dispose();
+    _notesCtrl.dispose();
+    for (final r in _rows) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  List<MoiEntry> _singleEntries() {
+    final name = _nameCtrl.text.trim();
+    final amt = double.tryParse(_amountCtrl.text.trim());
+    if (name.isEmpty || amt == null || amt <= 0) return [];
+    return [
+      MoiEntry(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        personName: name,
+        familyName: _familyCtrl.text.trim().isEmpty ? null : _familyCtrl.text.trim(),
+        place: _placeCtrl.text.trim().isEmpty ? null : _placeCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        relation: _relationCtrl.text.trim().isEmpty ? null : _relationCtrl.text.trim(),
+        amount: amt,
+        kind: _kind,
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      ),
+    ];
+  }
+
+  Map<String, dynamic> _singleData() => {
+    'function_id': widget.fn.id,
+    'wallet_id': widget.fn.walletId,
+    'person_name': _nameCtrl.text.trim(),
+    'family_name': _familyCtrl.text.trim().isEmpty ? null : _familyCtrl.text.trim(),
+    'place': _placeCtrl.text.trim().isEmpty ? null : _placeCtrl.text.trim(),
+    'phone': _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+    'relation': _relationCtrl.text.trim().isEmpty ? null : _relationCtrl.text.trim(),
+    'amount': double.parse(_amountCtrl.text.trim()),
+    'kind': _kind.name,
+    'returned': false,
+    'notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+  };
+
+  Future<void> _doDraft() async {
+    final entries = _tab.index == 0
+        ? _singleEntries()
+        : _rows.map((r) => r.toEntry()).whereType<MoiEntry>().toList();
+    if (entries.isEmpty) return;
+    widget.onDraft(entries);
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _doSave() async {
+    setState(() => _saving = true);
+    try {
+      if (_tab.index == 0) {
+        final entries = _singleEntries();
+        if (entries.isEmpty) { setState(() => _saving = false); return; }
+        await FunctionsService.instance.addMoiEntry(_singleData());
+      } else {
+        final dataList = _rows
+            .where((r) => r.isValid)
+            .map((r) => r.toData(widget.fn.id, widget.fn.walletId))
+            .toList();
+        if (dataList.isEmpty) { setState(() => _saving = false); return; }
+        await FunctionsService.instance.addMoiEntries(dataList);
+      }
+      widget.onSave();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      debugPrint('[AddMoi] save error: $e');
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _cell(
+    TextEditingController ctrl,
+    double width, [
+    TextInputType? type,
+  ]) {
+    final isDark = widget.isDark;
+    return SizedBox(
+      width: width,
+      height: 36,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: TextField(
+          controller: ctrl,
+          keyboardType: type,
+          style: TextStyle(
+            fontSize: 12,
+            fontFamily: 'Nunito',
+            color: isDark ? AppColors.textDark : AppColors.textLight,
+          ),
+          decoration: InputDecoration(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 6,
+            ),
+            isDense: true,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: _moiColor, width: 1.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSingleTab(bool isDark, Color surfBg, Color sub) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Record moi received at this function',
+            style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+          ),
+          const SizedBox(height: 12),
+          const _SheetLabel(text: 'MOI TYPE'),
+          Row(
+            children: MoiKind.values.map((k) {
+              final selected = _kind == k;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _kind = k),
+                  child: Container(
+                    margin: EdgeInsets.only(right: k == MoiKind.newMoi ? 8 : 0),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? k.color.withValues(alpha: 0.12)
+                          : surfBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? k.color : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(k.emoji, style: const TextStyle(fontSize: 16)),
+                        const SizedBox(width: 6),
+                        Text(
+                          k.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: selected
+                                ? k.color
+                                : (isDark ? AppColors.subDark : AppColors.subLight),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+          const _SheetLabel(text: 'PERSON DETAILS'),
+          PlanInputField(controller: _nameCtrl, hint: 'Name *'),
+          const SizedBox(height: 8),
+          PlanInputField(controller: _familyCtrl, hint: 'Family name / Surname'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: PlanInputField(controller: _placeCtrl, hint: 'Place / Town'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PlanInputField(controller: _relationCtrl, hint: 'Relation'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          PlanInputField(
+            controller: _phoneCtrl,
+            hint: 'Phone number',
+            inputType: TextInputType.phone,
+          ),
+          const SizedBox(height: 14),
+          const _SheetLabel(text: 'MOI AMOUNT'),
+          PlanInputField(
+            controller: _amountCtrl,
+            hint: 'Amount received (₹) *',
+            inputType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 8),
+          PlanInputField(
+            controller: _notesCtrl,
+            hint: 'Notes (optional)',
+            maxLines: 2,
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBulkTab(bool isDark, Color surfBg, Color sub) {
+    const heads = ['Type', 'Name *', 'Family', 'Place', 'Relation', 'Phone', 'Amount *', 'Notes'];
+    const widths = [86.0, 130.0, 110.0, 100.0, 90.0, 120.0, 90.0, 130.0];
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row
+                  Row(
+                    children: List.generate(
+                      heads.length,
+                      (i) => Container(
+                        width: widths[i],
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          heads[i],
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Data rows
+                  for (var i = 0; i < _rows.length; i++) _buildDataRow(i, isDark),
+                ],
+              ),
+            ),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () => setState(() => _rows.add(_BulkMoiRow())),
+          icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
+          label: const Text(
+            'Add Row',
+            style: TextStyle(fontSize: 13, fontFamily: 'Nunito'),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  Widget _buildDataRow(int i, bool isDark) {
+    final row = _rows[i];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          // Type toggle
+          GestureDetector(
+            onTap: () => setState(() {
+              row.kind = row.kind == MoiKind.newMoi
+                  ? MoiKind.returnMoi
+                  : MoiKind.newMoi;
+            }),
+            child: Container(
+              width: 86,
+              height: 36,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              decoration: BoxDecoration(
+                color: row.kind.color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: row.kind.color.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(row.kind.emoji, style: const TextStyle(fontSize: 12)),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      row.kind == MoiKind.newMoi ? 'New' : 'Return',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: row.kind.color,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          _cell(row.nameCtrl, 130),
+          _cell(row.familyCtrl, 110),
+          _cell(row.placeCtrl, 100),
+          _cell(row.relationCtrl, 90),
+          _cell(row.phoneCtrl, 120, TextInputType.phone),
+          _cell(
+            row.amountCtrl,
+            90,
+            const TextInputType.numberWithOptions(decimal: true),
+          ),
+          _cell(row.notesCtrl, 130),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Text(
+                    'Add Moi Entry',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                      color: tc,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Tab bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: surfBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TabBar(
+                  controller: _tab,
+                  labelStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Nunito',
+                  ),
+                  labelColor: _moiColor,
+                  unselectedLabelColor: sub,
+                  indicator: BoxDecoration(
+                    color: _moiColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _moiColor.withValues(alpha: 0.4)),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(text: 'Add Entry'),
+                    Tab(text: 'Bulk Entry'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Tab content
+            Flexible(
+              child: TabBarView(
+                controller: _tab,
+                children: [
+                  _buildSingleTab(isDark, surfBg, sub),
+                  _buildBulkTab(isDark, surfBg, sub),
+                ],
+              ),
+            ),
+            // Draft / Save buttons
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : _doDraft,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: _moiColor.withValues(alpha: 0.6)),
+                        foregroundColor: _moiColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Draft',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _doSave,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _moiColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Save',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
