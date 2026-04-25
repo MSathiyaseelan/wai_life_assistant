@@ -31,6 +31,13 @@ class MyFunctionsScreen extends StatefulWidget {
 
   /// Family wallet ID → display label. Non-empty only in Personal view.
   final Map<String, String> familyWalletNames;
+
+  /// Full family wallet map — always populated regardless of current view.
+  final Map<String, String> allFamilyWalletNames;
+
+  /// Personal wallet ID — needed by edit sheets to offer "Move to Personal".
+  final String personalWalletId;
+
   final List<PlanMember> members;
   const MyFunctionsScreen({
     super.key,
@@ -41,6 +48,8 @@ class MyFunctionsScreen extends StatefulWidget {
     this.initialTab = 0,
     this.parentFunctions,
     this.familyWalletNames = const {},
+    this.allFamilyWalletNames = const {},
+    this.personalWalletId = '',
     this.members = const [],
   });
   @override
@@ -338,34 +347,38 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           FunctionsService.instance.deleteMyFunction(fn.id);
                         },
                         onTap: (fn) {
-                          if (widget.familyWalletNames[fn.walletId] == null) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => fn.isPlanned
-                                    ? _PlannedFunctionDetail(
-                                        fn: fn,
-                                        isDark: isDark,
-                                        onUpdate: () => setState(() {
-                                          _functions.removeWhere(
-                                            (f) => f.walletId != widget.walletId,
-                                          );
-                                        }),
-                                        familyWalletNames: widget.familyWalletNames,
-                                      )
-                                    : _FunctionDetail(
-                                        fn: fn,
-                                        isDark: isDark,
-                                        onUpdate: () => setState(() {
-                                          _functions.removeWhere(
-                                            (f) => f.walletId != widget.walletId,
-                                          );
-                                        }),
-                                        familyWalletNames: widget.familyWalletNames,
-                                      ),
-                              ),
-                            );
-                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => fn.isPlanned
+                                  ? _PlannedFunctionDetail(
+                                      fn: fn,
+                                      isDark: isDark,
+                                      currentWalletId: widget.walletId,
+                                      personalWalletId: widget.personalWalletId,
+                                      allFamilyWalletNames: widget.allFamilyWalletNames,
+                                      onUpdate: () => setState(() {
+                                        _functions.removeWhere(
+                                          (f) => f.walletId != widget.walletId,
+                                        );
+                                      }),
+                                      familyWalletNames: widget.familyWalletNames,
+                                    )
+                                  : _FunctionDetail(
+                                      fn: fn,
+                                      isDark: isDark,
+                                      currentWalletId: widget.walletId,
+                                      personalWalletId: widget.personalWalletId,
+                                      allFamilyWalletNames: widget.allFamilyWalletNames,
+                                      onUpdate: () => setState(() {
+                                        _functions.removeWhere(
+                                          (f) => f.walletId != widget.walletId,
+                                        );
+                                      }),
+                                      familyWalletNames: widget.familyWalletNames,
+                                    ),
+                            ),
+                          );
                         },
                       ),
 
@@ -1297,11 +1310,17 @@ class _PlannedFunctionDetail extends StatefulWidget {
   final bool isDark;
   final VoidCallback onUpdate;
   final Map<String, String> familyWalletNames;
+  final Map<String, String> allFamilyWalletNames;
+  final String personalWalletId;
+  final String currentWalletId;
   const _PlannedFunctionDetail({
     required this.fn,
     required this.isDark,
     required this.onUpdate,
     this.familyWalletNames = const {},
+    this.allFamilyWalletNames = const {},
+    this.personalWalletId = '',
+    this.currentWalletId = '',
   });
   @override
   State<_PlannedFunctionDetail> createState() => _PlannedFunctionDetailState();
@@ -1794,11 +1813,13 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
     final notesCtrl = TextEditingController(text: fn.notes ?? '');
     DateTime? date = fn.functionDate;
     var type = fn.type;
-    String? selectedWalletId;
+    String selectedWalletId = fn.walletId;
     String icon = fn.icon;
     String? photoPath;
 
-    final familyEntries = widget.familyWalletNames.entries.toList();
+    final personalId = widget.personalWalletId.isNotEmpty ? widget.personalWalletId : widget.currentWalletId;
+    final allFamilyEntries = widget.allFamilyWalletNames.entries.toList();
+    final hasWalletChoice = allFamilyEntries.isNotEmpty;
 
     showPlanSheet(
       ctx,
@@ -1977,26 +1998,27 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                     if (d != null) ss(() => date = d);
                   },
                 ),
-                if (familyEntries.isNotEmpty) ...[
+                if (allFamilyEntries.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const SheetLabel(text: 'MOVE TO GROUP'),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 6,
                     children: [
                       GestureDetector(
-                        onTap: () => ss(() => selectedWalletId = null),
+                        onTap: () => ss(() => selectedWalletId = personalId),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: selectedWalletId == null ? AppColors.income.withValues(alpha: 0.15) : surfBg,
+                            color: selectedWalletId == personalId ? AppColors.income.withValues(alpha: 0.15) : surfBg,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: selectedWalletId == null ? AppColors.income : Colors.transparent),
+                            border: Border.all(color: selectedWalletId == personalId ? AppColors.income : Colors.transparent),
                           ),
-                          child: Text('Personal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: selectedWalletId == null ? AppColors.income : sub)),
+                          child: Text('Personal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: selectedWalletId == personalId ? AppColors.income : sub)),
                         ),
                       ),
-                      ...familyEntries.map((e) => GestureDetector(
+                      ...allFamilyEntries.map((e) => GestureDetector(
                         onTap: () => ss(() => selectedWalletId = e.key),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
@@ -2030,6 +2052,8 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         debugPrint('[Functions] icon upload error: $e');
                       }
                     }
+                    final originalWalletId = fn.walletId;
+                    final moved = selectedWalletId != originalWalletId;
                     setState(() {
                       fn.type = type;
                       fn.title = titleCtrl.text.trim();
@@ -2038,11 +2062,19 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                       fn.venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
                       fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
                       fn.icon = finalIcon;
-                      if (selectedWalletId != null) fn.walletId = selectedWalletId!;
+                      fn.walletId = selectedWalletId;
                     });
-                    await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
-                    widget.onUpdate();
-                    if (ctx.mounted) Navigator.pop(ctx);
+                    try {
+                      await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                      widget.onUpdate();
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                        if (moved && ctx.mounted) Navigator.pop(ctx);
+                      }
+                    } catch (e) {
+                      debugPrint('[Functions] save error: $e');
+                      setState(() => fn.walletId = originalWalletId);
+                    }
                   },
                 ),
               ],
@@ -3030,11 +3062,17 @@ class _FunctionDetail extends StatefulWidget {
   final bool isDark;
   final VoidCallback onUpdate;
   final Map<String, String> familyWalletNames;
+  final Map<String, String> allFamilyWalletNames;
+  final String personalWalletId;
+  final String currentWalletId;
   const _FunctionDetail({
     required this.fn,
     required this.isDark,
     required this.onUpdate,
     this.familyWalletNames = const {},
+    this.allFamilyWalletNames = const {},
+    this.personalWalletId = '',
+    this.currentWalletId = '',
   });
   @override
   State<_FunctionDetail> createState() => _FunctionDetailState();
@@ -3667,10 +3705,11 @@ class _FunctionDetailState extends State<_FunctionDetail>
     final notesCtrl = TextEditingController(text: fn.notes ?? '');
     DateTime? date = fn.functionDate;
     var type = fn.type;
-    String? selectedWalletId;
+    String selectedWalletId = fn.walletId;
     String icon = fn.icon;
     String? photoPath;
-    final familyEntries = widget.familyWalletNames.entries.toList();
+    final personalId = widget.personalWalletId.isNotEmpty ? widget.personalWalletId : widget.currentWalletId;
+    final allFamilyEntries = widget.allFamilyWalletNames.entries.toList();
     showPlanSheet(
       ctx,
       child: StatefulBuilder(
@@ -3884,7 +3923,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   if (d != null) ss(() => date = d);
                 },
               ),
-              if (familyEntries.isNotEmpty) ...[
+              if (allFamilyEntries.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'MOVE TO GROUP'),
                 Wrap(
@@ -3892,25 +3931,25 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   runSpacing: 6,
                   children: [
                     GestureDetector(
-                      onTap: () => ss(() => selectedWalletId = null),
+                      onTap: () => ss(() => selectedWalletId = personalId),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 120),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: selectedWalletId == null ? _funcColor.withValues(alpha: 0.15) : surfBg,
+                          color: selectedWalletId == personalId ? _funcColor.withValues(alpha: 0.15) : surfBg,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: selectedWalletId == null ? _funcColor : Colors.transparent),
+                          border: Border.all(color: selectedWalletId == personalId ? _funcColor : Colors.transparent),
                         ),
                         child: Text(
                           'Personal',
                           style: TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito',
-                            color: selectedWalletId == null ? _funcColor : (isDark ? AppColors.subDark : AppColors.subLight),
+                            color: selectedWalletId == personalId ? _funcColor : (isDark ? AppColors.subDark : AppColors.subLight),
                           ),
                         ),
                       ),
                     ),
-                    ...familyEntries.map((e) => GestureDetector(
+                    ...allFamilyEntries.map((e) => GestureDetector(
                       onTap: () => ss(() => selectedWalletId = e.key),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 120),
@@ -3949,6 +3988,8 @@ class _FunctionDetailState extends State<_FunctionDetail>
                       debugPrint('[Functions] icon upload error: $e');
                     }
                   }
+                  final originalWalletId = fn.walletId;
+                  final moved = selectedWalletId != originalWalletId;
                   setState(() {
                     fn.type = type;
                     fn.title = titleCtrl.text.trim();
@@ -3958,21 +3999,22 @@ class _FunctionDetailState extends State<_FunctionDetail>
                         ? customTypeCtrl.text.trim()
                         : null;
                     fn.functionDate = date;
-                    fn.venue = venueCtrl.text.trim().isEmpty
-                        ? null
-                        : venueCtrl.text.trim();
-                    fn.notes = notesCtrl.text.trim().isEmpty
-                        ? null
-                        : notesCtrl.text.trim();
+                    fn.venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
+                    fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
                     fn.icon = finalIcon;
-                    if (selectedWalletId != null) fn.walletId = selectedWalletId!;
+                    fn.walletId = selectedWalletId;
                   });
-                  await FunctionsService.instance.updateMyFunction(
-                    fn.id,
-                    fn.toJson(),
-                  );
-                  widget.onUpdate();
-                  if (ctx.mounted) Navigator.pop(ctx);
+                  try {
+                    await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                    widget.onUpdate();
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                      if (moved && ctx.mounted) Navigator.pop(ctx);
+                    }
+                  } catch (e) {
+                    debugPrint('[Functions] save error: $e');
+                    setState(() => fn.walletId = originalWalletId);
+                  }
                 },
               ),
             ],

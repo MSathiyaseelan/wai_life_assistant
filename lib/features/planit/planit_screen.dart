@@ -148,6 +148,17 @@ class _PlanItScreenState extends State<PlanItScreen> {
     };
   }
 
+  /// Full family wallet map — always populated regardless of current view.
+  /// Used by edit sheets to offer "Move to Group" even inside a family wallet.
+  Map<String, String> get _allFamilyWalletNames => {
+    for (final w in _allWallets.where((w) => !w.isPersonal))
+      w.id: '${w.emoji} ${w.name}',
+  };
+
+  /// Personal wallet ID — needed by edit sheets to offer "Move to Personal".
+  String get _personalWalletId =>
+      _allWallets.firstWhere((w) => w.isPersonal, orElse: () => _allWallets.first).id;
+
   // ── Family members for current wallet — converted to PlanMember ───────────
   List<PlanMember> get _members {
     if (_currentWallet.isPersonal) return [];
@@ -646,6 +657,8 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         parentFunctions: _functions,
         familyWalletNames: _familyWalletNames,
+        allFamilyWalletNames: _allFamilyWalletNames,
+        personalWalletId: _personalWalletId,
         members: _members,
       ),
       quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
@@ -654,6 +667,8 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         parentFunctions: _functions,
         familyWalletNames: _familyWalletNames,
+        allFamilyWalletNames: _allFamilyWalletNames,
+        personalWalletId: _personalWalletId,
         members: _members,
         openAdd: true,
         initialTab: 2,
