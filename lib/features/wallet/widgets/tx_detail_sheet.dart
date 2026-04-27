@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
-import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_tile.dart';
 

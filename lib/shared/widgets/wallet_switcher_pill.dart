@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 /// Consistent wallet switcher pill used in Wallet, Pantry, PlanIt and MyLife
 /// AppBar actions. Tapping opens the family switcher sheet.

@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class AuthService {
-  AuthService._();
-  static final AuthService instance = AuthService._();
+class AuthCoordinator {
+  AuthCoordinator._();
+  static final AuthCoordinator instance = AuthCoordinator._();
 
   SupabaseClient get _client => Supabase.instance.client;
   String requestId = '';

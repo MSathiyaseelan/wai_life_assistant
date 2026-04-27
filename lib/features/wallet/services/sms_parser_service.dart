@@ -7,7 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wai_life_assistant/features/wallet/models/sms_transaction.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_regex_parser.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SmsHistoryItem — one result from a historical SMS scan

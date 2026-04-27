@@ -3,11 +3,11 @@ import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
-import 'package:wai_life_assistant/features/auth/auth_service.dart';
-import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
+import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;
@@ -841,7 +841,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     HapticFeedback.lightImpact();
     setState(() => _saving = true);
 
-    if (!AuthService.instance.isLoggedIn) {
+    if (!AuthCoordinator.instance.isLoggedIn) {
       // Bypass mode: mutate mock globals
       if (_isEdit) {
         widget.existing!.name = _nameCtrl.text.trim();
@@ -1107,7 +1107,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              if (!AuthService.instance.isLoggedIn) {
+              if (!AuthCoordinator.instance.isLoggedIn) {
                 // Bypass mode: mutate mock globals
                 mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
                 familyWallets.removeWhere((w) => w.id == widget.existing!.id);

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyleItem.dart';
 import 'package:wai_life_assistant/data/enum/lifestyleCategory.dart';
-import 'package:wai_life_assistant/features/lifestyle/vehicle/VehicleDetailScreen.dart';
-import 'package:wai_life_assistant/features/lifestyle/Dress/DressDetailScreen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/vehicle/vehicle_detail_screen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/dress/dress_detail_screen.dart';
 
 class LifestyleItemCard extends StatelessWidget {
   final LifestyleItem item;

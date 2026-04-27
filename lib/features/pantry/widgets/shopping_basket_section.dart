@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
-import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 
 class ShoppingBasketSection extends StatefulWidget {
   final List<GroceryItem> items;

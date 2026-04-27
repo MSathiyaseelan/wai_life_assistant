@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyleItem.dart';
-import 'package:wai_life_assistant/features/lifestyle/vehicle/VehicleBasicDetailsScreen.dart';
-import 'package:wai_life_assistant/features/lifestyle/vehicle/VehicleIdentityDetailsScreen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/vehicle/vehicle_basic_details_screen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/vehicle/vehicle_identity_details_screen.dart';
 
 class VehicleDetailScreen extends StatelessWidget {
   final LifestyleItem vehicle;

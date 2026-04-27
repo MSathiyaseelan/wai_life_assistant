@@ -5,8 +5,8 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_tile.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/wallet_card_widget.dart';
-import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/wallet_switcher_pill.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_sheet.dart';
@@ -17,10 +17,10 @@ import 'conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
-import 'package:wai_life_assistant/features/auth/auth_service.dart';
-import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
@@ -170,7 +170,7 @@ class _WalletScreenState extends State<WalletScreen>
         ? _appState.activeWalletId
         : widget.activeWalletId;
 
-    if (!AuthService.instance.isLoggedIn ||
+    if (!AuthCoordinator.instance.isLoggedIn ||
         walletId.isEmpty ||
         walletId == 'personal') {
       if (mounted) {
@@ -203,7 +203,7 @@ class _WalletScreenState extends State<WalletScreen>
                 _appState.activeWalletId != 'personal'
             ? _appState.activeWalletId
             : widget.activeWalletId;
-    if (!AuthService.instance.isLoggedIn ||
+    if (!AuthCoordinator.instance.isLoggedIn ||
         walletId.isEmpty ||
         walletId == 'personal') {
       if (mounted) setState(() => _txGroups = []);
@@ -242,7 +242,7 @@ class _WalletScreenState extends State<WalletScreen>
         ? _appState.activeWalletId
         : widget.activeWalletId;
 
-    if (!AuthService.instance.isLoggedIn ||
+    if (!AuthCoordinator.instance.isLoggedIn ||
         walletId.isEmpty ||
         walletId == 'personal') {
       if (mounted) {
@@ -402,7 +402,7 @@ class _WalletScreenState extends State<WalletScreen>
           .hasMatch(id);
 
   Future<void> _persistTransaction(TxModel tx, {TxGroup? groupOverride}) async {
-    if (!AuthService.instance.isLoggedIn) {
+    if (!AuthCoordinator.instance.isLoggedIn) {
       return;
     }
     // Always save the category — runs regardless of whether addTransaction succeeds
@@ -1003,7 +1003,7 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Future<void> _persistSplitGroup(SplitGroup group) async {
-    if (!AuthService.instance.isLoggedIn) return;
+    if (!AuthCoordinator.instance.isLoggedIn) return;
     try {
       final row = await WalletService.instance.createSplitGroup(
         walletId: group.walletId,
@@ -1074,7 +1074,7 @@ class _WalletScreenState extends State<WalletScreen>
           if (idx >= 0) _splitGroups[idx] = updated;
         });
         _syncPinnedGroups();
-        if (AuthService.instance.isLoggedIn) {
+        if (AuthCoordinator.instance.isLoggedIn) {
           WalletService.instance.updateSplitGroup(
             updated.id,
             name: updated.name,
@@ -2308,7 +2308,7 @@ class _WalletScreenState extends State<WalletScreen>
             )),
         // Individual (ungrouped) tiles — draggable + drop target
         ...entry.value.map((tx) {
-          final currentUid = AuthService.instance.currentUser?.id;
+          final currentUid = AuthCoordinator.instance.currentUser?.id;
           final isRecipient =
               tx.type == TxType.request && tx.userId != currentUid;
           final tile = TxTile(

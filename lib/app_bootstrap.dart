@@ -15,7 +15,7 @@ import 'package:provider/provider.dart';
 import 'features/planit/ToDo/todoController.dart';
 import 'features/pantry/groceries/grocerycontroller.dart';
 import 'features/planit/specialDay/specialDaysController.dart';
-import 'features/lifestyle/lifestyleController.dart';
+import 'package:wai_life_assistant/features/lifestyle/widgets/lifestyle_controller.dart';
 
 Future<void> bootstrapApp(String env) async {
   WidgetsFlutterBinding.ensureInitialized();

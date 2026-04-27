@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
-import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
+import 'package:wai_life_assistant/data/services/pantry_service.dart';
 
 // ── Add Recipe Sheet ──────────────────────────────────────────────────────────
 

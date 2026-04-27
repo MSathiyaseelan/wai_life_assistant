@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AssistantResponse — structured response from Gemini

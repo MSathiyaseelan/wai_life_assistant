@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../data/models/wallet/wallet_models.dart';
-import '../theme/app_theme.dart';
+import '../models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/core/theme/app_theme.dart';
 
 /// Handles profile setup, personal vs family selection, and family management.
 /// All methods throw [PostgrestException] / [Exception] on failure.

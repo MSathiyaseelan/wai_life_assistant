@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
-import 'package:wai_life_assistant/features/auth/auth_service.dart';
-import 'package:wai_life_assistant/core/supabase/profile_service.dart';
-import 'package:wai_life_assistant/core/supabase/app_config_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
+import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/data/services/app_config_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP STATE — single source of truth for active wallet across all tabs
@@ -53,7 +53,7 @@ class AppStateNotifier extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final loggedIn = AuthService.instance.isLoggedIn;
+      final loggedIn = AuthCoordinator.instance.isLoggedIn;
       debugPrint('[AppState] init — isLoggedIn=$loggedIn');
       _maxFamilyGroups = await AppConfigService.instance.fetchMaxFamilyGroups();
 

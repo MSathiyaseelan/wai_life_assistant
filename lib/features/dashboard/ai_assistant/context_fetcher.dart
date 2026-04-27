@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:wai_life_assistant/core/supabase/task_service.dart';
-import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
-import 'package:wai_life_assistant/core/supabase/functions_service.dart';
+import 'package:wai_life_assistant/data/services/task_service.dart';
+import 'package:wai_life_assistant/data/services/pantry_service.dart';
+import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'intent_classifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────

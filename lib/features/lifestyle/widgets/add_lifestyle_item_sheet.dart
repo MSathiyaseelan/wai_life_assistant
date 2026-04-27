@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyleItem.dart';
 import 'package:wai_life_assistant/data/enum/lifestyleCategory.dart';
 import 'package:provider/provider.dart';
-import 'lifestyleController.dart';
+import 'lifestyle_controller.dart';
 
 class AddLifestyleItemSheet extends StatefulWidget {
   final LifestyleCategory category;

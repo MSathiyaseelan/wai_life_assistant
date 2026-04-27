@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';

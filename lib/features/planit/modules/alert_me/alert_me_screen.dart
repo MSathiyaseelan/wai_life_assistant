@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
-import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
+import 'package:wai_life_assistant/data/services/reminder_service.dart';
 import 'package:wai_life_assistant/core/services/notification_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 class AlertMeScreen extends StatefulWidget {
   final String walletId;

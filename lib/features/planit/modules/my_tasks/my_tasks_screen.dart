@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
-import 'package:wai_life_assistant/core/supabase/task_service.dart';
+import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 class MyTasksScreen extends StatefulWidget {
   final String walletId;

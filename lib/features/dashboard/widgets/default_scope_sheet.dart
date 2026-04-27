@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
-import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/data/services/profile_service.dart';
 import '_prefs_sheet_base.dart';
 
 class DefaultScopeSheet extends StatefulWidget {

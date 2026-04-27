@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/supabase/profile_service.dart';
-import 'auth_service.dart';
+import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'auth_coordinator.dart';
 
 // TODO: Set to false once OTP delivery is working in production
 const bool kBypassOtp = true;
@@ -93,9 +93,9 @@ class _OtpScreenState extends State<OtpScreen> {
     setState(() { _loading = true; _error = null; });
     try {
       if (kBypassOtp) {
-        await AuthService.instance.bypassVerify();
+        await AuthCoordinator.instance.bypassVerify();
       } else {
-        await AuthService.instance.verifyOtp(widget.phone, _otp);
+        await AuthCoordinator.instance.verifyOtp(widget.phone, _otp);
       }
       if (!mounted) return;
       // If a profile exists for this UID, skip setup entirely.
@@ -142,7 +142,7 @@ class _OtpScreenState extends State<OtpScreen> {
     setState(() => _error = null);
     _startResendTimer();
     try {
-      await AuthService.instance.resendOtp(widget.phone);
+      await AuthCoordinator.instance.resendOtp(widget.phone);
     } catch (_) {
       // Resend failure is non-fatal — user can retry again after the timer.
     }

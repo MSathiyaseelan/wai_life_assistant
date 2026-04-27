@@ -6,7 +6,7 @@ import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 

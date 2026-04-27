@@ -5,11 +5,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
-import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
-import 'package:wai_life_assistant/features/auth/auth_service.dart';
-import 'package:wai_life_assistant/services/ai_parser.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPLIT GROUP DETAIL SCREEN
@@ -553,7 +553,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     String? proofImagePath,
     DateTime? proofDate,
   }) {
-    if (!AuthService.instance.isLoggedIn) return;
+    if (!AuthCoordinator.instance.isLoggedIn) return;
     WalletService.instance.updateShareStatus(
       shareId: share.id,
       transactionId: txId,
@@ -585,7 +585,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     );
     setState(() => _group.messages.add(msg));
     widget.onGroupUpdated(_group);
-    if (!AuthService.instance.isLoggedIn) return;
+    if (!AuthCoordinator.instance.isLoggedIn) return;
     try {
       await WalletService.instance.postMessage(
         groupId: _group.id,
@@ -885,7 +885,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   }
 
   Future<void> _persistSplitTransaction(SplitGroupTx tx) async {
-    if (!AuthService.instance.isLoggedIn) return;
+    if (!AuthCoordinator.instance.isLoggedIn) return;
     try {
       final row = await WalletService.instance.addSplitTransaction(
         groupId: _group.id,

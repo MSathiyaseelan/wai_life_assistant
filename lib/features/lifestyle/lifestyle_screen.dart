@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
-import 'package:wai_life_assistant/core/widgets/wallet_switcher_pill.dart';
+import 'package:wai_life_assistant/shared/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '../lifestyle/modules/my_garage/my_garage_screen.dart';
 import '../lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';

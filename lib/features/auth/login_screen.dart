@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-import 'auth_service.dart';
+import 'auth_coordinator.dart';
 import 'otp_screen.dart' show kBypassOtp;
 
 class LoginScreen extends StatefulWidget {
@@ -40,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       if (!kBypassOtp) {
-        await AuthService.instance.sendOtp('+91$phone');
+        await AuthCoordinator.instance.sendOtp('+91$phone');
       }
       if (!mounted) return;
       Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');

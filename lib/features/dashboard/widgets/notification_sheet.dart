@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
-import 'package:wai_life_assistant/core/supabase/notification_service.dart';
-import 'package:wai_life_assistant/core/supabase/invite_service.dart';
+import 'package:wai_life_assistant/data/services/notification_service.dart';
+import 'package:wai_life_assistant/data/services/invite_service.dart';
 import 'package:wai_life_assistant/data/models/notification/notification_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────

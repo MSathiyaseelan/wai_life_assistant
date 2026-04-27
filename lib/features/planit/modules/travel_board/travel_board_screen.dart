@@ -5,7 +5,7 @@ import 'dart:io';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRAVEL BOARD SCREEN

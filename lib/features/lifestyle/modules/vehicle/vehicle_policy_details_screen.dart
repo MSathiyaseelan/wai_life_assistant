@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/vehicle/VehiclePolicy.dart';
-import 'AddPolicyBottomSheet.dart';
+import 'add_policy_bottom_sheet.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/vehicle/Vehicle.dart';
 
 class VehiclePolicyDetailsScreen extends StatefulWidget {

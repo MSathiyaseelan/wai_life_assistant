@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ERROR BOUNDARY

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyleItem.dart';
-import 'package:wai_life_assistant/features/lifestyle/_InfoTile.dart';
+import 'package:wai_life_assistant/features/lifestyle/widgets/_info_tile.dart';
 
 class DressDetailScreen extends StatelessWidget {
   final LifestyleItem item;

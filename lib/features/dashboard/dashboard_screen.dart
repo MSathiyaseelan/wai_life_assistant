@@ -5,14 +5,14 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
-import 'package:wai_life_assistant/core/supabase/pantry_service.dart';
-import 'package:wai_life_assistant/core/supabase/wallet_service.dart';
-import 'package:wai_life_assistant/core/supabase/reminder_service.dart';
-import 'package:wai_life_assistant/core/supabase/task_service.dart';
-import 'package:wai_life_assistant/core/supabase/special_day_service.dart';
-import 'package:wai_life_assistant/core/supabase/wish_service.dart';
-import 'package:wai_life_assistant/core/supabase/functions_service.dart';
-import 'package:wai_life_assistant/features/auth/auth_service.dart';
+import 'package:wai_life_assistant/data/services/pantry_service.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
+import 'package:wai_life_assistant/data/services/reminder_service.dart';
+import 'package:wai_life_assistant/data/services/task_service.dart';
+import 'package:wai_life_assistant/data/services/special_day_service.dart';
+import 'package:wai_life_assistant/data/services/wish_service.dart';
+import 'package:wai_life_assistant/data/services/functions_service.dart';
+import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
@@ -22,14 +22,14 @@ import 'package:wai_life_assistant/features/wallet/category_detector.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:wai_life_assistant/core/supabase/profile_service.dart';
+import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/dashboard/family_settings_section.dart';
-import 'package:wai_life_assistant/core/supabase/notification_service.dart';
+import 'package:wai_life_assistant/data/services/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
-import 'package:wai_life_assistant/core/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/currency_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sheet.dart';
@@ -262,7 +262,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Fetches transactions for [walletId] and merges them into [_transactions].
   Future<void> _loadTransactions(String walletId) async {
-    if (!AuthService.instance.isLoggedIn || _isPlaceholder(walletId)) return;
+    if (!AuthCoordinator.instance.isLoggedIn || _isPlaceholder(walletId)) return;
     _loadedWalletIds.add(walletId);
     try {
       final rows = await WalletService.instance.fetchTransactions(walletId);
@@ -277,7 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadPinnedGroups() async {
-    if (!AuthService.instance.isLoggedIn) return;
+    if (!AuthCoordinator.instance.isLoggedIn) return;
     try {
       final groups = await WalletService.instance.fetchPinnedSplitGroups();
       pinnedSplitGroupsNotifier.value = groups;
