@@ -13,7 +13,7 @@ class DashboardAiBar extends StatefulWidget {
   final String walletId;
   final bool isDark;
 
-  /// Called when the AI answer includes a [GO:tab] deep-link tag.
+  /// Called when the AI answer includes a `GO:tab` deep-link tag.
   /// 0 = Dashboard, 1 = Wallet, 2 = Pantry, 3 = PlanIt
   final void Function(int tabIndex)? onNavigate;
 
