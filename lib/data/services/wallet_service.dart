@@ -438,6 +438,7 @@ class WalletService {
     required List<({String participantId, double amount, double? percentage})> shares,
     String? note,
     DateTime? date,
+    String? paymentMode,
   }) async {
     // 1. Insert transaction
     final tx = await _db.from('split_group_transactions').insert({
@@ -448,6 +449,7 @@ class WalletService {
       'split_type': splitType,
       'note': note,
       'date': (date ?? DateTime.now()).toIso8601String(),
+      if (paymentMode != null && paymentMode.isNotEmpty) 'payment_mode': paymentMode,
     }).select().single();
 
     // 2. Insert shares — payer's own share is auto-settled
@@ -461,6 +463,35 @@ class WalletService {
     await _db.from('split_shares').insert(shareRows);
 
     return tx;
+  }
+
+  /// Update an existing split transaction and its share amounts.
+  Future<void> updateSplitTransaction({
+    required String txId,
+    required String title,
+    required double totalAmount,
+    required String splitType,
+    required List<({String shareId, double amount, double? percentage})> shares,
+    String? note,
+    DateTime? date,
+    String? paymentMode,
+  }) async {
+    await _db.from('split_group_transactions').update({
+      'title': title,
+      'total_amount': totalAmount,
+      'split_type': splitType,
+      'note': note,
+      'date': (date ?? DateTime.now()).toIso8601String(),
+      'payment_mode': (paymentMode != null && paymentMode.isNotEmpty) ? paymentMode : null,
+    }).eq('id', txId);
+
+    for (final s in shares) {
+      if (s.shareId.isEmpty) continue;
+      await _db.from('split_shares').update({
+        'amount': s.amount,
+        'percentage': s.percentage,
+      }).eq('id', s.shareId);
+    }
   }
 
   /// Update a share's settlement status.

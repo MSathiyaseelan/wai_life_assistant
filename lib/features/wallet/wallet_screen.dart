@@ -3059,12 +3059,16 @@ class _SplitGroupCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 _StatPill(
-                  label: isEven
+                  label: group.transactions.isEmpty
+                      ? 'No expenses'
+                      : isEven
                       ? 'Settled'
                       : isOwed
                       ? '+₹${myBalance.abs().toStringAsFixed(0)}'
                       : '-₹${myBalance.abs().toStringAsFixed(0)}',
-                  sublabel: isEven
+                  sublabel: group.transactions.isEmpty
+                      ? 'Your status'
+                      : isEven
                       ? 'Your status'
                       : isOwed
                       ? 'You get back'

@@ -167,6 +167,7 @@ class SplitGroupTx {
   List<SplitShare> shares;
   DateTime date;
   String? note;
+  String? paymentMode;
 
   SplitGroupTx({
     required this.id,
@@ -178,6 +179,7 @@ class SplitGroupTx {
     required this.shares,
     required this.date,
     this.note,
+    this.paymentMode,
   });
 
   SplitShare shareFor(String pid) => shares.firstWhere(
@@ -425,6 +427,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
           shares: shares,
           date: DateTime.parse(t['date'] as String),
           note: t['note'] as String?,
+          paymentMode: t['payment_mode'] as String?,
         );
       })
       .toList();

@@ -100,6 +100,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
       _participants.add(
         SplitParticipant(id: 'me', name: 'Me', emoji: '🧑', isMe: true),
       );
+      _loadUserProfile();
     }
     // Pre-load contacts immediately so they're ready when tab opens
     _loadContacts();
@@ -113,6 +114,29 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
     _manualPhoneCtrl.dispose();
     _contactSearchCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Profile ───────────────────────────────────────────────────────────────
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final profile = await ProfileService.instance.fetchProfile();
+      if (profile != null && mounted) {
+        setState(() {
+          final meIndex = _participants.indexWhere((p) => p.isMe);
+          if (meIndex >= 0) {
+            _participants[meIndex] = SplitParticipant(
+              id: 'me',
+              name: profile['name'] as String? ?? 'Me',
+              emoji: profile['emoji'] as String? ?? '🧑',
+              isMe: true,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('[SplitGroupSheet] Failed to load profile: $e');
+    }
   }
 
   // ── Contacts ──────────────────────────────────────────────────────────────

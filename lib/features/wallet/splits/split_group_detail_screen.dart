@@ -884,6 +884,59 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     );
   }
 
+  // ── Edit expense ───────────────────────────────────────────────────────────
+  void _showEditExpense(SplitGroupTx tx) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    _AddExpenseSheet.show(
+      context,
+      isDark: isDark,
+      group: _group,
+      existing: tx,
+      onSave: (updated) {
+        setState(() {
+          final idx = _group.transactions.indexWhere((t) => t.id == updated.id);
+          if (idx >= 0) _group.transactions[idx] = updated;
+        });
+        _update();
+        _updateAndPersistTransaction(updated);
+      },
+    );
+  }
+
+  Future<void> _updateAndPersistTransaction(SplitGroupTx tx) async {
+    if (!AuthCoordinator.instance.isLoggedIn) return;
+    try {
+      await WalletService.instance.updateSplitTransaction(
+        txId: tx.id,
+        title: tx.title,
+        totalAmount: tx.totalAmount,
+        splitType: tx.splitType.name,
+        shares: tx.shares
+            .map((s) => (
+                  shareId: s.id,
+                  amount: s.amount,
+                  percentage: s.percentage,
+                ))
+            .toList(),
+        note: tx.note,
+        date: tx.date,
+        paymentMode: tx.paymentMode,
+      );
+    } catch (e) {
+      debugPrint('[SplitGroupDetail] updateSplitTransaction failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save changes: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _persistSplitTransaction(SplitGroupTx tx) async {
     if (!AuthCoordinator.instance.isLoggedIn) return;
     try {
@@ -902,6 +955,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             .toList(),
         note: tx.note,
         date: tx.date,
+        paymentMode: tx.paymentMode,
       );
       if (!mounted) return;
       // Replace local placeholder id with real DB id
@@ -919,6 +973,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             shares: tx.shares,
             date: tx.date,
             note: tx.note,
+            paymentMode: tx.paymentMode,
           );
         }
       });
@@ -1365,7 +1420,9 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                             ),
                           ),
                           Text(
-                            isEven
+                            _group.transactions.isEmpty
+                                ? 'No expenses yet'
+                                : isEven
                                 ? 'All settled up ✓'
                                 : isOwed
                                 ? 'Gets back ₹${bal.abs().toStringAsFixed(0)}'
@@ -1528,6 +1585,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         Builder(builder: (_) {
           final plan = _group.settlementPlan;
           if (plan.isEmpty) {
+            final noExpenses = _group.transactions.isEmpty;
             return Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 14,
@@ -1540,15 +1598,18 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('🎉', style: TextStyle(fontSize: 20)),
+                  Text(
+                    noExpenses ? '📝' : '🎉',
+                    style: const TextStyle(fontSize: 20),
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    'All settled up!',
+                    noExpenses ? 'No expenses yet' : 'All settled up!',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       fontFamily: 'Nunito',
-                      color: AppColors.income,
+                      color: noExpenses ? AppColors.subLight : AppColors.income,
                     ),
                   ),
                 ],
@@ -1708,6 +1769,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           surfBg: surfBg,
           tc: tc,
           sub: sub,
+          onEdit: () => _showEditExpense(tx),
           onShareUpdated: () => _update(),
           onAddChatMsg: (msg) {
             _group.messages.add(
@@ -1902,6 +1964,7 @@ class _ExpenseTile extends StatefulWidget {
   final VoidCallback onShareUpdated;
   final void Function(String) onAddChatMsg;
   final void Function(SplitShare, SplitGroupTx) onSendReminder;
+  final VoidCallback onEdit;
 
   const _ExpenseTile({
     required this.tx,
@@ -1915,6 +1978,7 @@ class _ExpenseTile extends StatefulWidget {
     required this.onShareUpdated,
     required this.onAddChatMsg,
     required this.onSendReminder,
+    required this.onEdit,
   });
 
   @override
@@ -2011,7 +2075,11 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                           ),
                         ),
                         Text(
-                          'Paid by ${_name(tx.addedById)} · ${tx.splitType.label} split',
+                          [
+                            'Paid by ${_name(tx.addedById)}',
+                            '${tx.splitType.label} split',
+                            if (tx.paymentMode != null) tx.paymentMode!,
+                          ].join(' · '),
                           style: TextStyle(
                             fontSize: 11,
                             fontFamily: 'Nunito',
@@ -2042,14 +2110,37 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        '₹${tx.totalAmount.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'DM Mono',
-                          color: tc,
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: widget.onEdit,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: AppColors.split.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.edit_rounded,
+                                size: 14,
+                                color: AppColors.split,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '₹${tx.totalAmount.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'DM Mono',
+                              color: tc,
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
                         '${tx.settledCount}/${tx.shares.length} settled',
@@ -3065,11 +3156,13 @@ class _AddExpenseSheet extends StatefulWidget {
   final SplitGroup group;
   final bool isDark;
   final void Function(SplitGroupTx) onSave;
+  final SplitGroupTx? existing;
 
   const _AddExpenseSheet({
     required this.group,
     required this.isDark,
     required this.onSave,
+    this.existing,
   });
 
   static void show(
@@ -3077,13 +3170,18 @@ class _AddExpenseSheet extends StatefulWidget {
     required bool isDark,
     required SplitGroup group,
     required void Function(SplitGroupTx) onSave,
+    SplitGroupTx? existing,
   }) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) =>
-          _AddExpenseSheet(group: group, isDark: isDark, onSave: onSave),
+      builder: (_) => _AddExpenseSheet(
+        group: group,
+        isDark: isDark,
+        onSave: onSave,
+        existing: existing,
+      ),
     );
   }
 
@@ -3108,23 +3206,71 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
   late String _paidById;
   DateTime _expenseDate = DateTime.now();
   late Map<String, TextEditingController> _shareCtrl;
+  String? _paymentMode;
+
+  static const _paymentModes = [
+    ('Cash', '💵'),
+    ('Online', '📱'),
+  ];
+
+  String? _normalizePaymentMode(String raw) {
+    final lower = raw.toLowerCase().trim();
+    if (lower.isEmpty || lower == 'null') return null;
+    if (lower.contains('cash')) return 'Cash';
+    return 'Online';
+  }
+
+  bool get _isEdit => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
     _mode = TabController(length: 2, vsync: this);
     _mode.addListener(() => setState(() {}));
-    // Default payer = current user; resolve via isMe flag for real DB IDs.
-    try {
-      _paidById = widget.group.participants.firstWhere((p) => p.isMe).id;
-    } catch (_) {
-      _paidById = widget.group.participants.isNotEmpty
-          ? widget.group.participants.first.id
-          : 'me';
+
+    final ex = widget.existing;
+    if (ex != null) {
+      // Edit mode — pre-fill from existing transaction
+      _titleCtrl.text = ex.title;
+      final amt = ex.totalAmount;
+      _amountCtrl.text = amt == amt.roundToDouble()
+          ? amt.toInt().toString()
+          : amt.toStringAsFixed(2);
+      _paidById = ex.addedById;
+      _splitType = ex.splitType;
+      _expenseDate = ex.date;
+      _noteCtrl.text = ex.note ?? '';
+      _paymentMode = ex.paymentMode;
+      _shareCtrl = {
+        for (final p in widget.group.participants) p.id: TextEditingController(),
+      };
+      for (final s in ex.shares) {
+        final val = ex.splitType == SplitType.percentage
+            ? (s.percentage ?? 0.0)
+            : s.amount;
+        if (val > 0) {
+          _shareCtrl[s.participantId]?.text = val == val.roundToDouble()
+              ? val.toInt().toString()
+              : val.toStringAsFixed(2);
+        }
+      }
+      // Open directly on manual tab in edit mode
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _mode.animateTo(1);
+      });
+    } else {
+      // Create mode — default payer = current user
+      try {
+        _paidById = widget.group.participants.firstWhere((p) => p.isMe).id;
+      } catch (_) {
+        _paidById = widget.group.participants.isNotEmpty
+            ? widget.group.participants.first.id
+            : 'me';
+      }
+      _shareCtrl = {
+        for (final p in widget.group.participants) p.id: TextEditingController(),
+      };
     }
-    _shareCtrl = {
-      for (final p in widget.group.participants) p.id: TextEditingController(),
-    };
   }
 
   @override
@@ -3185,6 +3331,10 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
         }).firstOrNull;
         if (match != null) _paidById = match.id;
       }
+
+      // Payment mode
+      final rawPayMode = data['payment_mode'] as String?;
+      if (rawPayMode != null) _paymentMode = _normalizePaymentMode(rawPayMode);
 
       // Split type
       final rawSplit = (data['split_type'] as String? ?? 'equally').toLowerCase();
@@ -3349,9 +3499,40 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
       }
     }
 
+    // In edit mode, preserve existing share IDs and settlement statuses
+    if (_isEdit) {
+      final ex = widget.existing!;
+      shares = shares.map((s) {
+        final old = ex.shares.firstWhere(
+          (o) => o.participantId == s.participantId,
+          orElse: () => s,
+        );
+        return SplitShare(
+          id: old.id,
+          participantId: s.participantId,
+          amount: s.amount,
+          percentage: s.percentage,
+          // Payer is always settled; others keep their existing status
+          status: s.participantId == _paidById
+              ? SettleStatus.settled
+              : old.status,
+          proofNote: old.proofNote,
+          proofImagePath: old.proofImagePath,
+          proofDate: old.proofDate,
+          extensionDate: old.extensionDate,
+          extensionReason: old.extensionReason,
+          reminderCount: old.reminderCount,
+          lastReminderAt: old.lastReminderAt,
+          lastReminderBy: old.lastReminderBy,
+        );
+      }).toList();
+    }
+
     widget.onSave(
       SplitGroupTx(
-        id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+        id: _isEdit
+            ? widget.existing!.id
+            : 'tx_${DateTime.now().millisecondsSinceEpoch}',
         groupId: widget.group.id,
         addedById: _paidById,
         title: title,
@@ -3360,6 +3541,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
         shares: shares,
         date: _expenseDate,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        paymentMode: _paymentMode,
       ),
     );
     Navigator.pop(context);
@@ -3405,7 +3587,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '💸  Add Expense',
+                    _isEdit ? '✏️  Edit Expense' : '💸  Add Expense',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
@@ -3820,6 +4002,64 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                       ),
                     ),
                     const SizedBox(height: 14),
+                    // Payment mode
+                    _Lbl('PAYMENT MODE (OPTIONAL)', sub),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ..._paymentModes.map((m) {
+                            final sel = _paymentMode == m.$1;
+                            return GestureDetector(
+                              onTap: () => setState(
+                                () => _paymentMode = sel ? null : m.$1,
+                              ),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 120),
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: sel
+                                      ? AppColors.split.withValues(alpha: 0.12)
+                                      : surfBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: sel
+                                        ? AppColors.split
+                                        : Colors.transparent,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      m.$2,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      m.$1,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: sel ? AppColors.split : sub,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     // Note
                     _Lbl('NOTE (OPTIONAL)', sub),
                     _F(_noteCtrl, 'e.g. Rahul had extra drinks', surfBg, tc),
@@ -3835,9 +4075,9 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          'Add Expense',
-                          style: TextStyle(
+                        child: Text(
+                          _isEdit ? 'Save Changes' : 'Add Expense',
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
                             fontFamily: 'Nunito',
