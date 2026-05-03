@@ -25,6 +25,11 @@ interface ParseRequest {
     current_month?: string;
     day_of_week?: string;
     currency?: string;
+    // dashboard / assistant query fields
+    question?: string;
+    user_name?: string;
+    family_members?: string;
+    household_context?: string;
   };
 }
 
@@ -78,16 +83,21 @@ function getCurrentMonth(): string {
 function injectContext(prompt: string, ctx: ParseRequest["context"] & { text?: string }): string {
   const today = ctx?.today || getToday();
   const replacements: Record<string, string> = {
-    "{{text}}":          ctx?.text || "",
-    "{{today}}":         today,
-    "{{day_of_week}}":   ctx?.day_of_week || getDayOfWeek(),
-    "{{current_month}}": ctx?.current_month || getCurrentMonth(),
-    "{{scope}}":         ctx?.scope || "personal",
-    "{{members}}":       ctx?.members?.join(", ") || "not specified",
-    "{{categories}}":    ctx?.categories?.join(", ") || "Food, Transport, Shopping, Health, Other",
-    "{{vehicles}}":      ctx?.vehicles?.join(", ") || "not specified",
-    "{{people_count}}":  String(ctx?.people_count || "not specified"),
-    "{{currency}}":      ctx?.currency || "INR",
+    "{{text}}":               ctx?.text || "",
+    "{{today}}":              today,
+    "{{day_of_week}}":        ctx?.day_of_week || getDayOfWeek(),
+    "{{current_month}}":      ctx?.current_month || getCurrentMonth(),
+    "{{scope}}":              ctx?.scope || "personal",
+    "{{members}}":            ctx?.members?.join(", ") || "not specified",
+    "{{categories}}":         ctx?.categories?.join(", ") || "Food, Transport, Shopping, Health, Other",
+    "{{vehicles}}":           ctx?.vehicles?.join(", ") || "not specified",
+    "{{people_count}}":       String(ctx?.people_count || "not specified"),
+    "{{currency}}":           ctx?.currency || "INR",
+    // dashboard assistant query placeholders
+    "{{question}}":           ctx?.question || ctx?.text || "",
+    "{{user_name}}":          ctx?.user_name || "",
+    "{{family_members}}":     ctx?.family_members || "not specified",
+    "{{household_context}}":  ctx?.household_context || ctx?.text || "",
   };
 
   let result = prompt;

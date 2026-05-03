@@ -175,8 +175,8 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
 
       if (!mounted) return;
       final saved = TxModel.fromRow(row);
-      Navigator.pop(context);
       widget.onSave(saved);
+      Navigator.pop(context);
     } catch (e, st) {
       debugPrint('[IntentConfirmSheet] save error: $e\n$st');
       if (!mounted) return;

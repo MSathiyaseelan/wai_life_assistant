@@ -165,7 +165,6 @@ class ContextFetcher {
 
       final pending = rows
           .where((r) => r['is_purchased'] != true)
-          .take(15)
           .map((r) {
         final name = r['name'] as String? ?? '';
         final qty = r['qty'] as num?;

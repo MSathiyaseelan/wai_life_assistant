@@ -82,10 +82,18 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       final ctx = await ContextFetcher.instance.fetch(intent, widget.walletId);
       final contextBlock = ctx.toPromptBlock();
       debugPrint('[WAI] context block:\n$contextBlock');
+      final familyMembers = ctx.family.isNotEmpty
+          ? (ctx.family['members'] as String? ?? 'not specified')
+          : 'not specified';
       final result = await AIParser.parseText(
         feature: 'dashboard',
         subFeature: 'ai_assistant',
-        text: '$contextBlock\nQUESTION: $question',
+        text: question,
+        context: {
+          'question': question,
+          'household_context': contextBlock,
+          'family_members': familyMembers,
+        },
       );
       if (!mounted) return;
 

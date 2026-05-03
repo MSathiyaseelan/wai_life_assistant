@@ -306,9 +306,9 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           labelColor: _funcColor,
           unselectedLabelColor: sub,
           tabs: [
-            Tab(text: 'Our Functions (${_myFuncs.length})'),
-            Tab(text: 'Upcoming (${_myUpcoming.length})'),
             Tab(text: 'Attended (${_myAttended.length})'),
+            Tab(text: 'Upcoming (${_myUpcoming.length})'),
+            Tab(text: 'Our Functions (${_myFuncs.length})'),
           ],
         ),
       ),
@@ -330,97 +330,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           : TabBarView(
               controller: _tab,
               children: [
-                // OUR FUNCTIONS tab (index 0)
-                _myFuncs.isEmpty
-                    ? const PlanEmptyState(
-                        emoji: '🎊',
-                        title: 'No functions yet',
-                        subtitle: 'Record your family celebrations',
-                      )
-                    : _GroupedFunctionsList(
-                        functions: _myFuncs,
-                        isDark: isDark,
-                        familyWalletNames: widget.familyWalletNames,
-                        onDelete: (fn) {
-                          HapticFeedback.mediumImpact();
-                          setState(() => _functions.remove(fn));
-                          FunctionsService.instance.deleteMyFunction(fn.id);
-                        },
-                        onTap: (fn) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => fn.isPlanned
-                                  ? _PlannedFunctionDetail(
-                                      fn: fn,
-                                      isDark: isDark,
-                                      currentWalletId: widget.walletId,
-                                      personalWalletId: widget.personalWalletId,
-                                      allFamilyWalletNames: widget.allFamilyWalletNames,
-                                      onUpdate: () => setState(() {
-                                        _functions.removeWhere(
-                                          (f) => f.walletId != widget.walletId,
-                                        );
-                                      }),
-                                      familyWalletNames: widget.familyWalletNames,
-                                    )
-                                  : _FunctionDetail(
-                                      fn: fn,
-                                      isDark: isDark,
-                                      currentWalletId: widget.walletId,
-                                      personalWalletId: widget.personalWalletId,
-                                      allFamilyWalletNames: widget.allFamilyWalletNames,
-                                      onUpdate: () => setState(() {
-                                        _functions.removeWhere(
-                                          (f) => f.walletId != widget.walletId,
-                                        );
-                                      }),
-                                      familyWalletNames: widget.familyWalletNames,
-                                    ),
-                            ),
-                          );
-                        },
-                      ),
-
-                // UPCOMING tab (index 1)
-                _myUpcoming.isEmpty
-                    ? const PlanEmptyState(
-                        emoji: '📅',
-                        title: 'No upcoming functions',
-                        subtitle: 'Plan for functions you\'re attending',
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                        itemCount: _myUpcoming.length,
-                        itemBuilder: (_, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: SwipeTile(
-                            onDelete: () {
-                              HapticFeedback.mediumImpact();
-                              final item = _myUpcoming[i];
-                              setState(() => _upcoming.remove(item));
-                              FunctionsService.instance.deleteUpcoming(item.id);
-                            },
-                            child: _UpcomingCard(
-                              item: _myUpcoming[i],
-                              isDark: isDark,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => _UpcomingDetail(
-                                    item: _myUpcoming[i],
-                                    isDark: isDark,
-                                    members: widget.members,
-                                    onUpdate: () => setState(() {}),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                // ATTENDED tab (index 2)
+                // ATTENDED tab (index 0)
                 Builder(
                   builder: (context) {
                     final q = _attendedSearch.toLowerCase();
@@ -538,6 +448,96 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     );
                   },
                 ),
+
+                // UPCOMING tab (index 1)
+                _myUpcoming.isEmpty
+                    ? const PlanEmptyState(
+                        emoji: '📅',
+                        title: 'No upcoming functions',
+                        subtitle: 'Plan for functions you\'re attending',
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        itemCount: _myUpcoming.length,
+                        itemBuilder: (_, i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: SwipeTile(
+                            onDelete: () {
+                              HapticFeedback.mediumImpact();
+                              final item = _myUpcoming[i];
+                              setState(() => _upcoming.remove(item));
+                              FunctionsService.instance.deleteUpcoming(item.id);
+                            },
+                            child: _UpcomingCard(
+                              item: _myUpcoming[i],
+                              isDark: isDark,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _UpcomingDetail(
+                                    item: _myUpcoming[i],
+                                    isDark: isDark,
+                                    members: widget.members,
+                                    onUpdate: () => setState(() {}),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                // OUR FUNCTIONS tab (index 2)
+                _myFuncs.isEmpty
+                    ? const PlanEmptyState(
+                        emoji: '🎊',
+                        title: 'No functions yet',
+                        subtitle: 'Record your family celebrations',
+                      )
+                    : _GroupedFunctionsList(
+                        functions: _myFuncs,
+                        isDark: isDark,
+                        familyWalletNames: widget.familyWalletNames,
+                        onDelete: (fn) {
+                          HapticFeedback.mediumImpact();
+                          setState(() => _functions.remove(fn));
+                          FunctionsService.instance.deleteMyFunction(fn.id);
+                        },
+                        onTap: (fn) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => fn.isPlanned
+                                  ? _PlannedFunctionDetail(
+                                      fn: fn,
+                                      isDark: isDark,
+                                      currentWalletId: widget.walletId,
+                                      personalWalletId: widget.personalWalletId,
+                                      allFamilyWalletNames: widget.allFamilyWalletNames,
+                                      onUpdate: () => setState(() {
+                                        _functions.removeWhere(
+                                          (f) => f.walletId != widget.walletId,
+                                        );
+                                      }),
+                                      familyWalletNames: widget.familyWalletNames,
+                                    )
+                                  : _FunctionDetail(
+                                      fn: fn,
+                                      isDark: isDark,
+                                      currentWalletId: widget.walletId,
+                                      personalWalletId: widget.personalWalletId,
+                                      allFamilyWalletNames: widget.allFamilyWalletNames,
+                                      onUpdate: () => setState(() {
+                                        _functions.removeWhere(
+                                          (f) => f.walletId != widget.walletId,
+                                        );
+                                      }),
+                                      familyWalletNames: widget.familyWalletNames,
+                                    ),
+                            ),
+                          );
+                        },
+                      ),
               ],
             ),
     );
@@ -568,25 +568,25 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               final svc = FunctionsService.instance;
               try {
                 if (tabIdx == 0) {
-                  final row = await svc.addMyFunction(
-                    FunctionModel(
+                  // ATTENDED tab
+                  final row = await svc.addAttended(
+                    AttendedFunction(
                       id: '',
                       walletId: widget.walletId,
                       type: type,
-                      title: title,
-                      whoFunction: '',
-                      customType: customType,
-                      functionDate: date,
+                      functionName: title,
+                      personName: personName,
+                      familyName: familyName,
+                      date: date,
                       venue: venue,
-                      isPlanned: isPlanned,
-                      icon: icon,
                     ).toJson(),
                   );
                   if (mounted)
                     setState(
-                      () => _functions.insert(0, FunctionModel.fromJson(row)),
+                      () => _attended.insert(0, AttendedFunction.fromJson(row)),
                     );
                 } else if (tabIdx == 1) {
+                  // UPCOMING tab
                   final row = await svc.addUpcoming(
                     UpcomingFunction(
                       id: '',
@@ -605,21 +605,24 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       () => _upcoming.insert(0, UpcomingFunction.fromJson(row)),
                     );
                 } else if (tabIdx == 2) {
-                  final row = await svc.addAttended(
-                    AttendedFunction(
+                  // OUR FUNCTIONS tab
+                  final row = await svc.addMyFunction(
+                    FunctionModel(
                       id: '',
                       walletId: widget.walletId,
                       type: type,
-                      functionName: title,
-                      personName: personName,
-                      familyName: familyName,
-                      date: date,
+                      title: title,
+                      whoFunction: '',
+                      customType: customType,
+                      functionDate: date,
                       venue: venue,
+                      isPlanned: isPlanned,
+                      icon: icon,
                     ).toJson(),
                   );
                   if (mounted)
                     setState(
-                      () => _attended.insert(0, AttendedFunction.fromJson(row)),
+                      () => _functions.insert(0, FunctionModel.fromJson(row)),
                     );
                 }
                 if (ctx.mounted) Navigator.pop(ctx);

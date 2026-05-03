@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
@@ -42,13 +43,16 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   // Filter tab
   WalletTab _activeTab = WalletTab.wallet;
   late TabController _tabCtrl;
 
   // Calendar
   MonthRange _selectedRange = MonthRange.thisMonth();
+  // True while the range is the auto "this month" (not manually changed by user).
+  bool _rangeIsAutoThisMonth = true;
+  Timer? _monthRolloverTimer;
 
   // Voice / speech-to-text
   bool _isListening = false;
@@ -103,6 +107,8 @@ class _WalletScreenState extends State<WalletScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _scheduleMonthRollover();
     _splitGroups = [];
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
@@ -280,12 +286,45 @@ class _WalletScreenState extends State<WalletScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _monthRolloverTimer?.cancel();
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     WalletService.txChangeSignal.removeListener(_onExternalTxChange);
     _tabCtrl.dispose();
     _familyPageCtrl?.dispose();
     _speech.stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshMonthIfAuto();
+  }
+
+  // Updates _selectedRange to the current month when the user hasn't manually
+  // changed it and the calendar month has rolled over.
+  void _refreshMonthIfAuto() {
+    if (!_rangeIsAutoThisMonth) return;
+    final now = DateTime.now();
+    if (_selectedRange.start.year != now.year ||
+        _selectedRange.start.month != now.month) {
+      setState(() => _selectedRange = MonthRange.thisMonth());
+      _scheduleMonthRollover();
+    }
+  }
+
+  // Schedules a one-shot timer that fires at the very start of the next month
+  // to handle the case where the app stays open across midnight on the 1st.
+  void _scheduleMonthRollover() {
+    _monthRolloverTimer?.cancel();
+    final now = DateTime.now();
+    final nextMonth = DateTime(now.year, now.month + 1); // Dart normalises overflow
+    final delay = nextMonth.difference(now);
+    _monthRolloverTimer = Timer(delay, () {
+      if (mounted) {
+        _refreshMonthIfAuto();
+      }
+    });
   }
 
   /// IDs of all transactions that belong to a tx_group.
@@ -387,6 +426,7 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _onTransactionSaved(TxModel tx) {
+    if (!mounted) return;
     setState(() => _transactions.insert(0, tx));
     // IntentConfirmSheet now persists directly and passes the DB row (UUID id).
     // Only call _persistTransaction for flows that pass a local temp id.
@@ -2097,7 +2137,14 @@ class _WalletScreenState extends State<WalletScreen>
             context,
             _selectedRange,
           );
-          if (picked != null) setState(() => _selectedRange = picked);
+          if (picked != null) {
+            setState(() {
+              _selectedRange = picked;
+              _rangeIsAutoThisMonth = picked.isSingleMonth &&
+                  picked.start.year == DateTime.now().year &&
+                  picked.start.month == DateTime.now().month;
+            });
+          }
         },
       ),
       actions: [
