@@ -296,6 +296,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
     NotificationService.changeSignal.removeListener(_onNotifChange);
     NotificationService.instance.unsubscribe();
+    ShortcutService.pending.removeListener(_onShortcut);
     super.dispose();
   }
 

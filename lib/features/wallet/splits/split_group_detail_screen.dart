@@ -44,6 +44,14 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   RealtimeChannel? _chatChannel;
   bool _chatLoading = true;
 
+  late Map<String, double> _cachedNetBalances;
+  late List<({String fromId, String toId, double amount})> _cachedSettlementPlan;
+
+  void _recomputeGroupCache() {
+    _cachedNetBalances = _group.netBalances;
+    _cachedSettlementPlan = _group.settlementPlan;
+  }
+
   // Resolve current-user participant ID from the isMe flag (real DB IDs).
   // Falls back to 'me' for local/mock data.
   String get _myId {
@@ -58,6 +66,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   void initState() {
     super.initState();
     _group = widget.group;
+    _recomputeGroupCache();
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
     _initChat();
@@ -342,7 +351,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
 
     // Use the group's net settlement plan filtered to entries where I am the payer.
     // This correctly nets out mutual debts across all transactions.
-    final mySettlements = _group.settlementPlan
+    final mySettlements = _cachedSettlementPlan
         .where((e) => e.fromId == _myId)
         .toList();
 
@@ -864,7 +873,10 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       isDark: isDark,
       group: _group,
       onSave: (tx) {
-        setState(() => _group.transactions.insert(0, tx));
+        setState(() {
+          _group.transactions.insert(0, tx);
+          _recomputeGroupCache();
+        });
         _group.messages.add(
           SplitGroupMsg(
             id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
@@ -896,6 +908,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         setState(() {
           final idx = _group.transactions.indexWhere((t) => t.id == updated.id);
           if (idx >= 0) _group.transactions[idx] = updated;
+          _recomputeGroupCache();
         });
         _update();
         _updateAndPersistTransaction(updated);
@@ -976,6 +989,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             paymentMode: tx.paymentMode,
           );
         }
+        _recomputeGroupCache();
       });
     } catch (e) {
       debugPrint('[SplitGroupDetail] addSplitTransaction failed: $e');
@@ -1194,7 +1208,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     Color tc,
     Color sub,
   ) {
-    final balances = _group.netBalances;
+    final balances = _cachedNetBalances;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1583,7 +1597,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         const SizedBox(height: 10),
 
         Builder(builder: (_) {
-          final plan = _group.settlementPlan;
+          final plan = _cachedSettlementPlan;
           if (plan.isEmpty) {
             final noExpenses = _group.transactions.isEmpty;
             return Container(

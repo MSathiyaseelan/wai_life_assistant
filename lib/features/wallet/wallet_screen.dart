@@ -114,13 +114,7 @@ class _WalletScreenState extends State<WalletScreen>
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     WalletService.txChangeSignal.addListener(_onExternalTxChange);
     _tabCtrl = TabController(length: kV1WalletTabs.length, vsync: this);
-    _tabCtrl.addListener(() {
-      if (!_tabCtrl.indexIsChanging) {
-        final tab = kV1WalletTabs[_tabCtrl.index];
-        setState(() => _activeTab = tab);
-        _autoSwitchWalletForTab(tab);
-      }
-    });
+    _tabCtrl.addListener(_onTabChanged);
   }
 
   @override
@@ -290,10 +284,19 @@ class _WalletScreenState extends State<WalletScreen>
     _monthRolloverTimer?.cancel();
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     WalletService.txChangeSignal.removeListener(_onExternalTxChange);
+    _tabCtrl.removeListener(_onTabChanged);
     _tabCtrl.dispose();
     _familyPageCtrl?.dispose();
     _speech.stop();
     super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!_tabCtrl.indexIsChanging) {
+      final tab = kV1WalletTabs[_tabCtrl.index];
+      setState(() => _activeTab = tab);
+      _autoSwitchWalletForTab(tab);
+    }
   }
 
   @override
