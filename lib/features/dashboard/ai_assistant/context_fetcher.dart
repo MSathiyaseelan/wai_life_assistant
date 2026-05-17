@@ -96,6 +96,7 @@ class ContextFetcher {
   }
 
   Future<Map<String, dynamic>> _fetchWallet(String walletId, TimeRange range) async {
+    if (walletId.isEmpty) return {};
     try {
       final now = DateTime.now();
       final String fromDate;
@@ -118,7 +119,7 @@ class ContextFetcher {
           .order('date', ascending: false)
           .limit(50);
 
-      double income = 0, expense = 0, lend = 0;
+      double income = 0, expense = 0, lend = 0, borrow = 0, split = 0, returned = 0;
       final catTotals = <String, double>{};
       final recent = <String>[];
 
@@ -128,16 +129,25 @@ class ContextFetcher {
         final cat = r['category'] as String? ?? '';
         final title = r['title'] as String? ?? cat;
 
-        if (type == 'income') income += amount;
-        if (type == 'expense') {
-          expense += amount;
-          catTotals[cat] = (catTotals[cat] ?? 0) + amount;
+        switch (type) {
+          case 'income':   income += amount;
+          case 'expense':
+            expense += amount;
+            catTotals[cat] = (catTotals[cat] ?? 0) + amount;
+          case 'lend':     lend += amount;
+          case 'borrow':   borrow += amount;
+          case 'split':    split += amount;
+          case 'returned': returned += amount;
         }
-        if (type == 'lend') lend += amount;
         if (recent.length < 5) {
           recent.add('${_cap(title)} ₹${amount.toStringAsFixed(0)} ($type)');
         }
       }
+
+      // total_spent = all money that left your pocket this period
+      final totalOut = expense + lend + split;
+      // total_received = all money that came in this period
+      final totalIn = income + borrow + returned;
 
       final topCats = (catTotals.entries.toList()
             ..sort((a, b) => b.value.compareTo(a.value)))
@@ -146,11 +156,16 @@ class ContextFetcher {
           .join(', ');
 
       return {
-        'income': '₹${income.toStringAsFixed(0)}',
         'expenses': '₹${expense.toStringAsFixed(0)}',
-        'net': '₹${(income - expense).toStringAsFixed(0)}',
-        if (lend > 0) 'outstanding_lends': '₹${lend.toStringAsFixed(0)}',
-        if (topCats.isNotEmpty) 'top_categories': topCats,
+        'income': '₹${income.toStringAsFixed(0)}',
+        if (lend > 0)     'lent_out': '₹${lend.toStringAsFixed(0)}',
+        if (borrow > 0)   'borrowed': '₹${borrow.toStringAsFixed(0)}',
+        if (split > 0)    'split_expenses': '₹${split.toStringAsFixed(0)}',
+        if (returned > 0) 'returned': '₹${returned.toStringAsFixed(0)}',
+        'total_money_out': '₹${totalOut.toStringAsFixed(0)}',
+        'total_money_in': '₹${totalIn.toStringAsFixed(0)}',
+        'net_flow': '₹${(totalIn - totalOut).toStringAsFixed(0)}',
+        if (topCats.isNotEmpty) 'top_expense_categories': topCats,
         if (recent.isNotEmpty) 'recent_transactions': recent.join(' | '),
       };
     } catch (e) {
@@ -160,6 +175,7 @@ class ContextFetcher {
   }
 
   Future<Map<String, dynamic>> _fetchPantry(String walletId) async {
+    if (walletId.isEmpty) return {};
     try {
       final rows = await PantryService.instance.fetchGroceryItems(walletId);
 
@@ -201,6 +217,7 @@ class ContextFetcher {
   }
 
   Future<Map<String, dynamic>> _fetchPlanit(String walletId) async {
+    if (walletId.isEmpty) return {};
     try {
       final tasks = await TaskService.instance.fetchTasks(walletId);
       final pending = tasks
@@ -265,6 +282,7 @@ class ContextFetcher {
   }
 
   Future<Map<String, dynamic>> _fetchFunctions(String walletId) async {
+    if (walletId.isEmpty) return {};
     try {
       final upcoming = await FunctionsService.instance.fetchUpcoming(walletId);
       final my = await FunctionsService.instance.fetchMyFunctions(walletId);
@@ -296,6 +314,7 @@ class ContextFetcher {
   }
 
   Future<Map<String, dynamic>> _fetchFamily(String walletId) async {
+    if (walletId.isEmpty) return {};
     try {
       final raw = await _db
           .from('family_members')
