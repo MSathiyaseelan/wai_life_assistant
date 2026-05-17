@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
+import '../../../../core/services/contact_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT INPUT BAR  — three modes in one bar
@@ -35,8 +35,6 @@ class ChatInputBar extends StatefulWidget {
   State<ChatInputBar> createState() => ChatInputBarState();
 }
 
-typedef _Contact = ({String name, String phone});
-
 // Public so wallet_screen can call setTextFromSpeech() via GlobalKey
 class ChatInputBarState extends State<ChatInputBar>
     with SingleTickerProviderStateMixin {
@@ -45,10 +43,8 @@ class ChatInputBarState extends State<ChatInputBar>
   bool _hasText = false;
 
   // ── Contact mention (@) ───────────────────────────────────────────────────
-  static List<_Contact>? _cachedContacts;
-  List<_Contact> _suggestions = [];
+  List<ContactEntry> _suggestions = [];
   bool _showSuggestions = false;
-  // The character index in the text where the current @-word starts
   int? _mentionStart;
 
   late AnimationController _pulseCtrl;
@@ -67,6 +63,7 @@ class ChatInputBarState extends State<ChatInputBar>
       begin: 1.0,
       end: 1.3,
     ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    ContactService.instance.preload();
   }
 
   @override
@@ -101,7 +98,7 @@ class ChatInputBarState extends State<ChatInputBar>
       return;
     }
     _mentionStart = atIdx;
-    _filterContacts(word.toLowerCase());
+    _filterContacts(word.toLowerCase()); // async, fire-and-forget
   }
 
   void _hideSuggestions() {
@@ -114,13 +111,11 @@ class ChatInputBarState extends State<ChatInputBar>
     }
   }
 
-  void _filterContacts(String query) {
-    if (_cachedContacts == null) {
-      _loadContacts(query);
-      return;
-    }
+  Future<void> _filterContacts(String query) async {
+    final all = await ContactService.instance.getContacts();
+    if (!mounted) return;
     setState(() {
-      _suggestions = _cachedContacts!
+      _suggestions = all
           .where((c) =>
               query.isEmpty ||
               c.name.toLowerCase().contains(query) ||
@@ -131,37 +126,17 @@ class ChatInputBarState extends State<ChatInputBar>
     });
   }
 
-  Future<void> _loadContacts(String initialQuery) async {
-    try {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
-      if (!granted || !mounted) return;
-      final raw = await FlutterContacts.getContacts(withProperties: true);
-      final list = <_Contact>[];
-      for (final c in raw) {
-        final name = c.displayName.trim();
-        if (name.isEmpty) continue;
-        final phone = c.phones.isNotEmpty
-            ? c.phones.first.number.replaceAll(RegExp(r'\D'), '')
-            : '';
-        list.add((name: name, phone: phone));
-      }
-      list.sort((a, b) => a.name.compareTo(b.name));
-      _cachedContacts = list;
-      if (mounted) _filterContacts(initialQuery);
-    } catch (_) {}
-  }
-
-  void _selectContact(_Contact contact) {
+  void _selectContact(ContactEntry contact) {
     final text = _ctrl.text;
     final cursor = _ctrl.selection.baseOffset.clamp(0, text.length);
     final start = _mentionStart ?? 0;
-    // Replace @partial with @Name (preserve anything after cursor)
     final before = text.substring(0, start);
     final after = cursor < text.length ? text.substring(cursor) : '';
     final newText = '$before@${contact.name} $after';
     _ctrl.value = TextEditingValue(
       text: newText,
-      selection: TextSelection.collapsed(offset: before.length + contact.name.length + 2),
+      selection: TextSelection.collapsed(
+          offset: before.length + contact.name.length + 2),
     );
     setState(() {
       _showSuggestions = false;

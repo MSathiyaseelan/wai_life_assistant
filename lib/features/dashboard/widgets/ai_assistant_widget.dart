@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
@@ -34,6 +35,11 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   bool _loading = false;
   AssistantResponse? _response;
 
+  // ── Contact mention (@) ───────────────────────────────────────────────────
+  List<ContactEntry> _suggestions = [];
+  bool _showSuggestions = false;
+  int? _mentionStart;
+
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
 
@@ -54,19 +60,81 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     );
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _focus.addListener(() => setState(() {}));
+    _ctrl.addListener(_onMentionChanged);
+    ContactService.instance.preload();
   }
 
   @override
   void dispose() {
+    _ctrl.removeListener(_onMentionChanged);
     _ctrl.dispose();
     _focus.dispose();
     _animCtrl.dispose();
     super.dispose();
   }
 
+  // ── @-mention helpers ────────────────────────────────────────────────────
+
+  void _onMentionChanged() {
+    final text = _ctrl.text;
+    final cursor = _ctrl.selection.baseOffset;
+    if (cursor < 0) { _hideSuggestions(); return; }
+    final before = text.substring(0, cursor.clamp(0, text.length));
+    final atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) { _hideSuggestions(); return; }
+    final word = before.substring(atIdx + 1);
+    if (word.contains(' ')) { _hideSuggestions(); return; }
+    _mentionStart = atIdx;
+    _filterContacts(word.toLowerCase());
+  }
+
+  void _hideSuggestions() {
+    if (_showSuggestions || _mentionStart != null) {
+      setState(() {
+        _showSuggestions = false;
+        _mentionStart = null;
+        _suggestions = [];
+      });
+    }
+  }
+
+  Future<void> _filterContacts(String query) async {
+    final all = await ContactService.instance.getContacts();
+    if (!mounted) return;
+    setState(() {
+      _suggestions = all
+          .where((c) =>
+              query.isEmpty ||
+              c.name.toLowerCase().contains(query) ||
+              c.phone.contains(query))
+          .take(6)
+          .toList();
+      _showSuggestions = _suggestions.isNotEmpty;
+    });
+  }
+
+  void _selectContact(ContactEntry contact) {
+    final text = _ctrl.text;
+    final cursor = _ctrl.selection.baseOffset.clamp(0, text.length);
+    final start = _mentionStart ?? 0;
+    final before = text.substring(0, start);
+    final after = cursor < text.length ? text.substring(cursor) : '';
+    _ctrl.value = TextEditingValue(
+      text: '$before@${contact.name} $after',
+      selection: TextSelection.collapsed(
+          offset: before.length + contact.name.length + 2),
+    );
+    setState(() {
+      _showSuggestions = false;
+      _mentionStart = null;
+      _suggestions = [];
+    });
+  }
+
   Future<void> _submit(String q) async {
     final question = q.trim();
     if (question.isEmpty || _loading) return;
+    _hideSuggestions();
     _focus.unfocus();
     HapticFeedback.lightImpact();
 
@@ -116,6 +184,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   }
 
   void _clear() {
+    _hideSuggestions();
     setState(() {
       _response = null;
       _ctrl.clear();
@@ -240,8 +309,79 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
               ),
             ),
 
+            // ── @-mention suggestions ─────────────────────────────────────
+            if (_showSuggestions && _suggestions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 180),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: _suggestions.length,
+                  itemBuilder: (_, i) {
+                    final c = _suggestions[i];
+                    return InkWell(
+                      onTap: () => _selectContact(c),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 7),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor:
+                                  Colors.white.withAlpha(30),
+                              child: Text(
+                                c.name.isNotEmpty
+                                    ? c.name[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFA5B4FC),
+                                  fontFamily: 'Nunito',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    c.name,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                  if (c.phone.isNotEmpty)
+                                    Text(
+                                      c.phone,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white.withAlpha(140),
+                                        fontFamily: 'Nunito',
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+
             // ── Quick question chips ───────────────────────────────────────
-            if (_response == null && !_loading) ...[
+            if (!_showSuggestions && _response == null && !_loading) ...[
               const SizedBox(height: 10),
               SizedBox(
                 height: 26,

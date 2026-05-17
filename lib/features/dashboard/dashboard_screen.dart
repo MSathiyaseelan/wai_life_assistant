@@ -4427,10 +4427,15 @@ class _DashFabSheetState extends State<_DashFabSheet>
                     embedded: true,
                     walletId: widget.walletId,
                     onSave: (tx) {
-                      Navigator.pop(context);
+                      // _DashFabSheet was already dismissed by SparkBottomSheet
+                      // before IntentConfirmSheet was shown. IntentConfirmSheet
+                      // pops its own route in _save(). Just notify the parent.
                       widget.onAiSave(tx);
                     },
-                    onOpenFlow: () => Navigator.pop(context),
+                    onOpenFlow: () {
+                      // Same: _DashFabSheet is already gone and IntentConfirmSheet
+                      // pops itself before calling this. Nothing to pop here.
+                    },
                   ),
                   // ── Quick Add tab ─────────────────────────────────────
                   _QuickAddTab(
