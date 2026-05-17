@@ -377,7 +377,8 @@ class _WalletScreenState extends State<WalletScreen>
       if (t.payMode == PayMode.cash) {
         if (isIn) cashIn += t.amount;
         if (isOut) cashOut += t.amount;
-      } else if (t.payMode == PayMode.online) {
+      } else {
+        // online or null payMode (lend/borrow via AI often omits payMode) → online bucket
         if (isIn) onlineIn += t.amount;
         if (isOut) onlineOut += t.amount;
       }

@@ -83,7 +83,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
     _noteCtrl = TextEditingController(text: i.note ?? '');
     _personCtrl = TextEditingController(text: i.person ?? '');
     _category = i.category;
-    _payMode = i.payMode;
+    _payMode = i.payMode ?? PayMode.online;
     _date = i.date ?? DateTime.now();
   }
 

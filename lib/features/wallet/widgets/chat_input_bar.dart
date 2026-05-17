@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT INPUT BAR  — three modes in one bar
@@ -34,6 +35,8 @@ class ChatInputBar extends StatefulWidget {
   State<ChatInputBar> createState() => ChatInputBarState();
 }
 
+typedef _Contact = ({String name, String phone});
+
 // Public so wallet_screen can call setTextFromSpeech() via GlobalKey
 class ChatInputBarState extends State<ChatInputBar>
     with SingleTickerProviderStateMixin {
@@ -41,13 +44,20 @@ class ChatInputBarState extends State<ChatInputBar>
   final _focus = FocusNode();
   bool _hasText = false;
 
+  // ── Contact mention (@) ───────────────────────────────────────────────────
+  static List<_Contact>? _cachedContacts;
+  List<_Contact> _suggestions = [];
+  bool _showSuggestions = false;
+  // The character index in the text where the current @-word starts
+  int? _mentionStart;
+
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseScale;
 
   @override
   void initState() {
     super.initState();
-    _ctrl.addListener(() => setState(() => _hasText = _ctrl.text.isNotEmpty));
+    _ctrl.addListener(_onTextChanged);
     _focus.addListener(() => setState(() {}));
     _pulseCtrl = AnimationController(
       vsync: this,
@@ -61,10 +71,104 @@ class ChatInputBarState extends State<ChatInputBar>
 
   @override
   void dispose() {
+    _ctrl.removeListener(_onTextChanged);
     _ctrl.dispose();
     _focus.dispose();
     _pulseCtrl.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    final text = _ctrl.text;
+    final cursor = _ctrl.selection.baseOffset;
+    setState(() => _hasText = text.isNotEmpty);
+
+    // Find the most recent '@' before the cursor that starts a word
+    if (cursor < 0) {
+      _hideSuggestions();
+      return;
+    }
+    final beforeCursor = text.substring(0, cursor.clamp(0, text.length));
+    final atIdx = beforeCursor.lastIndexOf('@');
+    if (atIdx < 0) {
+      _hideSuggestions();
+      return;
+    }
+    // Make sure there's no space between '@' and cursor (single @-word)
+    final word = beforeCursor.substring(atIdx + 1);
+    if (word.contains(' ')) {
+      _hideSuggestions();
+      return;
+    }
+    _mentionStart = atIdx;
+    _filterContacts(word.toLowerCase());
+  }
+
+  void _hideSuggestions() {
+    if (_showSuggestions || _mentionStart != null) {
+      setState(() {
+        _showSuggestions = false;
+        _mentionStart = null;
+        _suggestions = [];
+      });
+    }
+  }
+
+  void _filterContacts(String query) {
+    if (_cachedContacts == null) {
+      _loadContacts(query);
+      return;
+    }
+    setState(() {
+      _suggestions = _cachedContacts!
+          .where((c) =>
+              query.isEmpty ||
+              c.name.toLowerCase().contains(query) ||
+              c.phone.contains(query))
+          .take(6)
+          .toList();
+      _showSuggestions = _suggestions.isNotEmpty;
+    });
+  }
+
+  Future<void> _loadContacts(String initialQuery) async {
+    try {
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      if (!granted || !mounted) return;
+      final raw = await FlutterContacts.getContacts(withProperties: true);
+      final list = <_Contact>[];
+      for (final c in raw) {
+        final name = c.displayName.trim();
+        if (name.isEmpty) continue;
+        final phone = c.phones.isNotEmpty
+            ? c.phones.first.number.replaceAll(RegExp(r'\D'), '')
+            : '';
+        list.add((name: name, phone: phone));
+      }
+      list.sort((a, b) => a.name.compareTo(b.name));
+      _cachedContacts = list;
+      if (mounted) _filterContacts(initialQuery);
+    } catch (_) {}
+  }
+
+  void _selectContact(_Contact contact) {
+    final text = _ctrl.text;
+    final cursor = _ctrl.selection.baseOffset.clamp(0, text.length);
+    final start = _mentionStart ?? 0;
+    // Replace @partial with @Name (preserve anything after cursor)
+    final before = text.substring(0, start);
+    final after = cursor < text.length ? text.substring(cursor) : '';
+    final newText = '$before@${contact.name} $after';
+    _ctrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: before.length + contact.name.length + 2),
+    );
+    setState(() {
+      _showSuggestions = false;
+      _mentionStart = null;
+      _suggestions = [];
+      _hasText = true;
+    });
   }
 
   /// Called by wallet_screen when STT finishes — drops text into field
@@ -86,6 +190,7 @@ class ChatInputBarState extends State<ChatInputBar>
     HapticFeedback.lightImpact();
     widget.onSubmit(text);
     _ctrl.clear();
+    _hideSuggestions();
     _focus.unfocus();
   }
 
@@ -104,17 +209,86 @@ class ChatInputBarState extends State<ChatInputBar>
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final listening = widget.isListening;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, -4),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ── @-mention contact suggestions ─────────────────────────────────
+        if (_showSuggestions && _suggestions.isNotEmpty)
+          Container(
+            color: bg,
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.builder(
+              shrinkWrap: true,
+              reverse: true,
+              padding: EdgeInsets.zero,
+              itemCount: _suggestions.length,
+              itemBuilder: (_, i) {
+                final c = _suggestions[i];
+                return InkWell(
+                  onTap: () => _selectContact(c),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: AppColors.primary.withValues(alpha:0.15),
+                          child: Text(
+                            c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primary,
+                              fontFamily: 'Nunito',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                c.name,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: tc,
+                                ),
+                              ),
+                              if (c.phone.isNotEmpty)
+                                Text(
+                                  c.phone,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: hint,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-        ],
-      ),
+        Container(
+          decoration: BoxDecoration(
+            color: bg,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha:isDark ? 0.3 : 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: SafeArea(
         top: false,
@@ -139,12 +313,12 @@ class ChatInputBarState extends State<ChatInputBar>
                     height: 46,
                     decoration: BoxDecoration(
                       color: listening
-                          ? AppColors.expense.withOpacity(0.12)
-                          : AppColors.primary.withOpacity(0.1),
+                          ? AppColors.expense.withValues(alpha:0.12)
+                          : AppColors.primary.withValues(alpha:0.1),
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: listening
-                            ? AppColors.expense.withOpacity(0.5)
+                            ? AppColors.expense.withValues(alpha:0.5)
                             : Colors.transparent,
                         width: 1.5,
                       ),
@@ -201,9 +375,9 @@ class ChatInputBarState extends State<ChatInputBar>
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: listening
-                        ? AppColors.expense.withOpacity(0.35)
+                        ? AppColors.expense.withValues(alpha:0.35)
                         : _focus.hasFocus
-                        ? AppColors.primary.withOpacity(0.45)
+                        ? AppColors.primary.withValues(alpha:0.45)
                         : Colors.transparent,
                     width: 1.5,
                   ),
@@ -236,7 +410,7 @@ class ChatInputBarState extends State<ChatInputBar>
                             fontSize: 13,
                             fontFamily: 'Nunito',
                             color: listening
-                                ? AppColors.expense.withOpacity(0.55)
+                                ? AppColors.expense.withValues(alpha:0.55)
                                 : hint,
                           ),
                         ),
@@ -271,6 +445,8 @@ class ChatInputBarState extends State<ChatInputBar>
           ],
         ),
       ),
+      ),  // Container (input bar)
+      ],  // Column
     );
   }
 }
@@ -339,209 +515,3 @@ class _PulsingDotState extends State<_PulsingDot>
   );
 }
 
-// class ChatInputBar extends StatefulWidget {
-//   final void Function(String text) onSubmit;
-//   final VoidCallback onMicTap;
-//   final VoidCallback onAddTap;
-//   final bool isListening;
-
-//   const ChatInputBar({
-//     super.key,
-//     required this.onSubmit,
-//     required this.onMicTap,
-//     required this.onAddTap,
-//     this.isListening = false,
-//   });
-
-//   @override
-//   State<ChatInputBar> createState() => _ChatInputBarState();
-// }
-
-// class _ChatInputBarState extends State<ChatInputBar>
-//     with SingleTickerProviderStateMixin {
-//   final _ctrl = TextEditingController();
-//   final _focus = FocusNode();
-//   bool _hasText = false;
-//   late AnimationController _micAnim;
-//   late Animation<double> _micScale;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _ctrl.addListener(() => setState(() => _hasText = _ctrl.text.isNotEmpty));
-//     _micAnim = AnimationController(
-//       vsync: this,
-//       duration: const Duration(milliseconds: 700),
-//     )..repeat(reverse: true);
-//     _micScale = Tween(
-//       begin: 1.0,
-//       end: 1.2,
-//     ).animate(CurvedAnimation(parent: _micAnim, curve: Curves.easeInOut));
-//   }
-
-//   @override
-//   void dispose() {
-//     _ctrl.dispose();
-//     _focus.dispose();
-//     _micAnim.dispose();
-//     super.dispose();
-//   }
-
-//   void _submit() {
-//     final text = _ctrl.text.trim();
-//     if (text.isEmpty) return;
-//     widget.onSubmit(text);
-//     _ctrl.clear();
-//     _focus.unfocus();
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     final isDark = Theme.of(context).brightness == Brightness.dark;
-//     final bg = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-//     final inputBg = isDark ? const Color(0xFF16213E) : const Color(0xFFF5F6FA);
-//     final hintColor = isDark
-//         ? const Color(0xFF6E6E90)
-//         : const Color(0xFF8E8EA0);
-//     final textColor = isDark ? Colors.white : const Color(0xFF1A1A2E);
-
-//     return Container(
-//       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-//       decoration: BoxDecoration(
-//         color: bg,
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
-//             blurRadius: 20,
-//             offset: const Offset(0, -4),
-//           ),
-//         ],
-//       ),
-//       child: SafeArea(
-//         top: false,
-//         child: Row(
-//           crossAxisAlignment: CrossAxisAlignment.end,
-//           children: [
-//             // ── Mic button ────────────────────────────────────────────────
-//             GestureDetector(
-//               onTap: widget.onMicTap,
-//               child: AnimatedContainer(
-//                 duration: const Duration(milliseconds: 200),
-//                 width: 46,
-//                 height: 46,
-//                 decoration: BoxDecoration(
-//                   color: widget.isListening
-//                       ? AppColors.expense.withOpacity(0.15)
-//                       : AppColors.primary.withOpacity(0.1),
-//                   shape: BoxShape.circle,
-//                 ),
-//                 alignment: Alignment.center,
-//                 child: widget.isListening
-//                     ? ScaleTransition(
-//                         scale: _micScale,
-//                         child: const Icon(
-//                           Icons.mic_rounded,
-//                           color: AppColors.expense,
-//                           size: 22,
-//                         ),
-//                       )
-//                     : const Icon(
-//                         Icons.mic_none_rounded,
-//                         color: AppColors.primary,
-//                         size: 22,
-//                       ),
-//               ),
-//             ),
-//             const SizedBox(width: 10),
-
-//             // ── Text field ────────────────────────────────────────────────
-//             Expanded(
-//               child: AnimatedContainer(
-//                 duration: const Duration(milliseconds: 200),
-//                 decoration: BoxDecoration(
-//                   color: inputBg,
-//                   borderRadius: BorderRadius.circular(24),
-//                   border: Border.all(
-//                     color: _focus.hasFocus
-//                         ? AppColors.primary.withOpacity(0.4)
-//                         : Colors.transparent,
-//                     width: 1.5,
-//                   ),
-//                 ),
-//                 padding: const EdgeInsets.symmetric(
-//                   horizontal: 16,
-//                   vertical: 10,
-//                 ),
-//                 child: TextField(
-//                   controller: _ctrl,
-//                   focusNode: _focus,
-//                   maxLines: null, // expands line by line
-//                   minLines: 1,
-//                   keyboardType: TextInputType.multiline,
-//                   textCapitalization: TextCapitalization.sentences,
-//                   style: TextStyle(
-//                     fontSize: 14,
-//                     color: textColor,
-//                     fontFamily: 'Nunito',
-//                   ),
-//                   decoration: InputDecoration.collapsed(
-//                     hintText:
-//                         'Tell me what happened... (e.g. "spent 500 on food")',
-//                     hintStyle: TextStyle(
-//                       fontSize: 13,
-//                       color: hintColor,
-//                       fontFamily: 'Nunito',
-//                     ),
-//                   ),
-//                   onSubmitted: (_) => _submit(),
-//                 ),
-//               ),
-//             ),
-//             const SizedBox(width: 10),
-
-//             // ── Send button ───────────────────────────────────────────────
-//             AnimatedSwitcher(
-//               duration: const Duration(milliseconds: 200),
-//               transitionBuilder: (child, anim) =>
-//                   ScaleTransition(scale: anim, child: child),
-//               child: _hasText
-//                   ? GestureDetector(
-//                       key: const ValueKey('send'),
-//                       onTap: _submit,
-//                       child: Container(
-//                         width: 46,
-//                         height: 46,
-//                         decoration: const BoxDecoration(
-//                           color: AppColors.primary,
-//                           shape: BoxShape.circle,
-//                         ),
-//                         alignment: Alignment.center,
-//                         child: const Icon(
-//                           Icons.arrow_upward_rounded,
-//                           color: Colors.white,
-//                           size: 22,
-//                         ),
-//                       ),
-//                     )
-//                   : Container(
-//                       key: const ValueKey('add'),
-//                       width: 46,
-//                       height: 46,
-//                       decoration: BoxDecoration(
-//                         color: AppColors.primary,
-//                         shape: BoxShape.circle,
-//                       ),
-//                       alignment: Alignment.center,
-//                       child: const Icon(
-//                         Icons.add_rounded,
-//                         color: Colors.white,
-//                         size: 22,
-//                       ),
-//                     ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
