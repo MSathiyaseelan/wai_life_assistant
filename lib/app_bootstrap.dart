@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/env/environment_config.dart';
 import 'core/services/error_logger.dart';
@@ -20,28 +21,35 @@ import 'package:wai_life_assistant/features/lifestyle/widgets/lifestyle_controll
 Future<void> bootstrapApp(String env) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase + FCM — skipped if firebase_options.dart is still the placeholder.
-  // Run `flutterfire configure` to generate real options and enable push notifications.
-  bool firebaseReady = false;
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    firebaseReady = true;
-  } catch (e) {
-    debugPrint('[Bootstrap] Firebase not configured — FCM disabled: $e');
-  }
-
   envConfig = EnvironmentConfig.fromEnv(env);
 
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
-  );
+  // Phase 1 — Firebase and Supabase are independent; run in parallel.
+  bool firebaseReady = false;
+  await Future.wait([
+    // Firebase + FCM
+    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform)
+        .then((_) { firebaseReady = true; })
+        .catchError((Object e) {
+          debugPrint('[Bootstrap] Firebase not configured — FCM disabled: $e');
+        }),
+    // Supabase
+    Supabase.initialize(
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+    ),
+  ]);
 
-  await ErrorLogger.initialize();
+  // Phase 2 — ErrorLogger, Notifications, Network, and SharedPreferences are
+  // independent of each other (all depend only on Phase 1 having completed).
+  // Pre-warming SharedPreferences avoids a cold disk read later in BottomNavScreen.
+  await Future.wait([
+    ErrorLogger.initialize(),
+    NotificationService.instance.init(),
+    NetworkService.instance.init(),
+    SharedPreferences.getInstance(),
+  ]);
 
-  await NotificationService.instance.init();
+  // FCM requires Firebase to be ready — run after Phase 1.
   if (firebaseReady) {
     try {
       await FcmService.initialize();
@@ -49,7 +57,6 @@ Future<void> bootstrapApp(String env) async {
       debugPrint('[Bootstrap] FCM init failed — push notifications disabled: $e');
     }
   }
-  await NetworkService.instance.init();
 
   // SMS auto-scan disabled — READ_SMS permission removed until Play Store approval.
   // Re-enable these two lines and restore the manifest permission when ready:

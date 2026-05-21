@@ -22,9 +22,11 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _init() async {
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    // isLoggedIn is synchronous (checks cached session — no network call).
+    // A short brand-visible delay is enough; 2 s was pure dead time.
     final loggedIn = AuthCoordinator.instance.isLoggedIn;
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
     Navigator.pushReplacementNamed(
       context,
       loggedIn ? AppRoutes.bottomNav : AppRoutes.login,

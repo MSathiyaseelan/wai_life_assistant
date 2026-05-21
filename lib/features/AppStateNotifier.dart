@@ -55,7 +55,14 @@ class AppStateNotifier extends ChangeNotifier {
     try {
       final loggedIn = AuthCoordinator.instance.isLoggedIn;
       debugPrint('[AppState] init — isLoggedIn=$loggedIn');
-      _maxFamilyGroups = await AppConfigService.instance.fetchMaxFamilyGroups();
+
+      // Fetch config and profile data in parallel — they are independent calls.
+      final fetched = await Future.wait([
+        AppConfigService.instance.fetchMaxFamilyGroups(),
+        if (loggedIn) ProfileService.instance.fetchSwitcherData()
+        else Future.value(null),
+      ]);
+      _maxFamilyGroups = fetched[0] as int;
 
       if (!loggedIn) {
         _wallets = [personalWallet];
@@ -64,7 +71,7 @@ class AppStateNotifier extends ChangeNotifier {
           _activeWalletId = personalWallet.id;
         }
       } else {
-        final row = await ProfileService.instance.fetchSwitcherData();
+        final row = fetched[1] as Map<String, dynamic>?;
         debugPrint('[AppState] fetchSwitcherData row=${row != null ? 'found' : 'null'}');
         if (row != null) {
           final parsed = ProfileService.instance.parseSwitcherData(row);
