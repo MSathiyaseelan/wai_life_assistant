@@ -9,6 +9,7 @@ import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.d
 import 'package:wai_life_assistant/features/wallet/wallet_screen.dart';
 import 'package:wai_life_assistant/features/pantry/pantry_screen.dart';
 import 'package:wai_life_assistant/features/planit/planit_screen.dart';
+import 'package:wai_life_assistant/features/myhub/my_hub_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
@@ -151,11 +152,12 @@ class _AppShellState extends State<AppShell> {
     (icon: '🏠', label: 'Dashboard'),
     (icon: '₹', label: 'Wallet'),
     (icon: '🥗', label: 'Pantry'),
+    (icon: '🎊', label: 'MyHub'),   // dynamic: MyHub / FamilyHub — see _hubLabel()
     (icon: '📅', label: 'PlanIt'),
     (icon: '✨', label: 'MyLife'), // V2 — hidden from nav bar
   ];
 
-  static const _hiddenTabIndices = {4}; // MyLife
+  static const _hiddenTabIndices = {5}; // MyLife
 
   @override
   void dispose() {
@@ -172,7 +174,8 @@ class _AppShellState extends State<AppShell> {
     final scope = switch (tabIndex) {
       1 => prefs.walletScope,
       2 => prefs.pantryScope,
-      3 => prefs.planItScope,
+      3 => prefs.hubScope,
+      4 => prefs.planItScope,
       _ => null,
     };
     if (scope == null) return;
@@ -182,6 +185,16 @@ class _AppShellState extends State<AppShell> {
         ? wallets.firstWhere((w) => !w.isPersonal, orElse: () => wallets.first)
         : wallets.firstWhere((w) => w.isPersonal, orElse: () => wallets.first);
     _appState.switchWallet(target.id);
+  }
+
+  String _hubLabel() {
+    final wallets = _appState.wallets;
+    if (wallets.isEmpty) return 'MyHub';
+    final active = wallets.firstWhere(
+      (w) => w.id == _appState.activeWalletId,
+      orElse: () => wallets.first,
+    );
+    return active.isPersonal ? 'MyHub' : 'FamilyHub';
   }
 
   @override
@@ -207,6 +220,10 @@ class _AppShellState extends State<AppShell> {
               onWalletChange: _appState.switchWallet,
             ),
             PantryScreen(
+              activeWalletId: walletId,
+              onWalletChange: _appState.switchWallet,
+            ),
+            MyHubScreen(
               activeWalletId: walletId,
               onWalletChange: _appState.switchWallet,
             ),
@@ -304,7 +321,7 @@ class _AppShellState extends State<AppShell> {
                                                 ? AppColors.subDark
                                                 : AppColors.subLight),
                                       ),
-                                      child: Text(_tabs[i].label),
+                                      child: Text(i == 3 ? _hubLabel() : _tabs[i].label),
                                     ),
                                   ],
                                 ),

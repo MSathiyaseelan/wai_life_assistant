@@ -125,6 +125,9 @@ class AppPrefs extends ChangeNotifier {
   String get planItScope    => _s('planit_scope',  def: 'personal');
   set planItScope(String v) => _setS('planit_scope', v);
 
+  String get hubScope    => _s('hub_scope',  def: 'personal');
+  set hubScope(String v) => _setS('hub_scope', v);
+
   // ── AI Parser ──────────────────────────────────────────────────────────────
 
   bool get aiAlwaysConfirm    => _b('ai_always_confirm',  def: true);

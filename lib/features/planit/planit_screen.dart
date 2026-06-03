@@ -6,20 +6,17 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 import 'package:wai_life_assistant/shared/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
-import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/reminder_service.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/wish_service.dart';
 import 'package:wai_life_assistant/data/services/note_service.dart';
-import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/planit/modules/alert_me/alert_me_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_tasks/my_tasks_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/special_days/special_days_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/wish_list/wish_list_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/travel_board/travel_board_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/notes/notes_screen.dart';
-import 'package:wai_life_assistant/features/lifestyle/modules/my_functions/my_functions_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/plan_party/plan_party_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_schedule/my_schedule_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/health_vault/health_vault_screen.dart';
@@ -66,7 +63,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
   final List<SpecialDayModel> _days = [];
   final List<WishModel> _wishes = [];
   final List<NoteModel> _notes = [];
-  final List<FunctionModel> _functions = [];
   final List<TripModel> _trips = List.from(mockTrips);
 
   /// Composite key of all wallet IDs whose data is currently loaded.
@@ -108,7 +104,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
           SpecialDayService.instance.fetchDays(id),
           WishService.instance.fetchWishes(id),
           NoteService.instance.fetchNotes(id),
-          FunctionsService.instance.fetchMyFunctions(id),
         ])),
       );
       if (!mounted) return;
@@ -128,9 +123,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
         _notes
           ..clear()
           ..addAll(perWallet.expand((r) => r[4]).map(NoteModel.fromRow));
-        _functions
-          ..clear()
-          ..addAll(perWallet.expand((r) => r[5]).map(FunctionModel.fromJson));
       });
     } catch (e) {
       debugPrint('[PlanIt] _loadAllData error: $e');
@@ -147,17 +139,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
         w.id: '${w.emoji} ${w.name}',
     };
   }
-
-  /// Full family wallet map — always populated regardless of current view.
-  /// Used by edit sheets to offer "Move to Group" even inside a family wallet.
-  Map<String, String> get _allFamilyWalletNames => {
-    for (final w in _allWallets.where((w) => !w.isPersonal))
-      w.id: '${w.emoji} ${w.name}',
-  };
-
-  /// Personal wallet ID — needed by edit sheets to offer "Move to Personal".
-  String get _personalWalletId =>
-      _allWallets.firstWhere((w) => w.isPersonal, orElse: () => _allWallets.first).id;
 
   // ── Family members for current wallet — converted to PlanMember ───────────
   List<PlanMember> get _members {
@@ -560,28 +541,9 @@ class _PlanItScreenState extends State<PlanItScreen> {
                 : n.content.split('\n').first.trim())
             .where((s) => s.isNotEmpty)
             .toList();
-      case 'Functions':
-        return _functions
-            .where((f) => personal || f.walletId == wid)
-            .take(2)
-            .map((f) {
-              final when = f.functionDate != null
-                  ? _daysLabel(f.functionDate!)
-                  : '';
-              return '🎊 ${f.title}${when.isNotEmpty ? ' · $when' : ''}';
-            })
-            .toList();
       default:
         return [];
     }
-  }
-
-  String _daysLabel(DateTime date) {
-    final diff = date.difference(DateTime.now()).inDays;
-    if (diff < 0) return 'Past';
-    if (diff == 0) return 'Today';
-    if (diff == 1) return 'Tomorrow';
-    return 'in $diff days';
   }
 
   int _getCount(_ModuleInfo m) {
@@ -605,8 +567,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
             .length;
       case 'Notes':
         return _notes.where((n) => personal || n.walletId == wid).length;
-      case 'Functions':
-        return _functions.where((f) => personal || f.walletId == wid).length;
       default:
         return 0;
     }
@@ -633,7 +593,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
   static const _kV1Modules = {
     'Alert Me',
     'Special Days',
-    'Functions',
     'My Tasks',
     'Wish List',
     'Notes',
@@ -645,35 +604,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
 
   // TODO(v2): Rename back to _modules when all modules are ready for release.
   List<_ModuleInfo> get _allModules => [
-    _ModuleInfo(
-      emoji: '🎊',
-      title: 'Functions',
-      subtitle: 'Celebrations & gifting',
-      color: const Color(0xFF6C63FF),
-      badge: null,
-      builder: (ctx, wid) => MyFunctionsScreen(
-        walletId: wid,
-        walletName: _currentWallet.name,
-        walletEmoji: _currentWallet.emoji,
-        parentFunctions: _functions,
-        familyWalletNames: _familyWalletNames,
-        allFamilyWalletNames: _allFamilyWalletNames,
-        personalWalletId: _personalWalletId,
-        members: _members,
-      ),
-      quickAddBuilder: (ctx, wid) => MyFunctionsScreen(
-        walletId: wid,
-        walletName: _currentWallet.name,
-        walletEmoji: _currentWallet.emoji,
-        parentFunctions: _functions,
-        familyWalletNames: _familyWalletNames,
-        allFamilyWalletNames: _allFamilyWalletNames,
-        personalWalletId: _personalWalletId,
-        members: _members,
-        openAdd: true,
-        initialTab: 2,
-      ),
-    ),
     _ModuleInfo(
       emoji: '🎂',
       title: 'Special Days',
