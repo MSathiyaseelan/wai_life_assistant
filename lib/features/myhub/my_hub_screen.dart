@@ -386,7 +386,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
           personalWalletId: _personalWalletId,
           members: _members,
           openAdd: openAdd,
-          initialTab: openAdd ? 2 : 0,
+          initialTab: 0,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),

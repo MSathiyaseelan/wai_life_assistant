@@ -72,6 +72,14 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   List<AttendedFunction> get _myAttended => _attended;
   List<UpcomingFunction> get _myUpcoming => _upcoming;
 
+  DateTime get _today => DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  // Upcoming items still in the future (or with no date set)
+  List<UpcomingFunction> get _activeUpcoming =>
+      _myUpcoming.where((u) => u.date == null || !u.date!.isBefore(_today)).toList();
+  // Upcoming items whose date has already passed — shown in Attended tab
+  List<UpcomingFunction> get _pastUpcoming =>
+      _myUpcoming.where((u) => u.date != null && u.date!.isBefore(_today)).toList();
+
   @override
   void initState() {
     super.initState();
@@ -306,8 +314,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           labelColor: _funcColor,
           unselectedLabelColor: sub,
           tabs: [
-            Tab(text: 'Attended (${_myAttended.length})'),
-            Tab(text: 'Upcoming (${_myUpcoming.length})'),
+            Tab(text: 'Upcoming (${_activeUpcoming.length})'),
+            Tab(text: 'Attended (${_myAttended.length + _pastUpcoming.length})'),
             Tab(text: 'Our Functions (${_myFuncs.length})'),
           ],
         ),
@@ -330,7 +338,45 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           : TabBarView(
               controller: _tab,
               children: [
-                // ATTENDED tab (index 0)
+                // UPCOMING tab (index 0)
+                _activeUpcoming.isEmpty
+                    ? const PlanEmptyState(
+                        emoji: '📅',
+                        title: 'No upcoming functions',
+                        subtitle: 'Plan for functions you\'re attending',
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        itemCount: _activeUpcoming.length,
+                        itemBuilder: (_, i) => Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: SwipeTile(
+                            onDelete: () {
+                              HapticFeedback.mediumImpact();
+                              final item = _activeUpcoming[i];
+                              setState(() => _upcoming.remove(item));
+                              FunctionsService.instance.deleteUpcoming(item.id);
+                            },
+                            child: _UpcomingCard(
+                              item: _activeUpcoming[i],
+                              isDark: isDark,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _UpcomingDetail(
+                                    item: _activeUpcoming[i],
+                                    isDark: isDark,
+                                    members: widget.members,
+                                    onUpdate: () => setState(() {}),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                // ATTENDED tab (index 1)
                 Builder(
                   builder: (context) {
                     final q = _attendedSearch.toLowerCase();
@@ -343,6 +389,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                             (g) => g.category.toLowerCase().contains(q),
                           );
                     }).toList();
+                    final past = _pastUpcoming;
                     return Column(
                       children: [
                         Padding(
@@ -402,7 +449,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           ),
                         ),
                         Expanded(
-                          child: filtered.isEmpty
+                          child: (filtered.isEmpty && past.isEmpty)
                               ? PlanEmptyState(
                                   emoji: '✅',
                                   title: _attendedSearch.isNotEmpty
@@ -412,80 +459,105 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                       ? 'Try a different search'
                                       : 'Track functions you\'ve attended and what you gave',
                                 )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    12,
-                                    16,
-                                    100,
-                                  ),
-                                  itemCount: filtered.length,
-                                  itemBuilder: (_, i) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: SwipeTile(
-                                      onDelete: () {
-                                        HapticFeedback.mediumImpact();
-                                        final item = filtered[i];
-                                        setState(() => _attended.remove(item));
-                                        FunctionsService.instance
-                                            .deleteAttended(item.id);
-                                      },
-                                      child: _AttendedCard(
-                                        item: filtered[i],
-                                        isDark: isDark,
-                                        onTap: () => _showEditAttended(
-                                          context,
-                                          isDark,
-                                          surfBg,
-                                          filtered[i],
+                              : ListView(
+                                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                                  children: [
+                                    // Past upcoming section — dates have passed
+                                    if (past.isNotEmpty) ...[
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 8, top: 4),
+                                        child: Row(
+                                          children: [
+                                            const Text('📅', style: TextStyle(fontSize: 13)),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Date Passed',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                                fontFamily: 'Nunito',
+                                                color: isDark ? AppColors.subDark : AppColors.subLight,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                  ),
+                                      for (final item in past)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 12),
+                                          child: SwipeTile(
+                                            onDelete: () {
+                                              HapticFeedback.mediumImpact();
+                                              setState(() => _upcoming.remove(item));
+                                              FunctionsService.instance.deleteUpcoming(item.id);
+                                            },
+                                            child: _UpcomingCard(
+                                              item: item,
+                                              isDark: isDark,
+                                              onTap: () => Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => _UpcomingDetail(
+                                                    item: item,
+                                                    isDark: isDark,
+                                                    members: widget.members,
+                                                    onUpdate: () => setState(() {}),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      if (filtered.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 8, top: 4),
+                                          child: Row(
+                                            children: [
+                                              const Text('✅', style: TextStyle(fontSize: 13)),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'Attended',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontFamily: 'Nunito',
+                                                  color: isDark ? AppColors.subDark : AppColors.subLight,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                    // Regular attended records
+                                    for (int i = 0; i < filtered.length; i++)
+                                      Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: SwipeTile(
+                                          onDelete: () {
+                                            HapticFeedback.mediumImpact();
+                                            final item = filtered[i];
+                                            setState(() => _attended.remove(item));
+                                            FunctionsService.instance.deleteAttended(item.id);
+                                          },
+                                          child: _AttendedCard(
+                                            item: filtered[i],
+                                            isDark: isDark,
+                                            onTap: () => _showEditAttended(
+                                              context,
+                                              isDark,
+                                              surfBg,
+                                              filtered[i],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                         ),
                       ],
                     );
                   },
                 ),
-
-                // UPCOMING tab (index 1)
-                _myUpcoming.isEmpty
-                    ? const PlanEmptyState(
-                        emoji: '📅',
-                        title: 'No upcoming functions',
-                        subtitle: 'Plan for functions you\'re attending',
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                        itemCount: _myUpcoming.length,
-                        itemBuilder: (_, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: SwipeTile(
-                            onDelete: () {
-                              HapticFeedback.mediumImpact();
-                              final item = _myUpcoming[i];
-                              setState(() => _upcoming.remove(item));
-                              FunctionsService.instance.deleteUpcoming(item.id);
-                            },
-                            child: _UpcomingCard(
-                              item: _myUpcoming[i],
-                              isDark: isDark,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => _UpcomingDetail(
-                                    item: _myUpcoming[i],
-                                    isDark: isDark,
-                                    members: widget.members,
-                                    onUpdate: () => setState(() {}),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
 
                 // OUR FUNCTIONS tab (index 2)
                 _myFuncs.isEmpty
@@ -568,6 +640,26 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               final svc = FunctionsService.instance;
               try {
                 if (tabIdx == 0) {
+                  // UPCOMING tab
+                  final row = await svc.addUpcoming(
+                    UpcomingFunction(
+                      id: '',
+                      walletId: widget.walletId,
+                      memberId: 'me',
+                      type: type,
+                      personName: personName ?? '',
+                      familyName: familyName,
+                      functionTitle: title,
+                      date: date,
+                      venue: venue,
+                    ).toJson(),
+                  );
+                  if (mounted) {
+                    setState(
+                      () => _upcoming.insert(0, UpcomingFunction.fromJson(row)),
+                    );
+                  }
+                } else if (tabIdx == 1) {
                   // ATTENDED tab
                   final row = await svc.addAttended(
                     AttendedFunction(
@@ -584,25 +676,6 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   if (mounted)
                     setState(
                       () => _attended.insert(0, AttendedFunction.fromJson(row)),
-                    );
-                } else if (tabIdx == 1) {
-                  // UPCOMING tab
-                  final row = await svc.addUpcoming(
-                    UpcomingFunction(
-                      id: '',
-                      walletId: widget.walletId,
-                      memberId: 'me',
-                      type: type,
-                      personName: personName ?? '',
-                      familyName: familyName,
-                      functionTitle: title,
-                      date: date,
-                      venue: venue,
-                    ).toJson(),
-                  );
-                  if (mounted)
-                    setState(
-                      () => _upcoming.insert(0, UpcomingFunction.fromJson(row)),
                     );
                 } else if (tabIdx == 2) {
                   // OUR FUNCTIONS tab
