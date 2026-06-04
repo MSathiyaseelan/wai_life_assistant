@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
+import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import '../../widgets/life_widgets.dart';
 
 const _locatorColor = Color(0xFF6C63FF);
@@ -18,11 +19,39 @@ class ItemLocatorScreen extends StatefulWidget {
 }
 
 class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
-  final List<StorageContainer> _containers = List.from(mockContainers);
-  final List<StoredItem> _items = List.from(mockStoredItems);
+  final List<StorageContainer> _containers = [];
+  final List<StoredItem> _items = [];
   final _searchCtrl = TextEditingController();
   bool _isSearching = false;
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final svc = ItemLocatorService.instance;
+      final results = await Future.wait([
+        svc.fetchContainers(widget.walletId),
+        svc.fetchItems(widget.walletId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _containers
+          ..clear()
+          ..addAll(results[0].map(StorageContainer.fromJson));
+        _items
+          ..clear()
+          ..addAll(results[1].map(StoredItem.fromJson));
+      });
+    } catch (e) {
+      debugPrint('[ItemLocator] load error: $e');
+    }
+  }
+
 
   // filter by walletId
   List<StorageContainer> get _myContainers =>
@@ -216,15 +245,31 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
           container: c,
           items: itemsIn(c.id),
           isDark: isDark,
-          onAddItem: () => _showAddItem(ctx, isDark, surfBg, preselected: c),
-          onDeleteItem: (item) => setState(() => _items.remove(item)),
+          onAddItem: (onAdded) => _showAddItem(ctx, isDark, surfBg, preselected: c, onSaved: (item) {
+            setState(() => _items.insert(0, item));
+            onAdded(item);
+          }),
+          onDeleteItem: (item) {
+            setState(() => _items.remove(item));
+            ItemLocatorService.instance.deleteItem(item.id).catchError(
+              (e) => debugPrint('[ItemLocator] deleteItem error: $e'),
+            );
+          },
           onEditItem: (item) => _showEditItem(ctx, item, isDark, surfBg),
           onDeleteContainer: () {
+            final cid = c.id;
             setState(() {
-              _items.removeWhere((i) => i.containerId == c.id);
+              _items.removeWhere((i) => i.containerId == cid);
               _containers.remove(c);
             });
             Navigator.pop(ctx);
+            () async {
+              try {
+                await ItemLocatorService.instance.deleteContainer(cid);
+              } catch (e) {
+                debugPrint('[ItemLocator] deleteContainer error: $e');
+              }
+            }();
           },
           onEditContainer: () => _showEditContainer(ctx, c, isDark, surfBg),
         ),
@@ -551,26 +596,24 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                 color: selType.color,
                 onTap: () {
                   if (nameCtrl.text.trim().isEmpty) return;
-                  setState(
-                    () => _containers.add(
-                      StorageContainer(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        walletId: widget.walletId,
-                        type: selType,
-                        name: nameCtrl.text.trim(),
-                        location: locationCtrl.text.trim().isEmpty
-                            ? null
-                            : locationCtrl.text.trim(),
-                        color: colorCtrl.text.trim().isEmpty
-                            ? null
-                            : colorCtrl.text.trim(),
-                        notes: notesCtrl.text.trim().isEmpty
-                            ? null
-                            : notesCtrl.text.trim(),
-                      ),
-                    ),
-                  );
                   Navigator.pop(ctx);
+                  final data = StorageContainer(
+                    id: '',
+                    walletId: widget.walletId,
+                    type: selType,
+                    name: nameCtrl.text.trim(),
+                    location: locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim(),
+                    color: colorCtrl.text.trim().isEmpty ? null : colorCtrl.text.trim(),
+                    notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                  );
+                  () async {
+                    try {
+                      final row = await ItemLocatorService.instance.addContainer(data.toJson());
+                      if (mounted) setState(() => _containers.add(StorageContainer.fromJson(row)));
+                    } catch (e) {
+                      debugPrint('[ItemLocator] addContainer error: $e');
+                    }
+                  }();
                 },
               ),
             ],
@@ -702,17 +745,18 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                   setState(() {
                     c.type = selType;
                     c.name = nameCtrl.text.trim();
-                    c.location = locationCtrl.text.trim().isEmpty
-                        ? null
-                        : locationCtrl.text.trim();
-                    c.color = colorCtrl.text.trim().isEmpty
-                        ? null
-                        : colorCtrl.text.trim();
-                    c.notes = notesCtrl.text.trim().isEmpty
-                        ? null
-                        : notesCtrl.text.trim();
+                    c.location = locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim();
+                    c.color = colorCtrl.text.trim().isEmpty ? null : colorCtrl.text.trim();
+                    c.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
                   });
                   Navigator.pop(ctx);
+                  () async {
+                    try {
+                      await ItemLocatorService.instance.updateContainer(c.id, c.toJson());
+                    } catch (e) {
+                      debugPrint('[ItemLocator] updateContainer error: $e');
+                    }
+                  }();
                 },
               ),
             ],
@@ -728,8 +772,9 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     bool isDark,
     Color surfBg, {
     StorageContainer? preselected,
+    void Function(StoredItem)? onSaved,
   }) {
-    _showItemForm(ctx, isDark, surfBg, null, preselected: preselected);
+    _showItemForm(ctx, isDark, surfBg, null, preselected: preselected, onSaved: onSaved);
   }
 
   void _showEditItem(
@@ -747,6 +792,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     Color surfBg,
     StoredItem? editing, {
     StorageContainer? preselected,
+    void Function(StoredItem)? onSaved,
   }) {
     final nameCtrl = TextEditingController(text: editing?.name ?? '');
     final descCtrl = TextEditingController(text: editing?.description ?? '');
@@ -807,7 +853,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
               // Container picker
               const LifeLabel(text: 'STORE IN (CONTAINER)'),
               SizedBox(
-                height: 52,
+                height: 72,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: _myContainers
@@ -1085,50 +1131,56 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                 color: _locatorColor,
                 onTap: () {
                   if (nameCtrl.text.trim().isEmpty || selCid.isEmpty) return;
-                  setState(() {
-                    if (editing != null) {
+                  Navigator.pop(ctx);
+                  if (editing != null) {
+                    setState(() {
                       editing.name = nameCtrl.text.trim();
-                      editing.description = descCtrl.text.trim().isEmpty
-                          ? null
-                          : descCtrl.text.trim();
-                      editing.notes = notesCtrl.text.trim().isEmpty
-                          ? null
-                          : notesCtrl.text.trim();
-                      editing.category = catCtrl.text.isEmpty
-                          ? null
-                          : catCtrl.text;
-                      editing.emoji = emojiCtrl.text.trim().isEmpty
-                          ? null
-                          : emojiCtrl.text.trim();
+                      editing.description = descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim();
+                      editing.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                      editing.category = catCtrl.text.isEmpty ? null : catCtrl.text;
+                      editing.emoji = emojiCtrl.text.trim().isEmpty ? null : emojiCtrl.text.trim();
                       editing.containerId = selCid;
                       editing.storedBy = selMember;
                       editing.isFragile = isFragile;
                       editing.isImportant = isImportant;
-                    } else {
-                      _items.add(
-                        StoredItem(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          walletId: widget.walletId,
-                          containerId: selCid,
-                          name: nameCtrl.text.trim(),
-                          description: descCtrl.text.trim().isEmpty
-                              ? null
-                              : descCtrl.text.trim(),
-                          notes: notesCtrl.text.trim().isEmpty
-                              ? null
-                              : notesCtrl.text.trim(),
-                          category: catCtrl.text.isEmpty ? null : catCtrl.text,
-                          emoji: emojiCtrl.text.trim().isEmpty
-                              ? null
-                              : emojiCtrl.text.trim(),
-                          storedBy: selMember,
-                          isFragile: isFragile,
-                          isImportant: isImportant,
-                        ),
-                      );
-                    }
-                  });
-                  Navigator.pop(ctx);
+                    });
+                    () async {
+                      try {
+                        await ItemLocatorService.instance.updateItem(editing.id, editing.toJson());
+                      } catch (e) {
+                        debugPrint('[ItemLocator] updateItem error: $e');
+                      }
+                    }();
+                  } else {
+                    final data = StoredItem(
+                      id: '',
+                      walletId: widget.walletId,
+                      containerId: selCid,
+                      name: nameCtrl.text.trim(),
+                      description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                      notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                      category: catCtrl.text.isEmpty ? null : catCtrl.text,
+                      emoji: emojiCtrl.text.trim().isEmpty ? null : emojiCtrl.text.trim(),
+                      storedBy: selMember,
+                      isFragile: isFragile,
+                      isImportant: isImportant,
+                    );
+                    () async {
+                      try {
+                        final row = await ItemLocatorService.instance.addItem(data.toJson());
+                        if (mounted) {
+                          final item = StoredItem.fromJson(row);
+                          if (onSaved != null) {
+                            onSaved(item);
+                          } else {
+                            setState(() => _items.insert(0, item));
+                          }
+                        }
+                      } catch (e) {
+                        debugPrint('[ItemLocator] addItem error: $e');
+                      }
+                    }();
+                  }
                 },
               ),
             ],
@@ -1806,7 +1858,8 @@ class _ContainerDetailScreen extends StatefulWidget {
   final StorageContainer container;
   final List<StoredItem> items;
   final bool isDark;
-  final VoidCallback onAddItem, onDeleteContainer, onEditContainer;
+  final void Function(void Function(StoredItem) onAdded) onAddItem;
+  final VoidCallback onDeleteContainer, onEditContainer;
   final void Function(StoredItem) onDeleteItem, onEditItem;
 
   const _ContainerDetailScreen({
@@ -1826,6 +1879,13 @@ class _ContainerDetailScreen extends StatefulWidget {
 
 class _ContainerDetailState extends State<_ContainerDetailScreen> {
   String _filter = 'All';
+  late List<StoredItem> _localItems;
+
+  @override
+  void initState() {
+    super.initState();
+    _localItems = List.from(widget.items);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1840,13 +1900,13 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
     // unique categories in this container
     final cats = [
       'All',
-      ...widget.items.map((i) => i.category ?? 'Other').toSet().toList()
+      ..._localItems.map((i) => i.category ?? 'Other').toSet().toList()
         ..sort(),
     ];
 
     final filtered = _filter == 'All'
-        ? widget.items
-        : widget.items
+        ? _localItems
+        : _localItems
               .where((i) => (i.category ?? 'Other') == _filter)
               .toList();
 
@@ -1894,7 +1954,9 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'detail_fab',
-        onPressed: widget.onAddItem,
+        onPressed: () => widget.onAddItem((item) {
+          if (mounted) setState(() => _localItems.insert(0, item));
+        }),
         backgroundColor: c.type.color,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text(
@@ -1963,7 +2025,7 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
                       Column(
                         children: [
                           Text(
-                            '${widget.items.length}',
+                            '${_localItems.length}',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 26,
@@ -2090,7 +2152,7 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
                           ),
                         ),
                         onDismissed: (_) {
-                          setState(() {});
+                          setState(() => _localItems.remove(item));
                           widget.onDeleteItem(item);
                         },
                         child: GestureDetector(
@@ -2239,7 +2301,7 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
           style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
         ),
         content: Text(
-          'This will also remove all ${widget.items.length} item(s) stored in '
+          'This will also remove all ${_localItems.length} item(s) stored in '
           '"${widget.container.name}". This cannot be undone.',
           style: const TextStyle(fontFamily: 'Nunito'),
         ),

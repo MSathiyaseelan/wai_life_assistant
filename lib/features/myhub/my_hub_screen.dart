@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/my_functions/my_functions_screen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/item_locator/itemLocatorScreen.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 class MyHubScreen extends StatefulWidget {
@@ -201,172 +202,241 @@ class _MyHubScreenState extends State<MyHubScreen> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               sliver: SliverToBoxAdapter(
-                child: GestureDetector(
-                  onTap: () => _openFunctions(context),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: moduleColor.withValues(alpha: 0.18)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: moduleColor.withValues(alpha: isDark ? 0.07 : 0.09),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
+                child: Column(
+                  children: [
+                    _buildModuleCard(
+                      context: context,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      textColor: textColor,
+                      color: moduleColor,
+                      emoji: '🎊',
+                      title: 'Functions',
+                      subtitle: 'Celebrations & gifting',
+                      count: count,
+                      summary: summary,
+                      emptyLabel: 'No functions yet',
+                      onTap: () => _openFunctions(context),
+                      onAdd: () => _openFunctions(context, openAdd: true),
                     ),
-                    child: IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Container(
-                            width: 4,
-                            decoration: const BoxDecoration(
-                              color: moduleColor,
-                              borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: moduleColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text('🎊', style: TextStyle(fontSize: 22)),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Functions',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                            fontFamily: 'Nunito',
-                                            color: textColor,
-                                          ),
-                                        ),
-                                      ),
-                                      if (count > 0)
-                                        Container(
-                                          margin: const EdgeInsets.only(right: 8),
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: moduleColor.withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            '$count',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              fontFamily: 'Nunito',
-                                              color: moduleColor,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Celebrations & gifting',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontFamily: 'Nunito',
-                                      color: isDark ? AppColors.subDark : AppColors.subLight,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Divider(height: 1, color: moduleColor.withValues(alpha: 0.15)),
-                                  const SizedBox(height: 6),
-                                  if (summary.isNotEmpty)
-                                    ...summary.map(
-                                      (s) => Padding(
-                                        padding: const EdgeInsets.only(bottom: 4),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              width: 5,
-                                              height: 5,
-                                              margin: const EdgeInsets.only(right: 7, top: 1),
-                                              decoration: BoxDecoration(
-                                                color: moduleColor.withValues(alpha: 0.55),
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                            Expanded(
-                                              child: Text(
-                                                s,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontFamily: 'Nunito',
-                                                  color: textColor,
-                                                  height: 1.3,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    )
-                                  else
-                                    Text(
-                                      'No functions yet',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontFamily: 'Nunito',
-                                        color: isDark ? AppColors.subDark : AppColors.subLight,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: GestureDetector(
-                                onTap: () => _openFunctions(context, openAdd: true),
-                                child: Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: moduleColor.withValues(alpha: 0.13),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: const Icon(Icons.add_rounded, color: moduleColor, size: 20),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(height: 12),
+                    _buildModuleCard(
+                      context: context,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      textColor: textColor,
+                      color: const Color(0xFF00897B),
+                      emoji: '📍',
+                      title: 'Item Locator',
+                      subtitle: 'Find anything, anywhere at home',
+                      count: 0,
+                      summary: const [],
+                      emptyLabel: 'No items stored yet',
+                      onTap: () => _openItemLocator(context),
+                      onAdd: () => _openItemLocator(context),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildModuleCard({
+    required BuildContext context,
+    required bool isDark,
+    required Color cardBg,
+    required Color textColor,
+    required Color color,
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required int count,
+    required List<String> summary,
+    required String emptyLabel,
+    required VoidCallback onTap,
+    required VoidCallback onAdd,
+  }) {
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: isDark ? 0.07 : 0.09),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: textColor,
+                              ),
+                            ),
+                          ),
+                          if (count > 0)
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '$count',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: color,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      const SizedBox(height: 8),
+                      Divider(height: 1, color: color.withValues(alpha: 0.15)),
+                      const SizedBox(height: 6),
+                      if (summary.isNotEmpty)
+                        ...summary.map(
+                          (s) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 5,
+                                  height: 5,
+                                  margin: const EdgeInsets.only(right: 7, top: 1),
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.55),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    s,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: textColor,
+                                      height: 1.3,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        Text(
+                          emptyLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: GestureDetector(
+                    onTap: onAdd,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.13),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.add_rounded, color: color, size: 20),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openItemLocator(BuildContext context) {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (ctx, anim, secondaryAnim) => ItemLocatorScreen(
+          walletId: _currentWallet.id,
+        ),
+        transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.05),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
       ),
     );
   }

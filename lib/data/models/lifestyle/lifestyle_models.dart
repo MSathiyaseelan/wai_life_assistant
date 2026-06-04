@@ -1434,6 +1434,31 @@ class StorageContainer {
     this.color,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'type': type.name,
+    'name': name,
+    if (location != null) 'location': location,
+    if (notes != null) 'notes': notes,
+    if (color != null) 'color': color,
+  };
+
+  factory StorageContainer.fromJson(Map<String, dynamic> json) => StorageContainer(
+    id: json['id'] as String,
+    walletId: json['wallet_id'] as String,
+    type: StorageType.values.firstWhere(
+      (t) => t.name == json['type'],
+      orElse: () => StorageType.other,
+    ),
+    name: json['name'] as String,
+    location: json['location'] as String?,
+    notes: json['notes'] as String?,
+    color: json['color'] as String?,
+    createdAt: json['created_at'] != null
+        ? DateTime.parse(json['created_at'] as String)
+        : DateTime.now(),
+  );
 }
 
 // An item stored inside a container
@@ -1465,6 +1490,37 @@ class StoredItem {
     this.isFragile = false,
     this.isImportant = false,
   }) : storedOn = storedOn ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'container_id': containerId,
+    'name': name,
+    if (description != null) 'description': description,
+    if (category != null) 'category': category,
+    if (emoji != null) 'emoji': emoji,
+    'stored_on': storedOn.toIso8601String().split('T')[0],
+    if (storedBy != null) 'stored_by': storedBy,
+    if (notes != null) 'notes': notes,
+    'is_fragile': isFragile,
+    'is_important': isImportant,
+  };
+
+  factory StoredItem.fromJson(Map<String, dynamic> json) => StoredItem(
+    id: json['id'] as String,
+    walletId: json['wallet_id'] as String,
+    containerId: json['container_id'] as String,
+    name: json['name'] as String,
+    description: json['description'] as String?,
+    category: json['category'] as String?,
+    emoji: json['emoji'] as String?,
+    storedOn: json['stored_on'] != null
+        ? DateTime.parse(json['stored_on'] as String)
+        : DateTime.now(),
+    storedBy: json['stored_by'] as String?,
+    notes: json['notes'] as String?,
+    isFragile: json['is_fragile'] as bool? ?? false,
+    isImportant: json['is_important'] as bool? ?? false,
+  );
 }
 
 // Mock data
