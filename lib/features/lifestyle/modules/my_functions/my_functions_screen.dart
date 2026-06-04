@@ -73,6 +73,19 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   List<UpcomingFunction> get _myUpcoming => _upcoming;
 
   DateTime get _today => DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+  AttendedFunction _upcomingToAttended(UpcomingFunction u) => AttendedFunction(
+        id: u.id,
+        walletId: u.walletId,
+        functionName: u.functionTitle,
+        type: u.type,
+        personName: u.personName.isNotEmpty ? u.personName : null,
+        familyName: u.familyName,
+        date: u.date,
+        venue: u.venue,
+        notes: u.notes,
+        gifts: u.plannedGifts,
+      );
   // Upcoming items still in the future (or with no date set)
   List<UpcomingFunction> get _activeUpcoming =>
       _myUpcoming.where((u) => u.date == null || !u.date!.isBefore(_today)).toList();
@@ -462,73 +475,27 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                               : ListView(
                                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                                   children: [
-                                    // Past upcoming section — dates have passed
-                                    if (past.isNotEmpty) ...[
+                                    for (final item in past)
                                       Padding(
-                                        padding: const EdgeInsets.only(bottom: 8, top: 4),
-                                        child: Row(
-                                          children: [
-                                            const Text('📅', style: TextStyle(fontSize: 13)),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              'Date Passed',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w800,
-                                                fontFamily: 'Nunito',
-                                                color: isDark ? AppColors.subDark : AppColors.subLight,
-                                              ),
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: SwipeTile(
+                                          onDelete: () {
+                                            HapticFeedback.mediumImpact();
+                                            setState(() => _upcoming.remove(item));
+                                            FunctionsService.instance.deleteUpcoming(item.id);
+                                          },
+                                          child: _AttendedCard(
+                                            item: _upcomingToAttended(item),
+                                            isDark: isDark,
+                                            onTap: () => _showConvertToAttended(
+                                              context,
+                                              isDark,
+                                              surfBg,
+                                              item,
                                             ),
-                                          ],
+                                          ),
                                         ),
                                       ),
-                                      for (final item in past)
-                                        Padding(
-                                          padding: const EdgeInsets.only(bottom: 12),
-                                          child: SwipeTile(
-                                            onDelete: () {
-                                              HapticFeedback.mediumImpact();
-                                              setState(() => _upcoming.remove(item));
-                                              FunctionsService.instance.deleteUpcoming(item.id);
-                                            },
-                                            child: _UpcomingCard(
-                                              item: item,
-                                              isDark: isDark,
-                                              onTap: () => Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => _UpcomingDetail(
-                                                    item: item,
-                                                    isDark: isDark,
-                                                    members: widget.members,
-                                                    onUpdate: () => setState(() {}),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      if (filtered.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(bottom: 8, top: 4),
-                                          child: Row(
-                                            children: [
-                                              const Text('✅', style: TextStyle(fontSize: 13)),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'Attended',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w800,
-                                                  fontFamily: 'Nunito',
-                                                  color: isDark ? AppColors.subDark : AppColors.subLight,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                    ],
-                                    // Regular attended records
                                     for (int i = 0; i < filtered.length; i++)
                                       Padding(
                                         padding: const EdgeInsets.only(bottom: 12),
@@ -560,56 +527,22 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 ),
 
                 // OUR FUNCTIONS tab (index 2)
-                _myFuncs.isEmpty
-                    ? const PlanEmptyState(
-                        emoji: '🎊',
-                        title: 'No functions yet',
-                        subtitle: 'Record your family celebrations',
-                      )
-                    : _GroupedFunctionsList(
-                        functions: _myFuncs,
-                        isDark: isDark,
-                        familyWalletNames: widget.familyWalletNames,
-                        onDelete: (fn) {
-                          HapticFeedback.mediumImpact();
-                          setState(() => _functions.remove(fn));
-                          FunctionsService.instance.deleteMyFunction(fn.id);
-                        },
-                        onTap: (fn) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => fn.isPlanned
-                                  ? _PlannedFunctionDetail(
-                                      fn: fn,
-                                      isDark: isDark,
-                                      currentWalletId: widget.walletId,
-                                      personalWalletId: widget.personalWalletId,
-                                      allFamilyWalletNames: widget.allFamilyWalletNames,
-                                      onUpdate: () => setState(() {
-                                        _functions.removeWhere(
-                                          (f) => f.walletId != widget.walletId,
-                                        );
-                                      }),
-                                      familyWalletNames: widget.familyWalletNames,
-                                    )
-                                  : _FunctionDetail(
-                                      fn: fn,
-                                      isDark: isDark,
-                                      currentWalletId: widget.walletId,
-                                      personalWalletId: widget.personalWalletId,
-                                      allFamilyWalletNames: widget.allFamilyWalletNames,
-                                      onUpdate: () => setState(() {
-                                        _functions.removeWhere(
-                                          (f) => f.walletId != widget.walletId,
-                                        );
-                                      }),
-                                      familyWalletNames: widget.familyWalletNames,
-                                    ),
-                            ),
-                          );
-                        },
-                      ),
+                _OurFunctionsView(
+                  functions: _myFuncs,
+                  isDark: isDark,
+                  familyWalletNames: widget.familyWalletNames,
+                  allFamilyWalletNames: widget.allFamilyWalletNames,
+                  currentWalletId: widget.walletId,
+                  personalWalletId: widget.personalWalletId,
+                  onDelete: (fn) {
+                    HapticFeedback.mediumImpact();
+                    setState(() => _functions.remove(fn));
+                    FunctionsService.instance.deleteMyFunction(fn.id);
+                  },
+                  onUpdate: () => setState(() {
+                    _functions.removeWhere((f) => f.walletId != widget.walletId);
+                  }),
+                ),
               ],
             ),
     );
@@ -1042,9 +975,502 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       ),
     );
   }
+
+  void _showConvertToAttended(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    UpcomingFunction source,
+  ) {
+    final item = _upcomingToAttended(source);
+    final nameCtrl = TextEditingController(text: item.functionName);
+    final personCtrl = TextEditingController(text: item.personName ?? '');
+    final familyNameCtrl = TextEditingController(text: item.familyName ?? '');
+    final venueCtrl = TextEditingController(text: item.venue ?? '');
+    var type = item.type;
+    DateTime? date = item.date;
+    String? newCategory;
+    final notesCtrl = TextEditingController();
+
+    showPlanSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (sheetCtx, ss) {
+          final sub = isDark ? AppColors.subDark : AppColors.subLight;
+          final tc = isDark ? AppColors.textDark : AppColors.textLight;
+          final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 8,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Edit Attended Function',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+                const SheetLabel(text: 'FUNCTION TYPE'),
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: FunctionType.values
+                        .map(
+                          (t) => GestureDetector(
+                            onTap: () => ss(() => type = t),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: type == t
+                                    ? _funcColor.withValues(alpha: 0.15)
+                                    : surfBg,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: type == t
+                                      ? _funcColor
+                                      : Colors.transparent,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    t.label,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Nunito',
+                                      color: type == t ? _funcColor : sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                PlanInputField(controller: personCtrl, hint: 'Person name (e.g. Priya)'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: familyNameCtrl, hint: 'Family name (e.g. Sharma family)'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: nameCtrl, hint: 'Function name *'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: venueCtrl, hint: 'Venue / Location'),
+                const SizedBox(height: 8),
+                LifeDateTile(
+                  date: date,
+                  hint: 'Function date',
+                  color: _funcColor,
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: date ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (d != null) ss(() => date = d);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (item.gifts.isNotEmpty) ...[
+                  Text(
+                    'Given',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                      color: sub,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...item.gifts.asMap().entries.map((e) {
+                    final cat = _upcomingGiftCategories.firstWhere(
+                      (c) => c.$2 == e.value.category,
+                      orElse: () => ('🎁', e.value.category),
+                    );
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: cardBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(cat.$1, style: const TextStyle(fontSize: 20)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  e.value.category,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: tc,
+                                  ),
+                                ),
+                                if (e.value.notes != null)
+                                  Text(
+                                    e.value.notes!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => ss(() {
+                              item.gifts.removeAt(e.key);
+                              setState(() {});
+                            }),
+                            child: Icon(Icons.close_rounded, size: 16, color: sub),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                ],
+                Text(
+                  'Add Gift Given',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: sub,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _upcomingGiftCategories.map((c) {
+                    final sel = newCategory == c.$2;
+                    return GestureDetector(
+                      onTap: () => ss(() => newCategory = sel ? null : c.$2),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel ? _funcColor.withValues(alpha: 0.12) : surfBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: sel ? _funcColor : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(c.$1, style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 6),
+                            Text(
+                              c.$2,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: sel ? _funcColor : sub,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                PlanInputField(controller: notesCtrl, hint: 'Amount or notes (optional)'),
+                GestureDetector(
+                  onTap: () {
+                    if (newCategory == null) return;
+                    ss(() {
+                      item.gifts.add(
+                        PlannedGiftItem(
+                          category: newCategory!,
+                          notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                        ),
+                      );
+                      newCategory = null;
+                      notesCtrl.clear();
+                      setState(() {});
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: newCategory != null ? _funcColor.withValues(alpha: 0.1) : surfBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: newCategory != null ? _funcColor : Colors.transparent,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '+ Add',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: newCategory != null ? _funcColor : sub,
+                      ),
+                    ),
+                  ),
+                ),
+                SaveButton(
+                  label: 'Save Changes',
+                  color: _funcColor,
+                  onTap: () async {
+                    if (nameCtrl.text.trim().isEmpty) return;
+                    item
+                      ..functionName = nameCtrl.text.trim()
+                      ..personName = personCtrl.text.trim().isEmpty ? null : personCtrl.text.trim()
+                      ..familyName = familyNameCtrl.text.trim().isEmpty ? null : familyNameCtrl.text.trim()
+                      ..type = type
+                      ..date = date
+                      ..venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
+                    try {
+                      final row = await FunctionsService.instance.addAttended(item.toJson());
+                      await FunctionsService.instance.deleteUpcoming(source.id);
+                      if (mounted) {
+                        setState(() {
+                          _upcoming.remove(source);
+                          _attended.insert(0, AttendedFunction.fromJson(row));
+                        });
+                      }
+                    } catch (e) {
+                      debugPrint('[Functions] convert error: $e');
+                    }
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 // ── Grouped functions list ────────────────────────────────────────────────────
+// ── Our Functions sub-tabbed view (Planned / Completed) ──────────────────────
+
+class _OurFunctionsView extends StatefulWidget {
+  final List<FunctionModel> functions;
+  final bool isDark;
+  final Map<String, String> familyWalletNames;
+  final Map<String, String> allFamilyWalletNames;
+  final String currentWalletId;
+  final String personalWalletId;
+  final void Function(FunctionModel) onDelete;
+  final VoidCallback onUpdate;
+
+  const _OurFunctionsView({
+    required this.functions,
+    required this.isDark,
+    required this.familyWalletNames,
+    required this.allFamilyWalletNames,
+    required this.currentWalletId,
+    required this.personalWalletId,
+    required this.onDelete,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_OurFunctionsView> createState() => _OurFunctionsViewState();
+}
+
+class _OurFunctionsViewState extends State<_OurFunctionsView>
+    with SingleTickerProviderStateMixin {
+  late TabController _tab;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    _tab.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
+  DateTime get _today =>
+      DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+
+  List<FunctionModel> get _planned =>
+      widget.functions.where((f) => f.isPlanned).toList();
+
+  List<FunctionModel> get _completedExplicit =>
+      widget.functions.where((f) => !f.isPlanned).toList();
+
+  List<FunctionModel> get _pastPlanned => _planned
+      .where((f) => f.functionDate != null && f.functionDate!.isBefore(_today))
+      .toList();
+
+  /// Completed tab = explicitly-completed + past-planned (no duplicates)
+  List<FunctionModel> get _completedTab {
+    final result = [..._completedExplicit];
+    for (final f in _pastPlanned) {
+      if (!result.any((c) => c.id == f.id)) result.add(f);
+    }
+    return result;
+  }
+
+  void _navigate(FunctionModel fn, {bool forceCompleted = false}) {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (ctx, anim, secondaryAnim) =>
+            (fn.isPlanned && !forceCompleted)
+                ? _PlannedFunctionDetail(
+                    fn: fn,
+                    isDark: widget.isDark,
+                    currentWalletId: widget.currentWalletId,
+                    personalWalletId: widget.personalWalletId,
+                    allFamilyWalletNames: widget.allFamilyWalletNames,
+                    onUpdate: widget.onUpdate,
+                    familyWalletNames: widget.familyWalletNames,
+                  )
+                : _FunctionDetail(
+                    fn: fn,
+                    isDark: widget.isDark,
+                    currentWalletId: widget.currentWalletId,
+                    personalWalletId: widget.personalWalletId,
+                    allFamilyWalletNames: widget.allFamilyWalletNames,
+                    onUpdate: widget.onUpdate,
+                    familyWalletNames: widget.familyWalletNames,
+                    showPlanningTabs: fn.isPlanned,
+                  ),
+        transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.05),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 280),
+      ),
+    );
+  }
+
+  Widget _buildList(List<FunctionModel> fns, {bool asCompleted = false}) {
+    if (fns.isEmpty) {
+      return PlanEmptyState(
+        emoji: asCompleted ? '✅' : '📋',
+        title: asCompleted ? 'No completed functions' : 'No planned functions',
+        subtitle: asCompleted
+            ? 'Completed functions appear here'
+            : 'Plan a function to get started',
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      itemCount: fns.length,
+      itemBuilder: (_, i) {
+        final fn = fns[i];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: SwipeTile(
+            onDelete: () => widget.onDelete(fn),
+            child: _FunctionCard(
+              fn: fn,
+              isDark: widget.isDark,
+              familyLabel: widget.familyWalletNames[fn.walletId],
+              onTap: () => _navigate(fn, forceCompleted: asCompleted),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Container(
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: TabBar(
+              controller: _tab,
+              indicator: BoxDecoration(
+                color: _funcColor,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: Colors.white,
+              unselectedLabelColor: sub,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                fontFamily: 'Nunito',
+              ),
+              tabs: [
+                Tab(text: 'Planned (${_planned.length})'),
+                Tab(text: 'Completed (${_completedTab.length})'),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tab,
+            children: [
+              _buildList(_planned),
+              _buildList(_completedTab, asCompleted: true),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Grouped functions list (legacy — kept for reference) ──────────────────────
 class _GroupedFunctionsList extends StatelessWidget {
   final List<FunctionModel> functions;
   final bool isDark;
@@ -3141,6 +3567,9 @@ class _FunctionDetail extends StatefulWidget {
   final Map<String, String> allFamilyWalletNames;
   final String personalWalletId;
   final String currentWalletId;
+  /// When true, loads and shows planning tabs (Participants, Clothing Gifts,
+  /// Bridal Essentials, Return Gift) between Gifts and Vendors.
+  final bool showPlanningTabs;
   const _FunctionDetail({
     required this.fn,
     required this.isDark,
@@ -3149,6 +3578,7 @@ class _FunctionDetail extends StatefulWidget {
     this.allFamilyWalletNames = const {},
     this.personalWalletId = '',
     this.currentWalletId = '',
+    this.showPlanningTabs = false,
   });
   @override
   State<_FunctionDetail> createState() => _FunctionDetailState();
@@ -3157,10 +3587,45 @@ class _FunctionDetail extends StatefulWidget {
 class _FunctionDetailState extends State<_FunctionDetail>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
+
+  // Planning data — only loaded when showPlanningTabs == true
+  final List<FunctionParticipant> _participants = [];
+  final List<ClothingFamily> _clothingFamilies = [];
+  final List<BridalEssential> _bridals = [];
+  final List<FunctionReturnGift> _returnGifts = [];
+  bool _planningLoading = false;
+
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 6, vsync: this);
+    final tabCount = widget.showPlanningTabs ? 10 : 6;
+    _tab = TabController(length: tabCount, vsync: this);
+    if (widget.showPlanningTabs) _loadPlanningData();
+  }
+
+  Future<void> _loadPlanningData() async {
+    setState(() => _planningLoading = true);
+    final svc = FunctionsService.instance;
+    final id = widget.fn.id;
+    try {
+      final results = await Future.wait([
+        svc.fetchParticipants(id),
+        svc.fetchClothingFamilies(id),
+        svc.fetchBridalEssentials(id),
+        svc.fetchReturnGifts(id),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _participants..clear()..addAll(results[0].map(FunctionParticipant.fromJson));
+        _clothingFamilies..clear()..addAll(results[1].map(ClothingFamily.fromJson));
+        _bridals..clear()..addAll(results[2].map(BridalEssential.fromJson));
+        _returnGifts..clear()..addAll(results[3].map(FunctionReturnGift.fromJson));
+        _planningLoading = false;
+      });
+    } catch (e) {
+      debugPrint('[FunctionDetail] planning load error: $e');
+      if (mounted) setState(() => _planningLoading = false);
+    }
   }
 
   @override
@@ -3213,13 +3678,19 @@ class _FunctionDetailState extends State<_FunctionDetail>
           indicatorColor: _funcColor,
           labelColor: _funcColor,
           unselectedLabelColor: sub,
-          tabs: const [
-            Tab(text: 'Info'),
-            Tab(text: 'Cash'),
-            Tab(text: 'Gold / Silver'),
-            Tab(text: 'Gifts'),
-            Tab(text: 'Vendors'),
-            Tab(text: 'Messages'),
+          tabs: [
+            const Tab(text: 'Info'),
+            const Tab(text: 'Cash'),
+            const Tab(text: 'Gold / Silver'),
+            const Tab(text: 'Gifts'),
+            if (widget.showPlanningTabs) ...[
+              Tab(text: 'Participants (${_participants.length})'),
+              const Tab(text: 'Clothing Gifts'),
+              const Tab(text: 'Bridal Essentials'),
+              Tab(text: 'Return Gift (${_returnGifts.length})'),
+            ],
+            const Tab(text: 'Vendors'),
+            const Tab(text: 'Messages'),
           ],
         ),
       ),
@@ -3383,6 +3854,46 @@ class _FunctionDetailState extends State<_FunctionDetail>
               types: _giftItemTypes,
             ),
           ),
+
+          // PLANNING TABS (only when showPlanningTabs == true)
+          if (widget.showPlanningTabs) ...[
+            _planningLoading
+                ? const Center(child: CircularProgressIndicator(color: _funcColor))
+                : _ParticipantsTab(
+                    functionId: fn.id,
+                    participants: _participants,
+                    isDark: isDark,
+                    surfBg: surfBg,
+                    onChanged: () => setState(() {}),
+                  ),
+            _planningLoading
+                ? const Center(child: CircularProgressIndicator(color: _funcColor))
+                : _ClothingGiftsTab(
+                    functionId: fn.id,
+                    families: _clothingFamilies,
+                    isDark: isDark,
+                    surfBg: surfBg,
+                    onChanged: () => setState(() {}),
+                  ),
+            _planningLoading
+                ? const Center(child: CircularProgressIndicator(color: _funcColor))
+                : _BridalEssentialsTab(
+                    functionId: fn.id,
+                    essentials: _bridals,
+                    isDark: isDark,
+                    surfBg: surfBg,
+                    onChanged: () => setState(() {}),
+                  ),
+            _planningLoading
+                ? const Center(child: CircularProgressIndicator(color: _funcColor))
+                : _ReturnGiftsTab(
+                    functionId: fn.id,
+                    gifts: _returnGifts,
+                    isDark: isDark,
+                    surfBg: surfBg,
+                    onChanged: () => setState(() {}),
+                  ),
+          ],
 
           // VENDORS
           _AllVendorsTab(
@@ -5585,16 +6096,61 @@ class _UpcomingDetail extends StatefulWidget {
 class _UpcomingDetailState extends State<_UpcomingDetail>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
+
+  // Info tab edit state
+  late TextEditingController _titleCtrl;
+  late TextEditingController _personCtrl;
+  late TextEditingController _familyNameCtrl;
+  late TextEditingController _venueCtrl;
+  late TextEditingController _notesCtrl;
+  late FunctionType _type;
+  DateTime? _date;
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 4, vsync: this);
+    final item = widget.item;
+    _titleCtrl = TextEditingController(text: item.functionTitle);
+    _personCtrl = TextEditingController(text: item.personName);
+    _familyNameCtrl = TextEditingController(text: item.familyName ?? '');
+    _venueCtrl = TextEditingController(text: item.venue ?? '');
+    _notesCtrl = TextEditingController(text: item.notes ?? '');
+    _type = item.type;
+    _date = item.date;
   }
 
   @override
   void dispose() {
     _tab.dispose();
+    _titleCtrl.dispose();
+    _personCtrl.dispose();
+    _familyNameCtrl.dispose();
+    _venueCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveInfo() async {
+    if (_titleCtrl.text.trim().isEmpty) return;
+    setState(() => _saving = true);
+    final item = widget.item;
+    item
+      ..functionTitle = _titleCtrl.text.trim()
+      ..personName = _personCtrl.text.trim()
+      ..familyName = _familyNameCtrl.text.trim().isEmpty ? null : _familyNameCtrl.text.trim()
+      ..type = _type
+      ..date = _date
+      ..venue = _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim()
+      ..notes = _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim();
+    try {
+      await FunctionsService.instance.updateUpcoming(item.id, item.toJson());
+      widget.onUpdate();
+    } catch (e) {
+      debugPrint('[UpcomingDetail] save error: $e');
+    }
+    if (mounted) setState(() => _saving = false);
   }
 
   @override
@@ -5604,7 +6160,6 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final item = widget.item;
 
     return Scaffold(
@@ -5650,71 +6205,67 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
         children: [
           // ── INFO ──────────────────────────────────────────────────────────
           SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _funcColor.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: _funcColor.withValues(alpha: 0.18),
-                    ),
+                const SheetLabel(text: 'FUNCTION TYPE'),
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: FunctionType.values.map((t) => GestureDetector(
+                      onTap: () => setState(() => _type = t),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: _type == t ? _funcColor.withValues(alpha: 0.15) : surfBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _type == t ? _funcColor : Colors.transparent),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(t.emoji, style: const TextStyle(fontSize: 14)),
+                            const SizedBox(width: 5),
+                            Text(t.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: _type == t ? _funcColor : sub)),
+                          ],
+                        ),
+                      ),
+                    )).toList(),
                   ),
-                  child: Column(
-                    children: [
-                      _InfoDetailRow(
-                        label: 'Function Type',
-                        value: '${item.type.emoji}  ${item.type.label}',
-                        isDark: isDark,
-                        tc: tc,
-                        sub: sub,
-                      ),
-                      _InfoDetailRow(
-                        label: 'Person',
-                        value: item.personName,
-                        isDark: isDark,
-                        tc: tc,
-                        sub: sub,
-                      ),
-                      _InfoDetailRow(
-                        label: 'Function',
-                        value: item.functionTitle,
-                        isDark: isDark,
-                        tc: tc,
-                        sub: sub,
-                      ),
-                      if (item.date != null)
-                        _InfoDetailRow(
-                          label: 'Date',
-                          value: fmtDate(item.date!),
-                          isDark: isDark,
-                          tc: tc,
-                          sub: sub,
-                        ),
-                      if (item.venue != null)
-                        _InfoDetailRow(
-                          label: 'Venue',
-                          value: item.venue!,
-                          isDark: isDark,
-                          tc: tc,
-                          sub: sub,
-                          isLast: item.notes == null,
-                        ),
-                      if (item.notes != null)
-                        _InfoDetailRow(
-                          label: 'Notes',
-                          value: item.notes!,
-                          isDark: isDark,
-                          tc: tc,
-                          sub: sub,
-                          isLast: true,
-                        ),
-                    ],
-                  ),
+                ),
+                const SizedBox(height: 12),
+                PlanInputField(controller: _personCtrl, hint: 'Person name (e.g. Priya)'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: _familyNameCtrl, hint: 'Family name (e.g. Sharma family)'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: _titleCtrl, hint: 'Function title *'),
+                const SizedBox(height: 8),
+                PlanInputField(controller: _venueCtrl, hint: 'Venue / Location'),
+                const SizedBox(height: 8),
+                LifeDateTile(
+                  date: _date,
+                  hint: 'Function date',
+                  color: _funcColor,
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: _date ?? DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (d != null) setState(() => _date = d);
+                  },
+                ),
+                const SizedBox(height: 8),
+                PlanInputField(controller: _notesCtrl, hint: 'Notes (optional)', maxLines: 3),
+                const SizedBox(height: 16),
+                SaveButton(
+                  label: _saving ? 'Saving…' : 'Save Changes',
+                  color: _funcColor,
+                  onTap: () { if (!_saving) _saveInfo(); },
                 ),
               ],
             ),
@@ -8314,7 +8865,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
         debugPrint('[Functions] icon upload error: $e');
       }
     }
-    final needsPersonFields = widget.tabIdx == 1 || widget.tabIdx == 2;
+    final needsPersonFields = widget.tabIdx != 2;
     await widget.onSave(
       title,
       _type,
@@ -8469,10 +9020,10 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final sheetTitle = widget.tabIdx == 0
-        ? 'Add Function'
-        : widget.tabIdx == 1
         ? 'Add Upcoming'
-        : 'Record Attended';
+        : widget.tabIdx == 1
+        ? 'Record Attended'
+        : 'Add Function';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
@@ -8554,9 +9105,9 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    widget.tabIdx == 1
+                    widget.tabIdx == 0
                         ? 'Describe the upcoming function — e.g. "Raj\'s wedding at ABC Hall on June 20"'
-                        : widget.tabIdx == 2
+                        : widget.tabIdx == 1
                         ? 'Describe what you attended — e.g. "Priya\'s birthday at Grand Hall on 5th March"'
                         : 'Describe the function — e.g. "Son\'s wedding at ABC Mahal on June 20"',
                     style: TextStyle(
@@ -8592,7 +9143,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
                       fontFamily: 'Nunito',
                     ),
                     decoration: InputDecoration.collapsed(
-                      hintText: widget.tabIdx == 1
+                      hintText: widget.tabIdx == 0
                           ? '"Priya\'s wedding at Palace Hall on May 20"'
                           : '"Family wedding at ABC Mahal on June 15"',
                       hintStyle: TextStyle(
@@ -8835,7 +9386,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
 
         // ── MANUAL TAB ─────────────────────────────────────────────────────
         if (_mode.index == 1) ...[
-          if (widget.tabIdx == 0) ...[
+          if (widget.tabIdx == 2) ...[
             const SheetLabel(text: 'QUICK OPTIONS'),
             Row(
               children: [
@@ -8895,7 +9446,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
               ),
             ],
           ],
-          if (widget.tabIdx == 0) ...[
+          if (widget.tabIdx == 2) ...[
             const SheetLabel(text: 'GROUP ICON'),
             GestureDetector(
               onTap: () => _pickIcon(context),
@@ -8977,7 +9528,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
             ),
           ),
           const SizedBox(height: 8),
-          if (widget.tabIdx == 1 || widget.tabIdx == 2) ...[
+          if (widget.tabIdx != 2) ...[
             PlanInputField(
               controller: _personCtrl,
               hint: 'Person name (e.g. Priya)',
@@ -9134,10 +9685,10 @@ class _ParsedFunction {
 class _FunctionAIParser {
   static Future<_ParsedFunction> parse(String text, int tabIdx) async {
     final subFeature = tabIdx == 0
-        ? 'my_function'
-        : tabIdx == 1
         ? 'upcoming_function'
-        : 'attended_function';
+        : tabIdx == 1
+        ? 'attended_function'
+        : 'my_function';
     final result = await AIParser.parseText(
       feature: 'functions',
       subFeature: subFeature,
@@ -9309,7 +9860,7 @@ class _FunctionNlpParser {
     if (atMatch != null) venue = atMatch.group(1)?.trim();
 
     String? personName;
-    if (tabIdx == 1) {
+    if (tabIdx == 0) {
       final possessive = RegExp(r"^([A-Za-z]+)'s").firstMatch(text);
       if (possessive != null) personName = possessive.group(1);
     }
