@@ -60,6 +60,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   bool _loading = true;
+  bool _ourFunctionsSubTabIsPlanned = true;
   final List<FunctionModel> _functions = [];
   final List<AttendedFunction> _attended = [];
   final List<UpcomingFunction> _upcoming = [];
@@ -398,11 +399,17 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       return a.functionName.toLowerCase().contains(q) ||
                           (a.venue?.toLowerCase().contains(q) ?? false) ||
                           a.type.label.toLowerCase().contains(q) ||
-                          a.gifts.any(
-                            (g) => g.category.toLowerCase().contains(q),
-                          );
+                          (a.personName?.toLowerCase().contains(q) ?? false) ||
+                          a.gifts.any((g) => g.category.toLowerCase().contains(q));
                     }).toList();
-                    final past = _pastUpcoming;
+                    final past = q.isEmpty
+                        ? _pastUpcoming
+                        : _pastUpcoming.where((u) =>
+                            u.functionTitle.toLowerCase().contains(q) ||
+                            u.personName.toLowerCase().contains(q) ||
+                            (u.venue?.toLowerCase().contains(q) ?? false) ||
+                            u.type.label.toLowerCase().contains(q) ||
+                            u.plannedGifts.any((g) => g.category.toLowerCase().contains(q))).toList();
                     return Column(
                       children: [
                         Padding(
@@ -542,6 +549,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   onUpdate: () => setState(() {
                     _functions.removeWhere((f) => f.walletId != widget.walletId);
                   }),
+                  onSubTabChanged: (isPlanned) =>
+                      setState(() => _ourFunctionsSubTabIsPlanned = isPlanned),
                 ),
               ],
             ),
@@ -558,6 +567,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
         surfBg: surfBg,
         walletId: widget.walletId,
         upcomingList: _upcoming,
+        isPlannedDefault: tabIdx == 2 ? _ourFunctionsSubTabIsPlanned : true,
         onSave:
             (
               title,
@@ -1291,6 +1301,7 @@ class _OurFunctionsView extends StatefulWidget {
   final String personalWalletId;
   final void Function(FunctionModel) onDelete;
   final VoidCallback onUpdate;
+  final void Function(bool isPlanned) onSubTabChanged;
 
   const _OurFunctionsView({
     required this.functions,
@@ -1301,6 +1312,7 @@ class _OurFunctionsView extends StatefulWidget {
     required this.personalWalletId,
     required this.onDelete,
     required this.onUpdate,
+    required this.onSubTabChanged,
   });
 
   @override
@@ -1315,7 +1327,10 @@ class _OurFunctionsViewState extends State<_OurFunctionsView>
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
-    _tab.addListener(() => setState(() {}));
+    _tab.addListener(() {
+      setState(() {});
+      if (_tab.indexIsChanging) widget.onSubTabChanged(_tab.index == 0);
+    });
   }
 
   @override
@@ -1327,14 +1342,15 @@ class _OurFunctionsViewState extends State<_OurFunctionsView>
   DateTime get _today =>
       DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
-  List<FunctionModel> get _planned =>
-      widget.functions.where((f) => f.isPlanned).toList();
+  List<FunctionModel> get _planned => widget.functions
+      .where((f) => f.isPlanned && (f.functionDate == null || !f.functionDate!.isBefore(_today)))
+      .toList();
 
   List<FunctionModel> get _completedExplicit =>
       widget.functions.where((f) => !f.isPlanned).toList();
 
-  List<FunctionModel> get _pastPlanned => _planned
-      .where((f) => f.functionDate != null && f.functionDate!.isBefore(_today))
+  List<FunctionModel> get _pastPlanned => widget.functions
+      .where((f) => f.isPlanned && f.functionDate != null && f.functionDate!.isBefore(_today))
       .toList();
 
   /// Completed tab = explicitly-completed + past-planned (no duplicates)
@@ -2315,6 +2331,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
     final notesCtrl = TextEditingController(text: fn.notes ?? '');
     DateTime? date = fn.functionDate;
     var type = fn.type;
+    var isPlanned = fn.isPlanned;
     String selectedWalletId = fn.walletId;
     String icon = fn.icon;
     String? photoPath;
@@ -2537,6 +2554,27 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                   ),
                 ],
                 const SizedBox(height: 8),
+                const SheetLabel(text: 'STATUS'),
+                Row(
+                  children: [
+                    _QuickOptionChip(
+                      icon: Icons.check_circle_outline_rounded,
+                      label: 'Completed',
+                      active: !isPlanned,
+                      color: _funcColor,
+                      onTap: () => ss(() => isPlanned = false),
+                    ),
+                    const SizedBox(width: 8),
+                    _QuickOptionChip(
+                      icon: Icons.event_rounded,
+                      label: 'Plan for Function',
+                      active: isPlanned,
+                      color: AppColors.income,
+                      onTap: () => ss(() => isPlanned = true),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 SaveButton(
                   label: 'Save Changes',
                   color: AppColors.income,
@@ -2565,6 +2603,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                       fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
                       fn.icon = finalIcon;
                       fn.walletId = selectedWalletId;
+                      fn.isPlanned = isPlanned;
                     });
                     try {
                       await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
@@ -4292,6 +4331,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
     final notesCtrl = TextEditingController(text: fn.notes ?? '');
     DateTime? date = fn.functionDate;
     var type = fn.type;
+    var isPlanned = fn.isPlanned;
     String selectedWalletId = fn.walletId;
     String icon = fn.icon;
     String? photoPath;
@@ -4558,6 +4598,27 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   ],
                 ),
               ],
+              const SheetLabel(text: 'STATUS'),
+              Row(
+                children: [
+                  _QuickOptionChip(
+                    icon: Icons.check_circle_outline_rounded,
+                    label: 'Completed',
+                    active: !isPlanned,
+                    color: _funcColor,
+                    onTap: () => ss(() => isPlanned = false),
+                  ),
+                  const SizedBox(width: 8),
+                  _QuickOptionChip(
+                    icon: Icons.event_rounded,
+                    label: 'Plan for Function',
+                    active: isPlanned,
+                    color: AppColors.income,
+                    onTap: () => ss(() => isPlanned = true),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               SaveButton(
                 label: 'Save Changes',
                 color: _funcColor,
@@ -4590,6 +4651,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                     fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
                     fn.icon = finalIcon;
                     fn.walletId = selectedWalletId;
+                    fn.isPlanned = isPlanned;
                   });
                   try {
                     await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
@@ -6342,7 +6404,7 @@ class _UpcomingPlanningTabState extends State<_UpcomingPlanningTab> {
     super.dispose();
   }
 
-  void _addItem() {
+  Future<void> _addItem() async {
     if (_selected == null) return;
     setState(() {
       widget.item.plannedGifts.add(
@@ -6355,6 +6417,10 @@ class _UpcomingPlanningTabState extends State<_UpcomingPlanningTab> {
       _notesCtrl.clear();
     });
     widget.onUpdate();
+    await FunctionsService.instance.updateUpcoming(
+      widget.item.id,
+      widget.item.toJson(),
+    );
   }
 
   @override
@@ -6391,10 +6457,14 @@ class _UpcomingPlanningTabState extends State<_UpcomingPlanningTab> {
                 orElse: () => ('🎁', g.category),
               );
               return SwipeTile(
-                onDelete: () => setState(() {
-                  gifts.removeAt(i);
+                onDelete: () {
+                  setState(() => gifts.removeAt(i));
                   widget.onUpdate();
-                }),
+                  FunctionsService.instance.updateUpcoming(
+                    widget.item.id,
+                    widget.item.toJson(),
+                  );
+                },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
@@ -8768,6 +8838,8 @@ class _FunctionAddSheet extends StatefulWidget {
   onSave;
   // (title, type, customType, venue, date, personName, familyName, isPlanned, icon)
 
+  final bool isPlannedDefault;
+
   const _FunctionAddSheet({
     required this.tabIdx,
     required this.isDark,
@@ -8775,6 +8847,7 @@ class _FunctionAddSheet extends StatefulWidget {
     required this.walletId,
     required this.upcomingList,
     required this.onSave,
+    this.isPlannedDefault = true,
   });
 
   @override
@@ -8798,13 +8871,14 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
   var _type = FunctionType.wedding;
   DateTime? _date;
 
-  bool _isFunctionPlanned = false;
+  late bool _isFunctionPlanned;
   String _icon = '🎊';
   String? _photoPath;
 
   @override
   void initState() {
     super.initState();
+    _isFunctionPlanned = widget.isPlannedDefault;
     _mode = TabController(length: 2, vsync: this);
     _mode.addListener(() => setState(() {}));
   }
