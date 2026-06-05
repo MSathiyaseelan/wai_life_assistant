@@ -217,7 +217,6 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       summary: summary,
                       emptyLabel: 'No functions yet',
                       onTap: () => _openFunctions(context),
-                      onAdd: () => _openFunctions(context, openAdd: true),
                     ),
                     const SizedBox(height: 12),
                     _buildModuleCard(
@@ -233,7 +232,6 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       summary: const [],
                       emptyLabel: 'No items stored yet',
                       onTap: () => _openItemLocator(context),
-                      onAdd: () => _openItemLocator(context),
                     ),
                   ],
                 ),
@@ -258,7 +256,6 @@ class _MyHubScreenState extends State<MyHubScreen> {
     required List<String> summary,
     required String emptyLabel,
     required VoidCallback onTap,
-    required VoidCallback onAdd,
   }) {
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     return GestureDetector(
@@ -392,25 +389,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: GestureDetector(
-                    onTap: onAdd,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.13),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(Icons.add_rounded, color: color, size: 20),
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(width: 12),
             ],
           ),
         ),

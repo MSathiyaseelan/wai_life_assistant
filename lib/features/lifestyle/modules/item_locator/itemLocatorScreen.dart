@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../widgets/life_widgets.dart';
 
 const _locatorColor = Color(0xFF6C63FF);
@@ -130,22 +131,15 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
             ),
           ],
         ),
-        actions: [
-          // Add container button
-          IconButton(
-            icon: const Icon(Icons.create_new_folder_rounded),
-            tooltip: 'Add Container',
-            onPressed: () => _showAddContainer(context, isDark, surfBg),
-          ),
-        ],
+        actions: const [],
       ),
 
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddItem(context, isDark, surfBg),
+        onPressed: () => _showAddContainer(context, isDark, surfBg),
         backgroundColor: _locatorColor,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        icon: const Icon(Icons.create_new_folder_rounded, color: Colors.white),
         label: const Text(
-          'Store Item',
+          'Add Storage Container',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
@@ -476,6 +470,77 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     final colorCtrl = TextEditingController();
     var selType = StorageType.box;
 
+    var modeIdx = 0; // 0 = AI, 1 = Manual
+    final aiCtrl = TextEditingController();
+    var aiParsing = false;
+    String? aiError;
+
+    Map<String, dynamic> parseContainerNlp(String text) {
+      final lower = text.toLowerCase();
+      final type = _inferContainerType(lower);
+      String name = text.trim();
+      String? location;
+      String? notes;
+      final inRoom = RegExp(r'^(.+?)\s+in\s+(?:the\s+)?(.+?)(?:\s+for\s+.+)?$', caseSensitive: false);
+      final inMatch = inRoom.firstMatch(text.trim());
+      if (inMatch != null) {
+        name = inMatch.group(1)!.trim();
+        location = inMatch.group(2)!.trim();
+      }
+      final forNotes = RegExp(r'\bfor\s+(.+)$', caseSensitive: false);
+      final fn = forNotes.firstMatch(name);
+      if (fn != null) {
+        notes = fn.group(1)?.trim();
+        name = name.replaceAll(forNotes, '').trim();
+      }
+      if (location != null) {
+        final fn2 = forNotes.firstMatch(location);
+        if (fn2 != null) {
+          notes = fn2.group(1)?.trim();
+          location = location.replaceAll(forNotes, '').trim();
+        }
+      }
+      return {'name': name, 'type': type, 'location': location, 'notes': notes};
+    }
+
+    Future<void> parseAI(void Function(void Function()) ss) async {
+      final text = aiCtrl.text.trim();
+      if (text.isEmpty) return;
+      ss(() { aiParsing = true; aiError = null; });
+      try {
+        Map<String, dynamic>? parsed;
+        try {
+          final result = await AIParser.parseText(
+            feature: 'mylife',
+            subFeature: 'item_locator',
+            text: 'Container: $text',
+          );
+          if (result.success && result.data != null) {
+            final d = result.data!;
+            final rawName = (d['container'] as String? ?? d['container_label'] as String? ?? '').trim();
+            if (rawName.isNotEmpty) {
+              parsed = {
+                'name': rawName,
+                'type': _inferContainerType(rawName),
+                'location': d['room'] as String? ?? d['location'] as String?,
+                'notes': d['note'] as String?,
+              };
+            }
+          }
+        } catch (_) {}
+        parsed ??= parseContainerNlp(text);
+        nameCtrl.text = (parsed['name'] as String? ?? '').trim();
+        locationCtrl.text = (parsed['location'] as String? ?? '').trim();
+        notesCtrl.text = (parsed['notes'] as String? ?? '').trim();
+        if (parsed['type'] is StorageType) {
+          ss(() { selType = parsed!['type'] as StorageType; });
+        }
+        ss(() { aiParsing = false; modeIdx = 1; });
+      } catch (e) {
+        ss(() { aiError = 'Error: $e'; aiParsing = false; });
+      }
+    }
+
     showLifeSheet(
       ctx,
       child: StatefulBuilder(
@@ -487,22 +552,99 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
             children: [
               const Text(
                 'Add Storage Container',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
               ),
               const SizedBox(height: 4),
               Text(
                 'Containers hold your items — you can have multiple of each type',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'Nunito',
-                  color: isDark ? AppColors.subDark : AppColors.subLight,
+                style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight),
+              ),
+              const SizedBox(height: 12),
+
+              // ── Mode switcher ─────────────────────────────────────────
+              Container(
+                decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.all(3),
+                child: Row(
+                  children: [
+                    for (final entry in [('✨ AI Parse', 0), ('✏️ Manual', 1)])
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => ss(() => modeIdx = entry.$2),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: modeIdx == entry.$2 ? _locatorColor : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              entry.$1,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: modeIdx == entry.$2 ? Colors.white : (isDark ? AppColors.subDark : AppColors.subLight),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── AI input panel ────────────────────────────────────────
+              if (modeIdx == 0) ...[
+                Container(
+                  decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Describe your container',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: aiCtrl,
+                        maxLines: 2,
+                        style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. "Bedroom almirah for clothes"\n"Blue box in store room for festival items"',
+                          hintStyle: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                      if (aiError != null) ...[
+                        const SizedBox(height: 6),
+                        Text(aiError!, style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.red)),
+                      ],
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: aiParsing ? null : () => parseAI(ss),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _locatorColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: aiParsing
+                              ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Text('Parse & Fill', style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // ── Manual form ───────────────────────────────────────────
+              if (modeIdx == 1) ...[
 
               // Type grid
               const LifeLabel(text: 'CONTAINER TYPE'),
@@ -616,6 +758,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                   }();
                 },
               ),
+
+              ], // end if (modeIdx == 1)
             ],
           ),
         ),
@@ -766,6 +910,48 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     );
   }
 
+  StorageType _inferContainerType(String name) {
+    final s = name.toLowerCase();
+    if (s.contains('shelf')) return StorageType.shelf;
+    if (s.contains('cupboard')) return StorageType.cupboard;
+    if (s.contains('box')) return StorageType.box;
+    if (s.contains('almirah') || s.contains('wardrobe')) return StorageType.almirah;
+    if (s.contains('drawer')) return StorageType.drawer;
+    if (s.contains('bag')) return StorageType.bag;
+    if (s.contains('fridge') || s.contains('refrigerator')) return StorageType.fridge;
+    if (s.contains('attic') || s.contains('loft')) return StorageType.attic;
+    if (s.contains('locker')) return StorageType.locker;
+    return StorageType.other;
+  }
+
+  Map<String, dynamic>? _nlpParseItem(String text) {
+    final lower = text.toLowerCase();
+    final storeIn = RegExp(
+      r'(?:store|put|keep|place|add)\s+(?:my\s+)?(.+?)\s+in(?:to)?\s+(?:the\s+)?(.+)',
+      caseSensitive: false,
+    );
+    final m = storeIn.firstMatch(text);
+    if (m == null) return null;
+    final itemName = m.group(1)?.trim() ?? '';
+    final inPart = m.group(2)?.trim() ?? '';
+    String container = inPart, room = '';
+    final roomSplit = RegExp(r'(.+?)\s+(?:in|at)\s+(?:the\s+)?(.+)', caseSensitive: false);
+    final m2 = roomSplit.firstMatch(inPart);
+    if (m2 != null) {
+      container = m2.group(1)?.trim() ?? inPart;
+      room = m2.group(2)?.trim() ?? '';
+    }
+    String? category;
+    if (lower.contains('document') || lower.contains('paper') || lower.contains('certificate')) category = 'Documents';
+    else if (lower.contains('cloth') || lower.contains('dress') || lower.contains('saree') || lower.contains('shirt')) category = 'Clothes';
+    else if (lower.contains('jewel') || lower.contains('gold') || lower.contains('silver') || lower.contains('necklace')) category = 'Jewellery';
+    else if (lower.contains('medicine') || lower.contains('tablet') || lower.contains('drug')) category = 'Medicine';
+    else if (lower.contains('festival') || lower.contains('puja') || lower.contains('lamp')) category = 'Festival';
+    else if (lower.contains('key')) category = 'Keys';
+    else if (lower.contains('electronic') || lower.contains('charger') || lower.contains('cable')) category = 'Electronics';
+    return {'item_name': itemName, 'container': container, 'room': room, if (category != null) 'category': category};
+  }
+
   // ── Add Item sheet ─────────────────────────────────────────────────────────
   void _showAddItem(
     BuildContext ctx,
@@ -831,6 +1017,81 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
       return;
     }
 
+    var modeIdx = editing == null ? 0 : 1;
+    final aiCtrl = TextEditingController();
+    var aiParsing = false;
+    String? aiError;
+    String? aiContainerNote;
+
+    Future<void> parseAI(void Function(void Function()) ss) async {
+      final text = aiCtrl.text.trim();
+      if (text.isEmpty) return;
+      ss(() { aiParsing = true; aiError = null; aiContainerNote = null; });
+      try {
+        Map<String, dynamic>? parsed;
+        try {
+          final result = await AIParser.parseText(
+            feature: 'mylife',
+            subFeature: 'item_locator',
+            text: text,
+            context: {
+              'containers': _myContainers
+                  .map((c) => '${c.name} (${c.location ?? c.type.label})')
+                  .join(', '),
+            },
+          );
+          if (result.success && result.data != null) parsed = result.data;
+        } catch (_) {}
+        parsed ??= _nlpParseItem(text);
+        if (parsed == null) {
+          ss(() {
+            aiError = 'Could not understand. Try: "Store passport in bedroom almirah"';
+            aiParsing = false;
+          });
+          return;
+        }
+        nameCtrl.text = (parsed['item_name'] as String? ?? '').trim();
+        if ((parsed['category'] as String?) != null) catCtrl.text = parsed['category'] as String;
+        if ((parsed['note'] as String?) != null) notesCtrl.text = parsed['note'] as String;
+        final containerHint = (parsed['container'] as String? ?? '').trim();
+        final roomHint = ((parsed['room'] ?? parsed['location']) as String? ?? '').trim();
+        String newCid = selCid;
+        if (containerHint.isNotEmpty) {
+          final emptyContainer = StorageContainer(id: '', walletId: '', type: StorageType.other, name: '');
+          final match = _myContainers.firstWhere(
+            (c) => c.name.toLowerCase().contains(containerHint.toLowerCase()) ||
+                   containerHint.toLowerCase().contains(c.name.toLowerCase()),
+            orElse: () => _myContainers.firstWhere(
+              (c) => roomHint.isNotEmpty && (c.location?.toLowerCase().contains(roomHint.toLowerCase()) ?? false),
+              orElse: () => emptyContainer,
+            ),
+          );
+          if (match.id.isNotEmpty) {
+            newCid = match.id;
+          } else {
+            final newC = StorageContainer(
+              id: '', walletId: widget.walletId,
+              type: _inferContainerType(containerHint),
+              name: containerHint,
+              location: roomHint.isNotEmpty ? roomHint : null,
+            );
+            try {
+              final row = await ItemLocatorService.instance.addContainer(newC.toJson());
+              final created = StorageContainer.fromJson(row);
+              setState(() => _containers.add(created));
+              newCid = created.id;
+              aiContainerNote = 'Created container "${created.name}"';
+            } catch (e) {
+              debugPrint('[ItemLocator] auto-create container error: $e');
+            }
+          }
+        }
+        ss(() { selCid = newCid; aiParsing = false; modeIdx = 1; });
+      } catch (e) {
+        ss(() { aiError = 'Error: $e'; aiParsing = false; });
+      }
+    }
+
     showLifeSheet(
       ctx,
       child: StatefulBuilder(
@@ -842,13 +1103,106 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
             children: [
               Text(
                 editing == null ? 'Store an Item' : 'Edit Item',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+
+              // ── Mode switcher (new items only) ──────────────────────────
+              if (editing == null) ...[
+                Container(
+                  decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    children: [
+                      for (final entry in [('✨ AI Parse', 0), ('✏️ Manual', 1)])
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => ss(() => modeIdx = entry.$2),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: modeIdx == entry.$2 ? _locatorColor : Colors.transparent,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                entry.$1,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: modeIdx == entry.$2 ? Colors.white : (isDark ? AppColors.subDark : AppColors.subLight),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── AI input panel ────────────────────────────────────────
+                if (modeIdx == 0) ...[
+                  Container(
+                    decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Describe in plain English',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: aiCtrl,
+                          maxLines: 3,
+                          style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. "Store my passport in bedroom almirah"\n"Put festival sarees in Box 2 in store room"',
+                            hintStyle: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                        if (aiError != null) ...[
+                          const SizedBox(height: 6),
+                          Text(aiError!, style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.red)),
+                        ],
+                        if (aiContainerNote != null) ...[
+                          const SizedBox(height: 6),
+                          Text(aiContainerNote!, style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Color(0xFF00897B))),
+                        ],
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: aiParsing ? null : () => parseAI(ss),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _locatorColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: aiParsing
+                                ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Text('Parse & Fill', style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito')),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+
+              // ── Manual form ───────────────────────────────────────────
+              if (modeIdx == 1) ...[
+              if (aiContainerNote != null) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(aiContainerNote!, style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Color(0xFF00897B))),
+                ),
+              ],
 
               // Container picker
               const LifeLabel(text: 'STORE IN (CONTAINER)'),
@@ -1183,6 +1537,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                   }
                 },
               ),
+
+              ], // end if (modeIdx == 1)
             ],
           ),
         ),
