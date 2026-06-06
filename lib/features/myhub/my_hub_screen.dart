@@ -7,8 +7,10 @@ import 'package:wai_life_assistant/shared/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
+import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/my_functions/my_functions_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/item_locator/itemLocatorScreen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 class MyHubScreen extends StatefulWidget {
@@ -43,6 +45,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
   }
 
   final List<FunctionModel> _functions = [];
+  final List<StorageContainer> _containers = [];
+  final List<StoredItem> _items = [];
   String? _loadedKey;
 
   @override
@@ -70,14 +74,23 @@ class _MyHubScreenState extends State<MyHubScreen> {
     if (loadKey == _loadedKey) return;
     _loadedKey = loadKey;
     try {
-      final results = await Future.wait(
-        walletIds.map((id) => FunctionsService.instance.fetchMyFunctions(id)),
-      );
+      final svc = ItemLocatorService.instance;
+      final results = await Future.wait([
+        Future.wait(walletIds.map((id) => FunctionsService.instance.fetchMyFunctions(id))),
+        Future.wait(walletIds.map((id) => svc.fetchContainers(id))),
+        Future.wait(walletIds.map((id) => svc.fetchItems(id))),
+      ]);
       if (!mounted) return;
       setState(() {
         _functions
           ..clear()
-          ..addAll(results.expand((r) => r).map(FunctionModel.fromJson));
+          ..addAll((results[0] as List).expand((r) => r as List).map((r) => FunctionModel.fromJson(r as Map<String, dynamic>)));
+        _containers
+          ..clear()
+          ..addAll((results[1] as List).expand((r) => r as List).map((r) => StorageContainer.fromJson(r as Map<String, dynamic>)));
+        _items
+          ..clear()
+          ..addAll((results[2] as List).expand((r) => r as List).map((r) => StoredItem.fromJson(r as Map<String, dynamic>)));
       });
     } catch (e) {
       debugPrint('[MyHub] _loadData error: $e');
@@ -144,6 +157,19 @@ class _MyHubScreenState extends State<MyHubScreen> {
       }
       return '🎊 ${f.title}${when.isNotEmpty ? ' · $when' : ''}';
     }).toList();
+
+    // Item Locator summary
+    final containersInView = _containers.where((c) => personal || c.walletId == wid).toList();
+    final itemsInView = _items.where((i) => personal || i.walletId == wid).toList();
+    final itemCount = itemsInView.length;
+    final importantCount = itemsInView.where((i) => i.isImportant).length;
+    final locatorSummary = (containersInView.isNotEmpty || itemsInView.isNotEmpty)
+        ? [
+            '📦  ${containersInView.length} ${containersInView.length == 1 ? 'Container' : 'Containers'}',
+            '📍  $itemCount ${itemCount == 1 ? 'Item' : 'Items'} stored',
+            '⭐  $importantCount Important',
+          ]
+        : <String>[];
 
     return Scaffold(
       backgroundColor: bg,
@@ -228,10 +254,25 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       emoji: '📍',
                       title: 'Item Locator',
                       subtitle: 'Find anything, anywhere at home',
-                      count: 0,
-                      summary: const [],
+                      count: itemCount,
+                      summary: locatorSummary,
                       emptyLabel: 'No items stored yet',
                       onTap: () => _openItemLocator(context),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildModuleCard(
+                      context: context,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      textColor: textColor,
+                      color: const Color(0xFFFF5CA8),
+                      emoji: '👗',
+                      title: 'Wardrobe',
+                      subtitle: 'Dresses, outfits & wishlist',
+                      count: 0,
+                      summary: const [],
+                      emptyLabel: 'No clothing added yet',
+                      onTap: () => _openWardrobe(context),
                     ),
                   ],
                 ),
@@ -264,134 +305,141 @@ class _MyHubScreenState extends State<MyHubScreen> {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: isDark ? 0.07 : 0.09),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+              color: color.withValues(alpha: isDark ? 0.10 : 0.13),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 4,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
-                ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Coloured header band ──────────────────────────────────
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: isDark ? 0.15 : 0.10),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              const SizedBox(width: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: isDark ? 0.25 : 0.18),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(emoji, style: const TextStyle(fontSize: 26)),
                   ),
-                  alignment: Alignment.center,
-                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 14, 0, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                                color: textColor,
-                              ),
-                            ),
-                          ),
-                          if (count > 0)
-                            Container(
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
-                                '$count',
+                                title,
                                 style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
                                   fontFamily: 'Nunito',
-                                  color: color,
+                                  color: textColor,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(subtitle, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                      const SizedBox(height: 8),
-                      Divider(height: 1, color: color.withValues(alpha: 0.15)),
-                      const SizedBox(height: 6),
-                      if (summary.isNotEmpty)
-                        ...summary.map(
-                          (s) => Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 5,
-                                  height: 5,
-                                  margin: const EdgeInsets.only(right: 7, top: 1),
-                                  decoration: BoxDecoration(
-                                    color: color.withValues(alpha: 0.55),
-                                    shape: BoxShape.circle,
+                            if (count > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: isDark ? 0.30 : 0.20),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$count',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: color,
                                   ),
                                 ),
-                                Expanded(
-                                  child: Text(
-                                    s,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontFamily: 'Nunito',
-                                      color: textColor,
-                                      height: 1.3,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
                         Text(
-                          emptyLabel,
+                          subtitle,
                           style: TextStyle(
                             fontSize: 11,
                             fontFamily: 'Nunito',
                             color: sub,
-                            fontStyle: FontStyle.italic,
                           ),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                  Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.5), size: 20),
+                ],
               ),
-              const SizedBox(width: 12),
-            ],
-          ),
+            ),
+
+            // ── Summary content ───────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+              child: summary.isNotEmpty
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: summary
+                          .map(
+                            (s) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    margin: const EdgeInsets.only(right: 8, top: 1),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.50),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      s,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'Nunito',
+                                        color: textColor,
+                                        height: 1.3,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    )
+                  : Text(
+                      emptyLabel,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -403,6 +451,29 @@ class _MyHubScreenState extends State<MyHubScreen> {
       context,
       PageRouteBuilder(
         pageBuilder: (ctx, anim, secondaryAnim) => ItemLocatorScreen(
+          walletId: _currentWallet.id,
+        ),
+        transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.05),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
+  }
+
+  void _openWardrobe(BuildContext context) {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (ctx, anim, secondaryAnim) => MyWardrobeScreen(
           walletId: _currentWallet.id,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(

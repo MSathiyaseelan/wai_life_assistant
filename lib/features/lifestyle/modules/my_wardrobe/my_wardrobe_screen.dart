@@ -16,11 +16,9 @@ Future<String?> _pickPhoto(BuildContext ctx) async {
     backgroundColor: Colors.transparent,
     builder: (mCtx) {
       final isDark = Theme.of(mCtx).brightness == Brightness.dark;
-      return Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : AppColors.cardLight,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
+      return Material(
+        color: isDark ? AppColors.cardDark : AppColors.cardLight,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
