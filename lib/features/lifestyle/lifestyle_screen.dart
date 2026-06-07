@@ -44,6 +44,22 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
     }
   }
 
+  List<LifeMember> get _wardrobeMembers {
+    if (_currentWallet.isPersonal) {
+      return const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+    }
+    final family = _appState.families.firstWhere(
+      (f) => f.walletId == _currentWallet.id,
+      orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
+    );
+    final members = family.members
+        .map((m) => LifeMember(id: m.id, name: m.name, emoji: m.emoji))
+        .toList();
+    return members.isNotEmpty
+        ? members
+        : const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -88,7 +104,7 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         onTap: () => _push(
                           MyWardrobeScreen(
                             walletId: widget.activeWalletId,
-                            members: const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')],
+                            members: _wardrobeMembers,
                           ),
                         ),
                       ),

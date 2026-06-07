@@ -490,7 +490,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
       return const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
     }
     final family = _appState.families.firstWhere(
-      (f) => f.id == _currentWallet.id,
+      (f) => f.walletId == _currentWallet.id,
       orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
     );
     final members = family.members
