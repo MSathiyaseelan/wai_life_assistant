@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
+import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
 import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
@@ -111,7 +112,12 @@ String _fmtDate(DateTime d) {
 
 class MyWardrobeScreen extends StatefulWidget {
   final String walletId;
-  const MyWardrobeScreen({super.key, required this.walletId});
+  final List<LifeMember> members;
+  const MyWardrobeScreen({
+    super.key,
+    required this.walletId,
+    required this.members,
+  });
   @override
   State<MyWardrobeScreen> createState() => _MyWardrobeScreenState();
 }
@@ -119,13 +125,66 @@ class MyWardrobeScreen extends StatefulWidget {
 class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
-  final List<ClothingItem> _clothes = List.from(mockClothes);
+  final List<ClothingItem> _clothes = [];
   final List<OutfitLog> _outfitLogs = [];
-  String _selectedMember = 'me';
+  bool _loading = true;
+  late String _selectedMember;
   ClothingCategory? _filterCat;
   bool _searchActive = false;
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMember =
+        widget.members.isNotEmpty ? widget.members.first.id : 'me';
+    _tab = TabController(length: 3, vsync: this);
+    _tab.addListener(() {
+      setState(() {
+        if (_tab.index != 0) {
+          _searchActive = false;
+          _searchQuery = '';
+          _searchCtrl.clear();
+        }
+      });
+    });
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final svc = WardrobeService.instance;
+      final results = await Future.wait([
+        svc.fetchItems(widget.walletId),
+        svc.fetchOutfitLogs(widget.walletId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _clothes
+          ..clear()
+          ..addAll(
+            (results[0]).map((r) => ClothingItem.fromJson(r)),
+          );
+        _outfitLogs
+          ..clear()
+          ..addAll(
+            (results[1]).map((r) => OutfitLog.fromJson(r)),
+          );
+      });
+    } catch (e) {
+      debugPrint('[Wardrobe] _loadData error: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   List<ClothingItem> get _wardrobeItems => _clothes
       .where(
@@ -158,29 +217,6 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
           .toList();
     }
     return items;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 3, vsync: this);
-    _tab.addListener(() {
-      setState(() {
-        // clear search when leaving wardrobe tab
-        if (_tab.index != 0) {
-          _searchActive = false;
-          _searchQuery = '';
-          _searchCtrl.clear();
-        }
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    _searchCtrl.dispose();
-    super.dispose();
   }
 
   @override
@@ -285,186 +321,267 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
               ),
             )
           : null,
-      body: Column(
-        children: [
-          // Member selector
-          Container(
-            color: cardBg,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-            child: SizedBox(
-              height: 52,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: mockLifeMembers.map((m) {
-                  final sel = m.id == _selectedMember;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedMember = m.id),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: sel
-                            ? _wardrobeColor.withValues(alpha: 0.12)
-                            : surfBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: sel ? _wardrobeColor : Colors.transparent,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(m.emoji, style: const TextStyle(fontSize: 16)),
-                          const SizedBox(width: 6),
-                          Text(
-                            m.name,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Nunito',
-                              color: sel ? _wardrobeColor : sub,
+      body: _loading
+          ? const Center(
+              child: CircularProgressIndicator(color: _wardrobeColor),
+            )
+          : RefreshIndicator(
+              onRefresh: () async {
+                setState(() => _loading = true);
+                await _loadData();
+              },
+              child: Column(
+                children: [
+                  // Member selector
+                  Container(
+                    color: cardBg,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                    child: SizedBox(
+                      height: 52,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: widget.members.map((m) {
+                          final sel = m.id == _selectedMember;
+                          return GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedMember = m.id),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? _wardrobeColor.withValues(alpha: 0.12)
+                                    : surfBg,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: sel
+                                      ? _wardrobeColor
+                                      : Colors.transparent,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    m.emoji,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    m.name,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Nunito',
+                                      color: sel ? _wardrobeColor : sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          );
+                        }).toList(),
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tab,
-              children: [
-                // WARDROBE TAB
-                Column(
-                  children: [
-                    Container(
-                      color: cardBg,
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-                      child: SizedBox(
-                        height: 38,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tab,
+                      children: [
+                        // WARDROBE TAB
+                        Column(
                           children: [
-                            _CatChip(
-                              label: 'All',
-                              emoji: '👚',
-                              selected: _filterCat == null,
-                              color: _wardrobeColor,
-                              onTap: () => setState(() => _filterCat = null),
-                            ),
-                            ...ClothingCategory.values.map(
-                              (c) => _CatChip(
-                                label: c.label,
-                                emoji: c.emoji,
-                                selected: _filterCat == c,
-                                color: _wardrobeColor,
-                                onTap: () =>
-                                    setState(() => _filterCat = c),
+                            Container(
+                              color: cardBg,
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                              child: SizedBox(
+                                height: 38,
+                                child: ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  children: [
+                                    _CatChip(
+                                      label: 'All',
+                                      emoji: '👚',
+                                      selected: _filterCat == null,
+                                      color: _wardrobeColor,
+                                      onTap: () =>
+                                          setState(() => _filterCat = null),
+                                    ),
+                                    ...ClothingCategory.values.map(
+                                      (c) => _CatChip(
+                                        label: c.label,
+                                        emoji: c.emoji,
+                                        selected: _filterCat == c,
+                                        color: _wardrobeColor,
+                                        onTap: () =>
+                                            setState(() => _filterCat = c),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
+                            ),
+                            Expanded(
+                              child: _searchQuery.isNotEmpty
+                                  ? _filtered.isEmpty
+                                      ? LifeEmptyState(
+                                          emoji: '🔍',
+                                          title: 'No results',
+                                          subtitle:
+                                              'No items match "$_searchQuery"',
+                                        )
+                                      : _SearchResultsList(
+                                          items: _filtered,
+                                          allItems: _clothes,
+                                          outfitLogs: _outfitLogs,
+                                          isDark: isDark,
+                                          onTap: (item) => showLifeSheet(
+                                            context,
+                                            child: _ClothingDetail(
+                                              item: item,
+                                              isDark: isDark,
+                                              allItems: _clothes,
+                                              onUpdate: () => setState(() {}),
+                                            ),
+                                          ),
+                                        )
+                                  : _filtered.isEmpty
+                                      ? const LifeEmptyState(
+                                          emoji: '👗',
+                                          title: 'No items here',
+                                          subtitle:
+                                              'Add dresses to your wardrobe',
+                                        )
+                                      : _ClothingGrid(
+                                          items: _filtered,
+                                          isDark: isDark,
+                                          onTap: (item) => showLifeSheet(
+                                            context,
+                                            child: _ClothingDetail(
+                                              item: item,
+                                              isDark: isDark,
+                                              allItems: _clothes,
+                                              onUpdate: () => setState(() {}),
+                                            ),
+                                          ),
+                                        ),
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                    Expanded(
-                      child: _searchQuery.isNotEmpty
-                          ? _filtered.isEmpty
-                              ? LifeEmptyState(
-                                  emoji: '🔍',
-                                  title: 'No results',
-                                  subtitle:
-                                      'No items match "$_searchQuery"',
-                                )
-                              : _SearchResultsList(
-                                  items: _filtered,
-                                  allItems: _clothes,
-                                  outfitLogs: _outfitLogs,
-                                  isDark: isDark,
-                                  onTap: (item) => showLifeSheet(
-                                    context,
-                                    child: _ClothingDetail(
-                                      item: item,
-                                      isDark: isDark,
-                                      allItems: _clothes,
-                                      onUpdate: () => setState(() {}),
-                                    ),
-                                  ),
-                                )
-                          : _filtered.isEmpty
-                              ? const LifeEmptyState(
-                                  emoji: '👗',
-                                  title: 'No items here',
-                                  subtitle: 'Add dresses to your wardrobe',
-                                )
-                              : _ClothingGrid(
-                                  items: _filtered,
-                                  isDark: isDark,
-                                  onTap: (item) => showLifeSheet(
-                                    context,
-                                    child: _ClothingDetail(
-                                      item: item,
-                                      isDark: isDark,
-                                      allItems: _clothes,
-                                      onUpdate: () => setState(() {}),
-                                    ),
+
+                        // OUTFIT LOG TAB
+                        _OutfitLogTab(
+                          isDark: isDark,
+                          memberId: _selectedMember,
+                          walletId: widget.walletId,
+                          allItems: _clothes
+                              .where(
+                                (c) =>
+                                    c.walletId == widget.walletId &&
+                                    !c.wishlist,
+                              )
+                              .toList(),
+                          outfitLogs: _outfitLogs,
+                          allMembers: widget.members,
+                          onLog: (log) {
+                            final existingIdx = _outfitLogs.indexWhere(
+                              (l) =>
+                                  l.memberId == log.memberId &&
+                                  _sameDay(l.date, log.date),
+                            );
+                            final existing = existingIdx >= 0
+                                ? _outfitLogs[existingIdx]
+                                : null;
+                            setState(() {
+                              if (existingIdx >= 0) {
+                                _outfitLogs.removeAt(existingIdx);
+                              }
+                              _outfitLogs.add(log);
+                            });
+                            () async {
+                              try {
+                                if (existing != null) {
+                                  await WardrobeService.instance
+                                      .updateOutfitLog(existing.id, {
+                                    'item_ids': log.itemIds,
+                                    if (log.notes != null) 'notes': log.notes,
+                                  });
+                                  if (mounted) {
+                                    setState(() {
+                                      final i = _outfitLogs.indexWhere(
+                                        (l) =>
+                                            l.memberId == log.memberId &&
+                                            _sameDay(l.date, log.date),
+                                      );
+                                      if (i >= 0) {
+                                        _outfitLogs[i] = OutfitLog(
+                                          id: existing.id,
+                                          walletId: existing.walletId,
+                                          memberId: log.memberId,
+                                          itemIds: log.itemIds,
+                                          date: log.date,
+                                          notes: log.notes,
+                                        );
+                                      }
+                                    });
+                                  }
+                                } else {
+                                  final row = await WardrobeService.instance
+                                      .addOutfitLog(log.toJson());
+                                  final saved = OutfitLog.fromJson(row);
+                                  if (mounted) {
+                                    setState(() {
+                                      final i = _outfitLogs.indexWhere(
+                                        (l) =>
+                                            l.memberId == saved.memberId &&
+                                            _sameDay(l.date, saved.date),
+                                      );
+                                      if (i >= 0) {
+                                        _outfitLogs[i] = saved;
+                                      }
+                                    });
+                                  }
+                                }
+                              } catch (e) {
+                                debugPrint('[Wardrobe] logOutfit error: $e');
+                              }
+                            }();
+                          },
+                        ),
+
+                        // WISHLIST TAB
+                        _wishlist.isEmpty
+                            ? const LifeEmptyState(
+                                emoji: '💛',
+                                title: 'Wishlist is empty',
+                                subtitle:
+                                    'Snap a dress you love and save it here',
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  100,
+                                ),
+                                itemCount: _wishlist.length,
+                                itemBuilder: (_, i) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _WishlistCard(
+                                    item: _wishlist[i],
+                                    isDark: isDark,
                                   ),
                                 ),
+                              ),
+                      ],
                     ),
-                  ],
-                ),
-
-                // OUTFIT LOG TAB
-                _OutfitLogTab(
-                  isDark: isDark,
-                  memberId: _selectedMember,
-                  allItems: _clothes
-                      .where(
-                        (c) =>
-                            c.walletId == widget.walletId && !c.wishlist,
-                      )
-                      .toList(),
-                  outfitLogs: _outfitLogs,
-                  allMembers: mockLifeMembers,
-                  onLog: (log) => setState(() {
-                    _outfitLogs.removeWhere(
-                      (l) =>
-                          l.memberId == log.memberId &&
-                          _sameDay(l.date, log.date),
-                    );
-                    _outfitLogs.add(log);
-                  }),
-                ),
-
-                // WISHLIST TAB
-                _wishlist.isEmpty
-                    ? const LifeEmptyState(
-                        emoji: '💛',
-                        title: 'Wishlist is empty',
-                        subtitle: 'Snap a dress you love and save it here',
-                      )
-                    : ListView.builder(
-                        padding:
-                            const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                        itemCount: _wishlist.length,
-                        itemBuilder: (_, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _WishlistCard(
-                            item: _wishlist[i],
-                            isDark: isDark,
-                          ),
-                        ),
-                      ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -651,8 +768,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                               style: TextStyle(
                                 fontSize: 11,
                                 fontFamily: 'Nunito',
-                                color:
-                                    _wardrobeColor.withValues(alpha: 0.7),
+                                color: _wardrobeColor.withValues(alpha: 0.7),
                               ),
                             ),
                           ],
@@ -665,37 +781,42 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                 color: _wardrobeColor,
                 onTap: () {
                   if (nameCtrl.text.trim().isEmpty) return;
-                  setState(() {
-                    _clothes.add(
-                      ClothingItem(
-                        id: DateTime.now().millisecondsSinceEpoch
-                            .toString(),
-                        memberId: _selectedMember,
-                        name: nameCtrl.text.trim(),
-                        walletId: widget.walletId,
-                        category: cat,
-                        gender: ClothingGender.unisex,
-                        brand: brandCtrl.text.trim().isEmpty
-                            ? null
-                            : brandCtrl.text.trim(),
-                        size: sizeCtrl.text.trim().isEmpty
-                            ? null
-                            : sizeCtrl.text.trim(),
-                        color: colorCtrl.text.trim().isEmpty
-                            ? null
-                            : colorCtrl.text.trim(),
-                        notes: notesCtrl.text.trim().isEmpty
-                            ? null
-                            : notesCtrl.text.trim(),
-                        photoPath: pickedPath,
-                        wishlist: wishlist,
-                        wishlistSource: sourceCtrl.text.trim().isEmpty
-                            ? null
-                            : sourceCtrl.text.trim(),
-                      ),
-                    );
-                  });
+                  final data = ClothingItem(
+                    id: '',
+                    memberId: _selectedMember,
+                    name: nameCtrl.text.trim(),
+                    walletId: widget.walletId,
+                    category: cat,
+                    gender: ClothingGender.unisex,
+                    brand: brandCtrl.text.trim().isEmpty
+                        ? null
+                        : brandCtrl.text.trim(),
+                    size: sizeCtrl.text.trim().isEmpty
+                        ? null
+                        : sizeCtrl.text.trim(),
+                    color: colorCtrl.text.trim().isEmpty
+                        ? null
+                        : colorCtrl.text.trim(),
+                    notes: notesCtrl.text.trim().isEmpty
+                        ? null
+                        : notesCtrl.text.trim(),
+                    photoPath: pickedPath,
+                    wishlist: wishlist,
+                    wishlistSource: sourceCtrl.text.trim().isEmpty
+                        ? null
+                        : sourceCtrl.text.trim(),
+                  );
                   Navigator.pop(ctx);
+                  () async {
+                    try {
+                      final row = await WardrobeService.instance
+                          .addItem(data.toJson());
+                      final saved = ClothingItem.fromJson(row);
+                      if (mounted) setState(() => _clothes.insert(0, saved));
+                    } catch (e) {
+                      debugPrint('[Wardrobe] addItem error: $e');
+                    }
+                  }();
                 },
               ),
             ],
@@ -880,7 +1001,7 @@ class _ClothingGrid extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLOTHING DETAIL (StatefulWidget for photo + pairs management)
+// CLOTHING DETAIL
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ClothingDetail extends StatefulWidget {
@@ -905,10 +1026,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
     final isDark = widget.isDark;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final surfBg =
-        isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
 
-    // Bidirectional pairs: items in matchWith + items that have this item in their matchWith
     final matches = widget.allItems.where((c) {
       if (c.id == item.id) return false;
       return item.matchWith.contains(c.id) || c.matchWith.contains(item.id);
@@ -974,7 +1093,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
           ),
           const SizedBox(height: 12),
 
-          // Photo area — tappable to add/change
+          // Photo area
           GestureDetector(
             onTap: _changePhoto,
             child: Container(
@@ -1168,20 +1287,25 @@ class _ClothingDetailState extends State<_ClothingDetail> {
     );
   }
 
-  // Change photo (camera or gallery)
   Future<void> _changePhoto() async {
     final path = await _pickPhoto(context);
     if (path != null) {
       setState(() => widget.item.photoPath = path);
       widget.onUpdate();
+      () async {
+        try {
+          await WardrobeService.instance
+              .updateItem(widget.item.id, {'photo_path': path});
+        } catch (e) {
+          debugPrint('[Wardrobe] updatePhoto error: $e');
+        }
+      }();
     }
   }
 
-  // Manage pairs — multi-select picker, grouped by category
   void _managePairs(BuildContext ctx, Color surfBg, Color sub) {
     final item = widget.item;
 
-    // Other non-wishlist items from same member & wallet
     final others = widget.allItems
         .where(
           (c) =>
@@ -1192,7 +1316,6 @@ class _ClothingDetailState extends State<_ClothingDetail> {
         )
         .toList();
 
-    // Pre-select: item's explicit matchWith + reverse pairs
     final selected = <String>{
       ...item.matchWith,
       for (final c in others)
@@ -1242,7 +1365,6 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   ),
                 )
               else
-                // Grouped by category
                 for (final cat in ClothingCategory.values) ...[
                   Builder(builder: (_) {
                     final catItems =
@@ -1270,19 +1392,15 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                                   }
                                 }),
                                 child: AnimatedContainer(
-                                  duration:
-                                      const Duration(milliseconds: 120),
+                                  duration: const Duration(milliseconds: 120),
                                   margin: const EdgeInsets.only(right: 8),
                                   width: 65,
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     color: isSel
-                                        ? _wardrobeColor.withValues(
-                                            alpha: 0.12,
-                                          )
+                                        ? _wardrobeColor.withValues(alpha: 0.12)
                                         : surfBg,
-                                    borderRadius:
-                                        BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(14),
                                     border: Border.all(
                                       color: isSel
                                           ? _wardrobeColor
@@ -1290,8 +1408,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                                     ),
                                   ),
                                   child: Column(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       if (c.photoPath != null)
                                         ClipRRect(
@@ -1307,9 +1424,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                                       else
                                         Text(
                                           c.category.emoji,
-                                          style: const TextStyle(
-                                            fontSize: 22,
-                                          ),
+                                          style: const TextStyle(fontSize: 22),
                                         ),
                                       const SizedBox(height: 3),
                                       Text(
@@ -1320,9 +1435,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                                         style: TextStyle(
                                           fontSize: 8,
                                           fontFamily: 'Nunito',
-                                          color: isSel
-                                              ? _wardrobeColor
-                                              : sub,
+                                          color:
+                                              isSel ? _wardrobeColor : sub,
                                         ),
                                       ),
                                       if (isSel)
@@ -1350,7 +1464,6 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                 onTap: () {
                   setState(() {
                     item.matchWith = selected.toList();
-                    // Bidirectional: sync other items' matchWith
                     for (final c in others) {
                       if (selected.contains(c.id)) {
                         if (!c.matchWith.contains(item.id)) {
@@ -1363,6 +1476,26 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   });
                   widget.onUpdate();
                   Navigator.pop(ctx2);
+                  () async {
+                    try {
+                      final svc = WardrobeService.instance;
+                      await svc.updateItem(
+                        item.id,
+                        {'match_with': item.matchWith},
+                      );
+                      for (final c in others) {
+                        if (selected.contains(c.id) ||
+                            item.matchWith.contains(c.id)) {
+                          await svc.updateItem(
+                            c.id,
+                            {'match_with': c.matchWith},
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      debugPrint('[Wardrobe] savePairs error: $e');
+                    }
+                  }();
                 },
               ),
             ],
@@ -1404,14 +1537,12 @@ class _SearchResultsList extends StatelessWidget {
       itemBuilder: (_, i) {
         final item = items[i];
 
-        // Pairs (bidirectional)
         final pairs = allItems.where((c) {
           if (c.id == item.id || c.wishlist) return false;
           return item.matchWith.contains(c.id) ||
               c.matchWith.contains(item.id);
         }).toList();
 
-        // Last worn date
         final wornLogs = outfitLogs
             .where(
               (l) =>
@@ -1422,7 +1553,6 @@ class _SearchResultsList extends StatelessWidget {
           ..sort((a, b) => b.date.compareTo(a.date));
         final lastWorn = wornLogs.isNotEmpty ? wornLogs.first.date : null;
 
-        // Items worn with (from most recent log)
         final wornWith = wornLogs.isNotEmpty
             ? allItems
                 .where(
@@ -1448,7 +1578,6 @@ class _SearchResultsList extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Photo / emoji
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: Container(
@@ -1508,7 +1637,6 @@ class _SearchResultsList extends StatelessWidget {
                           ],
                         ],
                       ),
-                      // Pairs well with
                       if (pairs.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -1551,9 +1679,7 @@ class _SearchResultsList extends StatelessWidget {
                                     : Center(
                                         child: Text(
                                           p.category.emoji,
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                          ),
+                                          style: const TextStyle(fontSize: 18),
                                         ),
                                       ),
                               );
@@ -1561,7 +1687,6 @@ class _SearchResultsList extends StatelessWidget {
                           ),
                         ),
                       ],
-                      // Last worn with
                       if (wornWith.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Text(
@@ -1584,8 +1709,8 @@ class _SearchResultsList extends StatelessWidget {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color:
-                                        AppColors.income.withValues(alpha: 0.1),
+                                    color: AppColors.income
+                                        .withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -1621,6 +1746,7 @@ class _SearchResultsList extends StatelessWidget {
 class _OutfitLogTab extends StatelessWidget {
   final bool isDark;
   final String memberId;
+  final String walletId;
   final List<ClothingItem> allItems;
   final List<OutfitLog> outfitLogs;
   final List<LifeMember> allMembers;
@@ -1629,6 +1755,7 @@ class _OutfitLogTab extends StatelessWidget {
   const _OutfitLogTab({
     required this.isDark,
     required this.memberId,
+    required this.walletId,
     required this.allItems,
     required this.outfitLogs,
     required this.allMembers,
@@ -1657,7 +1784,6 @@ class _OutfitLogTab extends StatelessWidget {
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
 
-    // Other family members + their today log
     final others = allMembers.where((m) => m.id != memberId).map((m) {
       final log = outfitLogs.cast<OutfitLog?>().firstWhere(
             (l) => l!.memberId == m.id && _sameDay(l.date, today),
@@ -1693,7 +1819,6 @@ class _OutfitLogTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       children: [
-        // ── Today header ────────────────────────────────────────────────
         Row(
           children: [
             Text(
@@ -1718,7 +1843,6 @@ class _OutfitLogTab extends StatelessWidget {
         ),
         const SizedBox(height: 10),
 
-        // ── Today's outfit card ─────────────────────────────────────────
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -1787,10 +1911,11 @@ class _OutfitLogTab extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         children: todayLog.itemIds
                             .map(
-                              (id) => allItems.cast<ClothingItem?>().firstWhere(
-                                    (c) => c!.id == id,
-                                    orElse: () => null,
-                                  ),
+                              (id) =>
+                                  allItems.cast<ClothingItem?>().firstWhere(
+                                        (c) => c!.id == id,
+                                        orElse: () => null,
+                                      ),
                             )
                             .whereType<ClothingItem>()
                             .map<Widget>(itemThumb)
@@ -1803,10 +1928,11 @@ class _OutfitLogTab extends StatelessWidget {
                       runSpacing: 4,
                       children: todayLog.itemIds
                           .map(
-                            (id) => allItems.cast<ClothingItem?>().firstWhere(
-                                  (c) => c!.id == id,
-                                  orElse: () => null,
-                                ),
+                            (id) =>
+                                allItems.cast<ClothingItem?>().firstWhere(
+                                      (c) => c!.id == id,
+                                      orElse: () => null,
+                                    ),
                           )
                           .whereType<ClothingItem>()
                           .map(
@@ -1816,8 +1942,7 @@ class _OutfitLogTab extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color:
-                                    _wardrobeColor.withValues(alpha: 0.08),
+                                color: _wardrobeColor.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -1870,12 +1995,8 @@ class _OutfitLogTab extends StatelessWidget {
                         : SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _logOutfit(
-                                context,
-                                myItems,
-                                null,
-                                sub,
-                              ),
+                              onPressed: () =>
+                                  _logOutfit(context, myItems, null, sub),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _wardrobeColor,
                                 foregroundColor: Colors.white,
@@ -1902,7 +2023,6 @@ class _OutfitLogTab extends StatelessWidget {
                 ),
         ),
 
-        // ── Family Today ────────────────────────────────────────────────
         if (others.isNotEmpty) ...[
           const SizedBox(height: 20),
           Text(
@@ -1944,10 +2064,7 @@ class _OutfitLogTab extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        m.emoji,
-                        style: const TextStyle(fontSize: 22),
-                      ),
+                      Text(m.emoji, style: const TextStyle(fontSize: 22)),
                       const SizedBox(height: 3),
                       Text(
                         m.name,
@@ -1982,7 +2099,6 @@ class _OutfitLogTab extends StatelessWidget {
           ),
         ],
 
-        // ── Past Outfits ────────────────────────────────────────────────
         if (pastLogs.isNotEmpty) ...[
           const SizedBox(height: 20),
           Text(
@@ -1996,9 +2112,8 @@ class _OutfitLogTab extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...pastLogs.take(10).map((log) {
-            final logItems = allItems
-                .where((c) => log.itemIds.contains(c.id))
-                .toList();
+            final logItems =
+                allItems.where((c) => log.itemIds.contains(c.id)).toList();
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
@@ -2157,7 +2272,6 @@ class _OutfitLogTab extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
-              // Grouped by category
               for (final cat in ClothingCategory.values) ...[
                 Builder(builder: (_) {
                   final catItems =
@@ -2257,7 +2371,8 @@ class _OutfitLogTab extends StatelessWidget {
                   if (selected.isEmpty) return;
                   onLog(
                     OutfitLog(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      id: existing?.id ?? '',
+                      walletId: walletId,
                       memberId: memberId,
                       itemIds: selected.toList(),
                       date: DateTime.now(),

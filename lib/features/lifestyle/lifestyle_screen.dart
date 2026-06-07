@@ -7,6 +7,7 @@ import 'package:wai_life_assistant/shared/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '../lifestyle/modules/my_garage/my_garage_screen.dart';
 import '../lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
+import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import '../lifestyle/modules/my_devices/my_devices_screen.dart';
 import '../lifestyle/modules/around_the_house/around_house_screen.dart';
 import '../lifestyle/modules/document_vault/document_vault_screen.dart';
@@ -85,7 +86,10 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         color: const Color(0xFFFF5CA8),
                         gradientEnd: const Color(0xFFCC1A6A),
                         onTap: () => _push(
-                          MyWardrobeScreen(walletId: widget.activeWalletId),
+                          MyWardrobeScreen(
+                            walletId: widget.activeWalletId,
+                            members: const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')],
+                          ),
                         ),
                       ),
                     ),

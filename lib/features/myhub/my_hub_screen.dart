@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
+import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/my_functions/my_functions_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/item_locator/itemLocatorScreen.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
@@ -47,6 +48,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
   final List<FunctionModel> _functions = [];
   final List<StorageContainer> _containers = [];
   final List<StoredItem> _items = [];
+  final List<ClothingItem> _wardrobeItems = [];
   String? _loadedKey;
 
   @override
@@ -74,11 +76,12 @@ class _MyHubScreenState extends State<MyHubScreen> {
     if (loadKey == _loadedKey) return;
     _loadedKey = loadKey;
     try {
-      final svc = ItemLocatorService.instance;
+      final locSvc = ItemLocatorService.instance;
       final results = await Future.wait([
         Future.wait(walletIds.map((id) => FunctionsService.instance.fetchMyFunctions(id))),
-        Future.wait(walletIds.map((id) => svc.fetchContainers(id))),
-        Future.wait(walletIds.map((id) => svc.fetchItems(id))),
+        Future.wait(walletIds.map((id) => locSvc.fetchContainers(id))),
+        Future.wait(walletIds.map((id) => locSvc.fetchItems(id))),
+        Future.wait(walletIds.map((id) => WardrobeService.instance.fetchItems(id))),
       ]);
       if (!mounted) return;
       setState(() {
@@ -91,6 +94,9 @@ class _MyHubScreenState extends State<MyHubScreen> {
         _items
           ..clear()
           ..addAll((results[2] as List).expand((r) => r as List).map((r) => StoredItem.fromJson(r as Map<String, dynamic>)));
+        _wardrobeItems
+          ..clear()
+          ..addAll((results[3] as List).expand((r) => r as List).map((r) => ClothingItem.fromJson(r as Map<String, dynamic>)));
       });
     } catch (e) {
       debugPrint('[MyHub] _loadData error: $e');
@@ -168,6 +174,17 @@ class _MyHubScreenState extends State<MyHubScreen> {
             '📦  ${containersInView.length} ${containersInView.length == 1 ? 'Container' : 'Containers'}',
             '📍  $itemCount ${itemCount == 1 ? 'Item' : 'Items'} stored',
             '⭐  $importantCount Important',
+          ]
+        : <String>[];
+
+    // Wardrobe summary
+    final wardrobeInView = _wardrobeItems.where((c) => personal || c.walletId == wid).toList();
+    final wardrobeCount = wardrobeInView.where((c) => !c.wishlist).length;
+    final wishlistCount = wardrobeInView.where((c) => c.wishlist).length;
+    final wardrobeSummary = wardrobeInView.isNotEmpty
+        ? [
+            '👗  $wardrobeCount ${wardrobeCount == 1 ? 'Item' : 'Items'} in wardrobe',
+            '💛  $wishlistCount in wishlist',
           ]
         : <String>[];
 
@@ -269,8 +286,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       emoji: '👗',
                       title: 'Wardrobe',
                       subtitle: 'Dresses, outfits & wishlist',
-                      count: 0,
-                      summary: const [],
+                      count: wardrobeCount,
+                      summary: wardrobeSummary,
                       emptyLabel: 'No clothing added yet',
                       onTap: () => _openWardrobe(context),
                     ),
@@ -468,6 +485,22 @@ class _MyHubScreenState extends State<MyHubScreen> {
     );
   }
 
+  List<LifeMember> get _wardrobeMembers {
+    if (_isPersonal) {
+      return const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+    }
+    final family = _appState.families.firstWhere(
+      (f) => f.id == _currentWallet.id,
+      orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
+    );
+    final members = family.members
+        .map((m) => LifeMember(id: m.id, name: m.name, emoji: m.emoji))
+        .toList();
+    return members.isNotEmpty
+        ? members
+        : const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+  }
+
   void _openWardrobe(BuildContext context) {
     HapticFeedback.selectionClick();
     Navigator.push(
@@ -475,6 +508,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
       PageRouteBuilder(
         pageBuilder: (ctx, anim, secondaryAnim) => MyWardrobeScreen(
           walletId: _currentWallet.id,
+          members: _wardrobeMembers,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),

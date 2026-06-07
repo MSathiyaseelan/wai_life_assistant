@@ -217,20 +217,81 @@ class ClothingItem {
     DateTime? addedOn,
   }) : matchWith = matchWith ?? [],
        addedOn = addedOn ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'member_id': memberId,
+    'name': name,
+    'category': category.name,
+    'gender': gender.name,
+    if (brand != null) 'brand': brand,
+    if (size != null) 'size': size,
+    if (color != null) 'color': color,
+    if (photoPath != null) 'photo_path': photoPath,
+    if (notes != null) 'notes': notes,
+    'wishlist': wishlist,
+    if (wishlistSource != null) 'wishlist_source': wishlistSource,
+    'match_with': matchWith,
+    'added_on': addedOn.toIso8601String().substring(0, 10),
+  };
+
+  factory ClothingItem.fromJson(Map<String, dynamic> j) => ClothingItem(
+    id: j['id'] as String,
+    walletId: j['wallet_id'] as String,
+    memberId: j['member_id'] as String,
+    name: j['name'] as String,
+    category: ClothingCategory.values.firstWhere(
+      (e) => e.name == j['category'],
+      orElse: () => ClothingCategory.topwear,
+    ),
+    gender: ClothingGender.values.firstWhere(
+      (e) => e.name == j['gender'],
+      orElse: () => ClothingGender.unisex,
+    ),
+    brand: j['brand'] as String?,
+    size: j['size'] as String?,
+    color: j['color'] as String?,
+    photoPath: j['photo_path'] as String?,
+    notes: j['notes'] as String?,
+    wishlist: j['wishlist'] as bool? ?? false,
+    wishlistSource: j['wishlist_source'] as String?,
+    matchWith: (j['match_with'] as List<dynamic>? ?? []).cast<String>(),
+    addedOn: j['added_on'] != null
+        ? DateTime.parse(j['added_on'] as String)
+        : DateTime.now(),
+  );
 }
 
 class OutfitLog {
-  String id, memberId;
+  String id, walletId, memberId;
   List<String> itemIds;
   DateTime date;
   String? notes;
   OutfitLog({
     required this.id,
+    required this.walletId,
     required this.memberId,
     required this.itemIds,
     required this.date,
     this.notes,
   });
+
+  Map<String, dynamic> toJson() => {
+    'wallet_id': walletId,
+    'member_id': memberId,
+    'item_ids': itemIds,
+    'date': date.toIso8601String().substring(0, 10),
+    if (notes != null) 'notes': notes,
+  };
+
+  factory OutfitLog.fromJson(Map<String, dynamic> j) => OutfitLog(
+    id: j['id'] as String,
+    walletId: j['wallet_id'] as String,
+    memberId: j['member_id'] as String,
+    itemIds: (j['item_ids'] as List<dynamic>? ?? []).cast<String>(),
+    date: DateTime.parse(j['date'] as String),
+    notes: j['notes'] as String?,
+  );
 }
 
 final List<ClothingItem> mockClothes = [
