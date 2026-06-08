@@ -177,14 +177,23 @@ final List<VehicleModel> mockVehicles = [
 enum ClothingGender { male, female, kids, unisex }
 
 enum ClothingCategory {
+  // Core (all genders/ages)
   topwear('👕', 'Topwear'),
   bottomwear('👖', 'Bottomwear'),
-  ethnic('👘', 'Ethnic'),
+  ethnic('🛕', 'Ethnic / Traditional'),
   footwear('👟', 'Footwear'),
+  innerwear('🩲', 'Innerwear'),
   accessories('💍', 'Accessories'),
+
+  // Activity / Occasion
+  formal('👔', 'Formal / Office'),
   sportswear('🏃', 'Sportswear'),
-  formal('👔', 'Formal'),
-  innerwear('🩲', 'Innerwear');
+  winterwear('🧥', 'Winter / Outerwear'),
+  nightwear('🌙', 'Nightwear'),
+
+  // Person-specific
+  schoolUniform('🏫', 'School Uniform'),
+  adaptive('♿', 'Medical / Adaptive');
 
   final String emoji, label;
   const ClothingCategory(this.emoji, this.label);

@@ -13,12 +13,12 @@ class WardrobeService {
 
   // ── Photo Storage ────────────────────────────────────────────────────────────
 
-  /// Uploads [localPath] to Supabase Storage and returns the public URL.
-  Future<String> uploadPhoto(String localPath) async {
+  /// Uploads [localPath] to Supabase Storage under `{uid}/{memberId}/` and returns the public URL.
+  Future<String> uploadPhoto(String localPath, {String memberId = 'me'}) async {
     final file = File(localPath);
     final bytes = await file.readAsBytes();
     final ext = localPath.contains('.') ? localPath.split('.').last.toLowerCase() : 'jpg';
-    final storagePath = '$_uid/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final storagePath = '$_uid/$memberId/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     await _db.storage.from(_bucket).uploadBinary(
       storagePath,

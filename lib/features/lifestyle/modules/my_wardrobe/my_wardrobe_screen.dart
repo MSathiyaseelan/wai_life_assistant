@@ -593,9 +593,11 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     final colorCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
     final sourceCtrl = TextEditingController();
-    var cat = ClothingCategory.topwear;
-    var wishlist = _tab.index == 2;
-    String? pickedPath;
+    // Use List wrappers so mutations inside StatefulBuilder closures are guaranteed
+    // to be visible to the save handler regardless of how many times the builder fires.
+    final catRef = <ClothingCategory>[ClothingCategory.topwear];
+    final wishlistRef = <bool>[_tab.index == 2];
+    final pickedPathRef = <String?>[null];
 
     showLifeSheet(
       ctx,
@@ -607,7 +609,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                wishlist ? 'Add to Wishlist' : 'Add Clothing Item',
+                wishlistRef[0] ? 'Add to Wishlist' : 'Add Clothing Item',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
@@ -622,7 +624,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                   children: [
                     for (final c in ClothingCategory.values)
                       GestureDetector(
-                        onTap: () => ss(() => cat = c),
+                        onTap: () { catRef[0] = c; ss(() {}); },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           margin: const EdgeInsets.only(right: 8),
@@ -631,12 +633,12 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: cat == c
+                            color: catRef[0] == c
                                 ? _wardrobeColor.withValues(alpha: 0.15)
                                 : surfBg,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: cat == c
+                              color: catRef[0] == c
                                   ? _wardrobeColor
                                   : Colors.transparent,
                             ),
@@ -654,7 +656,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   fontFamily: 'Nunito',
-                                  color: cat == c
+                                  color: catRef[0] == c
                                       ? _wardrobeColor
                                       : (isDark
                                             ? AppColors.subDark
@@ -693,7 +695,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                 hint: 'Notes (optional)',
                 maxLines: 2,
               ),
-              if (wishlist) ...[
+              if (wishlistRef[0]) ...[
                 const SizedBox(height: 8),
                 LifeInput(
                   controller: sourceCtrl,
@@ -707,7 +709,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
               GestureDetector(
                 onTap: () async {
                   final path = await _pickPhoto(ctx2);
-                  if (path != null) ss(() => pickedPath = path);
+                  if (path != null) ss(() { pickedPathRef[0] = path; });
                 },
                 child: Container(
                   height: 100,
@@ -717,17 +719,17 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                     color: surfBg,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: pickedPath != null
+                      color: pickedPathRef[0] != null
                           ? _wardrobeColor
                           : _wardrobeColor.withValues(alpha: 0.25),
                     ),
                   ),
-                  child: pickedPath != null
+                  child: pickedPathRef[0] != null
                       ? Stack(
                           fit: StackFit.expand,
                           children: [
                             _WardrobePhoto(
-                              path: pickedPath!,
+                              path: pickedPathRef[0]!,
                               fit: BoxFit.cover,
                             ),
                             Positioned(
@@ -781,22 +783,22 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                 color: _wardrobeColor,
                 onTap: () {
                   if (nameCtrl.text.trim().isEmpty) return;
-                  final localPath = pickedPath;
+                  final localPath = pickedPathRef[0];
                   final name = nameCtrl.text.trim();
                   final brand = brandCtrl.text.trim().isEmpty ? null : brandCtrl.text.trim();
                   final size = sizeCtrl.text.trim().isEmpty ? null : sizeCtrl.text.trim();
                   final color = colorCtrl.text.trim().isEmpty ? null : colorCtrl.text.trim();
                   final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
                   final source = sourceCtrl.text.trim().isEmpty ? null : sourceCtrl.text.trim();
-                  final selectedCat = cat;
-                  final isWishlist = wishlist;
+                  final selectedCat = catRef[0];
+                  final isWishlist = wishlistRef[0];
                   Navigator.pop(ctx);
                   () async {
                     try {
                       final svc = WardrobeService.instance;
                       String? photoUrl;
                       if (localPath != null) {
-                        photoUrl = await svc.uploadPhoto(localPath);
+                        photoUrl = await svc.uploadPhoto(localPath, memberId: _selectedMember);
                       }
                       final data = ClothingItem(
                         id: '',
@@ -1298,7 +1300,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
     widget.onUpdate();
     try {
       final svc = WardrobeService.instance;
-      final url = await svc.uploadPhoto(localPath);
+      final url = await svc.uploadPhoto(localPath, memberId: widget.item.memberId);
       await svc.updateItem(widget.item.id, {'photo_path': url});
       if (mounted) {
         setState(() => widget.item.photoPath = url);

@@ -5,7 +5,8 @@
       "Bash(grep -h \"\\\\.from\\(\" /d/Personal/ToDo/Projects/Repos/wai_life_assistant/lib/core/supabase/*.dart /d/Personal/ToDo/Projects/Repos/wai_life_assistant/lib/features/dashboard/*.dart)",
       "Read(//c/Users/Sathiyaseelan/AppData/Local/Pub/Cache/hosted/pub.dev/**)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(dart doc *)"
+      "Bash(dart doc *)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
