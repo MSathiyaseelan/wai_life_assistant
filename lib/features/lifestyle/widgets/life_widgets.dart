@@ -139,9 +139,9 @@ class LifeEmptyState extends StatelessWidget {
   const LifeEmptyState({super.key, required this.emoji, required this.title, required this.subtitle});
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(padding: const EdgeInsets.all(48),
+    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(emoji, style: const TextStyle(fontSize: 56)),
+        Text(emoji, style: const TextStyle(fontSize: 48)),
         const SizedBox(height: 16),
         Text(title, textAlign: TextAlign.center, style: const TextStyle(
           fontSize: 18, fontWeight: FontWeight.w800, fontFamily: 'Nunito')),

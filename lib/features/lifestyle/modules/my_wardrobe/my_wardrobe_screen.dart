@@ -726,8 +726,8 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                       ? Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.file(
-                              File(pickedPath!),
+                            _WardrobePhoto(
+                              path: pickedPath!,
                               fit: BoxFit.cover,
                             ),
                             Positioned(
@@ -781,36 +781,39 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                 color: _wardrobeColor,
                 onTap: () {
                   if (nameCtrl.text.trim().isEmpty) return;
-                  final data = ClothingItem(
-                    id: '',
-                    memberId: _selectedMember,
-                    name: nameCtrl.text.trim(),
-                    walletId: widget.walletId,
-                    category: cat,
-                    gender: ClothingGender.unisex,
-                    brand: brandCtrl.text.trim().isEmpty
-                        ? null
-                        : brandCtrl.text.trim(),
-                    size: sizeCtrl.text.trim().isEmpty
-                        ? null
-                        : sizeCtrl.text.trim(),
-                    color: colorCtrl.text.trim().isEmpty
-                        ? null
-                        : colorCtrl.text.trim(),
-                    notes: notesCtrl.text.trim().isEmpty
-                        ? null
-                        : notesCtrl.text.trim(),
-                    photoPath: pickedPath,
-                    wishlist: wishlist,
-                    wishlistSource: sourceCtrl.text.trim().isEmpty
-                        ? null
-                        : sourceCtrl.text.trim(),
-                  );
+                  final localPath = pickedPath;
+                  final name = nameCtrl.text.trim();
+                  final brand = brandCtrl.text.trim().isEmpty ? null : brandCtrl.text.trim();
+                  final size = sizeCtrl.text.trim().isEmpty ? null : sizeCtrl.text.trim();
+                  final color = colorCtrl.text.trim().isEmpty ? null : colorCtrl.text.trim();
+                  final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                  final source = sourceCtrl.text.trim().isEmpty ? null : sourceCtrl.text.trim();
+                  final selectedCat = cat;
+                  final isWishlist = wishlist;
                   Navigator.pop(ctx);
                   () async {
                     try {
-                      final row = await WardrobeService.instance
-                          .addItem(data.toJson());
+                      final svc = WardrobeService.instance;
+                      String? photoUrl;
+                      if (localPath != null) {
+                        photoUrl = await svc.uploadPhoto(localPath);
+                      }
+                      final data = ClothingItem(
+                        id: '',
+                        memberId: _selectedMember,
+                        name: name,
+                        walletId: widget.walletId,
+                        category: selectedCat,
+                        gender: ClothingGender.unisex,
+                        brand: brand,
+                        size: size,
+                        color: color,
+                        notes: notes,
+                        photoPath: photoUrl,
+                        wishlist: isWishlist,
+                        wishlistSource: source,
+                      );
+                      final row = await svc.addItem(data.toJson());
                       final saved = ClothingItem.fromJson(row);
                       if (mounted) setState(() => _clothes.insert(0, saved));
                     } catch (e) {
@@ -933,8 +936,8 @@ class _ClothingGrid extends StatelessWidget {
                       color: _wardrobeColor.withValues(alpha: 0.07),
                       alignment: Alignment.center,
                       child: item.photoPath != null
-                          ? Image.file(
-                              File(item.photoPath!),
+                          ? _WardrobePhoto(
+                              path: item.photoPath!,
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
@@ -1108,8 +1111,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   ? Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.file(
-                          File(item.photoPath!),
+                        _WardrobePhoto(
+                          path: item.photoPath!,
                           fit: BoxFit.cover,
                         ),
                         Positioned(
@@ -1230,8 +1233,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                         if (m.photoPath != null)
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(m.photoPath!),
+                            child: _WardrobePhoto(
+                              path: m.photoPath!,
                               width: 36,
                               height: 36,
                               fit: BoxFit.cover,
@@ -1288,18 +1291,22 @@ class _ClothingDetailState extends State<_ClothingDetail> {
   }
 
   Future<void> _changePhoto() async {
-    final path = await _pickPhoto(context);
-    if (path != null) {
-      setState(() => widget.item.photoPath = path);
-      widget.onUpdate();
-      () async {
-        try {
-          await WardrobeService.instance
-              .updateItem(widget.item.id, {'photo_path': path});
-        } catch (e) {
-          debugPrint('[Wardrobe] updatePhoto error: $e');
-        }
-      }();
+    final localPath = await _pickPhoto(context);
+    if (localPath == null) return;
+    final oldUrl = widget.item.photoPath;
+    setState(() => widget.item.photoPath = localPath); // optimistic local preview
+    widget.onUpdate();
+    try {
+      final svc = WardrobeService.instance;
+      final url = await svc.uploadPhoto(localPath);
+      await svc.updateItem(widget.item.id, {'photo_path': url});
+      if (mounted) {
+        setState(() => widget.item.photoPath = url);
+        widget.onUpdate();
+      }
+      await svc.deletePhoto(oldUrl); // clean up old file
+    } catch (e) {
+      debugPrint('[Wardrobe] updatePhoto error: $e');
     }
   }
 
@@ -1414,8 +1421,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                                         ClipRRect(
                                           borderRadius:
                                               BorderRadius.circular(8),
-                                          child: Image.file(
-                                            File(c.photoPath!),
+                                          child: _WardrobePhoto(
+                                            path: c.photoPath!,
                                             width: 30,
                                             height: 30,
                                             fit: BoxFit.cover,
@@ -1586,8 +1593,8 @@ class _SearchResultsList extends StatelessWidget {
                     color: _wardrobeColor.withValues(alpha: 0.08),
                     alignment: Alignment.center,
                     child: item.photoPath != null
-                        ? Image.file(
-                            File(item.photoPath!),
+                        ? _WardrobePhoto(
+                            path: item.photoPath!,
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
@@ -1671,8 +1678,8 @@ class _SearchResultsList extends StatelessWidget {
                                     ? ClipRRect(
                                         borderRadius:
                                             BorderRadius.circular(10),
-                                        child: Image.file(
-                                          File(p.photoPath!),
+                                        child: _WardrobePhoto(
+                                          path: p.photoPath!,
                                           fit: BoxFit.cover,
                                         ),
                                       )
@@ -1803,8 +1810,8 @@ class _OutfitLogTab extends StatelessWidget {
           child: item.photoPath != null
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.file(
-                    File(item.photoPath!),
+                  child: _WardrobePhoto(
+                    path: item.photoPath!,
                     fit: BoxFit.cover,
                   ),
                 )
@@ -2186,8 +2193,8 @@ class _OutfitLogTab extends StatelessWidget {
                                         ? ClipRRect(
                                             borderRadius:
                                                 BorderRadius.circular(8),
-                                            child: Image.file(
-                                              File(item.photoPath!),
+                                            child: _WardrobePhoto(
+                                              path: item.photoPath!,
                                               fit: BoxFit.cover,
                                             ),
                                           )
@@ -2321,8 +2328,8 @@ class _OutfitLogTab extends StatelessWidget {
                                       ClipRRect(
                                         borderRadius:
                                             BorderRadius.circular(8),
-                                        child: Image.file(
-                                          File(item.photoPath!),
+                                        child: _WardrobePhoto(
+                                          path: item.photoPath!,
                                           width: 30,
                                           height: 30,
                                           fit: BoxFit.cover,
@@ -2385,6 +2392,53 @@ class _OutfitLogTab extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHOTO WIDGET — handles both Supabase Storage URLs and local file paths
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WardrobePhoto extends StatelessWidget {
+  final String path;
+  final double? width, height;
+  final BoxFit fit;
+  const _WardrobePhoto({
+    required this.path,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+  });
+
+  bool get _isNetwork => path.startsWith('http');
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isNetwork) {
+      return Image.network(
+        path,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (_, __, ___) => Container(
+          width: width,
+          height: height,
+          color: _wardrobeColor.withValues(alpha: 0.08),
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.broken_image_rounded,
+            color: _wardrobeColor,
+            size: 24,
+          ),
+        ),
+      );
+    }
+    return Image.file(
+      File(path),
+      width: width,
+      height: height,
+      fit: fit,
     );
   }
 }
