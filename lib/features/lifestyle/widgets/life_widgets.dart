@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 
 // ── Bottom sheet launcher ─────────────────────────────────────────────────────
@@ -8,8 +9,8 @@ void showLifeSheet(BuildContext context, {required Widget child}) {
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    builder: (sheetCtx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
       child: Container(
         decoration: BoxDecoration(
           color: isDark ? AppColors.cardDark : AppColors.cardLight,
@@ -48,8 +49,9 @@ class LifeInput extends StatelessWidget {
   final String hint;
   final int maxLines;
   final TextInputType? inputType;
+  final List<TextInputFormatter>? inputFormatters;
   const LifeInput({super.key, required this.controller, required this.hint,
-    this.maxLines = 1, this.inputType});
+    this.maxLines = 1, this.inputType, this.inputFormatters});
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -62,6 +64,7 @@ class LifeInput extends StatelessWidget {
       child: TextField(
         controller: controller, maxLines: maxLines, minLines: 1,
         keyboardType: inputType,
+        inputFormatters: inputFormatters,
         textCapitalization: TextCapitalization.sentences,
         style: TextStyle(fontSize: 13, color: tc, fontFamily: 'Nunito'),
         decoration: InputDecoration.collapsed(hintText: hint,

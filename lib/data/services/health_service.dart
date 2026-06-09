@@ -1,0 +1,261 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/health/health_models.dart';
+
+class HealthService {
+  HealthService._();
+  static final HealthService instance = HealthService._();
+
+  SupabaseClient get _db => Supabase.instance.client;
+  String get _uid => _db.auth.currentUser!.id;
+
+  static const _bucket = 'health-docs';
+
+  // ── Document Storage ─────────────────────────────────────────────────────────
+
+  Future<String> uploadDoc(String localPath, {String memberId = 'me'}) async {
+    final bytes = await File(localPath).readAsBytes();
+    final ext = localPath.contains('.') ? localPath.split('.').last.toLowerCase() : 'jpg';
+    final storagePath = '$_uid/$memberId/${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final mime = ext == 'pdf' ? 'application/pdf' : 'image/jpeg';
+    await _db.storage.from(_bucket).uploadBinary(storagePath, bytes,
+        fileOptions: FileOptions(contentType: mime, upsert: false));
+    return _db.storage.from(_bucket).getPublicUrl(storagePath);
+  }
+
+  Future<void> deleteDoc(String? fileUrl) async {
+    if (fileUrl == null || !fileUrl.contains(_bucket)) return;
+    try {
+      final uri = Uri.parse(fileUrl);
+      final segs = uri.pathSegments;
+      final idx = segs.indexOf(_bucket);
+      if (idx >= 0 && idx < segs.length - 1) {
+        await _db.storage.from(_bucket).remove([segs.sublist(idx + 1).join('/')]);
+      }
+    } catch (e) {
+      debugPrint('[Health] deleteDoc error: $e');
+    }
+  }
+
+  // ── Health Profile ────────────────────────────────────────────────────────────
+
+  Future<HealthProfile?> fetchProfile(String walletId, String memberId) async {
+    final rows = await _db
+        .from('health_profiles')
+        .select()
+        .eq('wallet_id', walletId)
+        .eq('member_id', memberId)
+        .limit(1);
+    if ((rows as List).isEmpty) return null;
+    return HealthProfile.fromJson(rows.first);
+  }
+
+  Future<HealthProfile> upsertProfile(HealthProfile p) async {
+    final data = {...p.toJson(), 'user_id': _uid};
+    if (p.id.isEmpty) {
+      final row = await _db.from('health_profiles').insert(data).select().single();
+      return HealthProfile.fromJson(row);
+    } else {
+      final row = await _db
+          .from('health_profiles')
+          .update(p.toJson())
+          .eq('id', p.id)
+          .select()
+          .single();
+      return HealthProfile.fromJson(row);
+    }
+  }
+
+  // ── Medications ───────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchMedications(String walletId) async {
+    final rows = await _db
+        .from('health_medications')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('is_active', ascending: false)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addMedication(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_medications')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateMedication(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_medications').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteMedication(String id) async {
+    await _db.from('health_medications').delete().eq('id', id);
+  }
+
+  // ── Doctors ───────────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchDoctors(String walletId) async {
+    final rows = await _db
+        .from('health_doctors')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('name');
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addDoctor(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_doctors')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> deleteDoctor(String id) async {
+    await _db.from('health_doctors').delete().eq('id', id);
+  }
+
+  // ── Documents ─────────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchDocuments(String walletId) async {
+    final rows = await _db
+        .from('health_documents')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('doc_date', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addDocument(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_documents')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> deleteDocument(String id, String? fileUrl) async {
+    await _db.from('health_documents').delete().eq('id', id);
+    await deleteDoc(fileUrl);
+  }
+
+  // ── Appointments ──────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchAppointments(String walletId) async {
+    final rows = await _db
+        .from('health_appointments')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('appt_date', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addAppointment(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_appointments')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> deleteAppointment(String id) async {
+    await _db.from('health_appointments').delete().eq('id', id);
+  }
+
+  // ── Vitals ────────────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchVitals(String walletId) async {
+    final rows = await _db
+        .from('health_vitals')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('recorded_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addVital(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_vitals')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> deleteVital(String id) async {
+    await _db.from('health_vitals').delete().eq('id', id);
+  }
+
+  // ── Vaccinations ──────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchVaccinations(String walletId) async {
+    final rows = await _db
+        .from('health_vaccinations')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('date_given', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addVaccination(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_vaccinations')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> deleteVaccination(String id) async {
+    await _db.from('health_vaccinations').delete().eq('id', id);
+  }
+
+  // ── Insurance ─────────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchInsurance(String walletId) async {
+    final rows = await _db
+        .from('health_insurance')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows as List);
+  }
+
+  Future<Map<String, dynamic>> addInsurance(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('health_insurance')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> deleteInsurance(String id) async {
+    await _db.from('health_insurance').delete().eq('id', id);
+  }
+
+  // ── Summary (for MyHub card) ──────────────────────────────────────────────────
+
+  Future<Map<String, int>> fetchSummary(String walletId) async {
+    try {
+      final results = await Future.wait([
+        _db.from('health_medications').select('id').eq('wallet_id', walletId).eq('is_active', true),
+        _db.from('health_appointments').select('appt_date').eq('wallet_id', walletId)
+            .gte('appt_date', DateTime.now().toIso8601String().substring(0, 10)),
+      ]);
+      return {
+        'medications': (results[0] as List).length,
+        'appointments': (results[1] as List).length,
+      };
+    } catch (_) {
+      return {'medications': 0, 'appointments': 0};
+    }
+  }
+}

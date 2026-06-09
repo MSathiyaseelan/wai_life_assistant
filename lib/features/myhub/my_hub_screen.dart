@@ -9,9 +9,11 @@ import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
+import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/my_functions/my_functions_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/item_locator/itemLocatorScreen.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
+import 'package:wai_life_assistant/features/lifestyle/modules/health_space/health_space_screen.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 class MyHubScreen extends StatefulWidget {
@@ -49,6 +51,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
   final List<StorageContainer> _containers = [];
   final List<StoredItem> _items = [];
   final List<ClothingItem> _wardrobeItems = [];
+  // ignore: prefer_final_fields
+  int _healthMedications = 0;
+  // ignore: prefer_final_fields
+  int _healthAppointments = 0;
   String? _loadedKey;
 
   @override
@@ -82,8 +88,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
         Future.wait(walletIds.map((id) => locSvc.fetchContainers(id))),
         Future.wait(walletIds.map((id) => locSvc.fetchItems(id))),
         Future.wait(walletIds.map((id) => WardrobeService.instance.fetchItems(id))),
+        HealthService.instance.fetchSummary(wid),
       ]);
       if (!mounted) return;
+      final healthSummary = results[4] as Map<String, int>;
       setState(() {
         _functions
           ..clear()
@@ -97,6 +105,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
         _wardrobeItems
           ..clear()
           ..addAll((results[3] as List).expand((r) => r as List).map((r) => ClothingItem.fromJson(r as Map<String, dynamic>)));
+        _healthMedications = healthSummary['medications'] ?? 0;
+        _healthAppointments = healthSummary['appointments'] ?? 0;
       });
     } catch (e) {
       debugPrint('[MyHub] _loadData error: $e');
@@ -185,6 +195,14 @@ class _MyHubScreenState extends State<MyHubScreen> {
         ? [
             '👗  $wardrobeCount ${wardrobeCount == 1 ? 'Item' : 'Items'} in wardrobe',
             '💛  $wishlistCount in wishlist',
+          ]
+        : <String>[];
+
+    // Health summary
+    final healthSummary = (_healthMedications > 0 || _healthAppointments > 0)
+        ? [
+            if (_healthMedications > 0) '💊  $_healthMedications active ${_healthMedications == 1 ? 'medication' : 'medications'}',
+            if (_healthAppointments > 0) '📅  $_healthAppointments upcoming ${_healthAppointments == 1 ? 'appointment' : 'appointments'}',
           ]
         : <String>[];
 
@@ -290,6 +308,21 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       summary: wardrobeSummary,
                       emptyLabel: 'No clothing added yet',
                       onTap: () => _openWardrobe(context),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildModuleCard(
+                      context: context,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      textColor: textColor,
+                      color: const Color(0xFF00BFA5),
+                      emoji: '🏥',
+                      title: 'Health Space',
+                      subtitle: 'Medications, vitals & records',
+                      count: _healthMedications + _healthAppointments,
+                      summary: healthSummary,
+                      emptyLabel: 'No health records yet',
+                      onTap: () => _openHealthSpace(context),
                     ),
                   ],
                 ),
@@ -509,6 +542,46 @@ class _MyHubScreenState extends State<MyHubScreen> {
         pageBuilder: (ctx, anim, secondaryAnim) => MyWardrobeScreen(
           walletId: _currentWallet.id,
           members: _wardrobeMembers,
+        ),
+        transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.05),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
+  }
+
+  List<LifeMember> get _healthMembers {
+    if (_isPersonal) {
+      return const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+    }
+    final family = _appState.families.firstWhere(
+      (f) => f.walletId == _currentWallet.id,
+      orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
+    );
+    final members = family.members
+        .map((m) => LifeMember(id: m.id, name: m.name, emoji: m.emoji))
+        .toList();
+    return members.isNotEmpty
+        ? members
+        : const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+  }
+
+  void _openHealthSpace(BuildContext context) {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (ctx, anim, secondaryAnim) => HealthSpaceScreen(
+          walletId: _currentWallet.id,
+          members: _healthMembers,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
