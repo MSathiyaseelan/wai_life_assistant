@@ -116,6 +116,10 @@ class HealthService {
     return row;
   }
 
+  Future<void> updateDoctor(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_doctors').update(updates).eq('id', id);
+  }
+
   Future<void> deleteDoctor(String id) async {
     await _db.from('health_doctors').delete().eq('id', id);
   }
@@ -138,6 +142,10 @@ class HealthService {
         .select()
         .single();
     return row;
+  }
+
+  Future<void> updateDocument(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_documents').update(updates).eq('id', id);
   }
 
   Future<void> deleteDocument(String id, String? fileUrl) async {
@@ -165,6 +173,10 @@ class HealthService {
     return row;
   }
 
+  Future<void> updateAppointment(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_appointments').update(updates).eq('id', id);
+  }
+
   Future<void> deleteAppointment(String id) async {
     await _db.from('health_appointments').delete().eq('id', id);
   }
@@ -187,6 +199,10 @@ class HealthService {
         .select()
         .single();
     return row;
+  }
+
+  Future<void> updateVital(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_vitals').update(updates).eq('id', id);
   }
 
   Future<void> deleteVital(String id) async {
@@ -213,6 +229,10 @@ class HealthService {
     return row;
   }
 
+  Future<void> updateVaccination(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_vaccinations').update(updates).eq('id', id);
+  }
+
   Future<void> deleteVaccination(String id) async {
     await _db.from('health_vaccinations').delete().eq('id', id);
   }
@@ -235,6 +255,10 @@ class HealthService {
         .select()
         .single();
     return row;
+  }
+
+  Future<void> updateInsurance(String id, Map<String, dynamic> updates) async {
+    await _db.from('health_insurance').update(updates).eq('id', id);
   }
 
   Future<void> deleteInsurance(String id) async {

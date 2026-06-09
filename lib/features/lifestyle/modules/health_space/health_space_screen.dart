@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/health/health_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
@@ -183,26 +184,32 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
                     _DoctorsTab(walletId: widget.walletId, memberId: _selectedMember, doctors: _doctors.where((d) => d.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (d) => setState(() => _doctors.add(d)),
                       onDelete: (id) => setState(() => _doctors.removeWhere((d) => d.id == id)),
+                      onUpdate: (d) => setState(() { final i = _doctors.indexWhere((x) => x.id == d.id); if (i >= 0) _doctors[i] = d; }),
                     ),
                     _DocumentsTab(walletId: widget.walletId, memberId: _selectedMember, docs: _documents.where((d) => d.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (d) => setState(() => _documents.insert(0, d)),
                       onDelete: (id) => setState(() => _documents.removeWhere((d) => d.id == id)),
+                      onUpdate: (d) => setState(() { final i = _documents.indexWhere((x) => x.id == d.id); if (i >= 0) _documents[i] = d; }),
                     ),
                     _AppointmentsTab(walletId: widget.walletId, memberId: _selectedMember, appointments: _appointments.where((a) => a.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (a) => setState(() => _appointments.insert(0, a)),
                       onDelete: (id) => setState(() => _appointments.removeWhere((a) => a.id == id)),
+                      onUpdate: (a) => setState(() { final i = _appointments.indexWhere((x) => x.id == a.id); if (i >= 0) _appointments[i] = a; }),
                     ),
                     _VitalsTab(walletId: widget.walletId, memberId: _selectedMember, vitals: _vitals.where((v) => v.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (v) => setState(() => _vitals.insert(0, v)),
                       onDelete: (id) => setState(() => _vitals.removeWhere((v) => v.id == id)),
+                      onUpdate: (v) => setState(() { final i = _vitals.indexWhere((x) => x.id == v.id); if (i >= 0) _vitals[i] = v; }),
                     ),
                     _VaccinesTab(walletId: widget.walletId, memberId: _selectedMember, vaccinations: _vaccinations.where((v) => v.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (v) => setState(() => _vaccinations.insert(0, v)),
                       onDelete: (id) => setState(() => _vaccinations.removeWhere((v) => v.id == id)),
+                      onUpdate: (v) => setState(() { final i = _vaccinations.indexWhere((x) => x.id == v.id); if (i >= 0) _vaccinations[i] = v; }),
                     ),
                     _InsuranceTab(walletId: widget.walletId, memberId: _selectedMember, policies: _insurance.where((p) => p.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (p) => setState(() => _insurance.insert(0, p)),
                       onDelete: (id) => setState(() => _insurance.removeWhere((p) => p.id == id)),
+                      onUpdate: (p) => setState(() { final i = _insurance.indexWhere((x) => x.id == p.id); if (i >= 0) _insurance[i] = p; }),
                     ),
                     _EmergencyTab(profile: _profile, memberId: _selectedMember, members: widget.members, meds: _medications.where((m) => m.memberId == _selectedMember && m.isActive).toList(), isDark: isDark),
                   ]),
@@ -250,23 +257,6 @@ class _MemberChips extends StatelessWidget {
   }
 }
 
-// ── Info row helper ───────────────────────────────────────────────────────────
-Widget _infoRow(BuildContext context, IconData icon, String label, String value, {Color? color}) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
-  final sub = isDark ? AppColors.subDark   : AppColors.subLight;
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 16, color: color ?? _healthColor),
-      const SizedBox(width: 8),
-      Expanded(child: RichText(text: TextSpan(children: [
-        TextSpan(text: '$label  ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
-        TextSpan(text: value, style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: color ?? tc)),
-      ]))),
-    ]),
-  );
-}
 
 Widget _chip(String text, Color color) => Container(
   margin: const EdgeInsets.only(right: 6, bottom: 6),
@@ -795,41 +785,124 @@ class _MedCard extends StatelessWidget {
   final VoidCallback onDelete, onToggle, onEdit;
   const _MedCard({required this.m, required this.cardBg, required this.isDark, required this.onDelete, required this.onToggle, required this.onEdit});
 
+  static const _scheduleEmojis = {'Morning': '🌅', 'Afternoon': '☀️', 'Evening': '🌆', 'Night': '🌙'};
+
+  Widget _pill(String text, Color bg, Color fg) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+    child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: fg)),
+  );
+
   @override
   Widget build(BuildContext context) {
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark   : AppColors.subLight;
+    final accent = m.isActive ? _healthColor : Colors.grey;
+    final hasSchedule = m.scheduleTimes.isNotEmpty || m.mealTiming != null;
+
     return Dismissible(
       key: ValueKey(m.id),
       direction: DismissDirection.endToStart,
-      background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.delete_rounded, color: Colors.red)),
       onDismissed: (_) => onDelete(),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: m.isActive ? _healthColor.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.2))),
-        child: Row(children: [
-          Container(width: 40, height: 40, decoration: BoxDecoration(color: (m.isActive ? _healthColor : Colors.grey).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)), alignment: Alignment.center, child: const Text('💊', style: TextStyle(fontSize: 20))),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
-            Text('${m.dosage}  ·  ${m.frequency}', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
-            if (m.scheduleLabel.isNotEmpty) Text(m.scheduleLabel, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-            if (m.refillDate != null) Row(children: [const Icon(Icons.refresh_rounded, size: 12, color: Colors.orange), const SizedBox(width: 4), Text('Refill: ${_fmtDate(m.refillDate!)}', style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.orange))]),
-          ])),
-          GestureDetector(
-            onTap: onEdit,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Icon(Icons.edit_rounded, size: 16, color: _healthColor),
-            ),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: m.isActive ? 0.3 : 0.15))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          // ── Top row ─────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Stack(children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(13)),
+                  alignment: Alignment.center,
+                  child: const Text('💊', style: TextStyle(fontSize: 24))),
+                if (m.isActive)
+                  Positioned(right: 1, top: 1,
+                    child: Container(
+                      width: 11, height: 11,
+                      decoration: BoxDecoration(
+                        color: _healthColor, shape: BoxShape.circle,
+                        border: Border.all(color: cardBg, width: 2)))),
+              ]),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(m.name, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+                const SizedBox(height: 5),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(7)),
+                    child: Text(m.dosage, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'DM Mono', color: accent))),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(m.frequency, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub), overflow: TextOverflow.ellipsis)),
+                ]),
+              ])),
+              const SizedBox(width: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                GestureDetector(
+                  onTap: onToggle,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8)),
+                    child: Text(m.isActive ? '● Active' : '○ Past',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: accent)))),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Icon(Icons.edit_outlined, size: 16, color: sub)),
+              ]),
+            ]),
           ),
-          GestureDetector(
-            onTap: onToggle,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: (m.isActive ? _healthColor : Colors.grey).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-              child: Text(m.isActive ? 'Active' : 'Past', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: m.isActive ? _healthColor : Colors.grey)),
+
+          // ── Schedule chips ───────────────────────────────────────
+          if (hasSchedule)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: Wrap(spacing: 6, runSpacing: 4, children: [
+                for (final t in m.scheduleTimes)
+                  _pill('${_scheduleEmojis[t] ?? '⏰'} $t',
+                    _healthColor.withValues(alpha: 0.1), _healthColor),
+                if (m.mealTiming != null)
+                  _pill(m.mealTiming!.contains('Before') ? '🍽️ ${m.mealTiming!}' : '🥢 ${m.mealTiming!}',
+                    Colors.purple.withValues(alpha: 0.1), Colors.purple),
+              ]),
             ),
+
+          // ── Footer: dates ────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+            decoration: BoxDecoration(
+              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16))),
+            child: Row(children: [
+              Icon(Icons.calendar_today_rounded, size: 12, color: sub),
+              const SizedBox(width: 4),
+              Text('Since ${_fmtDate(m.startDate)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+              if (m.refillDate != null) ...[
+                const Spacer(),
+                const Icon(Icons.refresh_rounded, size: 12, color: Colors.orange),
+                const SizedBox(width: 4),
+                Text('Refill ${_fmtDate(m.refillDate!)}',
+                  style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.orange, fontWeight: FontWeight.w700)),
+              ],
+            ]),
           ),
         ]),
       ),
@@ -848,7 +921,8 @@ class _DoctorsTab extends StatelessWidget {
   final Color surfBg;
   final void Function(DoctorRecord) onAdd;
   final void Function(String) onDelete;
-  const _DoctorsTab({required this.walletId, required this.memberId, required this.doctors, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete});
+  final void Function(DoctorRecord) onUpdate;
+  const _DoctorsTab({required this.walletId, required this.memberId, required this.doctors, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
@@ -857,7 +931,7 @@ class _DoctorsTab extends StatelessWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAdd(context),
+        onPressed: () => _showSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Doctor', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
@@ -868,38 +942,93 @@ class _DoctorsTab extends StatelessWidget {
                 Dismissible(
                   key: ValueKey(d.id),
                   direction: DismissDirection.endToStart,
-                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   onDismissed: (_) async {
                     try { await HealthService.instance.deleteDoctor(d.id); onDelete(d.id); } catch (e) { debugPrint('[Health] deleteDoctor: $e'); }
                   },
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: _healthColor.withValues(alpha: 0.2))),
-                    child: Row(children: [
-                      Container(width: 44, height: 44, decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)), alignment: Alignment.center, child: const Text('👨‍⚕️', style: TextStyle(fontSize: 24))),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Dr. ${d.name}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
-                        if (d.specialty != null) Text(d.specialty!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: _healthColor)),
-                        if (d.hospital != null) Text(d.hospital!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight)),
-                        if (d.phone != null) Row(children: [const Icon(Icons.phone_rounded, size: 12, color: _healthColor), const SizedBox(width: 4), Text(d.phone!, style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _healthColor))]),
-                      ])),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _healthColor.withValues(alpha: 0.2))),
+                    child: IntrinsicHeight(
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      // Left accent strip
+                      Container(
+                        width: 5,
+                        decoration: BoxDecoration(
+                          color: _healthColor,
+                          borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), bottomLeft: Radius.circular(16)))),
+                      Expanded(child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Container(
+                              width: 48, height: 48,
+                              decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(13)),
+                              alignment: Alignment.center,
+                              child: const Text('👨‍⚕️', style: TextStyle(fontSize: 26))),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('Dr. ${d.name}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
+                              const SizedBox(height: 5),
+                              if (d.specialty != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                                  child: Text(d.specialty!, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: _healthColor))),
+                            ])),
+                            GestureDetector(
+                              onTap: () => _showSheet(context, existing: d),
+                              child: Icon(Icons.edit_outlined, size: 18, color: isDark ? AppColors.subDark : AppColors.subLight)),
+                          ]),
+                          if (d.hospital != null || d.phone != null) ...[
+                            const SizedBox(height: 10),
+                            Divider(height: 1, color: _healthColor.withValues(alpha: 0.1)),
+                            const SizedBox(height: 10),
+                          ],
+                          if (d.hospital != null) ...[
+                            Row(children: [
+                              Icon(Icons.local_hospital_rounded, size: 13, color: isDark ? AppColors.subDark : AppColors.subLight),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text(d.hospital!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight))),
+                            ]),
+                            if (d.phone != null) const SizedBox(height: 6),
+                          ],
+                          if (d.phone != null)
+                            Row(children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Icon(Icons.phone_rounded, size: 13, color: Colors.green),
+                                  const SizedBox(width: 5),
+                                  Text(d.phone!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: Colors.green)),
+                                ])),
+                            ]),
+                          if (d.notes != null) ...[
+                            const SizedBox(height: 8),
+                            Text(d.notes!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          ],
+                        ]),
+                      )),
                     ]),
+                    ),
                   ),
                 ),
             ]),
     );
   }
 
-  void _showAdd(BuildContext ctx) {
-    final nameCtrl = TextEditingController();
-    final specCtrl = TextEditingController();
-    final hospCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
+  void _showSheet(BuildContext ctx, {DoctorRecord? existing}) {
+    final nameCtrl  = TextEditingController(text: existing?.name ?? '');
+    final specCtrl  = TextEditingController(text: existing?.specialty ?? '');
+    final hospCtrl  = TextEditingController(text: existing?.hospital ?? '');
+    final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
+    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
     showLifeSheet(ctx, child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 36), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      const Text('Add Doctor', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+      Text(existing == null ? 'Add Doctor' : 'Edit Doctor', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
       const SizedBox(height: 12),
       LifeInput(controller: nameCtrl, hint: 'Doctor name *'),
       const SizedBox(height: 8),
@@ -910,11 +1039,21 @@ class _DoctorsTab extends StatelessWidget {
       LifeInput(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
       const SizedBox(height: 8),
       LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-      LifeSaveButton(label: 'Save', color: _healthColor, onTap: () {
+      LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
         if (nameCtrl.text.trim().isEmpty) return;
-        final data = DoctorRecord(id: '', walletId: walletId, memberId: memberId, name: nameCtrl.text.trim(), specialty: specCtrl.text.trim().isEmpty ? null : specCtrl.text.trim(), hospital: hospCtrl.text.trim().isEmpty ? null : hospCtrl.text.trim(), phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(), notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim());
+        final name      = nameCtrl.text.trim();
+        final specialty = specCtrl.text.trim().isEmpty  ? null : specCtrl.text.trim();
+        final hospital  = hospCtrl.text.trim().isEmpty  ? null : hospCtrl.text.trim();
+        final phone     = phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim();
+        final notes     = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
         Navigator.pop(ctx);
-        () async { try { final row = await HealthService.instance.addDoctor(data.toJson()); onAdd(DoctorRecord.fromJson(row)); } catch (e) { debugPrint('[Health] addDoctor: $e'); } }();
+        if (existing == null) {
+          final data = DoctorRecord(id: '', walletId: walletId, memberId: memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes);
+          () async { try { final row = await HealthService.instance.addDoctor(data.toJson()); onAdd(DoctorRecord.fromJson(row)); } catch (e) { debugPrint('[Health] addDoctor: $e'); } }();
+        } else {
+          final updates = {'name': name, 'specialty': specialty, 'hospital': hospital, 'phone': phone, 'notes': notes};
+          () async { try { await HealthService.instance.updateDoctor(existing.id, updates); onUpdate(DoctorRecord(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes)); } catch (e) { debugPrint('[Health] updateDoctor: $e'); } }();
+        }
       }),
     ])));
   }
@@ -931,7 +1070,8 @@ class _DocumentsTab extends StatelessWidget {
   final Color surfBg;
   final void Function(MedicalDocument) onAdd;
   final void Function(String) onDelete;
-  const _DocumentsTab({required this.walletId, required this.memberId, required this.docs, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete});
+  final void Function(MedicalDocument) onUpdate;
+  const _DocumentsTab({required this.walletId, required this.memberId, required this.docs, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
@@ -940,7 +1080,7 @@ class _DocumentsTab extends StatelessWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAdd(context),
+        onPressed: () => _showSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Document', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
@@ -951,28 +1091,71 @@ class _DocumentsTab extends StatelessWidget {
                 Dismissible(
                   key: ValueKey(d.id),
                   direction: DismissDirection.endToStart,
-                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   onDismissed: (_) async {
                     try { await HealthService.instance.deleteDocument(d.id, d.fileUrl); onDelete(d.id); } catch (e) { debugPrint('[Health] deleteDoc: $e'); }
                   },
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: _healthColor.withValues(alpha: 0.2))),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if (d.fileUrl != null)
-                        ClipRRect(borderRadius: const BorderRadius.only(topLeft: Radius.circular(14), bottomLeft: Radius.circular(14)),
-                          child: d.fileUrl!.endsWith('.pdf')
-                              ? Container(width: 72, height: 72, color: Colors.red.withValues(alpha: 0.1), alignment: Alignment.center, child: const Text('📄', style: TextStyle(fontSize: 30)))
-                              : Image.network(d.fileUrl!, width: 72, height: 72, fit: BoxFit.cover, errorBuilder: (_, a, e) => Container(width: 72, height: 72, color: _healthColor.withValues(alpha: 0.1), alignment: Alignment.center, child: Text(d.docType.emoji, style: const TextStyle(fontSize: 30))))),
-                      Expanded(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Text('${d.docType.emoji} ${d.docType.label}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: _healthColor))),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: _healthColor.withValues(alpha: 0.18))),
+                    child: Column(children: [
+                      // ── Header banner ──
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                        decoration: BoxDecoration(
+                          color: _healthColor.withValues(alpha: 0.07),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+                        child: Row(children: [
+                          Container(
+                            width: 44, height: 44,
+                            decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                            alignment: Alignment.center,
+                            child: Text(d.docType.emoji, style: const TextStyle(fontSize: 22))),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(d.title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+                              child: Text(d.docType.label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: _healthColor))),
+                          ])),
+                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
+                              child: Text(_fmtDate(d.docDate), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'DM Mono', color: isDark ? AppColors.subDark : AppColors.subLight))),
+                            const SizedBox(height: 6),
+                            GestureDetector(
+                              onTap: () => _showSheet(context, existing: d),
+                              child: Icon(Icons.edit_outlined, size: 16, color: isDark ? AppColors.subDark : AppColors.subLight)),
+                          ]),
                         ]),
-                        const SizedBox(height: 4),
-                        Text(d.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
-                        Text(_fmtDate(d.docDate), style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight)),
-                        if (d.notes != null) Text(d.notes!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight)),
-                      ]))),
+                      ),
+                      // ── Body (notes + file) ──
+                      if (d.notes != null || d.fileUrl != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            if (d.notes != null) Text(d.notes!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight), maxLines: 2, overflow: TextOverflow.ellipsis),
+                            if (d.fileUrl != null) ...[
+                              if (d.notes != null) const SizedBox(height: 8),
+                              GestureDetector(
+                                onTap: () => launchUrl(Uri.parse(d.fileUrl!), mode: LaunchMode.externalApplication),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                  decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: _healthColor.withValues(alpha: 0.3))),
+                                  child: Row(children: [
+                                    Icon(d.fileUrl!.endsWith('.pdf') ? Icons.picture_as_pdf_rounded : Icons.image_rounded, size: 14, color: _healthColor),
+                                    const SizedBox(width: 6),
+                                    Expanded(child: Text('View Attachment', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: _healthColor))),
+                                    Icon(Icons.open_in_new_rounded, size: 13, color: _healthColor.withValues(alpha: 0.7)),
+                                  ]),
+                                ),
+                              ),
+                            ],
+                          ]),
+                        ),
                     ]),
                   ),
                 ),
@@ -980,17 +1163,17 @@ class _DocumentsTab extends StatelessWidget {
     );
   }
 
-  void _showAdd(BuildContext ctx) {
-    final titleCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final typeRef = <MedDocType>[MedDocType.prescription];
-    final dateRef = <DateTime>[DateTime.now()];
+  void _showSheet(BuildContext ctx, {MedicalDocument? existing}) {
+    final titleCtrl = TextEditingController(text: existing?.title ?? '');
+    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+    final typeRef = <MedDocType>[existing?.docType ?? MedDocType.prescription];
+    final dateRef = <DateTime>[existing?.docDate ?? DateTime.now()];
     final pathRef = <String?>[null];
 
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Add Document', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+        Text(existing == null ? 'Add Document' : 'Edit Document', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
         const SizedBox(height: 12),
         const LifeLabel(text: 'TYPE'),
         SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, children: [
@@ -1012,33 +1195,45 @@ class _DocumentsTab extends StatelessWidget {
         LifeDateTile(date: dateRef[0], hint: 'Document Date', color: _healthColor, onTap: () async { final d = await _pickDate(ctx2, initial: dateRef[0]); if (d != null) ss(() => dateRef[0] = d); }),
         const SizedBox(height: 8),
         LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: () async { final p = await _pickPhoto(ctx2); if (p != null) ss(() => pathRef[0] = p); },
-          child: Container(
-            height: 80, decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: _healthColor.withValues(alpha: 0.3), style: BorderStyle.solid)),
-            child: pathRef[0] != null
-                ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(pathRef[0]!), fit: BoxFit.cover, width: double.infinity))
-                : Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate_rounded, color: _healthColor.withValues(alpha: 0.6), size: 28), const SizedBox(height: 4), Text('Tap to attach photo', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _healthColor.withValues(alpha: 0.7)))])),
+        if (existing == null) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () async { final p = await _pickPhoto(ctx2); if (p != null) ss(() => pathRef[0] = p); },
+            child: Container(
+              height: 80, decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: _healthColor.withValues(alpha: 0.3), style: BorderStyle.solid)),
+              child: pathRef[0] != null
+                  ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(pathRef[0]!), fit: BoxFit.cover, width: double.infinity))
+                  : Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate_rounded, color: _healthColor.withValues(alpha: 0.6), size: 28), const SizedBox(height: 4), Text('Tap to attach photo', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _healthColor.withValues(alpha: 0.7)))])),
+            ),
           ),
-        ),
-        LifeSaveButton(label: 'Save', color: _healthColor, onTap: () {
+        ],
+        LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
           if (titleCtrl.text.trim().isEmpty) return;
           final title = titleCtrl.text.trim();
           final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
-          final type = typeRef[0];
-          final date = dateRef[0];
-          final localPath = pathRef[0];
+          final type  = typeRef[0];
+          final date  = dateRef[0];
           Navigator.pop(ctx2);
-          () async {
-            try {
-              String? fileUrl;
-              if (localPath != null) fileUrl = await HealthService.instance.uploadDoc(localPath, memberId: memberId);
-              final data = MedicalDocument(id: '', walletId: walletId, memberId: memberId, title: title, docType: type, fileUrl: fileUrl, notes: notes, docDate: date);
-              final row = await HealthService.instance.addDocument(data.toJson());
-              onAdd(MedicalDocument.fromJson(row));
-            } catch (e) { debugPrint('[Health] addDoc: $e'); }
-          }();
+          if (existing == null) {
+            final localPath = pathRef[0];
+            () async {
+              try {
+                String? fileUrl;
+                if (localPath != null) fileUrl = await HealthService.instance.uploadDoc(localPath, memberId: memberId);
+                final data = MedicalDocument(id: '', walletId: walletId, memberId: memberId, title: title, docType: type, fileUrl: fileUrl, notes: notes, docDate: date);
+                final row = await HealthService.instance.addDocument(data.toJson());
+                onAdd(MedicalDocument.fromJson(row));
+              } catch (e) { debugPrint('[Health] addDoc: $e'); }
+            }();
+          } else {
+            final updates = {'title': title, 'doc_type': type.name, 'doc_date': date.toIso8601String().substring(0, 10), if (notes != null) 'notes': notes};
+            () async {
+              try {
+                await HealthService.instance.updateDocument(existing.id, updates);
+                onUpdate(MedicalDocument(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, title: title, docType: type, fileUrl: existing.fileUrl, notes: notes, docDate: date));
+              } catch (e) { debugPrint('[Health] updateDoc: $e'); }
+            }();
+          }
         }),
       ]),
     )));
@@ -1060,7 +1255,8 @@ class _AppointmentsTab extends StatelessWidget {
   final Color surfBg;
   final void Function(Appointment) onAdd;
   final void Function(String) onDelete;
-  const _AppointmentsTab({required this.walletId, required this.memberId, required this.appointments, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete});
+  final void Function(Appointment) onUpdate;
+  const _AppointmentsTab({required this.walletId, required this.memberId, required this.appointments, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
@@ -1071,7 +1267,7 @@ class _AppointmentsTab extends StatelessWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAdd(context),
+        onPressed: () => _showSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Book Appointment', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
@@ -1080,28 +1276,32 @@ class _AppointmentsTab extends StatelessWidget {
           : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               if (upcoming.isNotEmpty) ...[
                 const LifeLabel(text: 'UPCOMING'),
-                ...upcoming.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark, onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e) { debugPrint('[Health] deleteAppt: $e'); } })),
+                ...upcoming.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark,
+                  onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e) { debugPrint('[Health] deleteAppt: $e'); } },
+                  onEdit: () => _showSheet(context, existing: a))),
               ],
               if (past.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const LifeLabel(text: 'PAST'),
-                ...past.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark, onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e) { debugPrint('[Health] deleteAppt: $e'); } })),
+                ...past.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark,
+                  onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e) { debugPrint('[Health] deleteAppt: $e'); } },
+                  onEdit: () => _showSheet(context, existing: a))),
               ],
             ]),
     );
   }
 
-  void _showAdd(BuildContext ctx) {
-    final doctorCtrl = TextEditingController();
-    final timeCtrl = TextEditingController();
-    final locationCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final dateRef = <DateTime>[DateTime.now().add(const Duration(days: 1))];
+  void _showSheet(BuildContext ctx, {Appointment? existing}) {
+    final doctorCtrl   = TextEditingController(text: existing?.doctorName ?? '');
+    final timeCtrl     = TextEditingController(text: existing?.apptTime ?? '');
+    final locationCtrl = TextEditingController(text: existing?.location ?? '');
+    final notesCtrl    = TextEditingController(text: existing?.notes ?? '');
+    final dateRef = <DateTime>[existing?.apptDate ?? DateTime.now().add(const Duration(days: 1))];
 
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Book Appointment', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+        Text(existing == null ? 'Book Appointment' : 'Edit Appointment', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
         const SizedBox(height: 12),
         LifeInput(controller: doctorCtrl, hint: 'Doctor / Hospital *'),
         const SizedBox(height: 8),
@@ -1114,21 +1314,31 @@ class _AppointmentsTab extends StatelessWidget {
         LifeInput(controller: locationCtrl, hint: 'Location / Clinic'),
         const SizedBox(height: 8),
         LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-        LifeSaveButton(label: 'Save', color: _healthColor, onTap: () {
+        LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
           if (doctorCtrl.text.trim().isEmpty) return;
-          final doctor = doctorCtrl.text.trim();
-          final time = timeCtrl.text.trim().isEmpty ? null : timeCtrl.text.trim();
+          final doctor   = doctorCtrl.text.trim();
+          final time     = timeCtrl.text.trim().isEmpty     ? null : timeCtrl.text.trim();
           final location = locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim();
-          final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
-          final date = dateRef[0];
+          final notes    = notesCtrl.text.trim().isEmpty    ? null : notesCtrl.text.trim();
+          final date     = dateRef[0];
           Navigator.pop(ctx2);
-          () async {
-            try {
-              final data = Appointment(id: '', walletId: walletId, memberId: memberId, doctorName: doctor, apptDate: date, apptTime: time, location: location, notes: notes);
-              final row = await HealthService.instance.addAppointment(data.toJson());
-              onAdd(Appointment.fromJson(row));
-            } catch (e) { debugPrint('[Health] addAppt: $e'); }
-          }();
+          if (existing == null) {
+            () async {
+              try {
+                final data = Appointment(id: '', walletId: walletId, memberId: memberId, doctorName: doctor, apptDate: date, apptTime: time, location: location, notes: notes);
+                final row = await HealthService.instance.addAppointment(data.toJson());
+                onAdd(Appointment.fromJson(row));
+              } catch (e) { debugPrint('[Health] addAppt: $e'); }
+            }();
+          } else {
+            final updates = {'doctor_name': doctor, 'appt_date': date.toIso8601String().substring(0, 10), 'appt_time': time, 'location': location, 'notes': notes};
+            () async {
+              try {
+                await HealthService.instance.updateAppointment(existing.id, updates);
+                onUpdate(Appointment(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, doctorName: doctor, apptDate: date, apptTime: time, location: location, notes: notes));
+              } catch (e) { debugPrint('[Health] updateAppt: $e'); }
+            }();
+          }
         }),
       ]),
     )));
@@ -1140,35 +1350,116 @@ class _ApptCard extends StatelessWidget {
   final Color cardBg;
   final bool isDark;
   final VoidCallback onDelete;
-  const _ApptCard({required this.a, required this.cardBg, required this.isDark, required this.onDelete});
+  final VoidCallback onEdit;
+  const _ApptCard({required this.a, required this.cardBg, required this.isDark, required this.onDelete, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
-    final daysUntil = a.apptDate.difference(DateTime.now()).inDays;
-    final isToday = daysUntil == 0;
+    final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark   : AppColors.subLight;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final daysUntil = a.apptDate.difference(today).inDays;
+    final isToday    = daysUntil == 0;
     final isTomorrow = daysUntil == 1;
-    String badge = _fmtDateShort(a.apptDate);
-    if (isToday) { badge = 'Today'; }
-    else if (isTomorrow) { badge = 'Tomorrow'; }
-    final badgeColor = isToday ? Colors.red : isTomorrow ? Colors.orange : _healthColor;
+    final isPast = !a.isUpcoming;
+
+    final Color accent;
+    final String bannerText;
+    if (isPast) {
+      accent = Colors.grey;
+      bannerText = _fmtDate(a.apptDate);
+    } else if (isToday) {
+      accent = Colors.red;
+      bannerText = 'Today';
+    } else if (isTomorrow) {
+      accent = Colors.orange;
+      bannerText = 'Tomorrow';
+    } else if (daysUntil <= 7) {
+      accent = Colors.orange;
+      bannerText = 'In $daysUntil days';
+    } else {
+      accent = _healthColor;
+      bannerText = _fmtDate(a.apptDate);
+    }
+
     return Dismissible(
       key: ValueKey(a.id),
       direction: DismissDirection.endToStart,
-      background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.delete_rounded, color: Colors.red)),
       onDismissed: (_) => onDelete(),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: a.isUpcoming ? _healthColor.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.2))),
-        child: Row(children: [
-          Container(width: 48, height: 48, decoration: BoxDecoration(color: badgeColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)), alignment: Alignment.center, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text(_fmtDateShort(a.apptDate).split(' ')[0], style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: badgeColor)), Text(_fmtDateShort(a.apptDate).split(' ').length > 1 ? _fmtDateShort(a.apptDate).split(' ')[1] : '', style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: badgeColor))])),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(a.doctorName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
-            if (a.apptTime != null) Text(a.apptTime!, style: const TextStyle(fontSize: 12, fontFamily: 'Nunito', color: _healthColor)),
-            if (a.location != null) Row(children: [Icon(Icons.location_on_rounded, size: 12, color: isDark ? AppColors.subDark : AppColors.subLight), const SizedBox(width: 4), Expanded(child: Text(a.location!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight), overflow: TextOverflow.ellipsis))]),
-          ])),
-          if (a.isUpcoming) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: badgeColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), child: Text(badge, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: badgeColor))),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: isPast ? 0.15 : 0.3))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          // ── Banner ────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: isPast ? 0.05 : 0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+            child: Row(children: [
+              Icon(isPast ? Icons.event_available_rounded : Icons.event_rounded, size: 14, color: accent),
+              const SizedBox(width: 6),
+              Text(bannerText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: accent)),
+              const Spacer(),
+              if (a.apptTime != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.schedule_rounded, size: 11, color: accent),
+                    const SizedBox(width: 4),
+                    Text(a.apptTime!, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'DM Mono', color: accent)),
+                  ])),
+                const SizedBox(width: 8),
+              ],
+              GestureDetector(onTap: onEdit, child: Icon(Icons.edit_outlined, size: 16, color: accent)),
+            ]),
+          ),
+
+          // ── Body ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: Text(
+                  isPast ? '✓' : '🏥',
+                  style: TextStyle(fontSize: isPast ? 22 : 22, fontWeight: FontWeight.w900,
+                    color: isPast ? accent : null))),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(a.doctorName,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, fontFamily: 'Nunito',
+                    color: isPast ? sub : tc)),
+                if (a.location != null) ...[
+                  const SizedBox(height: 5),
+                  Row(children: [
+                    Icon(Icons.location_on_rounded, size: 13, color: sub),
+                    const SizedBox(width: 4),
+                    Expanded(child: Text(a.location!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub), overflow: TextOverflow.ellipsis)),
+                  ]),
+                ],
+                if (a.notes != null) ...[
+                  const SizedBox(height: 4),
+                  Text(a.notes!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub), maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+              ])),
+            ]),
+          ),
         ]),
       ),
     );
@@ -1186,7 +1477,8 @@ class _VitalsTab extends StatefulWidget {
   final Color surfBg;
   final void Function(HealthVital) onAdd;
   final void Function(String) onDelete;
-  const _VitalsTab({required this.walletId, required this.memberId, required this.vitals, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete});
+  final void Function(HealthVital) onUpdate;
+  const _VitalsTab({required this.walletId, required this.memberId, required this.vitals, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onUpdate});
   @override
   State<_VitalsTab> createState() => _VitalsTabState();
 }
@@ -1202,7 +1494,7 @@ class _VitalsTabState extends State<_VitalsTab> {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAdd(context),
+        onPressed: () => _showSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Log Vital', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
@@ -1232,21 +1524,53 @@ class _VitalsTabState extends State<_VitalsTab> {
                     Dismissible(
                       key: ValueKey(v.id),
                       direction: DismissDirection.endToStart,
-                      background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                      background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                       onDismissed: (_) async { try { await HealthService.instance.deleteVital(v.id); widget.onDelete(v.id); } catch (e) { debugPrint('[Health] deleteVital: $e'); } },
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: _healthColor.withValues(alpha: 0.2))),
-                        child: Row(children: [
-                          Text(v.type.emoji, style: const TextStyle(fontSize: 28)),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(v.displayValue, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: widget.isDark ? AppColors.textDark : AppColors.textLight)),
-                            if (v.subType != null) Text(v.subType!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _healthColor)),
-                            if (v.notes != null) Text(v.notes!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: widget.isDark ? AppColors.subDark : AppColors.subLight)),
-                          ])),
-                          Text('${_fmtDateShort(v.recordedAt)}\n${v.recordedAt.hour.toString().padLeft(2, '0')}:${v.recordedAt.minute.toString().padLeft(2, '0')}', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: widget.isDark ? AppColors.subDark : AppColors.subLight)),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: _healthColor.withValues(alpha: 0.18))),
+                        child: Column(children: [
+                          // ── Value banner ──
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: [_healthColor.withValues(alpha: 0.12), _healthColor.withValues(alpha: 0.03)], begin: Alignment.centerLeft, end: Alignment.centerRight),
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+                            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                              Container(
+                                width: 52, height: 52,
+                                decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
+                                alignment: Alignment.center,
+                                child: Text(v.type.emoji, style: const TextStyle(fontSize: 26))),
+                              const SizedBox(width: 14),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(v.displayValue, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: _healthColor)),
+                                if (v.subType != null) ...[
+                                  const SizedBox(height: 3),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+                                    child: Text(v.subType!, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: _healthColor))),
+                                ],
+                              ])),
+                              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                Text(_fmtDateShort(v.recordedAt), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: widget.isDark ? AppColors.subDark : AppColors.subLight)),
+                                const SizedBox(height: 2),
+                                Text('${v.recordedAt.hour.toString().padLeft(2, '0')}:${v.recordedAt.minute.toString().padLeft(2, '0')}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: widget.isDark ? AppColors.textDark : AppColors.textLight)),
+                                const SizedBox(height: 6),
+                                GestureDetector(onTap: () => _showSheet(context, existing: v), child: Icon(Icons.edit_outlined, size: 15, color: widget.isDark ? AppColors.subDark : AppColors.subLight)),
+                              ]),
+                            ]),
+                          ),
+                          if (v.notes != null)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                              child: Row(children: [
+                                Icon(Icons.notes_rounded, size: 13, color: widget.isDark ? AppColors.subDark : AppColors.subLight),
+                                const SizedBox(width: 6),
+                                Expanded(child: Text(v.notes!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: widget.isDark ? AppColors.subDark : AppColors.subLight), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                              ]),
+                            ),
                         ]),
                       ),
                     ),
@@ -1256,30 +1580,32 @@ class _VitalsTabState extends State<_VitalsTab> {
     );
   }
 
-  void _showAdd(BuildContext ctx) {
-    final v1Ctrl = TextEditingController();
-    final v2Ctrl = TextEditingController();
-    final subCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final typeRef = <VitalType>[_selected];
+  void _showSheet(BuildContext ctx, {HealthVital? existing}) {
+    final v1Ctrl    = TextEditingController(text: existing?.value.toString() ?? '');
+    final v2Ctrl    = TextEditingController(text: existing?.value2?.toString() ?? '');
+    final subCtrl   = TextEditingController(text: existing?.subType ?? '');
+    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+    final typeRef   = <VitalType>[existing?.type ?? _selected];
 
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Log Vital', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+        Text(existing == null ? 'Log Vital' : 'Edit Vital', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
         const SizedBox(height: 12),
-        const LifeLabel(text: 'TYPE'),
-        SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final t in VitalType.values)
-            GestureDetector(
-              onTap: () { typeRef[0] = t; ss(() {}); },
-              child: AnimatedContainer(duration: const Duration(milliseconds: 120), margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: typeRef[0] == t ? _healthColor.withValues(alpha: 0.15) : (widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5)), borderRadius: BorderRadius.circular(20), border: Border.all(color: typeRef[0] == t ? _healthColor : Colors.transparent)),
-                child: Text('${t.emoji} ${t.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: typeRef[0] == t ? _healthColor : (widget.isDark ? AppColors.subDark : AppColors.subLight))),
+        if (existing == null) ...[
+          const LifeLabel(text: 'TYPE'),
+          SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final t in VitalType.values)
+              GestureDetector(
+                onTap: () { typeRef[0] = t; ss(() {}); },
+                child: AnimatedContainer(duration: const Duration(milliseconds: 120), margin: const EdgeInsets.only(right: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: typeRef[0] == t ? _healthColor.withValues(alpha: 0.15) : (widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5)), borderRadius: BorderRadius.circular(20), border: Border.all(color: typeRef[0] == t ? _healthColor : Colors.transparent)),
+                  child: Text('${t.emoji} ${t.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: typeRef[0] == t ? _healthColor : (widget.isDark ? AppColors.subDark : AppColors.subLight))),
+                ),
               ),
-            ),
-        ])),
-        const SizedBox(height: 8),
+          ])),
+          const SizedBox(height: 8),
+        ],
         if (typeRef[0] == VitalType.bloodPressure)
           Row(children: [
             Expanded(child: LifeInput(controller: v1Ctrl, hint: 'Systolic (e.g. 120)', inputType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly])),
@@ -1293,21 +1619,31 @@ class _VitalsTabState extends State<_VitalsTab> {
           ]),
         const SizedBox(height: 8),
         LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-        LifeSaveButton(label: 'Log', color: _healthColor, onTap: () {
+        LifeSaveButton(label: existing == null ? 'Log' : 'Update', color: _healthColor, onTap: () {
           final v1 = double.tryParse(v1Ctrl.text.trim());
           if (v1 == null) return;
-          final type = typeRef[0];
-          final v2 = double.tryParse(v2Ctrl.text.trim());
-          final sub = subCtrl.text.trim().isEmpty ? null : subCtrl.text.trim();
+          final type  = typeRef[0];
+          final v2    = double.tryParse(v2Ctrl.text.trim());
+          final sub   = subCtrl.text.trim().isEmpty   ? null : subCtrl.text.trim();
           final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
           Navigator.pop(ctx2);
-          () async {
-            try {
-              final data = HealthVital(id: '', walletId: widget.walletId, memberId: widget.memberId, type: type, value: v1, value2: v2, subType: sub, notes: notes);
-              final row = await HealthService.instance.addVital(data.toJson());
-              widget.onAdd(HealthVital.fromJson(row));
-            } catch (e) { debugPrint('[Health] addVital: $e'); }
-          }();
+          if (existing == null) {
+            () async {
+              try {
+                final data = HealthVital(id: '', walletId: widget.walletId, memberId: widget.memberId, type: type, value: v1, value2: v2, subType: sub, notes: notes);
+                final row = await HealthService.instance.addVital(data.toJson());
+                widget.onAdd(HealthVital.fromJson(row));
+              } catch (e) { debugPrint('[Health] addVital: $e'); }
+            }();
+          } else {
+            final updates = {'value': v1, if (v2 != null) 'value2': v2, 'sub_type': sub, 'notes': notes};
+            () async {
+              try {
+                await HealthService.instance.updateVital(existing.id, updates);
+                widget.onUpdate(HealthVital(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, type: existing.type, value: v1, value2: v2, subType: sub, notes: notes, recordedAt: existing.recordedAt));
+              } catch (e) { debugPrint('[Health] updateVital: $e'); }
+            }();
+          }
         }),
       ]),
     )));
@@ -1325,7 +1661,8 @@ class _VaccinesTab extends StatelessWidget {
   final Color surfBg;
   final void Function(Vaccination) onAdd;
   final void Function(String) onDelete;
-  const _VaccinesTab({required this.walletId, required this.memberId, required this.vaccinations, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete});
+  final void Function(Vaccination) onUpdate;
+  const _VaccinesTab({required this.walletId, required this.memberId, required this.vaccinations, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
@@ -1337,31 +1674,31 @@ class _VaccinesTab extends StatelessWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAdd(context),
+        onPressed: () => _showSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Vaccine', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: vaccinations.isEmpty
           ? const LifeEmptyState(emoji: '💉', title: 'No vaccinations', subtitle: 'Track vaccines and due dates')
           : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
-              if (overdue.isNotEmpty) ...[const LifeLabel(text: '⚠️ OVERDUE'), ...overdue.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.red, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err) { debugPrint('[Health] deleteVaccination: $err'); } }))],
-              if (dueSoon.isNotEmpty) ...[if (overdue.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: '🔔 DUE SOON'), ...dueSoon.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.orange, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err) { debugPrint('[Health] deleteVaccination: $err'); } }))],
-              if (rest.isNotEmpty) ...[if (overdue.isNotEmpty || dueSoon.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: 'COMPLETED'), ...rest.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: _healthColor, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err) { debugPrint('[Health] deleteVaccination: $err'); } }))],
+              if (overdue.isNotEmpty) ...[const LifeLabel(text: '⚠️ OVERDUE'), ...overdue.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.red, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err) { debugPrint('[Health] deleteVaccination: $err'); } }, onEdit: () => _showSheet(context, existing: v)))],
+              if (dueSoon.isNotEmpty) ...[if (overdue.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: '🔔 DUE SOON'), ...dueSoon.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.orange, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err) { debugPrint('[Health] deleteVaccination: $err'); } }, onEdit: () => _showSheet(context, existing: v)))],
+              if (rest.isNotEmpty) ...[if (overdue.isNotEmpty || dueSoon.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: 'COMPLETED'), ...rest.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: _healthColor, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err) { debugPrint('[Health] deleteVaccination: $err'); } }, onEdit: () => _showSheet(context, existing: v)))],
             ]),
     );
   }
 
-  void _showAdd(BuildContext ctx) {
-    final nameCtrl = TextEditingController();
-    final doseCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final givenRef = <DateTime>[DateTime.now()];
-    final dueRef = <DateTime?>[null];
+  void _showSheet(BuildContext ctx, {Vaccination? existing}) {
+    final nameCtrl = TextEditingController(text: existing?.vaccineName ?? '');
+    final doseCtrl = TextEditingController(text: existing?.doseNumber?.toString() ?? '');
+    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+    final givenRef = <DateTime>[existing?.dateGiven ?? DateTime.now()];
+    final dueRef = <DateTime?>[existing?.nextDue];
 
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Add Vaccination', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+        Text(existing == null ? 'Add Vaccination' : 'Edit Vaccination', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
         const SizedBox(height: 12),
         LifeInput(controller: nameCtrl, hint: 'Vaccine name *'),
         const SizedBox(height: 8),
@@ -1374,7 +1711,7 @@ class _VaccinesTab extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-        LifeSaveButton(label: 'Save', color: _healthColor, onTap: () {
+        LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
           if (nameCtrl.text.trim().isEmpty) return;
           final name = nameCtrl.text.trim();
           final dose = int.tryParse(doseCtrl.text.trim());
@@ -1384,10 +1721,16 @@ class _VaccinesTab extends StatelessWidget {
           Navigator.pop(ctx2);
           () async {
             try {
-              final data = Vaccination(id: '', walletId: walletId, memberId: memberId, vaccineName: name, dateGiven: given, nextDue: due, doseNumber: dose, notes: notes);
-              final row = await HealthService.instance.addVaccination(data.toJson());
-              onAdd(Vaccination.fromJson(row));
-            } catch (e) { debugPrint('[Health] addVaccine: $e'); }
+              if (existing == null) {
+                final data = Vaccination(id: '', walletId: walletId, memberId: memberId, vaccineName: name, dateGiven: given, nextDue: due, doseNumber: dose, notes: notes);
+                final row = await HealthService.instance.addVaccination(data.toJson());
+                onAdd(Vaccination.fromJson(row));
+              } else {
+                final updates = {'vaccine_name': name, 'dose_number': dose, 'notes': notes, 'date_given': given.toIso8601String().substring(0, 10), if (due != null) 'next_due': due.toIso8601String().substring(0, 10)};
+                await HealthService.instance.updateVaccination(existing.id, updates);
+                onUpdate(Vaccination(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, vaccineName: name, dateGiven: given, nextDue: due, doseNumber: dose, notes: notes));
+              }
+            } catch (e) { debugPrint('[Health] saveVaccine: $e'); }
           }();
         }),
       ]),
@@ -1400,28 +1743,79 @@ class _VaccineCard extends StatelessWidget {
   final Color cardBg, statusColor;
   final bool isDark;
   final VoidCallback onDelete;
-  const _VaccineCard({required this.v, required this.cardBg, required this.isDark, required this.statusColor, required this.onDelete});
+  final VoidCallback onEdit;
+  const _VaccineCard({required this.v, required this.cardBg, required this.isDark, required this.statusColor, required this.onDelete, required this.onEdit});
   @override
-  Widget build(BuildContext context) => Dismissible(
-    key: ValueKey(v.id),
-    direction: DismissDirection.endToStart,
-    background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
-    onDismissed: (_) => onDelete(),
-    child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: statusColor.withValues(alpha: 0.3))),
-      child: Row(children: [
-        Container(width: 40, height: 40, decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), alignment: Alignment.center, child: const Text('💉', style: TextStyle(fontSize: 20))),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(v.vaccineName + (v.doseNumber != null ? ' — Dose ${v.doseNumber}' : ''), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
-          Text('Given: ${_fmtDate(v.dateGiven)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight)),
-          if (v.nextDue != null) Text('Next dose: ${_fmtDate(v.nextDue!)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: statusColor)),
-        ])),
-      ]),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark   : AppColors.subLight;
+    return Dismissible(
+      key: ValueKey(v.id),
+      direction: DismissDirection.endToStart,
+      background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+      onDismissed: (_) => onDelete(),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: statusColor.withValues(alpha: 0.25))),
+        child: Column(children: [
+          // ── Top banner ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+            child: Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: const Text('💉', style: TextStyle(fontSize: 22))),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(v.vaccineName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc), maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (v.doseNumber != null) ...[
+                  const SizedBox(height: 3),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+                    child: Text('Dose ${v.doseNumber}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: statusColor))),
+                ],
+              ])),
+              if (v.isOverdue)
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)), child: const Text('OVERDUE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white)))
+              else if (v.isDueSoon)
+                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)), child: const Text('DUE SOON', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white))),
+              const SizedBox(width: 8),
+              GestureDetector(onTap: onEdit, child: Icon(Icons.edit_outlined, size: 18, color: statusColor.withValues(alpha: 0.7))),
+            ]),
+          ),
+          // ── Date row ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            child: Row(children: [
+              Row(children: [
+                Icon(Icons.check_circle_rounded, size: 13, color: _healthColor),
+                const SizedBox(width: 5),
+                Text('Given', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+                const SizedBox(width: 4),
+                Text(_fmtDate(v.dateGiven), style: TextStyle(fontSize: 11, fontFamily: 'DM Mono', fontWeight: FontWeight.w700, color: tc)),
+              ]),
+              if (v.nextDue != null) ...[
+                const Spacer(),
+                Row(children: [
+                  Icon(Icons.schedule_rounded, size: 13, color: statusColor),
+                  const SizedBox(width: 5),
+                  Text('Next', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+                  const SizedBox(width: 4),
+                  Text(_fmtDate(v.nextDue!), style: TextStyle(fontSize: 11, fontFamily: 'DM Mono', fontWeight: FontWeight.w700, color: statusColor)),
+                ]),
+              ],
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1435,7 +1829,8 @@ class _InsuranceTab extends StatelessWidget {
   final Color surfBg;
   final void Function(InsurancePolicy) onAdd;
   final void Function(String) onDelete;
-  const _InsuranceTab({required this.walletId, required this.memberId, required this.policies, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete});
+  final void Function(InsurancePolicy) onUpdate;
+  const _InsuranceTab({required this.walletId, required this.memberId, required this.policies, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
@@ -1444,61 +1839,104 @@ class _InsuranceTab extends StatelessWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAdd(context),
+        onPressed: () => _showSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Policy', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: policies.isEmpty
-          ? const LifeEmptyState(emoji: '🏥', title: 'No insurance policies', subtitle: 'Keep track of your health insurance')
+          ? const LifeEmptyState(emoji: '🛡️', title: 'No insurance policies', subtitle: 'Keep track of your health insurance')
           : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
-              for (final p in policies)
-                Dismissible(
+              for (final p in policies) () {
+                final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
+                final sub = isDark ? AppColors.subDark   : AppColors.subLight;
+                final accent = p.isExpired ? Colors.red : p.expiresSoon ? Colors.orange : _healthColor;
+                return Dismissible(
                   key: ValueKey(p.id),
                   direction: DismissDirection.endToStart,
-                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   onDismissed: (_) async { try { await HealthService.instance.deleteInsurance(p.id); onDelete(p.id); } catch (e) { debugPrint('[Health] deleteInsurance: $e'); } },
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(14), border: Border.all(color: p.isExpired ? Colors.red.withValues(alpha: 0.4) : p.expiresSoon ? Colors.orange.withValues(alpha: 0.4) : _healthColor.withValues(alpha: 0.2))),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        const Text('🛡️', style: TextStyle(fontSize: 24)),
-                        const SizedBox(width: 10),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(p.policyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
-                          if (p.provider != null) Text(p.provider!, style: const TextStyle(fontSize: 12, fontFamily: 'Nunito', color: _healthColor)),
-                        ])),
-                        if (p.isExpired) _chip('Expired', Colors.red)
-                        else if (p.expiresSoon) _chip('Expiring Soon', Colors.orange),
-                      ]),
-                      if (p.policyNumber != null || p.coverageAmount != null || p.expiryDate != null) ...[
-                        const SizedBox(height: 8),
-                        const Divider(height: 1),
-                        const SizedBox(height: 8),
-                        if (p.policyNumber != null) _infoRow(context, Icons.badge_rounded, 'Policy No.', p.policyNumber!),
-                        if (p.coverageAmount != null) _infoRow(context, Icons.currency_rupee_rounded, 'Coverage', '₹${p.coverageAmount!.toStringAsFixed(0)}'),
-                        if (p.expiryDate != null) _infoRow(context, Icons.calendar_today_rounded, 'Expires', _fmtDate(p.expiryDate!), color: p.isExpired ? Colors.red : p.expiresSoon ? Colors.orange : _healthColor),
-                      ],
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: accent.withValues(alpha: 0.25))),
+                    child: Column(children: [
+                      // ── Header ──
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.07),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+                        child: Row(children: [
+                          Container(
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(color: accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(13)),
+                            alignment: Alignment.center,
+                            child: const Text('🛡️', style: TextStyle(fontSize: 24))),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(p.policyName, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            if (p.provider != null) ...[
+                              const SizedBox(height: 3),
+                              Text(p.provider!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: accent)),
+                            ],
+                          ])),
+                          if (p.isExpired)
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)), child: const Text('EXPIRED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white)))
+                          else if (p.expiresSoon)
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)), child: const Text('EXPIRING', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white))),
+                          const SizedBox(width: 8),
+                          GestureDetector(onTap: () => _showSheet(context, existing: p), child: Icon(Icons.edit_outlined, size: 18, color: accent.withValues(alpha: 0.7))),
+                        ]),
+                      ),
+                      // ── Stats row ──
+                      if (p.policyNumber != null || p.coverageAmount != null || p.expiryDate != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                          child: Row(children: [
+                            if (p.policyNumber != null) ...[
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text('POLICY NO.', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: sub, letterSpacing: 0.5)),
+                                const SizedBox(height: 3),
+                                Text(p.policyNumber!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, fontFamily: 'DM Mono', color: tc), overflow: TextOverflow.ellipsis),
+                              ])),
+                            ],
+                            if (p.coverageAmount != null) ...[
+                              if (p.policyNumber != null) const SizedBox(width: 12),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text('COVERAGE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: sub, letterSpacing: 0.5)),
+                                const SizedBox(height: 3),
+                                Text('₹${p.coverageAmount!.toStringAsFixed(0)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: _healthColor)),
+                              ])),
+                            ],
+                            if (p.expiryDate != null) ...[
+                              if (p.policyNumber != null || p.coverageAmount != null) const SizedBox(width: 12),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text('EXPIRES', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: sub, letterSpacing: 0.5)),
+                                const SizedBox(height: 3),
+                                Text(_fmtDate(p.expiryDate!), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'DM Mono', color: accent)),
+                              ])),
+                            ],
+                          ]),
+                        ),
                     ]),
                   ),
-                ),
+                );
+              }(),
             ]),
     );
   }
 
-  void _showAdd(BuildContext ctx) {
-    final nameCtrl = TextEditingController();
-    final numCtrl = TextEditingController();
-    final provCtrl = TextEditingController();
-    final covCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final expiryRef = <DateTime?>[null];
+  void _showSheet(BuildContext ctx, {InsurancePolicy? existing}) {
+    final nameCtrl = TextEditingController(text: existing?.policyName ?? '');
+    final numCtrl = TextEditingController(text: existing?.policyNumber ?? '');
+    final provCtrl = TextEditingController(text: existing?.provider ?? '');
+    final covCtrl = TextEditingController(text: existing?.coverageAmount?.toStringAsFixed(0) ?? '');
+    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+    final expiryRef = <DateTime?>[existing?.expiryDate];
 
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Add Insurance Policy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+        Text(existing == null ? 'Add Insurance Policy' : 'Edit Insurance Policy', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
         const SizedBox(height: 12),
         LifeInput(controller: nameCtrl, hint: 'Policy name *'),
         const SizedBox(height: 8),
@@ -1515,23 +1953,27 @@ class _InsuranceTab extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-        LifeSaveButton(label: 'Save', color: _healthColor, onTap: () {
+        LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
           if (nameCtrl.text.trim().isEmpty) return;
-          final policy = InsurancePolicy(
-            id: '', walletId: walletId, memberId: memberId,
-            policyName: nameCtrl.text.trim(),
-            policyNumber: numCtrl.text.trim().isEmpty ? null : numCtrl.text.trim(),
-            provider: provCtrl.text.trim().isEmpty ? null : provCtrl.text.trim(),
-            coverageAmount: double.tryParse(covCtrl.text.trim()),
-            expiryDate: expiryRef[0],
-            notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-          );
+          final policyName = nameCtrl.text.trim();
+          final policyNumber = numCtrl.text.trim().isEmpty ? null : numCtrl.text.trim();
+          final provider = provCtrl.text.trim().isEmpty ? null : provCtrl.text.trim();
+          final coverageAmount = double.tryParse(covCtrl.text.trim());
+          final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+          final expiry = expiryRef[0];
           Navigator.pop(ctx2);
           () async {
             try {
-              final row = await HealthService.instance.addInsurance(policy.toJson());
-              onAdd(InsurancePolicy.fromJson(row));
-            } catch (e) { debugPrint('[Health] addInsurance: $e'); }
+              if (existing == null) {
+                final policy = InsurancePolicy(id: '', walletId: walletId, memberId: memberId, policyName: policyName, policyNumber: policyNumber, provider: provider, coverageAmount: coverageAmount, expiryDate: expiry, notes: notes);
+                final row = await HealthService.instance.addInsurance(policy.toJson());
+                onAdd(InsurancePolicy.fromJson(row));
+              } else {
+                final updates = {'policy_name': policyName, if (policyNumber != null) 'policy_number': policyNumber, if (provider != null) 'provider': provider, if (coverageAmount != null) 'coverage_amount': coverageAmount, if (expiry != null) 'expiry_date': expiry.toIso8601String().substring(0, 10), if (notes != null) 'notes': notes};
+                await HealthService.instance.updateInsurance(existing.id, updates);
+                onUpdate(InsurancePolicy(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, policyName: policyName, policyNumber: policyNumber, provider: provider, coverageAmount: coverageAmount, expiryDate: expiry, notes: notes));
+              }
+            } catch (e) { debugPrint('[Health] saveInsurance: $e'); }
           }();
         }),
       ]),
@@ -1556,82 +1998,153 @@ class _EmergencyTab extends StatelessWidget {
     final p = profile;
     final member = members.firstWhere((m) => m.id == memberId, orElse: () => members.first);
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark   : AppColors.subLight;
+
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+
+      // ── Identity header card ────────────────────────────────────────
       Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: cardBg,
+          gradient: LinearGradient(colors: [Colors.red.withValues(alpha: 0.15), Colors.red.withValues(alpha: 0.04)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.4), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.red.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 4))],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.emergency_rounded, color: Colors.red, size: 24)),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Emergency Card', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.red)),
-              Text('${member.emoji} ${member.name}', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight)),
-            ])),
-          ]),
-          const Divider(height: 20),
-          if (p == null)
-            const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Text('Complete the Profile tab to generate\nan emergency card.', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: AppColors.subDark))))
-          else ...[
-            if (p.bloodGroup != null) Row(children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)), child: Text(p.bloodGroup!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white))),
-              const SizedBox(width: 10),
-              const Text('Blood Group', style: TextStyle(fontSize: 13, fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
-            ]),
-            if (p.bloodGroup != null) const SizedBox(height: 12),
-            if (p.allergies.isNotEmpty) ...[
-              const Text('⚠️  ALLERGIES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: Colors.orange)),
-              const SizedBox(height: 4),
-              Wrap(children: p.allergies.map((a) => _chip(a, Colors.orange)).toList()),
-              const SizedBox(height: 8),
-            ],
-            if (p.conditions.isNotEmpty) ...[
-              const Text('🩺  CONDITIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: Colors.red)),
-              const SizedBox(height: 4),
-              Wrap(children: p.conditions.map((c) => _chip(c, Colors.red)).toList()),
-              const SizedBox(height: 8),
-            ],
-            if (meds.isNotEmpty) ...[
-              const Text('💊  ACTIVE MEDICATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: _healthColor)),
-              const SizedBox(height: 4),
-              Wrap(children: meds.map((m) => _chip('${m.name} ${m.dosage}', _healthColor)).toList()),
-              const SizedBox(height: 8),
-            ],
-            if (p.emergencyContact != null) ...[
-              const Divider(),
-              const SizedBox(height: 8),
-              const Text('🚨  EMERGENCY CONTACT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: Colors.red)),
-              const SizedBox(height: 4),
-              Row(children: [
-                const Icon(Icons.person_rounded, size: 16, color: Colors.red),
-                const SizedBox(width: 6),
-                Text(p.emergencyContact!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, fontFamily: 'Nunito')),
-              ]),
-              if (p.emergencyPhone != null) ...[
-                const SizedBox(height: 4),
-                GestureDetector(
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: p.emergencyPhone!));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number copied'), duration: Duration(seconds: 1)));
-                  },
-                  child: Row(children: [
-                    const Icon(Icons.phone_rounded, size: 16, color: Colors.red),
-                    const SizedBox(width: 6),
-                    Text(p.emergencyPhone!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: Colors.red)),
-                    const SizedBox(width: 6),
-                    const Icon(Icons.copy_rounded, size: 13, color: Colors.red),
-                  ]),
-                ),
-              ],
-            ],
-          ],
+          border: Border.all(color: Colors.red.withValues(alpha: 0.35), width: 1.5)),
+        child: Row(children: [
+          Container(
+            width: 60, height: 60,
+            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: const Icon(Icons.emergency_rounded, color: Colors.white, size: 30)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('EMERGENCY CARD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.red, letterSpacing: 1.2)),
+            const SizedBox(height: 3),
+            Text('${member.emoji}  ${member.name}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+          ])),
+          if (p?.bloodGroup != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+              child: Column(children: [
+                Text(p!.bloodGroup!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white)),
+                const Text('Blood', style: TextStyle(fontSize: 9, fontFamily: 'Nunito', color: Colors.white70, fontWeight: FontWeight.w700)),
+              ])),
         ]),
       ),
+
+      if (p == null) ...[
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red.withValues(alpha: 0.15))),
+          child: Column(children: [
+            const Text('🏥', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 12),
+            Text('Profile Not Set Up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+            const SizedBox(height: 6),
+            Text('Go to the Profile tab to fill in your medical details. They will appear here for emergencies.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
+          ]),
+        ),
+      ] else ...[
+
+        // ── Medical info sections ──────────────────────────────────────
+        if (p.allergies.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.orange.withValues(alpha: 0.3))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 28, height: 28, decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)), alignment: Alignment.center, child: const Text('⚠️', style: TextStyle(fontSize: 14))),
+                const SizedBox(width: 8),
+                const Text('ALLERGIES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.orange, letterSpacing: 0.8)),
+              ]),
+              const SizedBox(height: 10),
+              Wrap(spacing: 6, runSpacing: 6, children: p.allergies.map((a) => _chip(a, Colors.orange)).toList()),
+            ]),
+          ),
+        ],
+
+        if (p.conditions.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red.withValues(alpha: 0.25))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 28, height: 28, decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), alignment: Alignment.center, child: const Text('🩺', style: TextStyle(fontSize: 14))),
+                const SizedBox(width: 8),
+                const Text('CONDITIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.red, letterSpacing: 0.8)),
+              ]),
+              const SizedBox(height: 10),
+              Wrap(spacing: 6, runSpacing: 6, children: p.conditions.map((c) => _chip(c, Colors.red)).toList()),
+            ]),
+          ),
+        ],
+
+        if (meds.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: _healthColor.withValues(alpha: 0.25))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 28, height: 28, decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), alignment: Alignment.center, child: const Text('💊', style: TextStyle(fontSize: 14))),
+                const SizedBox(width: 8),
+                const Text('ACTIVE MEDICATIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: _healthColor, letterSpacing: 0.8)),
+              ]),
+              const SizedBox(height: 10),
+              Wrap(spacing: 6, runSpacing: 6, children: meds.map((m) => _chip('${m.name} ${m.dosage}', _healthColor)).toList()),
+            ]),
+          ),
+        ],
+
+        // ── Emergency contact card ─────────────────────────────────────
+        if (p.emergencyContact != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.red.withValues(alpha: 0.25))),
+            child: Column(children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.07), borderRadius: const BorderRadius.vertical(top: Radius.circular(16))),
+                child: Row(children: [
+                  Container(width: 28, height: 28, decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)), alignment: Alignment.center, child: const Text('🚨', style: TextStyle(fontSize: 14))),
+                  const SizedBox(width: 8),
+                  const Text('EMERGENCY CONTACT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.red, letterSpacing: 0.8)),
+                ]),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.person_rounded, color: Colors.red, size: 24)),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(p.emergencyContact!, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+                    if (p.emergencyPhone != null)
+                      Text(p.emergencyPhone!, style: const TextStyle(fontSize: 13, fontFamily: 'DM Mono', fontWeight: FontWeight.w700, color: Colors.red)),
+                  ])),
+                  if (p.emergencyPhone != null)
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: p.emergencyPhone!));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone copied'), duration: Duration(seconds: 1)));
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.copy_rounded, color: Colors.white, size: 18))),
+                ]),
+              ),
+            ]),
+          ),
+        ],
+      ],
     ]);
   }
 }
