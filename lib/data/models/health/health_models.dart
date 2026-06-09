@@ -84,7 +84,8 @@ class HealthProfile {
 
 class Medication {
   String id, walletId, memberId, name, dosage, frequency;
-  String? timing, notes;
+  List<String> scheduleTimes;
+  String? mealTiming, notes;
   bool isActive;
   DateTime startDate;
   DateTime? endDate, refillDate;
@@ -96,13 +97,23 @@ class Medication {
     required this.name,
     required this.dosage,
     required this.frequency,
-    this.timing,
+    List<String>? scheduleTimes,
+    this.mealTiming,
     this.notes,
     this.isActive = true,
     DateTime? startDate,
     this.endDate,
     this.refillDate,
-  }) : startDate = startDate ?? DateTime.now();
+  })  : scheduleTimes = scheduleTimes ?? [],
+        startDate = startDate ?? DateTime.now();
+
+  String get scheduleLabel {
+    final parts = <String>[
+      ...scheduleTimes,
+      if (mealTiming != null) mealTiming!,
+    ];
+    return parts.join('  ·  ');
+  }
 
   Map<String, dynamic> toJson() => {
         'wallet_id': walletId,
@@ -110,7 +121,8 @@ class Medication {
         'name': name,
         'dosage': dosage,
         'frequency': frequency,
-        if (timing != null) 'timing': timing,
+        'schedule_times': scheduleTimes,
+        if (mealTiming != null) 'meal_timing': mealTiming,
         if (notes != null) 'notes': notes,
         'is_active': isActive,
         'start_date': _dateStr(startDate),
@@ -125,7 +137,8 @@ class Medication {
         name: j['name'] as String,
         dosage: j['dosage'] as String,
         frequency: j['frequency'] as String,
-        timing: j['timing'] as String?,
+        scheduleTimes: (j['schedule_times'] as List<dynamic>? ?? []).cast<String>(),
+        mealTiming: j['meal_timing'] as String?,
         notes: j['notes'] as String?,
         isActive: j['is_active'] as bool? ?? true,
         startDate: _parseDate(j['start_date']) ?? DateTime.now(),

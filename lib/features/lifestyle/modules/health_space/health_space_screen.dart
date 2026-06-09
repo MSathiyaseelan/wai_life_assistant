@@ -178,6 +178,7 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
                       onAdd: (m) => setState(() => _medications.insert(0, m)),
                       onDelete: (id) => setState(() => _medications.removeWhere((m) => m.id == id)),
                       onToggle: (m) => setState(() { final i = _medications.indexWhere((x) => x.id == m.id); if (i >= 0) _medications[i] = m; }),
+                      onUpdate: (m) => setState(() { final i = _medications.indexWhere((x) => x.id == m.id); if (i >= 0) _medications[i] = m; }),
                     ),
                     _DoctorsTab(walletId: widget.walletId, memberId: _selectedMember, doctors: _doctors.where((d) => d.memberId == _selectedMember).toList(), isDark: isDark, surfBg: surfBg,
                       onAdd: (d) => setState(() => _doctors.add(d)),
@@ -289,75 +290,230 @@ class _ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = profile;
+    final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark   : AppColors.subLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    return ListView(padding: const EdgeInsets.all(16), children: [
+
+    if (p == null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 80, height: 80,
+            decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: const Text('🏥', style: TextStyle(fontSize: 40))),
+          const SizedBox(height: 20),
+          Text('No Health Profile Yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+          const SizedBox(height: 8),
+          Text('Add your medical details for quick access\nduring emergencies', textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
+          const SizedBox(height: 24),
+          GestureDetector(
+            onTap: () => _showEditProfile(context, null),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+              decoration: BoxDecoration(color: _healthColor, borderRadius: BorderRadius.circular(14)),
+              child: const Text('Set Up Profile', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white)),
+            ),
+          ),
+        ]),
+      ));
+    }
+
+    // BMI
+    double? bmiVal;
+    Color bmiColor = Colors.green;
+    String bmiLabel = '';
+    if (p.height != null && p.weight != null) {
+      final h = double.tryParse(p.height!.replaceAll(RegExp(r'[^0-9.]'), ''));
+      final w = double.tryParse(p.weight!.replaceAll(RegExp(r'[^0-9.]'), ''));
+      if (h != null && w != null && h > 0) {
+        final hm = h > 10 ? h / 100 : h;
+        bmiVal = w / (hm * hm);
+        bmiLabel = bmiVal < 18.5 ? 'Underweight' : bmiVal < 25 ? 'Normal' : bmiVal < 30 ? 'Overweight' : 'Obese';
+        bmiColor = bmiVal < 18.5 ? Colors.blue : bmiVal < 25 ? Colors.green : bmiVal < 30 ? Colors.orange : Colors.red;
+      }
+    }
+
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+
+      // ── Header banner ─────────────────────────────────────────────
       Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: _healthColor.withValues(alpha: 0.25))),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(width: 44, height: 44, decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), alignment: Alignment.center, child: const Text('🩺', style: TextStyle(fontSize: 24))),
-            const SizedBox(width: 12),
-            Expanded(child: Text('Health Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight))),
-            IconButton(icon: Icon(Icons.edit_rounded, color: _healthColor, size: 20), onPressed: () => _showEditProfile(context, p)),
-          ]),
-          const Divider(height: 20),
-          if (p == null)
-            Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Column(children: [
-              const Text('🏥', style: TextStyle(fontSize: 40)),
-              const SizedBox(height: 8),
-              Text('No profile yet', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: isDark ? AppColors.subDark : AppColors.subLight)),
-              const SizedBox(height: 4),
-              TextButton(onPressed: () => _showEditProfile(context, null), child: const Text('Add Profile', style: TextStyle(color: _healthColor, fontFamily: 'Nunito', fontWeight: FontWeight.w800))),
-            ])))
-          else ...[
-            if (p.bloodGroup != null) _infoRow(context, Icons.water_drop_rounded, 'Blood Group', p.bloodGroup!),
-            if (p.height != null) _infoRow(context, Icons.height_rounded, 'Height', p.height!),
-            if (p.weight != null) _infoRow(context, Icons.monitor_weight_rounded, 'Weight', p.weight!),
-            if (p.bloodGroup != null && p.height != null && p.weight != null) ...[
-              () {
-                final h = double.tryParse(p.height!.replaceAll(RegExp(r'[^0-9.]'), ''));
-                final w = double.tryParse(p.weight!.replaceAll(RegExp(r'[^0-9.]'), ''));
-                if (h != null && w != null && h > 0) {
-                  final hm = h > 10 ? h / 100 : h;
-                  final bmi = w / (hm * hm);
-                  final label = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
-                  final col = bmi < 18.5 ? Colors.blue : bmi < 25 ? Colors.green : bmi < 30 ? Colors.orange : Colors.red;
-                  return _infoRow(context, Icons.calculate_rounded, 'BMI', '${bmi.toStringAsFixed(1)} ($label)', color: col);
-                }
-                return const SizedBox.shrink();
-              }(),
-            ],
-            if (p.allergies.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text('⚠️ Allergies', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: Colors.orange)),
-              const SizedBox(height: 4),
-              Wrap(children: p.allergies.map((a) => _chip(a, Colors.orange)).toList()),
-            ],
-            if (p.conditions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text('🩺 Conditions', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: Colors.red)),
-              const SizedBox(height: 4),
-              Wrap(children: p.conditions.map((c) => _chip(c, Colors.red)).toList()),
-            ],
-            if (p.disabilities.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text('♿ Special Needs', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: _healthColor)),
-              const SizedBox(height: 4),
-              Wrap(children: p.disabilities.map((d) => _chip(d, _healthColor)).toList()),
-            ],
-            if (p.emergencyContact != null) ...[
-              const SizedBox(height: 8),
-              const Divider(),
-              const SizedBox(height: 4),
-              _infoRow(context, Icons.emergency_rounded, 'Emergency Contact', p.emergencyContact!, color: Colors.red),
-              if (p.emergencyPhone != null) _infoRow(context, Icons.phone_rounded, 'Phone', p.emergencyPhone!, color: Colors.red),
-            ],
-          ],
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_healthColor.withValues(alpha: 0.18), _healthColor.withValues(alpha: 0.04)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _healthColor.withValues(alpha: 0.3))),
+        child: Row(children: [
+          Container(width: 56, height: 56,
+            decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.18), shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: const Text('🩺', style: TextStyle(fontSize: 30))),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Health Profile', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+            Text('Personal medical record', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
+          ])),
+          GestureDetector(
+            onTap: () => _showEditProfile(context, p),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: _healthColor, borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.edit_rounded, color: Colors.white, size: 16)),
+          ),
         ]),
       ),
+      const SizedBox(height: 14),
+
+      // ── Stats row (blood group / height / weight) ──────────────────
+      if (p.bloodGroup != null || p.height != null || p.weight != null) ...[
+        Row(children: [
+          if (p.bloodGroup != null) ...[
+            Expanded(child: _statTile('🩸', 'Blood', p.bloodGroup!, Colors.red, cardBg, tc, sub)),
+            const SizedBox(width: 10),
+          ],
+          if (p.height != null) ...[
+            Expanded(child: _statTile('📏', 'Height', p.height!, _healthColor, cardBg, tc, sub)),
+            const SizedBox(width: 10),
+          ],
+          if (p.weight != null)
+            Expanded(child: _statTile('⚖️', 'Weight', p.weight!, Colors.indigo, cardBg, tc, sub)),
+        ]),
+        const SizedBox(height: 10),
+      ],
+
+      // ── BMI card ───────────────────────────────────────────────────
+      if (bmiVal != null) ...[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: bmiColor.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: bmiColor.withValues(alpha: 0.25))),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+              decoration: BoxDecoration(color: bmiColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: const Text('📊', style: TextStyle(fontSize: 22))),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('BODY MASS INDEX', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', letterSpacing: 0.6, color: sub)),
+              const SizedBox(height: 4),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(bmiVal.toStringAsFixed(1), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: bmiColor, height: 1)),
+                const SizedBox(width: 8),
+                Padding(padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(bmiLabel, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: bmiColor))),
+              ]),
+            ])),
+            Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              SizedBox(width: 56, child: Stack(clipBehavior: Clip.none, children: [
+                Container(height: 7,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    gradient: const LinearGradient(colors: [Colors.blue, Colors.green, Colors.orange, Colors.red]))),
+                Positioned(
+                  left: (((bmiVal - 15) / 25).clamp(0.0, 1.0) * 48).toDouble(),
+                  top: -3,
+                  child: Container(width: 12, height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.white, shape: BoxShape.circle,
+                      border: Border.all(color: bmiColor, width: 2),
+                      boxShadow: [BoxShadow(color: bmiColor.withValues(alpha: 0.4), blurRadius: 4)]))),
+              ])),
+              const SizedBox(height: 6),
+              Text('15       40', style: TextStyle(fontSize: 9, fontFamily: 'DM Mono', color: sub)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 10),
+      ],
+
+      // ── Allergies ──────────────────────────────────────────────────
+      if (p.allergies.isNotEmpty) ...[
+        _chipsSection('⚠️', 'Allergies', p.allergies, Colors.orange, cardBg, tc),
+        const SizedBox(height: 10),
+      ],
+
+      // ── Conditions ─────────────────────────────────────────────────
+      if (p.conditions.isNotEmpty) ...[
+        _chipsSection('🩺', 'Conditions', p.conditions, Colors.red, cardBg, tc),
+        const SizedBox(height: 10),
+      ],
+
+      // ── Special Needs ──────────────────────────────────────────────
+      if (p.disabilities.isNotEmpty) ...[
+        _chipsSection('♿', 'Special Needs', p.disabilities, _healthColor, cardBg, tc),
+        const SizedBox(height: 10),
+      ],
+
+      // ── Emergency contact ──────────────────────────────────────────
+      if (p.emergencyContact != null)
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.25))),
+          child: Row(children: [
+            Container(width: 44, height: 44,
+              decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: const Icon(Icons.emergency_rounded, color: Colors.red, size: 24)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('EMERGENCY CONTACT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', letterSpacing: 0.5, color: Colors.red)),
+              const SizedBox(height: 4),
+              Text(p.emergencyContact!, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+              if (p.emergencyPhone != null) ...[
+                const SizedBox(height: 2),
+                Row(children: [
+                  const Icon(Icons.phone_rounded, size: 13, color: Colors.red),
+                  const SizedBox(width: 5),
+                  Text(p.emergencyPhone!, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: Colors.red)),
+                ]),
+              ],
+            ])),
+          ]),
+        ),
     ]);
   }
+
+  Widget _statTile(String emoji, String label, String value, Color color, Color cardBg, Color tc, Color sub) =>
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.2))),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(height: 6),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: tc), maxLines: 1, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 2),
+        Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+      ]),
+    );
+
+  Widget _chipsSection(String emoji, String title, List<String> items, Color color, Color cardBg, Color tc) =>
+    Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(title.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, fontFamily: 'Nunito', letterSpacing: 0.7, color: color)),
+        ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 6, runSpacing: 6, children: items.map((item) => _chip(item, color)).toList()),
+      ]),
+    );
 
   void _showEditProfile(BuildContext ctx, HealthProfile? existing) {
     final bgCtrl = TextEditingController(text: existing?.bloodGroup);
@@ -464,7 +620,8 @@ class _MedicationsTab extends StatelessWidget {
   final void Function(Medication) onAdd;
   final void Function(String) onDelete;
   final void Function(Medication) onToggle;
-  const _MedicationsTab({required this.walletId, required this.memberId, required this.meds, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onToggle});
+  final void Function(Medication) onUpdate;
+  const _MedicationsTab({required this.walletId, required this.memberId, required this.meds, required this.isDark, required this.surfBg, required this.onAdd, required this.onDelete, required this.onToggle, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
@@ -475,7 +632,7 @@ class _MedicationsTab extends StatelessWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _healthColor,
-        onPressed: () => _showAddMed(context),
+        onPressed: () => _showMedSheet(context),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Medicine', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
@@ -484,78 +641,150 @@ class _MedicationsTab extends StatelessWidget {
           : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               if (active.isNotEmpty) ...[
                 const LifeLabel(text: 'ACTIVE MEDICATIONS'),
-                ...active.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark, onDelete: () => onDelete(m.id), onToggle: () async {
-                  try {
-                    await HealthService.instance.updateMedication(m.id, {'is_active': false});
-                    onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, timing: m.timing, notes: m.notes, isActive: false, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
-                  } catch (e) { debugPrint('[Health] toggleMed: $e'); }
-                })),
+                ...active.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark,
+                  onDelete: () => onDelete(m.id),
+                  onEdit: () => _showMedSheet(context, existing: m),
+                  onToggle: () async {
+                    try {
+                      await HealthService.instance.updateMedication(m.id, {'is_active': false});
+                      onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, scheduleTimes: m.scheduleTimes, mealTiming: m.mealTiming, notes: m.notes, isActive: false, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
+                    } catch (e) { debugPrint('[Health] toggleMed: $e'); }
+                  })),
               ],
               if (past.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const LifeLabel(text: 'PAST MEDICATIONS'),
-                ...past.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark, onDelete: () => onDelete(m.id), onToggle: () async {
-                  try {
-                    await HealthService.instance.updateMedication(m.id, {'is_active': true});
-                    onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, timing: m.timing, notes: m.notes, isActive: true, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
-                  } catch (e) { debugPrint('[Health] toggleMed: $e'); }
-                })),
+                ...past.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark,
+                  onDelete: () => onDelete(m.id),
+                  onEdit: () => _showMedSheet(context, existing: m),
+                  onToggle: () async {
+                    try {
+                      await HealthService.instance.updateMedication(m.id, {'is_active': true});
+                      onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, scheduleTimes: m.scheduleTimes, mealTiming: m.mealTiming, notes: m.notes, isActive: true, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
+                    } catch (e) { debugPrint('[Health] toggleMed: $e'); }
+                  })),
               ],
             ]),
     );
   }
 
-  void _showAddMed(BuildContext ctx) {
-    final nameCtrl = TextEditingController();
-    final dosageCtrl = TextEditingController();
-    final freqCtrl = TextEditingController();
-    final timingCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final startRef = <DateTime>[DateTime.now()];
-    final refillRef = <DateTime?>[ null];
+  void _showMedSheet(BuildContext ctx, {Medication? existing}) {
+    final nameCtrl = TextEditingController(text: existing?.name);
+    final dosageCtrl = TextEditingController(text: existing?.dosage);
+    final freqCtrl = TextEditingController(text: existing?.frequency);
+    final notesCtrl = TextEditingController(text: existing?.notes);
+    final startRef = <DateTime>[existing?.startDate ?? DateTime.now()];
+    final refillRef = <DateTime?>[existing?.refillDate];
+    final scheduleTimesRef = <List<String>>[List.from(existing?.scheduleTimes ?? [])];
+    final mealTimingRef = <String?>[existing?.mealTiming ?? ''];
 
-    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Add Medication', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-        const SizedBox(height: 12),
-        LifeInput(controller: nameCtrl, hint: 'Medicine name *'),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: LifeInput(controller: dosageCtrl, hint: 'Dosage (e.g. 500mg)')),
-          const SizedBox(width: 8),
-          Expanded(child: LifeInput(controller: freqCtrl, hint: 'Frequency (e.g. Twice daily)')),
+    const scheduleOptions = [
+      ('🌅', 'Morning'), ('☀️', 'Afternoon'), ('🌆', 'Evening'), ('🌙', 'Night'),
+    ];
+    const mealOptions = [
+      ('🍽️', 'Before food'), ('🥢', 'After food'),
+    ];
+
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final isDark = ctx2.isDark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+      Widget pillRow(List<(String, String)> options, String? selected, bool multiSelect, void Function(String) onTap) {
+        return Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final (emoji, label) in options)
+            GestureDetector(
+              onTap: () => onTap(label),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: (multiSelect ? scheduleTimesRef[0].contains(label) : selected == label)
+                      ? _healthColor.withValues(alpha: 0.15)
+                      : surfBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: (multiSelect ? scheduleTimesRef[0].contains(label) : selected == label)
+                        ? _healthColor
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Text('$emoji  $label', style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito',
+                  color: (multiSelect ? scheduleTimesRef[0].contains(label) : selected == label)
+                      ? _healthColor : sub,
+                )),
+              ),
+            ),
+        ]);
+      }
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(existing == null ? 'Add Medication' : 'Edit Medication', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+          const SizedBox(height: 12),
+          LifeInput(controller: nameCtrl, hint: 'Medicine name *'),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: LifeInput(controller: dosageCtrl, hint: 'Dosage (e.g. 500mg)')),
+            const SizedBox(width: 8),
+            Expanded(child: LifeInput(controller: freqCtrl, hint: 'Frequency (e.g. Twice daily)')),
+          ]),
+          const LifeLabel(text: 'TIME OF DAY'),
+          pillRow(scheduleOptions, null, true, (label) {
+            final list = scheduleTimesRef[0];
+            scheduleTimesRef[0] = list.contains(label) ? list.where((x) => x != label).toList() : [...list, label];
+            ss(() {});
+          }),
+          const LifeLabel(text: 'MEAL TIMING'),
+          pillRow(mealOptions, mealTimingRef[0], false, (label) {
+            mealTimingRef[0] = mealTimingRef[0] == label ? null : label;
+            ss(() {});
+          }),
+          const SizedBox(height: 8),
+          LifeInput(controller: notesCtrl, hint: 'Notes (optional)', maxLines: 2),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: LifeDateTile(date: startRef[0], hint: 'Start Date', color: _healthColor, onTap: () async { final d = await _pickDate(ctx2, initial: startRef[0]); if (d != null) ss(() => startRef[0] = d); })),
+            const SizedBox(width: 8),
+            Expanded(child: LifeDateTile(date: refillRef[0], hint: 'Refill Date', color: Colors.orange, onTap: () async { final d = await _pickDate(ctx2); if (d != null) ss(() => refillRef[0] = d); })),
+          ]),
+          LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
+            if (nameCtrl.text.trim().isEmpty || dosageCtrl.text.trim().isEmpty || freqCtrl.text.trim().isEmpty) return;
+            final name = nameCtrl.text.trim();
+            final dosage = dosageCtrl.text.trim();
+            final freq = freqCtrl.text.trim();
+            final scheduleTimes = List<String>.from(scheduleTimesRef[0]);
+            final mealTiming = mealTimingRef[0]?.isEmpty == true ? null : mealTimingRef[0];
+            final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+            final start = startRef[0];
+            final refill = refillRef[0];
+            Navigator.pop(ctx2);
+            () async {
+              try {
+                if (existing == null) {
+                  final data = Medication(id: '', walletId: walletId, memberId: memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, startDate: start, refillDate: refill);
+                  final row = await HealthService.instance.addMedication(data.toJson());
+                  onAdd(Medication.fromJson(row));
+                } else {
+                  final updates = {
+                    'name': name, 'dosage': dosage, 'frequency': freq,
+                    'schedule_times': scheduleTimes,
+                    'meal_timing': mealTiming,
+                    'notes': notes,
+                    'start_date': start.toIso8601String().substring(0, 10),
+                    if (refill != null) 'refill_date': refill.toIso8601String().substring(0, 10),
+                  };
+                  await HealthService.instance.updateMedication(existing.id, updates);
+                  onUpdate(Medication(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, isActive: existing.isActive, startDate: start, refillDate: refill));
+                }
+              } catch (e) { debugPrint('[Health] saveMed: $e'); }
+            }();
+          }),
         ]),
-        const SizedBox(height: 8),
-        LifeInput(controller: timingCtrl, hint: 'Timing (e.g. After meals)'),
-        const SizedBox(height: 8),
-        LifeInput(controller: notesCtrl, hint: 'Notes (optional)', maxLines: 2),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: LifeDateTile(date: startRef[0], hint: 'Start Date', color: _healthColor, onTap: () async { final d = await _pickDate(ctx2, initial: startRef[0]); if (d != null) ss(() => startRef[0] = d); })),
-          const SizedBox(width: 8),
-          Expanded(child: LifeDateTile(date: refillRef[0], hint: 'Refill Date', color: Colors.orange, onTap: () async { final d = await _pickDate(ctx2); if (d != null) ss(() => refillRef[0] = d); })),
-        ]),
-        LifeSaveButton(label: 'Save', color: _healthColor, onTap: () {
-          if (nameCtrl.text.trim().isEmpty || dosageCtrl.text.trim().isEmpty || freqCtrl.text.trim().isEmpty) return;
-          final name = nameCtrl.text.trim();
-          final dosage = dosageCtrl.text.trim();
-          final freq = freqCtrl.text.trim();
-          final timing = timingCtrl.text.trim().isEmpty ? null : timingCtrl.text.trim();
-          final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
-          final start = startRef[0];
-          final refill = refillRef[0];
-          Navigator.pop(ctx2);
-          () async {
-            try {
-              final data = Medication(id: '', walletId: walletId, memberId: memberId, name: name, dosage: dosage, frequency: freq, timing: timing, notes: notes, startDate: start, refillDate: refill);
-              final row = await HealthService.instance.addMedication(data.toJson());
-              onAdd(Medication.fromJson(row));
-            } catch (e) { debugPrint('[Health] addMed: $e'); }
-          }();
-        }),
-      ]),
-    )));
+      );
+    }));
   }
 }
 
@@ -563,8 +792,8 @@ class _MedCard extends StatelessWidget {
   final Medication m;
   final Color cardBg;
   final bool isDark;
-  final VoidCallback onDelete, onToggle;
-  const _MedCard({required this.m, required this.cardBg, required this.isDark, required this.onDelete, required this.onToggle});
+  final VoidCallback onDelete, onToggle, onEdit;
+  const _MedCard({required this.m, required this.cardBg, required this.isDark, required this.onDelete, required this.onToggle, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -584,9 +813,16 @@ class _MedCard extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(m.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: isDark ? AppColors.textDark : AppColors.textLight)),
             Text('${m.dosage}  ·  ${m.frequency}', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
-            if (m.timing != null) Text(m.timing!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+            if (m.scheduleLabel.isNotEmpty) Text(m.scheduleLabel, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
             if (m.refillDate != null) Row(children: [const Icon(Icons.refresh_rounded, size: 12, color: Colors.orange), const SizedBox(width: 4), Text('Refill: ${_fmtDate(m.refillDate!)}', style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.orange))]),
           ])),
+          GestureDetector(
+            onTap: onEdit,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Icon(Icons.edit_rounded, size: 16, color: _healthColor),
+            ),
+          ),
           GestureDetector(
             onTap: onToggle,
             child: Container(
