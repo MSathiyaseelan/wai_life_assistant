@@ -34,6 +34,10 @@ class TxGroupCard extends StatefulWidget {
   /// Called when a member tile drag ends
   final VoidCallback? onTxDragEnded;
 
+  /// Maps Supabase userId → display name (e.g. "👦 Arjun").
+  /// When provided, each tile shows who added the transaction.
+  final Map<String, String>? memberNames;
+
   const TxGroupCard({
     super.key,
     required this.group,
@@ -45,6 +49,7 @@ class TxGroupCard extends StatefulWidget {
     required this.onDeleteGroup,
     this.onTxDragStarted,
     this.onTxDragEnded,
+    this.memberNames,
   });
 
   @override
@@ -373,12 +378,13 @@ class _TxGroupCardState extends State<TxGroupCard>
                       feedback: _TxDragFeedback(tx: tx),
                       childWhenDragging: Opacity(
                         opacity: 0.35,
-                        child: TxTile(tx: tx),
+                        child: TxTile(tx: tx, addedByName: widget.memberNames?[tx.userId]),
                       ),
                       child: TxTile(
                         tx: tx,
                         onTap: () => widget.onTxTap(tx),
                         onLongPress: () => widget.onTxLongPress(tx),
+                        addedByName: widget.memberNames?[tx.userId],
                       ),
                     )),
                 // Add expense button

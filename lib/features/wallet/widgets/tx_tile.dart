@@ -10,6 +10,10 @@ class TxTile extends StatelessWidget {
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
 
+  /// Display name of who added this transaction (e.g. "👦 Arjun").
+  /// When non-null a small "by …" chip is shown in the sub-row.
+  final String? addedByName;
+
   const TxTile({
     super.key,
     required this.tx,
@@ -17,6 +21,7 @@ class TxTile extends StatelessWidget {
     this.onLongPress,
     this.onAccept,
     this.onReject,
+    this.addedByName,
   });
 
   String _fmt(double v) {
@@ -204,6 +209,23 @@ class TxTile extends StatelessWidget {
                                 fontSize: 11,
                                 color: Color(0xFFFFAA2C),
                                 fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          if (addedByName != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF8E8EA0).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'by $addedByName',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF8E8EA0),
+                                  fontFamily: 'Nunito',
+                                ),
                               ),
                             ),
                         ],

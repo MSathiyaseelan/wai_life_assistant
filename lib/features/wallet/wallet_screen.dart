@@ -2354,6 +2354,7 @@ class _WalletScreenState extends State<WalletScreen>
                   onDeleteGroup: () => _deleteTxGroup(g),
                   onTxDragStarted: (tx) => setState(() => _draggingTx = tx),
                   onTxDragEnded: () => setState(() => _draggingTx = null),
+                  memberNames: widget.activeWalletId != 'personal' ? _activeMemberNames : null,
                 ),
               ),
             )),
@@ -2372,6 +2373,7 @@ class _WalletScreenState extends State<WalletScreen>
             onReject: isRecipient
                 ? () => _handleRequestResponse(tx, accept: false)
                 : null,
+            addedByName: _activeMemberNames[tx.userId],
           );
           return DragTarget<TxModel>(
             onWillAcceptWithDetails: (d) => d.data.id != tx.id,
@@ -2520,6 +2522,20 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   // ── Detail / Edit sheet ─────────────────────────────────────────────────────
+  /// Builds a userId→displayName map for the current active family wallet.
+  Map<String, String> get _activeMemberNames {
+    final map = <String, String>{};
+    for (final family in _appState.families) {
+      if (family.walletId == widget.activeWalletId) {
+        for (final m in family.members) {
+          if (m.userId != null) map[m.userId!] = '${m.emoji} ${m.name}';
+        }
+        break;
+      }
+    }
+    return map;
+  }
+
   void _showDetail(TxModel tx) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final otherWallets = _allWallets.where((w) => w.id != tx.walletId).toList();
