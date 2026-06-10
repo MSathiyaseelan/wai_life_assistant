@@ -45,8 +45,10 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
 
   static const _quickQuestions = [
     'How much did I spend this month?',
+    'Any upcoming appointments?',
     'What\'s on my grocery list?',
-    'Any upcoming bills?',
+    'My active medications?',
+    'Any upcoming functions?',
     'Summarise my finances',
   ];
 
@@ -277,7 +279,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                         color: Colors.white,
                       ),
                       decoration: InputDecoration.collapsed(
-                        hintText: 'Ask about spending, meals, tasks…',
+                        hintText: 'Ask about health, spending, meals, tasks…',
                         hintStyle: TextStyle(
                           fontSize: 13,
                           fontFamily: 'Nunito',

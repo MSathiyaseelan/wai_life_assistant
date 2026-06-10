@@ -6,7 +6,8 @@
       "Read(//c/Users/Sathiyaseelan/AppData/Local/Pub/Cache/hosted/pub.dev/**)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(dart doc *)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(npx supabase *)"
     ]
   }
 }

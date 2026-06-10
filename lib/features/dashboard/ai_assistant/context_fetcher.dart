@@ -15,6 +15,7 @@ class HouseholdContext {
   final Map<String, dynamic> planit;
   final Map<String, dynamic> functions;
   final Map<String, dynamic> family;
+  final Map<String, dynamic> health;
 
   const HouseholdContext({
     this.wallet = const {},
@@ -22,6 +23,7 @@ class HouseholdContext {
     this.planit = const {},
     this.functions = const {},
     this.family = const {},
+    this.health = const {},
   });
 
   String toPromptBlock() {
@@ -51,6 +53,11 @@ class HouseholdContext {
       family.forEach((k, v) => buf.writeln('$k: $v'));
       buf.writeln();
     }
+    if (health.isNotEmpty) {
+      buf.writeln('=== HEALTH ===');
+      health.forEach((k, v) => buf.writeln('$k: $v'));
+      buf.writeln();
+    }
     return buf.toString();
   }
 }
@@ -77,6 +84,7 @@ class ContextFetcher {
     final fetchPlanit = sources.contains(DataSource.planit) || isCrossTab;
     final fetchFunctions = sources.contains(DataSource.functions) || isCrossTab;
     final fetchFamily = sources.contains(DataSource.family);
+    final fetchHealth = sources.contains(DataSource.health) || isCrossTab;
 
     final results = await Future.wait([
       fetchWallet ? _fetchWallet(walletId, intent.timeRange) : Future.value(<String, dynamic>{}),
@@ -84,6 +92,7 @@ class ContextFetcher {
       fetchPlanit ? _fetchPlanit(walletId) : Future.value(<String, dynamic>{}),
       fetchFunctions ? _fetchFunctions(walletId) : Future.value(<String, dynamic>{}),
       fetchFamily ? _fetchFamily(walletId) : Future.value(<String, dynamic>{}),
+      fetchHealth ? _fetchHealth(walletId) : Future.value(<String, dynamic>{}),
     ]);
 
     return HouseholdContext(
@@ -92,6 +101,7 @@ class ContextFetcher {
       planit: results[2],
       functions: results[3],
       family: results[4],
+      health: results[5],
     );
   }
 
@@ -332,6 +342,69 @@ class ContextFetcher {
       };
     } catch (e) {
       debugPrint('[ContextFetcher] _fetchFamily error: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchHealth(String walletId) async {
+    if (walletId.isEmpty) return {};
+    try {
+      final now = DateTime.now();
+      final today = now.toIso8601String().substring(0, 10);
+      final in30d = now.add(const Duration(days: 30)).toIso8601String().substring(0, 10);
+
+      final results = await Future.wait([
+        _db
+            .from('health_medications')
+            .select('name, dosage, frequency')
+            .eq('wallet_id', walletId)
+            .eq('is_active', true)
+            .limit(10),
+        _db
+            .from('health_appointments')
+            .select('doctor_name, speciality, appt_date')
+            .eq('wallet_id', walletId)
+            .gte('appt_date', today)
+            .order('appt_date')
+            .limit(5),
+        _db
+            .from('health_vaccinations')
+            .select('vaccine_name, next_due_date')
+            .eq('wallet_id', walletId)
+            .gte('next_due_date', today)
+            .lte('next_due_date', in30d)
+            .order('next_due_date')
+            .limit(5),
+      ]);
+
+      final meds = (results[0] as List).map((r) {
+        final name = r['name'] as String? ?? '';
+        final dosage = r['dosage'] as String? ?? '';
+        final freq = r['frequency'] as String? ?? '';
+        return '$name${dosage.isNotEmpty ? ' $dosage' : ''}${freq.isNotEmpty ? ' ($freq)' : ''}';
+      }).where((s) => s.isNotEmpty).toList();
+
+      final appts = (results[1] as List).map((r) {
+        final doc = r['doctor_name'] as String? ?? '';
+        final spec = r['speciality'] as String? ?? '';
+        final date = r['appt_date'] as String? ?? '';
+        return '$doc${spec.isNotEmpty ? ' ($spec)' : ''} on $date';
+      }).where((s) => s.isNotEmpty).toList();
+
+      final vaccines = (results[2] as List).map((r) {
+        final name = r['vaccine_name'] as String? ?? '';
+        final due = r['next_due_date'] as String? ?? '';
+        return '$name due $due';
+      }).where((s) => s.isNotEmpty).toList();
+
+      return {
+        if (meds.isNotEmpty) 'active_medications': meds.join(', '),
+        'medication_count': meds.length,
+        if (appts.isNotEmpty) 'upcoming_appointments': appts.join(', '),
+        if (vaccines.isNotEmpty) 'due_vaccines': vaccines.join(', '),
+      };
+    } catch (e) {
+      debugPrint('[ContextFetcher] _fetchHealth error: $e');
       return {};
     }
   }

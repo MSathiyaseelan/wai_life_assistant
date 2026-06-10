@@ -2,7 +2,7 @@
 // IntentClassifier — determines which data sources are needed for a question
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum DataSource { wallet, pantry, planit, functions, family, crossTab, general }
+enum DataSource { wallet, pantry, planit, functions, family, health, crossTab, general }
 
 enum TimeRange { today, thisWeek, thisMonth, lastMonth, custom, allTime }
 
@@ -56,6 +56,13 @@ class IntentClassifier {
       r'function|upcoming function|attended function|moi|event|wedding|birthday|occasion|ceremony|attend|party|celebration',
     ).hasMatch(q)) {
       sources.add(DataSource.functions);
+    }
+
+    // Health signals
+    if (RegExp(
+      r'health|medicine|medication|drug|tablet|capsule|pill|appointment|doctor|vaccine|vaccination|vital|blood pressure|blood sugar|weight|bmi|insurance|prescription|symptom|sick|illness|hospital|clinic|diagnosis|treatment|checkup|check.up|wardrobe|outfit|clothing',
+    ).hasMatch(q)) {
+      sources.add(DataSource.health);
     }
 
     // Family signals
