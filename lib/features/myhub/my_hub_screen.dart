@@ -15,6 +15,7 @@ import 'package:wai_life_assistant/features/lifestyle/modules/item_locator/itemL
 import 'package:wai_life_assistant/features/lifestyle/modules/my_wardrobe/my_wardrobe_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/health_space/health_space_screen.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 
 class MyHubScreen extends StatefulWidget {
   final String activeWalletId;
@@ -61,6 +62,56 @@ class _MyHubScreenState extends State<MyHubScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    DashNavService.myHub.addListener(_onDashNavSignal);
+  }
+
+  @override
+  void dispose() {
+    DashNavService.myHub.removeListener(_onDashNavSignal);
+    super.dispose();
+  }
+
+  void _onDashNavSignal() {
+    final signal = DashNavService.myHub.value;
+    if (signal == null) return;
+    DashNavService.myHub.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (signal == 'functions') {
+        _openFunctions(context);
+      } else if (signal.startsWith('health:')) {
+        final tabMap = {
+          'health:meds': 1,
+          'health:appointments': 4,
+          'health:vaccines': 6,
+        };
+        final tab = tabMap[signal] ?? 0;
+        _openHealthSpaceAt(context, tab);
+      }
+    });
+  }
+
+  void _openHealthSpaceAt(BuildContext context, int initialTab) {
+    HapticFeedback.selectionClick();
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (ctx, anim, secondaryAnim) => HealthSpaceScreen(
+          walletId: _currentWallet.id,
+          members: _healthMembers,
+          initialTab: initialTab,
+        ),
+        transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero)
+                .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child,
+          ),
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
+      ),
+    );
   }
 
   @override

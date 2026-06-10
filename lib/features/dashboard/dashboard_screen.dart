@@ -38,6 +38,8 @@ import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.da
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
+import 'package:wai_life_assistant/data/services/health_service.dart';
+import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -87,6 +89,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Map<String, List<WishModel>> _wishesMap = {};
   final Map<String, List<FunctionModel>> _functionsMap = {};
   final Set<String> _loadedPlanItWalletIds = {};
+
+  // Health nudge data — keyed by walletId
+  final Map<String, List<Map<String, dynamic>>> _healthApptsMap = {};
+  final Map<String, List<Map<String, dynamic>>> _healthMedsMap = {};
+  final Map<String, List<Map<String, dynamic>>> _healthVaccsMap = {};
+  final Set<String> _loadedHealthWalletIds = {};
 
   List<TxModel> _todayTx(String wid) => _transactions
       .where((t) => t.walletId == wid && _isToday(t.date))
@@ -245,18 +253,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _ensureHealthLoaded(List<WalletModel> wallets) {
+    for (final w in wallets) {
+      if (_isPlaceholder(w.id) || _loadedHealthWalletIds.contains(w.id)) continue;
+      _loadedHealthWalletIds.add(w.id);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _loadHealthData(w.id),
+      );
+    }
+  }
+
   Future<void> _refresh() async {
     final txToReload = List<String>.from(_loadedWalletIds);
     final mealToReload = List<String>.from(_loadedMealWalletIds);
     final planItToReload = List<String>.from(_loadedPlanItWalletIds);
+    final healthToReload = List<String>.from(_loadedHealthWalletIds);
     _loadedWalletIds.clear();
     _loadedMealWalletIds.clear();
     _loadedPlanItWalletIds.clear();
+    _loadedHealthWalletIds.clear();
     await Future.wait([
       _loadPinnedGroups(),
       ...txToReload.map(_loadTransactions),
       ...mealToReload.map(_loadTodayMeals),
       ...planItToReload.map(_loadPlanItData),
+      ...healthToReload.map(_loadHealthData),
     ]);
   }
 
@@ -386,6 +407,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       debugPrint('[Dashboard] _loadPlanItData error: $e');
+    }
+  }
+
+  Future<void> _loadHealthData(String walletId) async {
+    if (_isPlaceholder(walletId)) return;
+    _loadedHealthWalletIds.add(walletId);
+    try {
+      final results = await Future.wait([
+        HealthService.instance.fetchAppointments(walletId),
+        HealthService.instance.fetchMedications(walletId),
+        HealthService.instance.fetchVaccinations(walletId),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _healthApptsMap[walletId] = List<Map<String, dynamic>>.from(results[0] as List);
+        _healthMedsMap[walletId] = List<Map<String, dynamic>>.from(results[1] as List);
+        _healthVaccsMap[walletId] = List<Map<String, dynamic>>.from(results[2] as List);
+      });
+    } catch (e) {
+      debugPrint('[Dashboard] _loadHealthData error: $e');
     }
   }
 
@@ -622,6 +663,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: r.priority.color,
               tag: 'Alert',
               walletLabel: wLabel,
+              onTap: () { DashNavService.planIt.value = 'alerts'; widget.onTabSwitch?.call(4); },
             ),
           );
         }
@@ -648,6 +690,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: t.priority.color,
               tag: 'Task',
               walletLabel: wLabel,
+              onTap: () { DashNavService.planIt.value = 'tasks'; widget.onTabSwitch?.call(4); },
             ),
           );
         }
@@ -675,6 +718,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: sd.type.color,
               tag: 'Special Day',
               walletLabel: wLabel,
+              onTap: () { DashNavService.planIt.value = 'special_days'; widget.onTabSwitch?.call(4); },
             ),
           );
         }
@@ -707,6 +751,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: w.priority.color,
               tag: 'Wish',
               walletLabel: wLabel,
+              onTap: () { DashNavService.planIt.value = 'wishes'; widget.onTabSwitch?.call(4); },
             ),
           );
         }
@@ -737,8 +782,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
               color: AppColors.primary,
               tag: 'Function',
               walletLabel: wLabel,
+              onTap: () { DashNavService.myHub.value = 'functions'; widget.onTabSwitch?.call(3); },
             ),
           );
+        }
+      }
+    }
+
+    // ── Health nudges ─────────────────────────────────────────────────────────
+
+    // Upcoming appointments within 7 days
+    for (final entry in _healthApptsMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final appt in entry.value) {
+        final raw = appt['appt_date'] as String?;
+        if (raw == null) continue;
+        final apptDate = DateTime.tryParse(raw);
+        if (apptDate == null) continue;
+        final apptDay = DateTime(apptDate.year, apptDate.month, apptDate.day);
+        final daysLeft = apptDay.difference(today).inDays;
+        if (daysLeft >= 0 && daysLeft <= 7) {
+          final doctor = appt['doctor_name'] as String? ?? 'Doctor';
+          list.add(_PlanNudge(
+            emoji: '🏥',
+            title: 'Appointment: $doctor',
+            subtitle: daysLeft == 0 ? 'Today' : 'In ${daysLeft}d',
+            urgency: daysLeft == 0 ? 3 : daysLeft <= 2 ? 2 : 1,
+            color: const Color(0xFF00BFA5),
+            tag: 'Appointment',
+            walletLabel: wLabel,
+            onTap: () { DashNavService.myHub.value = 'health:appointments'; widget.onTabSwitch?.call(3); },
+          ));
+        }
+      }
+    }
+
+    // Active medications — show as daily nudge
+    for (final entry in _healthMedsMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      final activeMeds = entry.value.where((m) => m['is_active'] == true).toList();
+      if (activeMeds.isNotEmpty) {
+        list.add(_PlanNudge(
+          emoji: '💊',
+          title: '${activeMeds.length} active medication${activeMeds.length == 1 ? '' : 's'} today',
+          subtitle: activeMeds.map((m) => m['name'] as String? ?? '').where((n) => n.isNotEmpty).take(2).join(', '),
+          urgency: 1,
+          color: const Color(0xFF00BFA5),
+          tag: 'Medicine',
+          walletLabel: wLabel,
+          onTap: () { DashNavService.myHub.value = 'health:meds'; widget.onTabSwitch?.call(3); },
+        ));
+      }
+    }
+
+    // Overdue or due-soon vaccinations
+    for (final entry in _healthVaccsMap.entries) {
+      final wLabel = _walletLabel(entry.key);
+      for (final vacc in entry.value) {
+        final rawDue = vacc['next_due'] as String?;
+        if (rawDue == null) continue;
+        final dueDate = DateTime.tryParse(rawDue);
+        if (dueDate == null) continue;
+        final dueDay = DateTime(dueDate.year, dueDate.month, dueDate.day);
+        final daysLeft = dueDay.difference(today).inDays;
+        if (daysLeft <= 30) {
+          final name = vacc['vaccine_name'] as String? ?? 'Vaccine';
+          final isOverdue = daysLeft < 0;
+          list.add(_PlanNudge(
+            emoji: '💉',
+            title: '$name due',
+            subtitle: isOverdue ? 'Overdue by ${daysLeft.abs()}d' : daysLeft == 0 ? 'Due today' : 'Due in ${daysLeft}d',
+            urgency: isOverdue || daysLeft == 0 ? 3 : daysLeft <= 7 ? 2 : 1,
+            color: isOverdue ? Colors.red : daysLeft <= 7 ? Colors.orange : const Color(0xFF00BFA5),
+            tag: 'Vaccine',
+            walletLabel: wLabel,
+            onTap: () { DashNavService.myHub.value = 'health:vaccines'; widget.onTabSwitch?.call(3); },
+          ));
         }
       }
     }
@@ -787,6 +906,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _ensureWalletsLoaded(appState.wallets);
     _ensureMealsLoaded(appState.wallets);
     _ensurePlanItLoaded(appState.wallets);
+    _ensureHealthLoaded(appState.wallets);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -931,6 +1051,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         onNavigate: widget.onTabSwitch,
                       ),
                       const SizedBox(height: 16),
+
+                      // ── Needs Attention ───────────────────────────────────────
+                      if (_nudges.isNotEmpty) ...[
+                        _SectionHeader(
+                          emoji: '📋',
+                          title: 'Needs Attention',
+                          sub: sub,
+                          action: 'PlanIt →',
+                          onAction: () {},
+                        ),
+                        const SizedBox(height: 8),
+                        _NudgesCard(
+                          nudges: _nudges,
+                          isDark: isDark,
+                          cardBg: cardBg,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
                       // ①  TODAY ───────────────────────────────────────────────
                       _SectionHeader(
@@ -1243,24 +1381,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-
-                      // ③  PLAN-IT NUDGES ───────────────────────────────────────
-                      if (_nudges.isNotEmpty) ...[
-                        _SectionHeader(
-                          emoji: '📋',
-                          title: 'Needs Attention',
-                          sub: sub,
-                          action: 'PlanIt →',
-                          onAction: () {},
-                        ),
-                        const SizedBox(height: 8),
-                        _NudgesCard(
-                          nudges: _nudges,
-                          isDark: isDark,
-                          cardBg: cardBg,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
 
                       // ④  UPCOMING FUNCTIONS ───────────────────────────────────
                       if (_upcomingFunctions.isNotEmpty ||
@@ -3882,7 +4002,10 @@ class _NudgesCard extends StatelessWidget {
             final isLast = nudges.indexOf(n) == nudges.take(5).length - 1;
             return Column(
               children: [
-                Padding(
+                GestureDetector(
+                  onTap: n.onTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 11,
@@ -3981,6 +4104,7 @@ class _NudgesCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
                 ),
                 if (!isLast)
                   Divider(
@@ -4308,6 +4432,7 @@ class _PlanNudge {
   final String emoji, title, subtitle, tag, walletLabel;
   final int urgency;
   final Color color;
+  final VoidCallback? onTap;
   const _PlanNudge({
     required this.emoji,
     required this.title,
@@ -4316,6 +4441,7 @@ class _PlanNudge {
     required this.color,
     required this.tag,
     required this.walletLabel,
+    this.onTap,
   });
 }
 

@@ -20,6 +20,7 @@ import 'package:wai_life_assistant/features/planit/modules/notes/notes_screen.da
 import 'package:wai_life_assistant/features/planit/modules/plan_party/plan_party_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_schedule/my_schedule_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/health_vault/health_vault_screen.dart';
+import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 
 class PlanItScreen extends StatefulWidget {
   final String activeWalletId;
@@ -73,6 +74,33 @@ class _PlanItScreenState extends State<PlanItScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadAllData());
+    DashNavService.planIt.addListener(_onDashNavSignal);
+  }
+
+  @override
+  void dispose() {
+    DashNavService.planIt.removeListener(_onDashNavSignal);
+    super.dispose();
+  }
+
+  void _onDashNavSignal() {
+    final signal = DashNavService.planIt.value;
+    if (signal == null) return;
+    DashNavService.planIt.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final match = _modules.firstWhere(
+        (m) => m.title == switch (signal) {
+          'alerts'       => 'Alert Me',
+          'tasks'        => 'My Tasks',
+          'special_days' => 'Special Days',
+          'wishes'       => 'Wish List',
+          _              => '',
+        },
+        orElse: () => _modules.first,
+      );
+      if (match.title.isNotEmpty) _navigate(context, match.builder);
+    });
   }
 
   @override

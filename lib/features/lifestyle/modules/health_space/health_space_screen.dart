@@ -57,7 +57,8 @@ Future<String?> _pickPhoto(BuildContext ctx) async {
 class HealthSpaceScreen extends StatefulWidget {
   final String walletId;
   final List<LifeMember> members;
-  const HealthSpaceScreen({super.key, required this.walletId, required this.members});
+  final int initialTab;
+  const HealthSpaceScreen({super.key, required this.walletId, required this.members, this.initialTab = 0});
   @override
   State<HealthSpaceScreen> createState() => _HealthSpaceScreenState();
 }
@@ -82,7 +83,7 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: _tabs.length, vsync: this);
+    _tab = TabController(length: _tabs.length, vsync: this, initialIndex: widget.initialTab.clamp(0, _tabs.length - 1));
     _selectedMember = widget.members.first.id;
     _loadData();
   }
