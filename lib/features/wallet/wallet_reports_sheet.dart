@@ -12,17 +12,21 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 class WalletReportsSheet extends StatefulWidget {
   final List<TxModel> transactions;
   final WalletModel wallet;
+  /// userId → 'emoji name' — non-null only for family wallets
+  final Map<String, String> memberNames;
 
   const WalletReportsSheet({
     super.key,
     required this.transactions,
     required this.wallet,
+    this.memberNames = const {},
   });
 
   static Future<void> show(
     BuildContext context, {
     required List<TxModel> transactions,
     required WalletModel wallet,
+    Map<String, String> memberNames = const {},
   }) {
     return showModalBottomSheet(
       context: context,
@@ -31,6 +35,7 @@ class WalletReportsSheet extends StatefulWidget {
       builder: (_) => WalletReportsSheet(
         transactions: transactions,
         wallet: wallet,
+        memberNames: memberNames,
       ),
     );
   }
@@ -54,13 +59,13 @@ extension _PeriodExt on _Period {
     }
   }
 
-  String get emoji {
+  IconData get icon {
     switch (this) {
-      case _Period.daily:    return '📅';
-      case _Period.weekly:   return '📆';
-      case _Period.monthly:  return '🗓️';
-      case _Period.yearly:   return '📊';
-      case _Period.category: return '🏷️';
+      case _Period.daily:    return Icons.today_rounded;
+      case _Period.weekly:   return Icons.view_week_rounded;
+      case _Period.monthly:  return Icons.calendar_month_rounded;
+      case _Period.yearly:   return Icons.bar_chart_rounded;
+      case _Period.category: return Icons.donut_small_rounded;
     }
   }
 }
@@ -75,14 +80,51 @@ class _Bucket {
   double get net => income - expense;
 }
 
+// ── Category emoji helper ─────────────────────────────────────────────────────
+
+String _catEmoji(String cat) {
+  final c = cat.toLowerCase();
+  if (c.contains('food') || c.contains('eat') || c.contains('restaurant') ||
+      c.contains('groceri') || c.contains('snack') || c.contains('meal')) { return '🍽️'; }
+  if (c.contains('transport') || c.contains('travel') || c.contains('fuel') ||
+      c.contains('petrol') || c.contains('cab') || c.contains('uber') ||
+      c.contains('auto') || c.contains('vehicle')) { return '🚗'; }
+  if (c.contains('shop') || c.contains('purchase') || c.contains('buy') ||
+      c.contains('order') || c.contains('amazon') || c.contains('flipkart')) { return '🛍️'; }
+  if (c.contains('entertain') || c.contains('movie') || c.contains('fun') ||
+      c.contains('game') || c.contains('sport') || c.contains('netflix') ||
+      c.contains('subscri')) { return '🎬'; }
+  if (c.contains('health') || c.contains('medical') || c.contains('medicine') ||
+      c.contains('doctor') || c.contains('hospital') || c.contains('pharmacy')) { return '💊'; }
+  if (c.contains('utilit') || c.contains('bill') || c.contains('electric') ||
+      c.contains('water') || c.contains('gas') || c.contains('internet') ||
+      c.contains('phone') || c.contains('mobile')) { return '💡'; }
+  if (c.contains('educat') || c.contains('school') || c.contains('college') ||
+      c.contains('course') || c.contains('book') || c.contains('fee')) { return '📚'; }
+  if (c.contains('salary') || c.contains('income') || c.contains('wage') ||
+      c.contains('earning') || c.contains('bonus')) { return '💼'; }
+  if (c.contains('rent') || c.contains('hous') || c.contains('home') ||
+      c.contains('property') || c.contains('mortgage')) { return '🏠'; }
+  if (c.contains('cloth') || c.contains('fashion') || c.contains('wear') ||
+      c.contains('dress') || c.contains('shoes')) { return '👗'; }
+  if (c.contains('invest') || c.contains('mutual') || c.contains('stock') ||
+      c.contains('sip') || c.contains('saving')) { return '📈'; }
+  if (c.contains('gift') || c.contains('present') || c.contains('donation')) { return '🎁'; }
+  return '📦';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WalletReportsSheetState extends State<WalletReportsSheet> {
   _Period _period = _Period.monthly;
-  bool _catExpense = true; // category tab: expense vs income toggle
+  bool _catExpense = true;
+  String? _memberFilter; // null = all members
 
-  // Transactions relevant for income/expense charts
-  List<TxModel> get _ie => widget.transactions
+  List<TxModel> get _filtered => _memberFilter == null
+      ? widget.transactions
+      : widget.transactions.where((t) => t.userId == _memberFilter).toList();
+
+  List<TxModel> get _ie => _filtered
       .where((t) => t.type == TxType.income || t.type == TxType.expense)
       .toList();
 
@@ -105,7 +147,6 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   List<_Bucket> _weekly() {
     final now = DateTime.now();
     final todayMidnight = DateTime(now.year, now.month, now.day);
-    // Start of current week (Monday)
     final currentWeekStart =
         todayMidnight.subtract(Duration(days: todayMidnight.weekday - 1));
     return List.generate(8, (i) {
@@ -123,7 +164,6 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   List<_Bucket> _monthly() {
     final now = DateTime.now();
     return List.generate(12, (i) {
-      // subtract months properly
       int year = now.year;
       int month = now.month - (11 - i);
       while (month <= 0) {
@@ -158,12 +198,10 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
     }
   }
 
-  // ── Category data ─────────────────────────────────────────────────────────
-
   List<MapEntry<String, double>> _categoryData() {
     final target = _catExpense ? TxType.expense : TxType.income;
     final map = <String, double>{};
-    for (final t in widget.transactions) {
+    for (final t in _filtered) {
       if (t.type == target) {
         map[t.category] = (map[t.category] ?? 0) + t.amount;
       }
@@ -172,8 +210,6 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
       ..sort((a, b) => b.value.compareTo(a.value));
     return sorted;
   }
-
-  // ── Summary totals ────────────────────────────────────────────────────────
 
   ({double income, double expense, double net}) _totals(List<_Bucket> buckets) {
     final inc = buckets.fold(0.0, (s, b) => s + b.income);
@@ -195,6 +231,16 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
     return days[d.weekday - 1];
   }
 
+  List<_Bucket> _getPeriodBuckets() {
+    switch (_period) {
+      case _Period.daily:    return _daily();
+      case _Period.weekly:   return _weekly();
+      case _Period.monthly:  return _monthly();
+      case _Period.yearly:   return _yearly();
+      case _Period.category: return [];
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
 
   @override
@@ -204,7 +250,7 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final color = widget.wallet.gradient[0];
+    final accentColor = widget.wallet.gradient[0];
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -217,131 +263,32 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
         ),
         child: Column(
           children: [
-            // ── Handle ────────────────────────────────────────────────────
-            const SizedBox(height: 10),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // ── Header ────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: widget.wallet.gradient,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      widget.wallet.emoji.startsWith('http') ||
-                              widget.wallet.emoji.isEmpty
-                          ? (widget.wallet.isPersonal ? '👤' : '👨‍👩‍👧')
-                          : widget.wallet.emoji,
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${widget.wallet.name} Reports',
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            fontFamily: 'Nunito',
-                            color: tc,
-                          ),
-                        ),
-                        Text(
-                          '${widget.transactions.length} transactions',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: sub,
-                            fontFamily: 'Nunito',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: surfBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: sub,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
+            // ── Gradient hero header ──────────────────────────────────────
+            _HeroHeader(wallet: widget.wallet, txCount: widget.transactions.length),
 
             // ── Period tabs ───────────────────────────────────────────────
-            SizedBox(
-              height: 38,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: _Period.values.map((p) {
-                  final active = _period == p;
-                  return GestureDetector(
-                    onTap: () => setState(() => _period = p),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? color.withValues(alpha: 0.12)
-                            : surfBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: active ? color : Colors.transparent,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Text(
-                        '${p.emoji} ${p.label}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Nunito',
-                          color: active ? color : sub,
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+            _PeriodTabBar(
+              selected: _period,
+              accentColor: accentColor,
+              surfBg: surfBg,
+              sub: sub,
+              onSelect: (p) => setState(() => _period = p),
             ),
-            const SizedBox(height: 16),
+
+            // ── Member filter strip (family wallets only) ─────────────────
+            if (widget.memberNames.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              _MemberFilterStrip(
+                members: widget.memberNames,
+                selected: _memberFilter,
+                accentColor: accentColor,
+                surfBg: surfBg,
+                sub: sub,
+                onSelect: (uid) => setState(() =>
+                    _memberFilter = _memberFilter == uid ? null : uid),
+              ),
+            ],
+            const SizedBox(height: 4),
 
             // ── Body ──────────────────────────────────────────────────────
             Expanded(
@@ -354,7 +301,7 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
                       surfBg: surfBg,
                       tc: tc,
                       sub: sub,
-                      color: color,
+                      accentColor: accentColor,
                       fmt: _fmt,
                       ctrl: ctrl,
                     )
@@ -374,16 +321,180 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
       ),
     );
   }
+}
 
-  List<_Bucket> _getPeriodBuckets() {
-    switch (_period) {
-      case _Period.daily:    return _daily();
-      case _Period.weekly:   return _weekly();
-      case _Period.monthly:  return _monthly();
-      case _Period.yearly:   return _yearly();
-      case _Period.category: return [];
-    }
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO HEADER — gradient banner with wallet info
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HeroHeader extends StatelessWidget {
+  final WalletModel wallet;
+  final int txCount;
+  const _HeroHeader({required this.wallet, required this.txCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = wallet.emoji.startsWith('http') || wallet.emoji.isEmpty
+        ? (wallet.isPersonal ? '👤' : '👨‍👩‍👧')
+        : wallet.emoji;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: wallet.gradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Text(emoji, style: const TextStyle(fontSize: 22)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wallet.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                      ),
+                    ),
+                    Text(
+                      '$txCount transactions',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 17,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PERIOD TAB BAR — icon + label pill tabs
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PeriodTabBar extends StatelessWidget {
+  final _Period selected;
+  final Color accentColor, surfBg, sub;
+  final void Function(_Period) onSelect;
+  const _PeriodTabBar({
+    required this.selected,
+    required this.accentColor,
+    required this.surfBg,
+    required this.sub,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 44,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          children: _Period.values.map((p) {
+            final active = selected == p;
+            return GestureDetector(
+              onTap: () => onSelect(p),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: active
+                      ? accentColor
+                      : surfBg,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      p.icon,
+                      size: 13,
+                      color: active ? Colors.white : sub,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      p.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: active ? Colors.white : sub,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -416,99 +527,89 @@ class _ChartBody extends StatelessWidget {
 
     return ListView(
       controller: ctrl,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
-        // ── Summary cards ────────────────────────────────────────────────
+        // ── Stats row: income + expense cards ────────────────────────────
         Row(
           children: [
             Expanded(
-              child: _SummaryCard(
+              child: _StatCard(
                 label: 'Income',
                 amount: fmt(totals.income),
                 color: AppColors.income,
-                icon: '💰',
-                surfBg: surfBg,
-                tc: tc,
-                sub: sub,
+                icon: Icons.arrow_downward_rounded,
+                isDark: isDark,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
-              child: _SummaryCard(
+              child: _StatCard(
                 label: 'Expense',
                 amount: fmt(totals.expense),
                 color: AppColors.expense,
-                icon: '💸',
-                surfBg: surfBg,
-                tc: tc,
-                sub: sub,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _SummaryCard(
-                label: 'Net',
-                amount: fmt(totals.net.abs()),
-                color: totals.net >= 0 ? AppColors.income : AppColors.expense,
-                icon: totals.net >= 0 ? '📈' : '📉',
-                prefix: totals.net >= 0 ? '+' : '-',
-                surfBg: surfBg,
-                tc: tc,
-                sub: sub,
+                icon: Icons.arrow_upward_rounded,
+                isDark: isDark,
               ),
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        // ── Net flow full-width banner ────────────────────────────────────
+        _NetFlowBanner(net: totals.net, fmt: fmt, isDark: isDark),
         const SizedBox(height: 20),
 
         // ── Legend ───────────────────────────────────────────────────────
-        Row(
-          children: [
-            _Legend(color: AppColors.income, label: 'Income'),
-            const SizedBox(width: 16),
-            _Legend(color: AppColors.expense, label: 'Expense'),
-          ],
-        ),
-        const SizedBox(height: 12),
+        if (hasData) ...[
+          Row(
+            children: [
+              _Legend(color: AppColors.income, label: 'Income'),
+              const SizedBox(width: 16),
+              _Legend(color: AppColors.expense, label: 'Expense'),
+            ],
+          ),
+          const SizedBox(height: 12),
 
-        // ── Bar chart ────────────────────────────────────────────────────
-        if (!hasData)
-          _EmptyState(sub: sub)
-        else
+          // ── Bar chart ─────────────────────────────────────────────────
           SizedBox(
-            height: 180,
+            height: 220,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: buckets.map((b) {
-                  final incH = maxVal > 0 ? (b.income / maxVal) * 140 : 0.0;
-                  final expH = maxVal > 0 ? (b.expense / maxVal) * 140 : 0.0;
+                  final incH = maxVal > 0 ? (b.income / maxVal) * 160 : 0.0;
+                  final expH = maxVal > 0 ? (b.expense / maxVal) * 160 : 0.0;
                   return _BarGroup(
                     label: b.label,
                     incomeHeight: incH,
                     expenseHeight: expH,
-                    isDark: isDark,
+                    incomeVal: b.income,
+                    expenseVal: b.expense,
                     sub: sub,
+                    fmt: fmt,
                   );
                 }).toList(),
               ),
             ),
           ),
+          const SizedBox(height: 20),
+        ],
 
-        const SizedBox(height: 24),
-
-        // ── Period detail list ────────────────────────────────────────────
+        // ── Breakdown list ────────────────────────────────────────────────
         if (hasData) ...[
-          Text(
-            'Breakdown',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              fontFamily: 'Nunito',
-              color: sub,
-              letterSpacing: 0.5,
-            ),
+          Row(
+            children: [
+              Text(
+                'BREAKDOWN',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                  color: sub,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           ...buckets.where((b) => b.income > 0 || b.expense > 0).map(
@@ -522,6 +623,8 @@ class _ChartBody extends StatelessWidget {
             ),
           ),
         ],
+
+        if (!hasData) _EmptyState(sub: sub),
       ],
     );
   }
@@ -536,7 +639,7 @@ class _CategoryBody extends StatelessWidget {
   final bool isExpense;
   final void Function(bool) onToggle;
   final bool isDark;
-  final Color surfBg, tc, sub, color;
+  final Color surfBg, tc, sub, accentColor;
   final String Function(double) fmt;
   final ScrollController ctrl;
 
@@ -548,7 +651,7 @@ class _CategoryBody extends StatelessWidget {
     required this.surfBg,
     required this.tc,
     required this.sub,
-    required this.color,
+    required this.accentColor,
     required this.fmt,
     required this.ctrl,
   });
@@ -560,97 +663,76 @@ class _CategoryBody extends StatelessWidget {
 
     return ListView(
       controller: ctrl,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
-        // ── Toggle: Expense / Income ──────────────────────────────────────
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () => onToggle(true),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isExpense
-                        ? AppColors.expense.withValues(alpha: 0.12)
-                        : surfBg,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isExpense ? AppColors.expense : Colors.transparent,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    '💸 Expenses',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Nunito',
-                      color: isExpense ? AppColors.expense : sub,
-                    ),
-                  ),
+        // ── Toggle ───────────────────────────────────────────────────────
+        Container(
+          decoration: BoxDecoration(
+            color: surfBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Row(
+            children: [
+              Expanded(
+                child: _ToggleChip(
+                  label: 'Expenses',
+                  icon: Icons.arrow_upward_rounded,
+                  active: isExpense,
+                  color: AppColors.expense,
+                  onTap: () => onToggle(true),
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => onToggle(false),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: !isExpense
-                        ? AppColors.income.withValues(alpha: 0.12)
-                        : surfBg,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: !isExpense ? AppColors.income : Colors.transparent,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Text(
-                    '💰 Income',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Nunito',
-                      color: !isExpense ? AppColors.income : sub,
-                    ),
-                  ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _ToggleChip(
+                  label: 'Income',
+                  icon: Icons.arrow_downward_rounded,
+                  active: !isExpense,
+                  color: AppColors.income,
+                  onTap: () => onToggle(false),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 16),
 
         if (data.isEmpty)
           _EmptyState(sub: sub)
         else ...[
-          // ── Total ───────────────────────────────────────────────────────
+          // ── Summary header ───────────────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${data.length} categories',
-                style: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito'),
-              ),
-              Text(
-                'Total ${fmt(total)}',
+                '${data.length} ${isExpense ? 'expense' : 'income'} categories',
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  color: sub,
                   fontFamily: 'Nunito',
-                  color: barColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: barColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  fmt(total),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: barColor,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // ── Category rows ────────────────────────────────────────────────
           ...data.asMap().entries.map((entry) {
@@ -675,59 +757,128 @@ class _CategoryBody extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SMALL WIDGETS
+// REDESIGNED SMALL WIDGETS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SummaryCard extends StatelessWidget {
-  final String label, amount, icon;
-  final Color color, surfBg, tc, sub;
-  final String prefix;
+class _StatCard extends StatelessWidget {
+  final String label, amount;
+  final Color color;
+  final IconData icon;
+  final bool isDark;
 
-  const _SummaryCard({
+  const _StatCard({
     required this.label,
     required this.amount,
     required this.color,
     required this.icon,
-    required this.surfBg,
-    required this.tc,
-    required this.sub,
-    this.prefix = '',
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
+          color: color.withValues(alpha: isDark ? 0.14 : 0.08),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            Text(icon, style: const TextStyle(fontSize: 18)),
-            const SizedBox(height: 6),
-            Text(
-              '$prefix$amount',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'Nunito',
-                color: color,
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
               ),
-              overflow: TextOverflow.ellipsis,
+              child: Icon(icon, color: color, size: 16),
             ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: sub,
-                fontFamily: 'Nunito',
-              ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  amount,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: color,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w600,
+                    color: color.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       );
+}
+
+class _NetFlowBanner extends StatelessWidget {
+  final double net;
+  final String Function(double) fmt;
+  final bool isDark;
+  const _NetFlowBanner({required this.net, required this.fmt, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = net >= 0;
+    final color = positive ? AppColors.income : AppColors.expense;
+    final icon = positive ? Icons.trending_up_rounded : Icons.trending_down_rounded;
+    final label = positive ? 'Net Surplus' : 'Net Deficit';
+    final prefix = positive ? '+' : '-';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            color.withValues(alpha: isDark ? 0.18 : 0.1),
+            color.withValues(alpha: isDark ? 0.08 : 0.04),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: color.withValues(alpha: 0.8),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$prefix${fmt(net.abs())}',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Nunito',
+              color: color,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Legend extends StatelessWidget {
@@ -763,35 +914,44 @@ class _Legend extends StatelessWidget {
 
 class _BarGroup extends StatelessWidget {
   final String label;
-  final double incomeHeight, expenseHeight;
-  final bool isDark;
+  final double incomeHeight, expenseHeight, incomeVal, expenseVal;
   final Color sub;
+  final String Function(double) fmt;
 
   const _BarGroup({
     required this.label,
     required this.incomeHeight,
     required this.expenseHeight,
-    required this.isDark,
+    required this.incomeVal,
+    required this.expenseVal,
     required this.sub,
+    required this.fmt,
   });
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 52,
+        width: 68,
         margin: const EdgeInsets.only(right: 6),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            // Bars side by side
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Income bar
-                _Bar(height: incomeHeight, color: AppColors.income),
-                const SizedBox(width: 3),
-                // Expense bar
-                _Bar(height: expenseHeight, color: AppColors.expense),
+                _GradientBar(
+                  height: incomeHeight,
+                  value: incomeVal,
+                  color: AppColors.income,
+                  fmt: fmt,
+                ),
+                const SizedBox(width: 4),
+                _GradientBar(
+                  height: expenseHeight,
+                  value: expenseVal,
+                  color: AppColors.expense,
+                  fmt: fmt,
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -811,22 +971,53 @@ class _BarGroup extends StatelessWidget {
       );
 }
 
-class _Bar extends StatelessWidget {
-  final double height;
+class _GradientBar extends StatelessWidget {
+  final double height, value;
   final Color color;
-  const _Bar({required this.height, required this.color});
+  final String Function(double) fmt;
+  const _GradientBar({required this.height, required this.value, required this.color, required this.fmt});
 
   @override
-  Widget build(BuildContext context) => AnimatedContainer(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeOut,
-        width: 16,
-        height: height < 4 ? 4 : height,
-        decoration: BoxDecoration(
-          color: height < 4 ? color.withValues(alpha: 0.2) : color,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+  Widget build(BuildContext context) {
+    final h = height < 4 ? 4.0 : height;
+    final showLabel = height > 40 && value > 0;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (showLabel)
+          Text(
+            fmt(value),
+            style: TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Nunito',
+              color: color,
+            ),
+          ),
+        if (showLabel) const SizedBox(height: 2),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOut,
+          width: 22,
+          height: h,
+          decoration: BoxDecoration(
+            gradient: height < 4
+                ? null
+                : LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      color.withValues(alpha: 0.5),
+                      color,
+                    ],
+                  ),
+            color: height < 4 ? color.withValues(alpha: 0.15) : null,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+          ),
         ),
-      );
+      ],
+    );
+  }
 }
 
 class _BucketRow extends StatelessWidget {
@@ -845,72 +1036,87 @@ class _BucketRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: surfBg,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 52,
-              child: Text(
-                bucket.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Nunito',
-                  color: tc,
-                ),
+  Widget build(BuildContext context) {
+    final positive = bucket.net >= 0;
+    final netColor = positive ? AppColors.income : AppColors.expense;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: surfBg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 46,
+            child: Text(
+              bucket.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: tc,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                children: [
-                  _MiniBar(
-                    value: bucket.income,
-                    max: maxVal,
-                    color: AppColors.income,
-                  ),
-                  const SizedBox(height: 4),
-                  _MiniBar(
-                    value: bucket.expense,
-                    max: maxVal,
-                    color: AppColors.expense,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
               children: [
-                Text(
-                  fmt(bucket.income),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.income,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito',
-                  ),
-                ),
-                Text(
-                  fmt(bucket.expense),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.expense,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito',
-                  ),
-                ),
+                _MiniBar(value: bucket.income, max: maxVal, color: AppColors.income),
+                const SizedBox(height: 5),
+                _MiniBar(value: bucket.expense, max: maxVal, color: AppColors.expense),
               ],
             ),
-          ],
-        ),
-      );
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                fmt(bucket.income),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.income,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              Text(
+                fmt(bucket.expense),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.expense,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          // Net indicator pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: netColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '${positive ? '+' : '-'}${fmt(bucket.net.abs())}',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: netColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MiniBar extends StatelessWidget {
@@ -923,9 +1129,9 @@ class _MiniBar extends StatelessWidget {
     final fraction = max > 0 ? (value / max).clamp(0.0, 1.0) : 0.0;
     return LayoutBuilder(
       builder: (_, c) => Container(
-        height: 5,
+        height: 6,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(3),
         ),
         alignment: Alignment.centerLeft,
@@ -933,7 +1139,9 @@ class _MiniBar extends StatelessWidget {
           widthFactor: fraction < 0.02 ? 0.02 : fraction,
           child: Container(
             decoration: BoxDecoration(
-              color: color,
+              gradient: LinearGradient(
+                colors: [color.withValues(alpha: 0.6), color],
+              ),
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -963,81 +1171,250 @@ class _CategoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: surfBg,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           children: [
             Row(
               children: [
+                // Category emoji avatar
                 Container(
-                  width: 22,
-                  height: 22,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    '$rank',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Nunito',
-                      color: color,
-                    ),
+                    _catEmoji(name),
+                    style: const TextStyle(fontSize: 17),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Nunito',
-                      color: tc,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: tc,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '#$rank',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: sub,
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                // Amount
                 Text(
                   amount,
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
                     fontFamily: 'Nunito',
                     color: color,
                   ),
                 ),
                 const SizedBox(width: 8),
-                SizedBox(
-                  width: 36,
+                // % pill badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   child: Text(
                     '${(pct * 100).toStringAsFixed(0)}%',
                     style: TextStyle(
                       fontSize: 11,
-                      color: sub,
+                      fontWeight: FontWeight.w800,
                       fontFamily: 'Nunito',
+                      color: color,
                     ),
-                    textAlign: TextAlign.right,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            // Gradient progress bar
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 5,
-                backgroundColor: color.withValues(alpha: 0.1),
-                valueColor: AlwaysStoppedAnimation(color),
+              borderRadius: BorderRadius.circular(5),
+              child: Container(
+                height: 7,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: pct.clamp(0.01, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withValues(alpha: 0.6), color],
+                      ),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
+        ),
+      );
+}
+
+class _ToggleChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ToggleChip({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? color : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 13, color: active ? Colors.white : color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                  color: active ? Colors.white : color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MEMBER FILTER STRIP — horizontal participant chips (family wallets only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MemberFilterStrip extends StatelessWidget {
+  final Map<String, String> members;
+  final String? selected;
+  final Color accentColor, surfBg, sub;
+  final void Function(String uid) onSelect;
+
+  const _MemberFilterStrip({
+    required this.members,
+    required this.selected,
+    required this.accentColor,
+    required this.surfBg,
+    required this.sub,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 36,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            // "All" chip
+            _MemberChip(
+              label: '👥 All',
+              active: selected == null,
+              accentColor: accentColor,
+              surfBg: surfBg,
+              sub: sub,
+              onTap: () {
+                if (selected != null) onSelect(selected!);
+              },
+            ),
+            ...members.entries.map(
+              (e) => _MemberChip(
+                label: e.value,
+                active: selected == e.key,
+                accentColor: accentColor,
+                surfBg: surfBg,
+                sub: sub,
+                onTap: () => onSelect(e.key),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _MemberChip extends StatelessWidget {
+  final String label;
+  final bool active;
+  final Color accentColor, surfBg, sub;
+  final VoidCallback onTap;
+
+  const _MemberChip({
+    required this.label,
+    required this.active,
+    required this.accentColor,
+    required this.surfBg,
+    required this.sub,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? accentColor : surfBg,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: active
+                ? [BoxShadow(color: accentColor.withValues(alpha: 0.3), blurRadius: 6, offset: const Offset(0, 2))]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: active ? Colors.white : sub,
+            ),
+          ),
         ),
       );
 }
@@ -1051,7 +1428,7 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 48),
         child: Column(
           children: [
-            Text('📭', style: const TextStyle(fontSize: 40)),
+            const Text('📭', style: TextStyle(fontSize: 40)),
             const SizedBox(height: 12),
             Text(
               'No transactions yet',

@@ -1915,6 +1915,7 @@ class _WalletScreenState extends State<WalletScreen>
                         .where((t) => t.walletId == wallets[0].id)
                         .toList(),
                     wallet: wallets[0],
+                    memberNames: _activeMemberNames,
                   ),
                 );
               },
@@ -1949,6 +1950,7 @@ class _WalletScreenState extends State<WalletScreen>
                             .where((t) => t.walletId == wallets[i].id)
                             .toList(),
                         wallet: wallets[i],
+                        memberNames: _activeMemberNames,
                       ),
                     );
                   },
