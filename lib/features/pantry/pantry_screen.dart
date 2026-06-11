@@ -75,6 +75,7 @@ class _PantryScreenState extends State<PantryScreen>
   List<GroceryItem> _groceries = [];
   bool _groceriesLoading = true;
   List<MemberFoodPrefs> _foodPrefs = [];
+  final _basketTabNotifier = ValueNotifier<int>(0);
 
   // ── Family food prefs ────────────────────────────────────────────────────────
   List<PantryMember> _buildMembers() {
@@ -437,6 +438,7 @@ class _PantryScreenState extends State<PantryScreen>
   @override
   void dispose() {
     _sectionTab.dispose();
+    _basketTabNotifier.dispose();
     _speech.stop();
     super.dispose();
   }
@@ -1542,6 +1544,11 @@ class _PantryScreenState extends State<PantryScreen>
             titleSpacing: 0,
             title: _buildAppBarTitle(isDark, textColor),
             actions: [
+              IconButton(
+                onPressed: () => _showFoodPrefsSheet(context, isDark),
+                icon: const Text('👨‍👩‍👧', style: TextStyle(fontSize: 20)),
+                tooltip: 'Family Food Prefs',
+              ),
               WalletSwitcherPill(
                 wallet: _currentWallet,
                 onTap: () => FamilySwitcherSheet.show(
@@ -1554,10 +1561,10 @@ class _PantryScreenState extends State<PantryScreen>
           ),
 
 
-          // ── Stats row ────────────────────────────────────────────────────
-          // SliverToBoxAdapter(
-          //   child: _buildStatsRow(isDark, cardBg, subColor, textColor),
-          // ),
+          // ── Summary strip ────────────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: _buildSummaryStrip(isDark),
+          ),
 
           // ── Section tab bar (pinned) ─────────────────────────────────────
           SliverPersistentHeader(
@@ -1670,7 +1677,10 @@ class _PantryScreenState extends State<PantryScreen>
             fontFamily: 'Nunito',
           ),
           padding: EdgeInsets.zero,
-          tabs: labels.map((l) {
+          tabs: labels.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final l = entry.value;
+            final badgeCount = idx == 2 ? _expiringCount() : 0;
             return Tab(
               height: 36,
               child: Row(
@@ -1684,6 +1694,25 @@ class _PantryScreenState extends State<PantryScreen>
                           Text(l.$1, style: const TextStyle(fontSize: 14)),
                           const SizedBox(width: 4),
                           Text(l.$2),
+                          if (badgeCount > 0) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: AppColors.expense,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '$badgeCount',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  fontFamily: 'Nunito',
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1725,18 +1754,9 @@ class _PantryScreenState extends State<PantryScreen>
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           children: [
-            FamilyFoodPrefsCard(
-            members: _buildMembers(),
-            foodPrefs: _foodPrefs
-                .where((p) => p.walletId == widget.activeWalletId)
-                .toList(),
-            currentUserId: Supabase.instance.client.auth.currentUser?.id ?? 'me',
-            walletId: widget.activeWalletId,
-            isAdmin: true,
-            onSave: _saveFoodPrefs,
-          ),
-          _SectionDivider(isDark: isDark),
-          WeekCalendarStrip(
+            _buildCookChip(isDark),
+            _SectionDivider(isDark: isDark),
+            WeekCalendarStrip(
             selectedDate: _selectedDate,
             onDateSelected: (d) => setState(() => _selectedDate = d),
           ),
@@ -1819,6 +1839,7 @@ class _PantryScreenState extends State<PantryScreen>
           child: ShoppingBasketSection(
             items: _groceries,
             walletId: widget.activeWalletId,
+            tabNotifier: _basketTabNotifier,
             onItemToggleBuy: _toggleBuy,
             onItemToggleStock: _toggleStock,
             onItemMarkBought: _markBought,
@@ -1830,6 +1851,281 @@ class _PantryScreenState extends State<PantryScreen>
           ),
         ),
       ],
+      ),
+    );
+  }
+
+  // ── Summary strip ──────────────────────────────────────────────────────────
+  int _expiringCount() {
+    final now = DateTime.now();
+    final todayDay = DateTime(now.year, now.month, now.day);
+    final soonDay = todayDay.add(const Duration(days: 3));
+    return _groceries.where((g) {
+      if (g.walletId != widget.activeWalletId) return false;
+      if (g.expiryDate == null) return false;
+      final exp = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
+      return !exp.isAfter(soonDay);
+    }).length;
+  }
+
+  Widget _buildSummaryStrip(bool isDark) {
+    final now = DateTime.now();
+    final todayMeals = _mealsForDate(now).length;
+    final toBuyCount = _groceries.where((g) => g.walletId == widget.activeWalletId && g.toBuy).length;
+    final expiringCnt = _expiringCount();
+    final recipeCount = _recipes.length;
+
+    final chips = <(String, String, String, Color, VoidCallback?)>[
+      ('🍽️', '$todayMeals', 'meals today', AppColors.income,
+          () => _sectionTab.animateTo(0)),
+      ('🧺', '$toBuyCount', 'to buy', AppColors.lend, () {
+        // Reset first so repeated taps always re-trigger the listener
+        _basketTabNotifier.value = 0;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _basketTabNotifier.value = 1;
+          _sectionTab.animateTo(2);
+        });
+      }),
+      if (expiringCnt > 0)
+        ('⚠️', '$expiringCnt', 'expiring', AppColors.expense,
+            () => _sectionTab.animateTo(2)),
+      ('📖', '$recipeCount', 'recipes', AppColors.primary,
+          () => _sectionTab.animateTo(1)),
+    ];
+
+    return Container(
+      color: isDark ? AppColors.bgDark : AppColors.bgLight,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Row(
+        children: chips.map((c) {
+          final color = c.$4;
+          return Expanded(
+            child: GestureDetector(
+              onTap: c.$5,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isDark ? 0.15 : 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: color.withValues(alpha: 0.25)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(c.$1, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(height: 1),
+                    Text(
+                      c.$2,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: color,
+                        fontFamily: 'Nunito',
+                      ),
+                    ),
+                    Text(
+                      c.$3,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppColors.subDark : AppColors.subLight,
+                        fontFamily: 'Nunito',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ── Cook chip ──────────────────────────────────────────────────────────────
+  Widget _buildCookChip(bool isDark) {
+    if (_recipes.isEmpty) return const SizedBox.shrink();
+
+    final stockItems = _groceries
+        .where((g) => g.walletId == widget.activeWalletId && g.inStock)
+        .toList();
+
+    bool hasStockMatch(RecipeModel r) {
+      if (r.ingredients.isEmpty || stockItems.isEmpty) return false;
+      return r.ingredients.any((ing) {
+        final name = ing.toLowerCase().trim();
+        return stockItems.any((g) =>
+            g.name.toLowerCase().contains(name) ||
+            name.contains(g.name.toLowerCase()));
+      });
+    }
+
+    // All recipes are suggestions; stock-matched ones surface first
+    final withMatch = _recipes.where(hasStockMatch).toList();
+    final withoutMatch = _recipes.where((r) => !hasStockMatch(r)).toList();
+    final cookable = [...withMatch, ...withoutMatch];
+
+    final String subtitle;
+    if (cookable.length == 1) {
+      subtitle = '${cookable[0].emoji} ${cookable[0].name}';
+    } else if (cookable.length == 2) {
+      subtitle = '${cookable[0].emoji} ${cookable[0].name}  ·  ${cookable[1].emoji} ${cookable[1].name}';
+    } else {
+      subtitle = '${cookable[0].emoji} ${cookable[0].name}  +${cookable.length - 1} more';
+    }
+
+    return GestureDetector(
+      onTap: () => _showCookSuggestions(context, isDark, cookable),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.income.withValues(alpha: 0.2), AppColors.primary.withValues(alpha: 0.15)],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.income.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            const Text('🍳', style: TextStyle(fontSize: 20)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'What can I cook?',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.subDark : AppColors.subLight,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? AppColors.textDark : AppColors.textLight,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: AppColors.income),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCookSuggestions(BuildContext context, bool isDark, List<RecipeModel> cookable) {
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
+        builder: (_, ctrl) => Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 12),
+                decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                child: Row(
+                  children: [
+                    const Text('🍳', style: TextStyle(fontSize: 22)),
+                    const SizedBox(width: 10),
+                    Text(
+                      'You can cook ${cookable.length} recipe${cookable.length == 1 ? '' : 's'}',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: ctrl,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+                  itemCount: cookable.length,
+                  itemBuilder: (_, i) {
+                    final r = cookable[i];
+                    return ListTile(
+                      leading: Text(r.emoji, style: const TextStyle(fontSize: 24)),
+                      title: Text(r.name, style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+                      subtitle: Text('${r.ingredients.length} ingredients', style: TextStyle(fontSize: 11, color: sub)),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showRecipeDetail(r);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Family Food Prefs sheet ────────────────────────────────────────────────
+  void _showFoodPrefsSheet(BuildContext context, bool isDark) {
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, ctrl) => Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
+            controller: ctrl,
+            child: Column(
+              children: [
+                Container(
+                  width: 36, height: 4,
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)),
+                ),
+                FamilyFoodPrefsCard(
+                  members: _buildMembers(),
+                  foodPrefs: _foodPrefs
+                      .where((p) => p.walletId == widget.activeWalletId)
+                      .toList(),
+                  currentUserId: Supabase.instance.client.auth.currentUser?.id ?? 'me',
+                  walletId: widget.activeWalletId,
+                  isAdmin: true,
+                  onSave: _saveFoodPrefs,
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

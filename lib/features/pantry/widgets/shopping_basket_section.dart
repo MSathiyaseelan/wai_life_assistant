@@ -19,6 +19,7 @@ class ShoppingBasketSection extends StatefulWidget {
   final Future<void> Function(GroceryItem, Map<String, dynamic>) onItemUpdated;
   final VoidCallback onScanBill;
   final VoidCallback onCreateList;
+  final ValueNotifier<int>? tabNotifier;
 
   const ShoppingBasketSection({
     super.key,
@@ -32,6 +33,7 @@ class ShoppingBasketSection extends StatefulWidget {
     required this.onItemUpdated,
     required this.onScanBill,
     required this.onCreateList,
+    this.tabNotifier,
   });
 
   @override
@@ -50,10 +52,21 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) setState(() => _filterCat = null);
     });
+    widget.tabNotifier?.addListener(_onTabNotified);
+    // Apply value immediately in case the notifier was set before this widget built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onTabNotified();
+    });
+  }
+
+  void _onTabNotified() {
+    final idx = (widget.tabNotifier?.value ?? 0).clamp(0, 1);
+    if (_tabCtrl.index != idx) _tabCtrl.animateTo(idx);
   }
 
   @override
   void dispose() {
+    widget.tabNotifier?.removeListener(_onTabNotified);
     _tabCtrl.dispose();
     super.dispose();
   }

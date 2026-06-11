@@ -12,7 +12,7 @@ extension MealTimeExt on MealTime {
       case MealTime.lunch:
         return 'Lunch';
       case MealTime.snack:
-        return 'Snack';
+        return 'Snacks';
       case MealTime.dinner:
         return 'Dinner';
     }

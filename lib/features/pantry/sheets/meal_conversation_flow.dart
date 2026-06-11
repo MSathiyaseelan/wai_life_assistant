@@ -6,7 +6,7 @@ import 'package:wai_life_assistant/features/wallet/chat_bubble.dart';
 
 // ── Steps ─────────────────────────────────────────────────────────────────────
 
-enum _MealStep { mealTime, mealName, emoji, confirm }
+enum _MealStep { mealTime, mealName, confirm }
 
 extension _MealStepQ on _MealStep {
   String get botQuestion {
@@ -15,8 +15,6 @@ extension _MealStepQ on _MealStep {
         return 'Which meal is this? 🍽️';
       case _MealStep.mealName:
         return 'What did you have? 😋 Tell me the dish name.';
-      case _MealStep.emoji:
-        return 'Pick an emoji that best represents it 🎨';
       case _MealStep.confirm:
         return 'Here\'s your meal summary — looks good? ✅';
     }
@@ -153,12 +151,6 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
     });
     _scrollToBottom();
     _stepIdx++;
-    // Skip emoji step when a recipe is selected — it already provides an emoji
-    if (_stepIdx < _steps.length &&
-        _steps[_stepIdx] == _MealStep.emoji &&
-        _data.recipeIds.isNotEmpty) {
-      _stepIdx++;
-    }
     if (_stepIdx < _steps.length) _pushBotQuestion(_stepIdx);
   }
 
@@ -243,15 +235,6 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
               },
             );
           },
-        );
-      case _MealStep.emoji:
-        return _EmojiStep(
-          color: _data.mealTime.color,
-          onSelect: (e) => _answer(
-            step,
-            e,
-            () => _data.emoji = e,
-          ),
         );
       case _MealStep.confirm:
         return _ConfirmStep(
