@@ -81,6 +81,11 @@ class _WalletScreenState extends State<WalletScreen>
   final List<BillModel> _bills = [];
   final _billWatchKey = GlobalKey<BillWatchScreenState>();
 
+  // Search
+  bool _searchActive = false;
+  String _searchQuery = '';
+  final _searchCtrl = TextEditingController();
+
   // Family tab card pager
   PageController? _familyPageCtrl;
 
@@ -287,6 +292,7 @@ class _WalletScreenState extends State<WalletScreen>
     _tabCtrl.removeListener(_onTabChanged);
     _tabCtrl.dispose();
     _familyPageCtrl?.dispose();
+    _searchCtrl.dispose();
     _speech.stop();
     super.dispose();
   }
@@ -1742,10 +1748,17 @@ class _WalletScreenState extends State<WalletScreen>
     Widget? extraHeader,
   }) {
     final groupedIds = _groupedTxIds;
+    final searchLower = _searchQuery.toLowerCase().trim();
     final base = _transactions
         .where((t) => walletIds.contains(t.walletId))
         .where((t) => _selectedRange.contains(t.date))
-        .where((t) => !groupedIds.contains(t.id)) // grouped txs render inside TxGroupCard
+        .where((t) => !groupedIds.contains(t.id))
+        .where((t) => searchLower.isEmpty ||
+            (t.title ?? '').toLowerCase().contains(searchLower) ||
+            t.category.toLowerCase().contains(searchLower) ||
+            (t.note ?? '').toLowerCase().contains(searchLower) ||
+            (t.person ?? '').toLowerCase().contains(searchLower) ||
+            t.amount.toStringAsFixed(0).contains(searchLower))
         .toList();
 
     final grouped = <String, List<TxModel>>{};
@@ -1798,6 +1811,11 @@ class _WalletScreenState extends State<WalletScreen>
               ),
             ),
           if (extraHeader != null) SliverToBoxAdapter(child: extraHeader),
+          // AI insight + category strip — hidden during search
+          if (searchLower.isEmpty) ...[
+            SliverToBoxAdapter(child: _buildInsightChip(walletIds, isDark)),
+            SliverToBoxAdapter(child: _buildCategoryStrip(walletIds, isDark)),
+          ],
           // Ungroup drop zone — only visible while dragging a grouped tx
           if (_draggingTx?.groupId != null)
             SliverToBoxAdapter(
@@ -1869,6 +1887,10 @@ class _WalletScreenState extends State<WalletScreen>
     bool isDark, {
     PageController? pageCtrl,
   }) {
+    final periodLabel = _rangeIsAutoThisMonth
+        ? 'This month · net flow'
+        : '${_monthName(_selectedRange.start.month)} ${_selectedRange.start.year} · net flow';
+
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -1885,6 +1907,7 @@ class _WalletScreenState extends State<WalletScreen>
                   periodCashOut: ps.cashOut,
                   periodOnlineIn: ps.onlineIn,
                   periodOnlineOut: ps.onlineOut,
+                  periodLabel: periodLabel,
                   onTap: () {},
                   onReports: () => WalletReportsSheet.show(
                     context,
@@ -1899,7 +1922,7 @@ class _WalletScreenState extends State<WalletScreen>
           )
         else
           SizedBox(
-            height: 220,
+            height: 230,
             child: PageView.builder(
               controller: pageCtrl ?? PageController(viewportFraction: 0.88),
               onPageChanged: pageCtrl != null
@@ -1918,6 +1941,7 @@ class _WalletScreenState extends State<WalletScreen>
                       periodCashOut: ps.cashOut,
                       periodOnlineIn: ps.onlineIn,
                       periodOnlineOut: ps.onlineOut,
+                      periodLabel: periodLabel,
                       onTap: () {},
                       onReports: () => WalletReportsSheet.show(
                         context,
@@ -2133,6 +2157,47 @@ class _WalletScreenState extends State<WalletScreen>
 
   // ── AppBar ──────────────────────────────────────────────────────────────────
   AppBar _buildAppBar(bool isDark, Color textColor) {
+    if (_searchActive) {
+      return AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => setState(() {
+            _searchActive = false;
+            _searchQuery = '';
+            _searchCtrl.clear();
+          }),
+        ),
+        title: TextField(
+          controller: _searchCtrl,
+          autofocus: true,
+          onChanged: (v) => setState(() => _searchQuery = v),
+          style: TextStyle(
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            color: textColor,
+          ),
+          decoration: InputDecoration.collapsed(
+            hintText: 'Search transactions…',
+            hintStyle: TextStyle(
+              fontFamily: 'Nunito',
+              color: textColor.withValues(alpha: 0.4),
+            ),
+          ),
+        ),
+        actions: [
+          if (_searchQuery.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () => setState(() {
+                _searchQuery = '';
+                _searchCtrl.clear();
+              }),
+            ),
+        ],
+      );
+    }
+
     return AppBar(
       title: MonthYearPicker(
         selected: _selectedRange,
@@ -2152,6 +2217,11 @@ class _WalletScreenState extends State<WalletScreen>
         },
       ),
       actions: [
+        IconButton(
+          icon: const Icon(Icons.search_rounded),
+          tooltip: 'Search',
+          onPressed: () => setState(() => _searchActive = true),
+        ),
         WalletSwitcherPill(
           wallet: _currentWallet,
           onTap: () => FamilySwitcherSheet.show(
@@ -2680,6 +2750,197 @@ class _WalletScreenState extends State<WalletScreen>
       debugPrint('[Wallet] deleteTxGroup failed: $e');
     }
   }
+
+  // ── AI Insight chip ────────────────────────────────────────────────────────
+
+  Widget _buildInsightChip(Set<String> walletIds, bool isDark) {
+    final expenses = _transactions
+        .where((t) => walletIds.contains(t.walletId) && _selectedRange.contains(t.date))
+        .where((t) => t.type == TxType.expense)
+        .toList();
+
+    if (expenses.isEmpty) return const SizedBox.shrink();
+
+    final totalExpense = expenses.fold(0.0, (s, t) => s + t.amount);
+
+    // Top category (derived entirely from visible current-period transactions)
+    final catTotals = <String, double>{};
+    for (final t in expenses) {
+      catTotals[t.category] = (catTotals[t.category] ?? 0) + t.amount;
+    }
+    final topEntry = catTotals.entries.reduce((a, b) => a.value > b.value ? a : b);
+    final topPct = (topEntry.value / totalExpense * 100).round();
+
+    // Secondary stat: avg daily spend (gives actionable context)
+    final now = DateTime.now();
+    final periodStart = _selectedRange.start;
+    final daysElapsed = now.isAfter(periodStart)
+        ? now.difference(periodStart).inDays + 1
+        : 1;
+    final dailyAvg = totalExpense / daysElapsed;
+
+    final String insightText;
+    final Color insightColor;
+    final String insightIcon;
+
+    if (dailyAvg >= 1000) {
+      insightText = '📊 ₹${_fmtAmt(totalExpense)} spent · avg ₹${_fmtAmt(dailyAvg)}/day · ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} $topPct%';
+      insightColor = const Color(0xFFF87171);
+      insightIcon = '📊';
+    } else {
+      insightText = '💡 ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} leads at ₹${_fmtAmt(topEntry.value)} ($topPct%) · ₹${_fmtAmt(totalExpense)} total';
+      insightColor = const Color(0xFFFBBF24);
+      insightIcon = '💡';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: insightColor.withValues(alpha: isDark ? 0.12 : 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: insightColor.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Text(insightIcon, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                insightText,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                  color: isDark ? Colors.white.withValues(alpha: 0.85) : Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Top categories strip ───────────────────────────────────────────────────
+
+  Widget _buildCategoryStrip(Set<String> walletIds, bool isDark) {
+    final catTotals = <String, double>{};
+    for (final t in _transactions.where((t) =>
+        walletIds.contains(t.walletId) &&
+        _selectedRange.contains(t.date) &&
+        t.type == TxType.expense)) {
+      catTotals[t.category] = (catTotals[t.category] ?? 0) + t.amount;
+    }
+    if (catTotals.isEmpty) return const SizedBox.shrink();
+
+    final sorted = (catTotals.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+        .take(5)
+        .toList();
+
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'TOP CATEGORIES',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.0,
+              fontFamily: 'Nunito',
+              color: sub,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: sorted.map((e) {
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: surfBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_categoryEmoji(e.key), style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 6),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _capWord(e.key),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                          Text(
+                            '₹${_fmtAmt(e.value)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'DM Mono',
+                              color: tc,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  static String _categoryEmoji(String cat) => switch (cat.toLowerCase()) {
+        'food' || 'dining' || 'restaurant' => '🍔',
+        'groceries' => '🛒',
+        'transport' || 'transportation' || 'commute' => '🚗',
+        'fuel' || 'petrol' || 'diesel' => '⛽',
+        'shopping' => '🛍️',
+        'health' => '💊',
+        'medical' => '🏥',
+        'education' || 'school' || 'college' => '📚',
+        'entertainment' => '🎬',
+        'utilities' || 'utility' || 'electricity' || 'water' => '💡',
+        'rent' || 'housing' => '🏠',
+        'salary' => '💰',
+        'freelance' => '💻',
+        'investment' => '📈',
+        'travel' || 'vacation' => '✈️',
+        'clothing' || 'clothes' || 'fashion' => '👕',
+        'subscription' || 'ott' => '📺',
+        _ => '📦',
+      };
+
+  static String _fmtAmt(double v) {
+    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
+    return v.toStringAsFixed(0);
+  }
+
+  static String _capWord(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
 
   // ── Drag-and-drop: create new group from two transactions ──────────────────
 

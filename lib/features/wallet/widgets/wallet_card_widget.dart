@@ -13,6 +13,7 @@ class WalletCardWidget extends StatefulWidget {
   final double? periodCashOut;
   final double? periodOnlineIn;
   final double? periodOnlineOut;
+  final String? periodLabel;
 
   const WalletCardWidget({
     super.key,
@@ -24,6 +25,7 @@ class WalletCardWidget extends StatefulWidget {
     this.periodCashOut,
     this.periodOnlineIn,
     this.periodOnlineOut,
+    this.periodLabel,
   });
 
   @override
@@ -98,20 +100,62 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Wallet name / emoji header ────────────────────────────────
+            Row(
+              children: [
+                Text(
+                  widget.wallet.emoji.startsWith('http') || widget.wallet.emoji.isEmpty
+                      ? (widget.wallet.isPersonal ? '👤' : '👨‍👩‍👧')
+                      : widget.wallet.emoji,
+                  style: const TextStyle(fontSize: 15),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.wallet.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             // ── Balance row with eye toggle ───────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    '₹${_fmt(_periodBalance)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Nunito',
-                      letterSpacing: -1,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '₹${_fmt(_periodBalance)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Nunito',
+                          letterSpacing: -1,
+                        ),
+                      ),
+                      if (widget.periodLabel != null)
+                        Text(
+                          widget.periodLabel!,
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 10,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 if (widget.onReports != null)
