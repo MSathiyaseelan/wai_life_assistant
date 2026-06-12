@@ -56,7 +56,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
   int _healthMedications = 0;
   // ignore: prefer_final_fields
   int _healthAppointments = 0;
+  DateTime? _nextAppointmentDate;
+  String? _nextAppointmentDoctor;
   String? _loadedKey;
+
 
   @override
   void initState() {
@@ -140,9 +143,18 @@ class _MyHubScreenState extends State<MyHubScreen> {
         Future.wait(walletIds.map((id) => locSvc.fetchItems(id))),
         Future.wait(walletIds.map((id) => WardrobeService.instance.fetchItems(id))),
         HealthService.instance.fetchSummary(wid),
+        HealthService.instance.fetchAppointments(wid),
       ]);
       if (!mounted) return;
       final healthSummary = results[4] as Map<String, int>;
+      final rawAppts = results[5] as List<Map<String, dynamic>>;
+      // Find next upcoming appointment (sorted ascending by date)
+      final today = DateTime.now();
+      final upcoming = rawAppts.where((a) {
+        final d = DateTime.tryParse(a['appt_date'] as String? ?? '');
+        return d != null && !DateTime(d.year, d.month, d.day).isBefore(DateTime(today.year, today.month, today.day));
+      }).toList()
+        ..sort((a, b) => (a['appt_date'] as String).compareTo(b['appt_date'] as String));
       setState(() {
         _functions
           ..clear()
@@ -158,6 +170,13 @@ class _MyHubScreenState extends State<MyHubScreen> {
           ..addAll((results[3] as List).expand((r) => r as List).map((r) => ClothingItem.fromJson(r as Map<String, dynamic>)));
         _healthMedications = healthSummary['medications'] ?? 0;
         _healthAppointments = healthSummary['appointments'] ?? 0;
+        if (upcoming.isNotEmpty) {
+          _nextAppointmentDate = DateTime.tryParse(upcoming.first['appt_date'] as String? ?? '');
+          _nextAppointmentDoctor = upcoming.first['doctor_name'] as String? ?? '';
+        } else {
+          _nextAppointmentDate = null;
+          _nextAppointmentDoctor = null;
+        }
       });
     } catch (e) {
       debugPrint('[MyHub] _loadData error: $e');
@@ -230,11 +249,14 @@ class _MyHubScreenState extends State<MyHubScreen> {
     final itemsInView = _items.where((i) => personal || i.walletId == wid).toList();
     final itemCount = itemsInView.length;
     final importantCount = itemsInView.where((i) => i.isImportant).length;
+    final lastImportant = (itemsInView.where((i) => i.isImportant).toList()
+          ..sort((a, b) => b.storedOn.compareTo(a.storedOn)))
+        .firstOrNull;
     final locatorSummary = (containersInView.isNotEmpty || itemsInView.isNotEmpty)
         ? [
-            '📦  ${containersInView.length} ${containersInView.length == 1 ? 'Container' : 'Containers'}',
-            '📍  $itemCount ${itemCount == 1 ? 'Item' : 'Items'} stored',
-            '⭐  $importantCount Important',
+            '📦  ${containersInView.length} ${containersInView.length == 1 ? 'Container' : 'Containers'} · $itemCount ${itemCount == 1 ? 'item' : 'items'}',
+            if (lastImportant != null) '⭐  ${lastImportant.name}${lastImportant.description != null ? ' · ${lastImportant.description}' : ''}',
+            if (lastImportant == null && importantCount > 0) '⭐  $importantCount important',
           ]
         : <String>[];
 
@@ -242,10 +264,13 @@ class _MyHubScreenState extends State<MyHubScreen> {
     final wardrobeInView = _wardrobeItems.where((c) => personal || c.walletId == wid).toList();
     final wardrobeCount = wardrobeInView.where((c) => !c.wishlist).length;
     final wishlistCount = wardrobeInView.where((c) => c.wishlist).length;
+    final lastWardrobe = (wardrobeInView.where((c) => !c.wishlist).toList()
+          ..sort((a, b) => b.addedOn.compareTo(a.addedOn)))
+        .firstOrNull;
     final wardrobeSummary = wardrobeInView.isNotEmpty
         ? [
-            '👗  $wardrobeCount ${wardrobeCount == 1 ? 'Item' : 'Items'} in wardrobe',
-            '💛  $wishlistCount in wishlist',
+            '👗  $wardrobeCount ${wardrobeCount == 1 ? 'item' : 'items'} in wardrobe${wishlistCount > 0 ? '  ·  💛 $wishlistCount wishlist' : ''}',
+            if (lastWardrobe != null) '🆕  ${lastWardrobe.name}${lastWardrobe.color != null ? ' · ${lastWardrobe.color}' : ''}',
           ]
         : <String>[];
 
@@ -253,7 +278,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
     final healthSummary = (_healthMedications > 0 || _healthAppointments > 0)
         ? [
             if (_healthMedications > 0) '💊  $_healthMedications active ${_healthMedications == 1 ? 'medication' : 'medications'}',
-            if (_healthAppointments > 0) '📅  $_healthAppointments upcoming ${_healthAppointments == 1 ? 'appointment' : 'appointments'}',
+            if (_nextAppointmentDate != null)
+              '📅  ${_nextAppointmentDoctor?.isNotEmpty == true ? _nextAppointmentDoctor! : 'Appointment'} · ${_fmtDate(_nextAppointmentDate!)}'
+            else if (_healthAppointments > 0)
+              '📅  $_healthAppointments upcoming ${_healthAppointments == 1 ? 'appointment' : 'appointments'}',
           ]
         : <String>[];
 
@@ -311,6 +339,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            // ── Module cards ──────────────────────────────────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
               sliver: SliverToBoxAdapter(
@@ -327,8 +356,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       subtitle: 'Celebrations & gifting',
                       count: count,
                       summary: summary,
-                      emptyLabel: 'No functions yet',
+                      emptyLabel: 'Tap ➕ to plan your first function',
                       onTap: () => _openFunctions(context),
+                      quickActionLabel: '➕ New',
+                      onQuickAction: () => _openFunctions(context, openAdd: true),
                     ),
                     const SizedBox(height: 12),
                     _buildModuleCard(
@@ -342,8 +373,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       subtitle: 'Find anything, anywhere at home',
                       count: itemCount,
                       summary: locatorSummary,
-                      emptyLabel: 'No items stored yet',
+                      emptyLabel: 'Tap ➕ to store your first item',
                       onTap: () => _openItemLocator(context),
+                      quickActionLabel: '🔍 Find',
+                      onQuickAction: () => _openItemLocator(context),
                     ),
                     const SizedBox(height: 12),
                     _buildModuleCard(
@@ -357,8 +390,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       subtitle: 'Dresses, outfits & wishlist',
                       count: wardrobeCount,
                       summary: wardrobeSummary,
-                      emptyLabel: 'No clothing added yet',
+                      emptyLabel: 'Tap ➕ to add your first outfit',
                       onTap: () => _openWardrobe(context),
+                      quickActionLabel: '➕ Add',
+                      onQuickAction: () => _openWardrobe(context),
                     ),
                     const SizedBox(height: 12),
                     _buildModuleCard(
@@ -372,8 +407,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       subtitle: 'Medications, vitals & records',
                       count: _healthMedications + _healthAppointments,
                       summary: healthSummary,
-                      emptyLabel: 'No health records yet',
+                      emptyLabel: 'Tap ➕ to log your first record',
                       onTap: () => _openHealthSpace(context),
+                      quickActionLabel: '💊 Meds',
+                      onQuickAction: () => _openHealthSpaceAt(context, 1),
                     ),
                   ],
                 ),
@@ -398,6 +435,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
     required List<String> summary,
     required String emptyLabel,
     required VoidCallback onTap,
+    String? quickActionLabel,
+    VoidCallback? onQuickAction,
   }) {
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     return GestureDetector(
@@ -485,33 +524,25 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.5), size: 20),
+                  Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.7), size: 22),
                 ],
               ),
             ),
 
-            // ── Summary content ───────────────────────────────────────
+            // ── Summary content + quick action ────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-              child: summary.isNotEmpty
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: summary
-                          .map(
-                            (s) => Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    margin: const EdgeInsets.only(right: 8, top: 1),
-                                    decoration: BoxDecoration(
-                                      color: color.withValues(alpha: 0.50),
-                                      borderRadius: BorderRadius.circular(3),
-                                    ),
-                                  ),
-                                  Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: summary.isNotEmpty
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: summary
+                                .map(
+                                  (s) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
                                     child: Text(
                                       s,
                                       style: TextStyle(
@@ -524,21 +555,46 @@ class _MyHubScreenState extends State<MyHubScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
+                                )
+                                .toList(),
                           )
-                          .toList(),
-                    )
-                  : Text(
-                      emptyLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'Nunito',
-                        color: sub,
-                        fontStyle: FontStyle.italic,
+                        : Text(
+                            emptyLabel,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                  ),
+                  if (quickActionLabel != null && onQuickAction != null) ...[
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        onQuickAction();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: isDark ? 0.20 : 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: color.withValues(alpha: 0.30)),
+                        ),
+                        child: Text(
+                          quickActionLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: color,
+                          ),
+                        ),
                       ),
                     ),
+                  ],
+                ],
+              ),
             ),
           ],
         ),
@@ -647,6 +703,19 @@ class _MyHubScreenState extends State<MyHubScreen> {
         transitionDuration: const Duration(milliseconds: 320),
       ),
     );
+  }
+
+  // ── Date formatter ────────────────────────────────────────────────────────
+  String _fmtDate(DateTime d) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = day.difference(today).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Tomorrow';
+    if (diff == -1) return 'Yesterday';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[d.month - 1]} ${d.day}';
   }
 
   void _openFunctions(BuildContext context, {bool openAdd = false}) {
