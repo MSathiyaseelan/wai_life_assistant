@@ -204,17 +204,18 @@ class _PlanItScreenState extends State<PlanItScreen> {
       )
       .length;
 
-  int get _upcomingDays => _days
-      .where((d) => _isPersonalView || d.walletId == widget.activeWalletId)
-      .where((d) {
-        final thisYear = DateTime(
-          DateTime.now().year,
-          d.date.month,
-          d.date.day,
-        );
-        return thisYear.difference(DateTime.now()).inDays.abs() <= 30;
-      })
-      .length;
+  int get _upcomingDays {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return _days
+        .where((d) => _isPersonalView || d.walletId == widget.activeWalletId)
+        .where((d) {
+          DateTime next = DateTime(now.year, d.date.month, d.date.day);
+          if (next.isBefore(today)) next = DateTime(now.year + 1, d.date.month, d.date.day);
+          return next.difference(today).inDays <= 30;
+        })
+        .length;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -233,12 +234,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+          SliverToBoxAdapter(child: _buildSummaryStrip(context, isDark)),
           // ── Module list ───────────────────────────────────────────────────
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             sliver: SliverList.separated(
               itemCount: _modules.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, i) => const SizedBox(height: 12),
               itemBuilder: (ctx, i) =>
                   _buildModuleRow(ctx, isDark, _modules[i]),
             ),
@@ -312,10 +314,10 @@ class _PlanItScreenState extends State<PlanItScreen> {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: m.color.withOpacity(0.18)),
+          border: Border.all(color: m.color.withValues(alpha: 0.18)),
           boxShadow: [
             BoxShadow(
-              color: m.color.withOpacity(isDark ? 0.07 : 0.09),
+              color: m.color.withValues(alpha: isDark ? 0.07 : 0.09),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -342,7 +344,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: m.color.withOpacity(0.12),
+                    color: m.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   alignment: Alignment.center,
@@ -378,7 +380,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: m.color.withOpacity(0.15),
+                                color: m.color.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
@@ -405,7 +407,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
                       const SizedBox(height: 8),
                       Divider(
                           height: 1,
-                          color: m.color.withOpacity(0.15)),
+                          color: m.color.withValues(alpha: 0.15)),
                       const SizedBox(height: 6),
                       if (summary.isNotEmpty)
                         ...summary.take(2).map(
@@ -419,7 +421,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
                                       margin: const EdgeInsets.only(
                                           right: 7, top: 1),
                                       decoration: BoxDecoration(
-                                        color: m.color.withOpacity(0.55),
+                                        color: m.color.withValues(alpha: 0.55),
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -467,7 +469,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: m.color.withOpacity(0.13),
+                        color: m.color.withValues(alpha: 0.13),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       alignment: Alignment.center,
@@ -507,19 +509,76 @@ class _PlanItScreenState extends State<PlanItScreen> {
     );
   }
 
+  // ── Summary strip ─────────────────────────────────────────────────────────
+  Widget _buildSummaryStrip(BuildContext context, bool isDark) {
+    final alerts = _dueReminders;
+    final tasks = _pendingTasks;
+    final upcoming = _upcomingDays;
+    if (alerts == 0 && tasks == 0 && upcoming == 0) return const SizedBox.shrink();
+
+    final alertModule = _allModules.firstWhere((m) => m.title == 'Alert Me');
+    final taskModule  = _allModules.firstWhere((m) => m.title == 'My Tasks');
+    final dayModule   = _allModules.firstWhere((m) => m.title == 'Special Days');
+
+    final chips = <(String, Color, VoidCallback)>[
+      if (alerts > 0)   ('🔔 $alerts alert${alerts == 1 ? '' : 's'}',      AppColors.expense, () => _navigate(context, alertModule.builder)),
+      if (tasks > 0)    ('✅ $tasks task${tasks == 1 ? '' : 's'}',          AppColors.split,   () => _navigate(context, taskModule.builder)),
+      if (upcoming > 0) ('🎂 $upcoming upcoming',                           AppColors.primary, () => _navigate(context, dayModule.builder)),
+    ];
+
+    return Container(
+      color: isDark ? AppColors.bgDark : AppColors.bgLight,
+      padding: const EdgeInsets.fromLTRB(16, 14, 0, 6),
+      child: SizedBox(
+        height: 34,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(right: 16),
+          itemCount: chips.length,
+          separatorBuilder: (_, i) => const SizedBox(width: 8),
+          itemBuilder: (_, i) {
+            final c = chips[i];
+            return GestureDetector(
+              onTap: c.$3,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: c.$2.withValues(alpha: isDark ? 0.18 : 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: c.$2.withValues(alpha: 0.35)),
+                ),
+                child: Text(
+                  c.$1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                    color: isDark ? c.$2.withValues(alpha: 0.9) : c.$2,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   // ── Summary helpers ───────────────────────────────────────────────────────
   List<String> _getSummary(_ModuleInfo m) {
     final wid = widget.activeWalletId;
     final personal = _isPersonalView;
     switch (m.title) {
       case 'Alert Me':
+        final nowForAlert = DateTime.now();
+        final todayForAlert = DateTime(nowForAlert.year, nowForAlert.month, nowForAlert.day);
         return _reminders
             .where((r) => (personal || r.walletId == wid) && !r.done)
             .take(2)
             .map((r) {
-          final days = r.dueDate.difference(DateTime.now()).inDays;
-          final when =
-              days <= 0 ? 'Today' : days == 1 ? 'Tomorrow' : 'in $days days';
+          final dueDay = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
+          final days = dueDay.difference(todayForAlert).inDays;
+          final when = days < 0 ? 'Overdue' : days == 0 ? 'Today' : days == 1 ? 'Tomorrow' : 'in $days days';
           return '${r.emoji} ${r.title} · $when';
         }).toList();
       case 'My Tasks':
@@ -527,8 +586,15 @@ class _PlanItScreenState extends State<PlanItScreen> {
             .where((t) =>
                 (personal || t.walletId == wid) && t.status != TaskStatus.done)
             .take(2)
-            .map((t) => t.title)
-            .toList();
+            .map((t) {
+          final p = switch (t.priority) {
+            Priority.urgent => '🔴',
+            Priority.high   => '🟠',
+            Priority.medium => '🟡',
+            Priority.low    => '🟢',
+          };
+          return '$p ${t.title}';
+        }).toList();
       case 'Special Days':
         final now = DateTime.now();
         final flat = DateTime(now.year, now.month, now.day);
@@ -588,7 +654,13 @@ class _PlanItScreenState extends State<PlanItScreen> {
                 (personal || t.walletId == wid) && t.status != TaskStatus.done)
             .length;
       case 'Special Days':
-        return _days.where((d) => personal || d.walletId == wid).length;
+        final nowSd = DateTime.now();
+        final todaySd = DateTime(nowSd.year, nowSd.month, nowSd.day);
+        return _days.where((d) => personal || d.walletId == wid).where((d) {
+          DateTime next = DateTime(nowSd.year, d.date.month, d.date.day);
+          if (next.isBefore(todaySd)) next = DateTime(nowSd.year + 1, d.date.month, d.date.day);
+          return next.difference(todaySd).inDays <= 90;
+        }).length;
       case 'Wish List':
         return _wishes
             .where((w) => (personal || w.walletId == wid) && !w.purchased)
@@ -632,30 +704,6 @@ class _PlanItScreenState extends State<PlanItScreen> {
 
   // TODO(v2): Rename back to _modules when all modules are ready for release.
   List<_ModuleInfo> get _allModules => [
-    _ModuleInfo(
-      emoji: '🎂',
-      title: 'Special Days',
-      subtitle: 'Birthdays & events',
-      color: AppColors.primary,
-      badge: _upcomingDays,
-      builder: (ctx, wid) => SpecialDaysScreen(
-        walletId: wid,
-        walletName: _currentWallet.name,
-        walletEmoji: _currentWallet.emoji,
-        members: _members,
-        days: _days,
-        familyWalletNames: _familyWalletNames,
-      ),
-      quickAddBuilder: (ctx, wid) => SpecialDaysScreen(
-        walletId: wid,
-        walletName: _currentWallet.name,
-        walletEmoji: _currentWallet.emoji,
-        members: _members,
-        days: _days,
-        familyWalletNames: _familyWalletNames,
-        openAdd: true,
-      ),
-    ),
     _ModuleInfo(
       emoji: '🔔',
       title: 'Alert Me',
@@ -702,6 +750,30 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         members: _members,
         tasks: _tasksList,
+        familyWalletNames: _familyWalletNames,
+        openAdd: true,
+      ),
+    ),
+    _ModuleInfo(
+      emoji: '🎂',
+      title: 'Special Days',
+      subtitle: 'Birthdays & events',
+      color: AppColors.primary,
+      badge: _upcomingDays,
+      builder: (ctx, wid) => SpecialDaysScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        days: _days,
+        familyWalletNames: _familyWalletNames,
+      ),
+      quickAddBuilder: (ctx, wid) => SpecialDaysScreen(
+        walletId: wid,
+        walletName: _currentWallet.name,
+        walletEmoji: _currentWallet.emoji,
+        members: _members,
+        days: _days,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
       ),
