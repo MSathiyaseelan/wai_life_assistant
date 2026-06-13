@@ -40,6 +40,7 @@ import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/my_list_section.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD SCREEN
@@ -96,6 +97,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Map<String, List<Map<String, dynamic>>> _healthVaccsMap = {};
   final Set<String> _loadedHealthWalletIds = {};
 
+  // My List — merged to-buy items (grocery + quick-list) keyed by walletId
+  final Map<String, List<GroceryItem>> _myListMap = {};
+  final Set<String> _loadedMyListWalletIds = {};
+
   List<TxModel> _todayTx(String wid) => _transactions
       .where((t) => t.walletId == wid && _isToday(t.date))
       .toList();
@@ -118,6 +123,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     PantryService.mealChangeSignal.addListener(_onMealChange);
+    PantryService.listChangeSignal.addListener(_onListChange);
     WalletService.txChangeSignal.addListener(_onTxChange);
     pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
     NotificationService.changeSignal.addListener(_onNotifChange);
@@ -263,21 +269,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _ensureMyListLoaded(List<WalletModel> wallets) {
+    for (final w in wallets) {
+      if (_isPlaceholder(w.id) || _loadedMyListWalletIds.contains(w.id)) continue;
+      _loadedMyListWalletIds.add(w.id);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadMyList(w.id));
+    }
+  }
+
+  Future<void> _loadMyList(String walletId) async {
+    if (!AuthCoordinator.instance.isLoggedIn || _isPlaceholder(walletId)) return;
+    _loadedMyListWalletIds.add(walletId);
+    try {
+      final rows = await PantryService.instance.fetchToBuyItems(walletId);
+      if (!mounted) return;
+      setState(() {
+        _myListMap[walletId] = rows.map(GroceryItem.fromMap).toList();
+      });
+    } catch (e) {
+      debugPrint('[Dashboard] _loadMyList error: $e');
+    }
+  }
+
   Future<void> _refresh() async {
     final txToReload = List<String>.from(_loadedWalletIds);
     final mealToReload = List<String>.from(_loadedMealWalletIds);
     final planItToReload = List<String>.from(_loadedPlanItWalletIds);
     final healthToReload = List<String>.from(_loadedHealthWalletIds);
+    final listToReload   = List<String>.from(_loadedMyListWalletIds);
     _loadedWalletIds.clear();
     _loadedMealWalletIds.clear();
     _loadedPlanItWalletIds.clear();
     _loadedHealthWalletIds.clear();
+    _loadedMyListWalletIds.clear();
     await Future.wait([
       _loadPinnedGroups(),
       ...txToReload.map(_loadTransactions),
       ...mealToReload.map(_loadTodayMeals),
       ...planItToReload.map(_loadPlanItData),
       ...healthToReload.map(_loadHealthData),
+      ...listToReload.map(_loadMyList),
     ]);
   }
 
@@ -313,6 +344,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _platePageController.dispose();
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     PantryService.mealChangeSignal.removeListener(_onMealChange);
+    PantryService.listChangeSignal.removeListener(_onListChange);
     WalletService.txChangeSignal.removeListener(_onTxChange);
     pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
     NotificationService.changeSignal.removeListener(_onNotifChange);
@@ -324,6 +356,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _onMealChange() {
     for (final wid in List<String>.from(_loadedMealWalletIds)) {
       _loadTodayMeals(wid);
+    }
+  }
+
+  void _onListChange() {
+    for (final wid in List<String>.from(_loadedMyListWalletIds)) {
+      _loadMyList(wid);
     }
   }
 
@@ -907,6 +945,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _ensureMealsLoaded(appState.wallets);
     _ensurePlanItLoaded(appState.wallets);
     _ensureHealthLoaded(appState.wallets);
+    _ensureMyListLoaded(appState.wallets);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -1382,7 +1421,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // ④  UPCOMING FUNCTIONS ───────────────────────────────────
+                      // ④  MY LIST ──────────────────────────────────────────────
+                      Builder(builder: (ctx) {
+                        final allItems = _myListMap[walletId] ?? [];
+                        return Column(
+                          children: [
+                            MyListSection(
+                              items: allItems,
+                              walletId: walletId,
+                              isDark: isDark,
+                              cardBg: cardBg,
+                              sub: sub,
+                              onItemsChanged: () => _loadMyList(walletId),
+                              onGoToPantry: () {
+                                DashNavService.pantry.value = 'basket:tobuy';
+                                widget.onTabSwitch?.call(2);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        );
+                      }),
+
+                      // ⑤  UPCOMING FUNCTIONS ───────────────────────────────────
                       if (_upcomingFunctions.isNotEmpty ||
                           _upcomingAttending.isNotEmpty) ...[
                         _SectionHeader(

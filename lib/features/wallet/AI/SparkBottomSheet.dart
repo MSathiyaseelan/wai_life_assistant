@@ -305,6 +305,21 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  suffixIcon: _isLoading
+                      ? null
+                      : IconButton(
+                          onPressed: _isListening ? _stopListening : _onTapToSpeak,
+                          icon: Icon(
+                            _isListening
+                                ? Icons.stop_circle_rounded
+                                : Icons.mic_rounded,
+                            color: _isListening
+                                ? Colors.redAccent
+                                : AppColors.primary,
+                            size: 20,
+                          ),
+                          tooltip: _isListening ? 'Stop listening' : 'Tap to speak',
+                        ),
                 ),
               ),
             ),
@@ -336,24 +351,6 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
           ],
         ),
         const SizedBox(height: 10),
-
-        // Mic button
-        TextButton.icon(
-          onPressed: _isLoading ? null : (_isListening ? _stopListening : _onTapToSpeak),
-          icon: Icon(
-            _isListening ? Icons.stop_circle_rounded : Icons.mic_rounded,
-            color: _isListening ? Colors.redAccent : AppColors.primary,
-            size: 20,
-          ),
-          label: Text(
-            _isListening ? 'Listening… tap to stop' : 'Tap to speak',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w700,
-              color: _isListening ? Colors.redAccent : AppColors.primary,
-            ),
-          ),
-        ),
 
         // Paste bank SMS button (Approach 2)
         _isSmsLoading

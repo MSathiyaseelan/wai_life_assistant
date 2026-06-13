@@ -399,6 +399,7 @@ class GroceryItem {
   String unit; // 'kg', 'g', 'L', 'pcs', etc.
   bool inStock;
   bool toBuy; // on shopping list
+  bool isGrocery; // false = quick-list item added from dashboard
   DateTime? expiryDate;
   DateTime lastUpdated;
   String walletId;
@@ -413,6 +414,7 @@ class GroceryItem {
     required this.walletId,
     this.inStock = true,
     this.toBuy = false,
+    this.isGrocery = true,
     this.expiryDate,
     this.note,
     DateTime? lastUpdated,
@@ -431,6 +433,7 @@ class GroceryItem {
     unit: m['unit'] as String,
     inStock: (m['in_stock'] as bool?) ?? true,
     toBuy: (m['to_buy'] as bool?) ?? false,
+    isGrocery: (m['is_grocery'] as bool?) ?? true,
     expiryDate: m['expiry_date'] != null
         ? DateTime.parse(m['expiry_date'] as String)
         : null,

@@ -17,6 +17,9 @@ class PantryService {
   /// Other screens (e.g. Dashboard) listen to this to refresh their data.
   static final mealChangeSignal = ValueNotifier<int>(0);
 
+  /// Incremented whenever grocery/quick-list items are added, updated, or deleted.
+  static final listChangeSignal = ValueNotifier<int>(0);
+
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid => _db.auth.currentUser!.id;
 
@@ -272,6 +275,17 @@ class PantryService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  /// Fetch all to-buy items (grocery + quick-list) for the dashboard My List section.
+  Future<List<Map<String, dynamic>>> fetchToBuyItems(String walletId) async {
+    final rows = await _db
+        .from('grocery_items')
+        .select()
+        .eq('wallet_id', walletId)
+        .eq('to_buy', true)
+        .order('name');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   /// Add a new grocery item.
   Future<Map<String, dynamic>> addGroceryItem({
     required String walletId,
@@ -281,6 +295,7 @@ class PantryService {
     required String unit,
     bool inStock = true,
     bool toBuy = false,
+    bool isGrocery = true,
     DateTime? expiryDate,
     String? note,
   }) async {
@@ -293,6 +308,7 @@ class PantryService {
       'unit':         unit,
       'in_stock':     inStock,
       'to_buy':       toBuy,
+      if (!isGrocery) 'is_grocery': false,
       'expiry_date':  expiryDate?.toIso8601String().substring(0, 10),
       'note':         note,
       'last_updated': DateTime.now().toIso8601String(),
