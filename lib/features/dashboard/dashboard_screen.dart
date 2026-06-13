@@ -2194,7 +2194,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: ListView(
                     controller: sc,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      16, 8, 16,
+                      36 + MediaQuery.of(ctx2).viewInsets.bottom,
+                    ),
                     children: [
                       // ── ACCOUNT section ──────────────────────────────────
                       GestureDetector(
