@@ -73,6 +73,17 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
                           if (_prefs.appLockEnabled) ...[
                             _divider(),
                             _lockMethodTile(),
+                            if (_prefs.lockMethod == LockMethod.biometric) ...[
+                              _divider(),
+                              _arrowTile(
+                                icon: Icons.pin_rounded,
+                                iconColor: const Color(0xFFFFAA2C),
+                                iconBg: const Color(0xFFFFAA2C).withAlpha(20),
+                                title: 'Set Fallback PIN',
+                                subtitle: 'Used when biometric is unavailable',
+                                onTap: () => _showPinSetup(context),
+                              ),
+                            ],
                             _divider(),
                             _lockAfterTile(),
                           ],

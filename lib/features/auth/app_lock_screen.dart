@@ -22,19 +22,22 @@ class _AppLockGuardState extends State<AppLockGuard>
   final _auth = LocalAuthentication();
 
   bool _locked = false;
-  bool _biometricFailed = false; // show PIN fallback when biometric fails
+  bool _biometricFailed = false;
+  bool _hasPin = false;
+  bool _authInProgress = false; // prevents lifecycle observer from re-locking during/after auth
   DateTime? _pausedAt;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _prefs.init().then((_) {
+    _prefs.init().then((_) async {
       if (!mounted) return;
+      final hasPin = await _prefs.hasPin();
+      if (!mounted) return;
+      setState(() => _hasPin = hasPin);
       if (_prefs.appLockEnabled) {
         setState(() => _locked = true);
-        // Defer until after the first frame so the activity is fully in the
-        // foreground — calling authenticate() too early throws PlatformException.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Future.delayed(const Duration(milliseconds: 300), _attemptUnlock);
         });
@@ -53,10 +56,16 @@ class _AppLockGuardState extends State<AppLockGuard>
     if (!_prefs.appLockEnabled) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      _pausedAt = DateTime.now();
+      // Ignore lifecycle noise from the biometric dialog itself.
+      if (!_authInProgress) _pausedAt = DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
-      final elapsed =
-          DateTime.now().difference(_pausedAt ?? DateTime.now()).inSeconds;
+      if (_authInProgress) { _pausedAt = null; return; }
+      final paused = _pausedAt;
+      _pausedAt = null;
+      // If _pausedAt was never set the app never truly went to background
+      // (biometric dialog caused the lifecycle event) — don't re-lock.
+      if (paused == null) return;
+      final elapsed = DateTime.now().difference(paused).inSeconds;
       final threshold = _prefs.lockAfter.seconds;
       if (threshold == 0 || elapsed >= threshold) {
         if (!_locked) {
@@ -67,7 +76,6 @@ class _AppLockGuardState extends State<AppLockGuard>
           Future.delayed(const Duration(milliseconds: 300), _attemptUnlock);
         }
       }
-      _pausedAt = null;
     }
   }
 
@@ -79,13 +87,19 @@ class _AppLockGuardState extends State<AppLockGuard>
   }
 
   Future<void> _tryBiometric() async {
+    _authInProgress = true;
     try {
-      final isSupported = await _auth.isDeviceSupported();
-      if (!isSupported) {
-        // Device has no secure lock screen at all — fall back to PIN.
-        if (mounted) setState(() => _biometricFailed = true);
+      final isDeviceSupported = await _auth.isDeviceSupported();
+      if (!isDeviceSupported) {
+        debugPrint('[AppLock] device has no secure lock screen');
+        // Keep biometric screen; user can switch to PIN manually.
         return;
       }
+
+      // biometricOnly: false lets the platform show its own credential
+      // dialog (fingerprint → face → device PIN) — more compatible than
+      // biometricOnly: true which throws on many devices when strong
+      // biometric isn't configured.
       final success = await _auth.authenticate(
         localizedReason: 'Authenticate to open WAI',
         options: const AuthenticationOptions(
@@ -97,12 +111,13 @@ class _AppLockGuardState extends State<AppLockGuard>
       if (success) {
         setState(() => _locked = false);
       }
-      // success == false means user dismissed — keep biometric UI so they
-      // can tap retry. Do NOT flip to PIN automatically.
-    } catch (_) {
-      // On any platform error leave the biometric retry screen visible;
-      // the user can still tap the fingerprint icon to try again, or
-      // choose "Use PIN instead" manually.
+      // success == false → user cancelled; keep lock screen for retry.
+    } catch (e) {
+      debugPrint('[AppLock] biometric error: $e');
+      // Don't auto-switch to PIN — keep biometric screen visible so the user
+      // can retry or tap "Use PIN instead" themselves.
+    } finally {
+      _authInProgress = false;
     }
   }
 
@@ -114,17 +129,22 @@ class _AppLockGuardState extends State<AppLockGuard>
       children: [
         widget.child,
         if (_locked)
-          _AppLockOverlay(
-            isDark: Theme.of(context).brightness == Brightness.dark,
-            lockMethod: _prefs.lockMethod,
-            biometricFailed: _biometricFailed,
-            pinLength: _prefs.pinLength,
-            onUnlocked: _onUnlocked,
-            onRetryBiometric: () {
-              setState(() => _biometricFailed = false);
-              _tryBiometric();
-            },
-            onSwitchToPin: () => setState(() => _biometricFailed = true),
+          Positioned.fill(
+            child: _AppLockOverlay(
+              isDark: Theme.of(context).brightness == Brightness.dark,
+              lockMethod: _prefs.lockMethod,
+              biometricFailed: _biometricFailed,
+              hasPin: _hasPin,
+              pinLength: _prefs.pinLength,
+              onUnlocked: _onUnlocked,
+              onRetryBiometric: () {
+                setState(() => _biometricFailed = false);
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _tryBiometric(),
+                );
+              },
+              onSwitchToPin: () => setState(() => _biometricFailed = true),
+            ),
           ),
       ],
     );
@@ -139,6 +159,7 @@ class _AppLockOverlay extends StatefulWidget {
   final bool isDark;
   final LockMethod lockMethod;
   final bool biometricFailed;
+  final bool hasPin;
   final int pinLength;
   final VoidCallback onUnlocked;
   final VoidCallback onRetryBiometric;
@@ -148,6 +169,7 @@ class _AppLockOverlay extends StatefulWidget {
     required this.isDark,
     required this.lockMethod,
     required this.biometricFailed,
+    required this.hasPin,
     required this.pinLength,
     required this.onUnlocked,
     required this.onRetryBiometric,
@@ -163,8 +185,11 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
   String? _error;
   bool _checking = false;
 
+  // Show PIN numpad only when a PIN is actually set.
+  // If biometric failed and no PIN exists, show the biometric-unavailable error UI.
   bool get _showPin =>
-      widget.lockMethod == LockMethod.pin || widget.biometricFailed;
+      (widget.lockMethod == LockMethod.pin || widget.biometricFailed) &&
+      widget.hasPin;
 
   Color get _bg =>
       widget.isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF4F5FF);
@@ -270,30 +295,59 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: widget.biometricFailed && !widget.hasPin
+                        ? Colors.orange.withValues(alpha: 0.1)
+                        : AppColors.primary.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.3),
+                      color: widget.biometricFailed && !widget.hasPin
+                          ? Colors.orange.withValues(alpha: 0.4)
+                          : AppColors.primary.withValues(alpha: 0.3),
                       width: 2,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.fingerprint_rounded,
+                  child: Icon(
+                    widget.biometricFailed && !widget.hasPin
+                        ? Icons.fingerprint_rounded
+                        : Icons.fingerprint_rounded,
                     size: 44,
-                    color: AppColors.primary,
+                    color: widget.biometricFailed && !widget.hasPin
+                        ? Colors.orange
+                        : AppColors.primary,
                   ),
                 ),
               ),
               const SizedBox(height: 14),
               Text(
-                'Tap to authenticate',
+                widget.biometricFailed && !widget.hasPin
+                    ? 'Biometric unavailable — tap to retry'
+                    : 'Tap to authenticate',
                 style: TextStyle(
                   fontSize: 13,
                   fontFamily: 'Nunito',
-                  color: _sub,
+                  color: widget.biometricFailed && !widget.hasPin
+                      ? Colors.orange
+                      : _sub,
                 ),
+                textAlign: TextAlign.center,
               ),
+              if (widget.biometricFailed && !widget.hasPin) ...[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text(
+                    'Make sure your fingerprint / face is enrolled in device Settings.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'Nunito',
+                      color: _sub,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
+              if (widget.hasPin)
               TextButton(
                 onPressed: widget.onSwitchToPin,
                 child: Text(
