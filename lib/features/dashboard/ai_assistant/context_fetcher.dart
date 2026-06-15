@@ -187,10 +187,12 @@ class ContextFetcher {
   Future<Map<String, dynamic>> _fetchPantry(String walletId) async {
     if (walletId.isEmpty) return {};
     try {
-      final rows = await PantryService.instance.fetchGroceryItems(walletId);
+      // Use to_buy items only — matches what the Pantry "To Buy" tab shows.
+      // fetchGroceryItems returns ALL items (including in-stock) which over-counts.
+      final rows = await PantryService.instance.fetchToBuyItems(walletId);
 
       final pending = rows
-          .where((r) => r['is_purchased'] != true)
+          .where((r) => r['is_grocery'] != false) // grocery items only (exclude quick-add non-grocery)
           .map((r) {
         final name = r['name'] as String? ?? '';
         final qty = r['qty'] as num?;
@@ -300,16 +302,28 @@ class ContextFetcher {
       final upcomingList = upcoming
           .take(5)
           .map((r) {
-            final name = r['name'] as String? ?? '';
-            final date = r['event_date'] as String? ?? '';
-            final budget = (r['budget'] as num?)?.toStringAsFixed(0) ?? '';
-            return '$name${date.isNotEmpty ? ' on $date' : ''}${budget.isNotEmpty ? ' (₹$budget)' : ''}';
+            final title = r['function_title'] as String? ?? '';
+            final person = r['person_name'] as String? ?? '';
+            final date = r['date'] as String? ?? '';
+            final type = r['type'] as String? ?? '';
+            final label = [
+              if (title.isNotEmpty) title,
+              if (person.isNotEmpty) 'for $person',
+              if (type.isNotEmpty && type != 'other') '($type)',
+              if (date.isNotEmpty) 'on $date',
+            ].join(' ');
+            return label;
           })
+          .where((s) => s.isNotEmpty)
           .toList();
 
       final myList = my
           .take(3)
-          .map((r) => r['name'] as String? ?? '')
+          .map((r) {
+            final title = r['title'] as String? ?? '';
+            final date = r['function_date'] as String? ?? '';
+            return date.isNotEmpty ? '$title on $date' : title;
+          })
           .where((s) => s.isNotEmpty)
           .toList();
 
