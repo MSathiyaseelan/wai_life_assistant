@@ -2,7 +2,7 @@
 // IntentClassifier — determines which data sources are needed for a question
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum DataSource { wallet, pantry, planit, functions, family, health, crossTab, general }
+enum DataSource { wallet, pantry, planit, functions, family, health, myHub, crossTab, general }
 
 enum TimeRange { today, thisWeek, thisMonth, lastMonth, custom, allTime }
 
@@ -44,9 +44,9 @@ class IntentClassifier {
       sources.add(DataSource.pantry);
     }
 
-    // PlanIt signals
+    // PlanIt signals (tasks, reminders, bills, special days)
     if (RegExp(
-      r'task|todo|to-do|plan|bill|remind|schedule|appointment|upcoming|due|deadline|wish|note|pending|wishlist|task|todo|to-do|plan|remind|schedule|appointment|upcoming|due|deadline|wish|note|pending',
+      r'task|todo|to-do|plan|bill|remind|schedule|due|deadline|wish|note|pending|wishlist|birthday|anniversary|special day|festival|holiday|when is|when does',
     ).hasMatch(q)) {
       sources.add(DataSource.planit);
     }
@@ -60,9 +60,16 @@ class IntentClassifier {
 
     // Health signals
     if (RegExp(
-      r'health|medicine|medication|drug|tablet|capsule|pill|appointment|doctor|vaccine|vaccination|vital|blood pressure|blood sugar|weight|bmi|insurance|prescription|symptom|sick|illness|hospital|clinic|diagnosis|treatment|checkup|check.up|wardrobe|outfit|clothing',
+      r'health|medicine|medication|drug|tablet|capsule|pill|appointment|doctor|vaccine|vaccination|vital|blood pressure|blood sugar|bp|pulse|weight|bmi|cholesterol|sugar level|insurance|policy|prescription|symptom|sick|illness|hospital|clinic|diagnosis|treatment|checkup|check.up|allergy|fever|pain',
     ).hasMatch(q)) {
       sources.add(DataSource.health);
+    }
+
+    // MyHub signals — item locator, wardrobe, household items
+    if (RegExp(
+      r'where|kept|stored|placed|put|locate|find|item locator|which box|which drawer|which shelf|which room|which bag|which container',
+    ).hasMatch(q)) {
+      sources.add(DataSource.myHub);
     }
 
     // Family signals

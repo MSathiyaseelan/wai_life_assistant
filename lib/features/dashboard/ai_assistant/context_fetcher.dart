@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
+import 'package:wai_life_assistant/data/services/special_day_service.dart';
+import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'intent_classifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -16,6 +18,7 @@ class HouseholdContext {
   final Map<String, dynamic> functions;
   final Map<String, dynamic> family;
   final Map<String, dynamic> health;
+  final Map<String, dynamic> myHub;
 
   const HouseholdContext({
     this.wallet = const {},
@@ -24,6 +27,7 @@ class HouseholdContext {
     this.functions = const {},
     this.family = const {},
     this.health = const {},
+    this.myHub = const {},
   });
 
   String toPromptBlock() {
@@ -58,6 +62,11 @@ class HouseholdContext {
       health.forEach((k, v) => buf.writeln('$k: $v'));
       buf.writeln();
     }
+    if (myHub.isNotEmpty) {
+      buf.writeln('=== MYHUB (ITEM LOCATOR) ===');
+      myHub.forEach((k, v) => buf.writeln('$k: $v'));
+      buf.writeln();
+    }
     return buf.toString();
   }
 }
@@ -79,29 +88,32 @@ class ContextFetcher {
     final sources = intent.dataSources;
     final isCrossTab = sources.contains(DataSource.crossTab);
 
-    final fetchWallet = sources.contains(DataSource.wallet) || isCrossTab;
-    final fetchPantry = sources.contains(DataSource.pantry) || isCrossTab;
-    final fetchPlanit = sources.contains(DataSource.planit) || isCrossTab;
+    final fetchWallet    = sources.contains(DataSource.wallet)    || isCrossTab;
+    final fetchPantry    = sources.contains(DataSource.pantry)    || isCrossTab;
+    final fetchPlanit    = sources.contains(DataSource.planit)    || isCrossTab;
     final fetchFunctions = sources.contains(DataSource.functions) || isCrossTab;
-    final fetchFamily = sources.contains(DataSource.family);
-    final fetchHealth = sources.contains(DataSource.health) || isCrossTab;
+    final fetchFamily    = sources.contains(DataSource.family);
+    final fetchHealth    = sources.contains(DataSource.health)    || isCrossTab;
+    final fetchMyHub     = sources.contains(DataSource.myHub)     || isCrossTab;
 
     final results = await Future.wait([
-      fetchWallet ? _fetchWallet(walletId, intent.timeRange) : Future.value(<String, dynamic>{}),
-      fetchPantry ? _fetchPantry(walletId) : Future.value(<String, dynamic>{}),
-      fetchPlanit ? _fetchPlanit(walletId) : Future.value(<String, dynamic>{}),
+      fetchWallet    ? _fetchWallet(walletId, intent.timeRange) : Future.value(<String, dynamic>{}),
+      fetchPantry    ? _fetchPantry(walletId)    : Future.value(<String, dynamic>{}),
+      fetchPlanit    ? _fetchPlanit(walletId)    : Future.value(<String, dynamic>{}),
       fetchFunctions ? _fetchFunctions(walletId) : Future.value(<String, dynamic>{}),
-      fetchFamily ? _fetchFamily(walletId) : Future.value(<String, dynamic>{}),
-      fetchHealth ? _fetchHealth(walletId) : Future.value(<String, dynamic>{}),
+      fetchFamily    ? _fetchFamily(walletId)    : Future.value(<String, dynamic>{}),
+      fetchHealth    ? _fetchHealth(walletId)    : Future.value(<String, dynamic>{}),
+      fetchMyHub     ? _fetchMyHub(walletId)     : Future.value(<String, dynamic>{}),
     ]);
 
     return HouseholdContext(
-      wallet: results[0],
-      pantry: results[1],
-      planit: results[2],
+      wallet:    results[0],
+      pantry:    results[1],
+      planit:    results[2],
       functions: results[3],
-      family: results[4],
-      health: results[5],
+      family:    results[4],
+      health:    results[5],
+      myHub:     results[6],
     );
   }
 
@@ -263,13 +275,22 @@ class ContextFetcher {
             .from('reminders')
             .select('title, due_date')
             .eq('wallet_id', walletId)
-            .eq('is_done', false)
+            .eq('done', false)
             .gte('due_date', today)
             .order('due_date')
             .limit(5);
         reminderRows = List<Map<String, dynamic>>.from(raw);
       } catch (e) {
         debugPrint('[ContextFetcher] reminders error: $e');
+      }
+
+      // Special days — fetch all so AI can answer birthday/anniversary queries by name
+      List<Map<String, dynamic>> specialDayRows = [];
+      try {
+        final raw = await SpecialDayService.instance.fetchDays(walletId);
+        specialDayRows = raw;
+      } catch (e) {
+        debugPrint('[ContextFetcher] special_days error: $e');
       }
 
       final bills = billRows
@@ -281,11 +302,22 @@ class ContextFetcher {
           .map((r) => '${r['title']} on ${r['due_date']}')
           .toList();
 
+      final specialDays = specialDayRows
+          .map((r) {
+            final title = r['title'] as String? ?? '';
+            final date  = r['date']  as String? ?? '';
+            final type  = r['type']  as String? ?? '';
+            return '$title ($type) — $date';
+          })
+          .where((s) => s.isNotEmpty)
+          .toList();
+
       return {
         'pending_tasks': pending.isEmpty ? 'none' : pending.join(', '),
         'task_count': pending.length,
-        if (bills.isNotEmpty) 'upcoming_bills': bills.join(', '),
-        if (reminders.isNotEmpty) 'reminders': reminders.join(', '),
+        if (bills.isNotEmpty)       'upcoming_bills': bills.join(', '),
+        if (reminders.isNotEmpty)   'reminders':      reminders.join(', '),
+        if (specialDays.isNotEmpty) 'special_days':   specialDays.join(' | '),
       };
     } catch (e) {
       debugPrint('[ContextFetcher] _fetchPlanit error: $e');
@@ -389,36 +421,132 @@ class ContextFetcher {
             .lte('next_due_date', in30d)
             .order('next_due_date')
             .limit(5),
+        // Recent vitals — last 5 readings for quick summary
+        _db
+            .from('health_vitals')
+            .select('vital_type, value, value2, sub_type, recorded_at')
+            .eq('wallet_id', walletId)
+            .order('recorded_at', ascending: false)
+            .limit(5),
+        // Doctors on file
+        _db
+            .from('health_doctors')
+            .select('name, speciality')
+            .eq('wallet_id', walletId)
+            .limit(10),
+        // Active insurance policies
+        _db
+            .from('health_insurance')
+            .select('policy_name, provider, coverage_amount, expiry_date')
+            .eq('wallet_id', walletId)
+            .limit(5),
       ]);
 
       final meds = (results[0] as List).map((r) {
-        final name = r['name'] as String? ?? '';
-        final dosage = r['dosage'] as String? ?? '';
-        final freq = r['frequency'] as String? ?? '';
+        final name   = r['name']      as String? ?? '';
+        final dosage = r['dosage']    as String? ?? '';
+        final freq   = r['frequency'] as String? ?? '';
         return '$name${dosage.isNotEmpty ? ' $dosage' : ''}${freq.isNotEmpty ? ' ($freq)' : ''}';
       }).where((s) => s.isNotEmpty).toList();
 
       final appts = (results[1] as List).map((r) {
-        final doc = r['doctor_name'] as String? ?? '';
-        final spec = r['speciality'] as String? ?? '';
-        final date = r['appt_date'] as String? ?? '';
+        final doc  = r['doctor_name'] as String? ?? '';
+        final spec = r['speciality']  as String? ?? '';
+        final date = r['appt_date']   as String? ?? '';
         return '$doc${spec.isNotEmpty ? ' ($spec)' : ''} on $date';
       }).where((s) => s.isNotEmpty).toList();
 
       final vaccines = (results[2] as List).map((r) {
-        final name = r['vaccine_name'] as String? ?? '';
-        final due = r['next_due_date'] as String? ?? '';
+        final name = r['vaccine_name']  as String? ?? '';
+        final due  = r['next_due_date'] as String? ?? '';
         return '$name due $due';
       }).where((s) => s.isNotEmpty).toList();
 
+      final vitals = (results[3] as List).map((r) {
+        final type  = r['vital_type'] as String? ?? '';
+        final val   = r['value']      as num?;
+        final val2  = r['value2']     as num?;
+        final sub   = r['sub_type']   as String? ?? '';
+        final date  = (r['recorded_at'] as String? ?? '').substring(0, 10);
+        final reading = val2 != null
+            ? '${val?.toStringAsFixed(0)}/${val2.toStringAsFixed(0)}'
+            : val?.toString() ?? '';
+        return '$type: $reading${sub.isNotEmpty ? ' $sub' : ''} (on $date)';
+      }).where((s) => s.isNotEmpty).toList();
+
+      final doctors = (results[4] as List).map((r) {
+        final name = r['name']      as String? ?? '';
+        final spec = r['speciality'] as String? ?? '';
+        return '$name${spec.isNotEmpty ? ' ($spec)' : ''}';
+      }).where((s) => s.isNotEmpty).toList();
+
+      final insurance = (results[5] as List).map((r) {
+        final policy   = r['policy_name']     as String? ?? '';
+        final provider = r['provider']        as String? ?? '';
+        final coverage = r['coverage_amount'] as num?;
+        final expiry   = r['expiry_date']     as String? ?? '';
+        return '$policy${provider.isNotEmpty ? ' by $provider' : ''}'
+            '${coverage != null ? ' ₹${coverage.toStringAsFixed(0)} coverage' : ''}'
+            '${expiry.isNotEmpty ? ' (expires $expiry)' : ''}';
+      }).where((s) => s.isNotEmpty).toList();
+
       return {
-        if (meds.isNotEmpty) 'active_medications': meds.join(', '),
-        'medication_count': meds.length,
-        if (appts.isNotEmpty) 'upcoming_appointments': appts.join(', '),
-        if (vaccines.isNotEmpty) 'due_vaccines': vaccines.join(', '),
+        if (meds.isNotEmpty)      'active_medications':    meds.join(', '),
+        'medication_count':                                 meds.length,
+        if (appts.isNotEmpty)     'upcoming_appointments': appts.join(', '),
+        if (vaccines.isNotEmpty)  'due_vaccines':          vaccines.join(', '),
+        if (vitals.isNotEmpty)    'recent_vitals':         vitals.join(' | '),
+        if (doctors.isNotEmpty)   'doctors':               doctors.join(', '),
+        if (insurance.isNotEmpty) 'insurance_policies':    insurance.join(' | '),
       };
     } catch (e) {
       debugPrint('[ContextFetcher] _fetchHealth error: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchMyHub(String walletId) async {
+    if (walletId.isEmpty) return {};
+    try {
+      // Fetch containers and items in parallel, then join in-memory
+      final results = await Future.wait([
+        ItemLocatorService.instance.fetchContainers(walletId),
+        ItemLocatorService.instance.fetchItems(walletId),
+      ]);
+
+      final containers = results[0];
+      final items      = results[1];
+
+      if (items.isEmpty) return {};
+
+      // Build a map of container_id → container info for fast lookup
+      final containerMap = <String, Map<String, dynamic>>{
+        for (final c in containers) c['id'] as String: c,
+      };
+
+      // Join each item with its container to produce "item → container (location)"
+      final entries = items.map((item) {
+        final name      = item['name']        as String? ?? '';
+        final desc      = item['description'] as String? ?? '';
+        final cId       = item['container_id'] as String? ?? '';
+        final container = containerMap[cId];
+        final cName     = container?['name']     as String? ?? '';
+        final cLocation = container?['location'] as String? ?? '';
+
+        final where = [
+          if (cName.isNotEmpty)     cName,
+          if (cLocation.isNotEmpty) cLocation,
+        ].join(', ');
+
+        return '$name${desc.isNotEmpty ? ' ($desc)' : ''} → ${where.isNotEmpty ? where : 'unknown location'}';
+      }).toList();
+
+      return {
+        'stored_items': entries.join(' | '),
+        'item_count':   items.length,
+      };
+    } catch (e) {
+      debugPrint('[ContextFetcher] _fetchMyHub error: $e');
       return {};
     }
   }

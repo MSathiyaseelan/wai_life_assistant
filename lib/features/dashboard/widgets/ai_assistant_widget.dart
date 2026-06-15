@@ -6,11 +6,13 @@ import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
+import 'package:wai_life_assistant/features/dashboard/ai_assistant/action_executor.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AIAssistantWidget
 // Dark gradient AI bar with intent classification, context fetching,
-// structured response display (highlights, suggestions, deep-links).
+// structured response display (highlights, suggestions, deep-links) and
+// write-action confirmation (add grocery, task, reminder, expense, etc.).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AIAssistantWidget extends StatefulWidget {
@@ -35,7 +37,12 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   bool _loading = false;
   AssistantResponse? _response;
 
-  // ── Contact mention (@) ───────────────────────────────────────────────────
+  // Action confirmation state
+  bool _confirmingAction = false;
+  bool _actionDone = false;
+  String? _actionSuccessMsg;
+
+  // Contact mention (@)
   List<ContactEntry> _suggestions = [];
   bool _showSuggestions = false;
   int? _mentionStart;
@@ -51,7 +58,6 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     'Any upcoming functions?',
     'Summarise my finances',
   ];
-
 
   @override
   void initState() {
@@ -75,7 +81,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     super.dispose();
   }
 
-  // ── @-mention helpers ────────────────────────────────────────────────────
+  // ── @-mention helpers ──────────────────────────────────────────────────────
 
   void _onMentionChanged() {
     final text = _ctrl.text;
@@ -133,6 +139,8 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     });
   }
 
+  // ── Submit ─────────────────────────────────────────────────────────────────
+
   Future<void> _submit(String q) async {
     final question = q.trim();
     if (question.isEmpty || _loading) return;
@@ -143,6 +151,9 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     setState(() {
       _loading = true;
       _response = null;
+      _confirmingAction = false;
+      _actionDone = false;
+      _actionSuccessMsg = null;
     });
     _animCtrl.forward(from: 0);
 
@@ -185,14 +196,49 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     }
   }
 
+  // ── Action confirm / execute ───────────────────────────────────────────────
+
+  Future<void> _confirmAction() async {
+    final action = _response?.action;
+    if (action == null) return;
+
+    setState(() => _confirmingAction = true);
+    HapticFeedback.mediumImpact();
+
+    try {
+      await ActionExecutor.instance.execute(action, widget.walletId);
+      if (!mounted) return;
+      setState(() {
+        _confirmingAction = false;
+        _actionDone = true;
+        _actionSuccessMsg = '${action.icon} ${action.label} — done!';
+      });
+    } catch (e) {
+      debugPrint('[WAI Action] execute failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _confirmingAction = false;
+        _response = AssistantResponse(
+          answer: 'Sorry, something went wrong saving that. Please try again.',
+          action: action,
+        );
+      });
+    }
+  }
+
   void _clear() {
     _hideSuggestions();
     setState(() {
       _response = null;
+      _confirmingAction = false;
+      _actionDone = false;
+      _actionSuccessMsg = null;
       _ctrl.clear();
     });
     _animCtrl.reverse();
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -217,7 +263,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ────────────────────────────────────────────────────
+            // ── Header ──────────────────────────────────────────────────────
             Row(
               children: [
                 ShaderMask(
@@ -250,7 +296,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
 
             const SizedBox(height: 12),
 
-            // ── Input bar ─────────────────────────────────────────────────
+            // ── Input bar ────────────────────────────────────────────────────
             Container(
               height: 44,
               decoration: BoxDecoration(
@@ -279,7 +325,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                         color: Colors.white,
                       ),
                       decoration: InputDecoration.collapsed(
-                        hintText: 'Ask about health, spending, meals, tasks…',
+                        hintText: 'Ask or say "add milk to grocery"…',
                         hintStyle: TextStyle(
                           fontSize: 13,
                           fontFamily: 'Nunito',
@@ -311,7 +357,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
               ),
             ),
 
-            // ── @-mention suggestions ─────────────────────────────────────
+            // ── @-mention suggestions ────────────────────────────────────────
             if (_showSuggestions && _suggestions.isNotEmpty) ...[
               const SizedBox(height: 8),
               ConstrainedBox(
@@ -332,8 +378,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                           children: [
                             CircleAvatar(
                               radius: 14,
-                              backgroundColor:
-                                  Colors.white.withAlpha(30),
+                              backgroundColor: Colors.white.withAlpha(30),
                               child: Text(
                                 c.name.isNotEmpty
                                     ? c.name[0].toUpperCase()
@@ -349,8 +394,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     c.name,
@@ -382,7 +426,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
               ),
             ],
 
-            // ── Quick question chips ───────────────────────────────────────
+            // ── Quick question chips ──────────────────────────────────────────
             if (!_showSuggestions && _response == null && !_loading) ...[
               const SizedBox(height: 10),
               SizedBox(
@@ -404,9 +448,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                       decoration: BoxDecoration(
                         color: Colors.white.withAlpha(18),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withAlpha(40),
-                        ),
+                        border: Border.all(color: Colors.white.withAlpha(40)),
                       ),
                       child: Text(
                         _quickQuestions[i],
@@ -423,19 +465,29 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
               ),
             ],
 
-            // ── Response ──────────────────────────────────────────────────
+            // ── Response ──────────────────────────────────────────────────────
             if (_response != null)
               FadeTransition(
                 opacity: _fadeAnim,
-                child: _ResponseCard(
-                  response: _response!,
-                  onNavigate: widget.onNavigate,
-                  onClear: _clear,
-                  onFollowUp: (q) {
-                    _ctrl.text = q;
-                    _submit(q);
-                  },
-                ),
+                child: _response!.isAction
+                    ? _ActionCard(
+                        response: _response!,
+                        confirming: _confirmingAction,
+                        done: _actionDone,
+                        successMsg: _actionSuccessMsg,
+                        onConfirm: _confirmAction,
+                        onCancel: _clear,
+                        onClear: _clear,
+                      )
+                    : _ResponseCard(
+                        response: _response!,
+                        onNavigate: widget.onNavigate,
+                        onClear: _clear,
+                        onFollowUp: (q) {
+                          _ctrl.text = q;
+                          _submit(q);
+                        },
+                      ),
               ),
           ],
         ),
@@ -445,7 +497,276 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// _ResponseCard
+// _ActionCard — confirmation UI for write actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActionCard extends StatelessWidget {
+  final AssistantResponse response;
+  final bool confirming;
+  final bool done;
+  final String? successMsg;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+  final VoidCallback onClear;
+
+  const _ActionCard({
+    required this.response,
+    required this.confirming,
+    required this.done,
+    required this.successMsg,
+    required this.onConfirm,
+    required this.onCancel,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final action = response.action!;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Close button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              GestureDetector(
+                onTap: onClear,
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: Colors.white.withAlpha(120)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+
+          // AI's answer text
+          Text(
+            response.answer,
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withAlpha(230),
+              height: 1.55,
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // Confirmation card
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withAlpha(40)),
+            ),
+            child: done
+                ? _SuccessContent(message: successMsg ?? 'Done!')
+                : _ConfirmContent(
+                    action: action,
+                    confirming: confirming,
+                    onConfirm: onConfirm,
+                    onCancel: onCancel,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfirmContent extends StatelessWidget {
+  final ActionPayload action;
+  final bool confirming;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  const _ConfirmContent({
+    required this.action,
+    required this.confirming,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fields = action.displayFields;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Action label row
+        Row(
+          children: [
+            Text(action.icon, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            Text(
+              action.label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFA5B4FC),
+              ),
+            ),
+          ],
+        ),
+
+        // Field chips
+        if (fields.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: fields.map((f) => _FieldChip(label: f.$1, value: f.$2)).toList(),
+          ),
+        ],
+
+        const SizedBox(height: 12),
+
+        // Confirm / Cancel buttons
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: confirming ? null : onCancel,
+                child: Container(
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withAlpha(30)),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withAlpha(160),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: GestureDetector(
+                onTap: confirming ? null : onConfirm,
+                child: Container(
+                  height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+                    ),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: confirming
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Confirm',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SuccessContent extends StatelessWidget {
+  final String message;
+  const _SuccessContent({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.check_circle_rounded,
+            color: Color(0xFF4ADE80), size: 18),
+        const SizedBox(width: 8),
+        Text(
+          message,
+          style: const TextStyle(
+            fontSize: 13,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF4ADE80),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FieldChip extends StatelessWidget {
+  final String label;
+  final String value;
+  const _FieldChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withAlpha(25)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '$label  ',
+              style: TextStyle(
+                fontSize: 9,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withAlpha(120),
+                letterSpacing: 0.3,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(
+                fontSize: 11,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ResponseCard — read-query answer display
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ResponseCard extends StatelessWidget {
@@ -474,11 +795,8 @@ class _ResponseCard extends StatelessWidget {
             children: [
               GestureDetector(
                 onTap: onClear,
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 16,
-                  color: Colors.white.withAlpha(120),
-                ),
+                child: Icon(Icons.close_rounded,
+                    size: 16, color: Colors.white.withAlpha(120)),
               ),
             ],
           ),
@@ -502,9 +820,9 @@ class _ResponseCard extends StatelessWidget {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: response.highlights.map((h) {
-                return _HighlightChip(chip: h);
-              }).toList(),
+              children: response.highlights
+                  .map((h) => _HighlightChip(chip: h))
+                  .toList(),
             ),
           ],
 
@@ -522,20 +840,18 @@ class _ResponseCard extends StatelessWidget {
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+                        horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(30),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withAlpha(50),
-                      ),
+                      border:
+                          Border.all(color: Colors.white.withAlpha(50)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(link.emoji, style: const TextStyle(fontSize: 11)),
+                        Text(link.emoji,
+                            style: const TextStyle(fontSize: 11)),
                         const SizedBox(width: 4),
                         Text(
                           link.label,
@@ -576,15 +892,12 @@ class _ResponseCard extends StatelessWidget {
                   onTap: () => onFollowUp(s),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(12),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withAlpha(30),
-                      ),
+                      border:
+                          Border.all(color: Colors.white.withAlpha(30)),
                     ),
                     child: Text(
                       s,
@@ -616,9 +929,9 @@ class _HighlightChip extends StatelessWidget {
 
   Color get _color => switch (chip.color) {
         'green' => const Color(0xFF4ADE80),
-        'red' => const Color(0xFFF87171),
+        'red'   => const Color(0xFFF87171),
         'amber' => const Color(0xFFFBBF24),
-        _ => AppColors.primary,
+        _       => AppColors.primary,
       };
 
   @override
