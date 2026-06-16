@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
@@ -134,6 +135,8 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
 
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   @override
   void initState() {
     super.initState();
@@ -152,7 +155,19 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     _loadData();
   }
 
+  @override
+  void didUpdateWidget(MyWardrobeScreen old) {
+    super.didUpdateWidget(old);
+    if (old.walletId != widget.walletId && !_isPlaceholder(widget.walletId)) {
+      _loadData();
+    }
+  }
+
   Future<void> _loadData() async {
+    if (_isPlaceholder(widget.walletId)) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final svc = WardrobeService.instance;
       final results = await Future.wait([
@@ -173,9 +188,10 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
             (results[1]).map((r) => OutfitLog.fromJson(r)),
           );
       });
-    } catch (e) {
-      debugPrint('[Wardrobe] _loadData error: $e');
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      await ErrorLogger.log(e, stackTrace: stack, action: 'wardrobe_load_data');
     }
   }
 
@@ -508,6 +524,8 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                       .updateOutfitLog(existing.id, {
                                     'item_ids': log.itemIds,
                                     if (log.notes != null) 'notes': log.notes,
+                                    if (log.photoPath != null)
+                                      'photo_url': log.photoPath,
                                   });
                                   if (mounted) {
                                     setState(() {
@@ -524,6 +542,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                           itemIds: log.itemIds,
                                           date: log.date,
                                           notes: log.notes,
+                                          photoPath: log.photoPath,
                                         );
                                       }
                                     });
@@ -1914,6 +1933,18 @@ class _OutfitLogTab extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    if (todayLog.photoPath != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: _WardrobePhoto(
+                          path: todayLog.photoPath!,
+                          width: double.infinity,
+                          height: 130,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     SizedBox(
                       height: 62,
                       child: ListView(
@@ -2123,7 +2154,9 @@ class _OutfitLogTab extends StatelessWidget {
           ...pastLogs.take(10).map((log) {
             final logItems =
                 allItems.where((c) => log.itemIds.contains(c.id)).toList();
-            return Container(
+            return GestureDetector(
+              onTap: () => _showOutfitDetail(context, log, logItems, sub),
+              child: Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -2216,12 +2249,174 @@ class _OutfitLogTab extends StatelessWidget {
                       ],
                     ),
                   ),
+                  if (log.photoPath != null) ...[
+                    const SizedBox(width: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _WardrobePhoto(
+                        path: log.photoPath!,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ],
                 ],
               ),
+            ),
             );
           }),
         ],
       ],
+    );
+  }
+
+  void _showOutfitDetail(
+    BuildContext ctx,
+    OutfitLog log,
+    List<ClothingItem> logItems,
+    Color sub,
+  ) {
+    showLifeSheet(
+      ctx,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_weekday(log.date)}, ${log.date.day} ${_monthName(log.date.month)} ${log.date.year}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                      ),
+                    ),
+                    Text(
+                      '${logItems.length} item${logItems.length == 1 ? '' : 's'} worn',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Outfit selfie
+            if (log.photoPath != null) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: _WardrobePhoto(
+                  path: log.photoPath!,
+                  width: double.infinity,
+                  height: 200,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // Items grouped by category
+            ...ClothingCategory.values.map((cat) {
+              final catItems =
+                  logItems.where((c) => c.category == cat).toList();
+              if (catItems.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${cat.emoji} ${cat.label}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: _wardrobeColor,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ...catItems.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: _wardrobeColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: item.photoPath != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: _WardrobePhoto(
+                                      path: item.photoPath!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : Center(
+                                    child: Text(
+                                      cat.emoji,
+                                      style: const TextStyle(fontSize: 24),
+                                    ),
+                                  ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.name,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                                if (item.brand != null && item.brand!.isNotEmpty)
+                                  Text(
+                                    item.brand!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                                if (item.color != null && item.color!.isNotEmpty)
+                                  Text(
+                                    item.color!,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2252,147 +2447,179 @@ class _OutfitLogTab extends StatelessWidget {
   ) {
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final selected = <String>{...?existing?.itemIds};
+    String? pickedLocalPath;
+    bool saving = false;
 
     showLifeSheet(
       ctx,
       child: StatefulBuilder(
-        builder: (ctx2, ss) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Today's Outfit",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                "Select what you're wearing today",
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'Nunito',
-                  color: sub,
-                ),
-              ),
-              const SizedBox(height: 12),
+        builder: (ctx2, ss) {
+          void doSave() async {
+            if (selected.isEmpty || saving) return;
+            ss(() => saving = true);
+            String? photoUrl = existing?.photoPath;
+            if (pickedLocalPath != null) {
+              try {
+                photoUrl = await WardrobeService.instance
+                    .uploadPhoto(pickedLocalPath!, memberId: memberId);
+              } catch (_) {
+                if (ctx2.mounted) ss(() => saving = false);
+                return;
+              }
+            }
+            onLog(OutfitLog(
+              id: existing?.id ?? '',
+              walletId: walletId,
+              memberId: memberId,
+              itemIds: selected.toList(),
+              date: DateTime.now(),
+              photoPath: photoUrl,
+            ));
+            if (ctx2.mounted) Navigator.pop(ctx2);
+          }
 
-              for (final cat in ClothingCategory.values) ...[
-                Builder(builder: (_) {
-                  final catItems =
-                      myItems.where((c) => c.category == cat).toList();
-                  if (catItems.isEmpty) return const SizedBox.shrink();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      LifeLabel(
-                        text: '${cat.emoji} ${cat.label.toUpperCase()}',
-                      ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        height: 82,
-                        child: ListView(
-                          scrollDirection: Axis.horizontal,
-                          children: catItems.map((item) {
-                            final isSel = selected.contains(item.id);
-                            return GestureDetector(
-                              onTap: () => ss(() {
-                                if (isSel) {
-                                  selected.remove(item.id);
-                                } else {
-                                  selected.add(item.id);
-                                }
-                              }),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 120),
-                                margin: const EdgeInsets.only(right: 8),
-                                width: 65,
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: isSel
-                                      ? _wardrobeColor.withValues(alpha: 0.12)
-                                      : surfBg,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Today's Outfit",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Select what you're wearing today",
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'Nunito',
+                    color: sub,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Outfit photo ──────────────────────────────────────────
+                _OutfitPhotoSection(
+                  pickedLocalPath: pickedLocalPath,
+                  existingUrl: existing?.photoPath,
+                  surfBg: surfBg,
+                  enabled: !saving,
+                  onPick: () async {
+                    final path = await _pickPhoto(ctx2);
+                    if (path != null) ss(() => pickedLocalPath = path);
+                  },
+                  onClear: () => ss(() => pickedLocalPath = null),
+                ),
+                const SizedBox(height: 12),
+
+                for (final cat in ClothingCategory.values) ...[
+                  Builder(builder: (_) {
+                    final catItems =
+                        myItems.where((c) => c.category == cat).toList();
+                    if (catItems.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LifeLabel(
+                          text: '${cat.emoji} ${cat.label.toUpperCase()}',
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 82,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: catItems.map((item) {
+                              final isSel = selected.contains(item.id);
+                              return GestureDetector(
+                                onTap: () => ss(() {
+                                  if (isSel) {
+                                    selected.remove(item.id);
+                                  } else {
+                                    selected.add(item.id);
+                                  }
+                                }),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 120),
+                                  margin: const EdgeInsets.only(right: 8),
+                                  width: 65,
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
                                     color: isSel
-                                        ? _wardrobeColor
-                                        : Colors.transparent,
+                                        ? _wardrobeColor.withValues(alpha: 0.12)
+                                        : surfBg,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isSel
+                                          ? _wardrobeColor
+                                          : Colors.transparent,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      if (item.photoPath != null)
+                                        ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          child: _WardrobePhoto(
+                                            path: item.photoPath!,
+                                            width: 30,
+                                            height: 30,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        )
+                                      else
+                                        Text(
+                                          item.category.emoji,
+                                          style: const TextStyle(fontSize: 22),
+                                        ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        item.name,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          fontFamily: 'Nunito',
+                                          color: isSel ? _wardrobeColor : sub,
+                                        ),
+                                      ),
+                                      if (isSel)
+                                        const Icon(
+                                          Icons.check_circle_rounded,
+                                          size: 12,
+                                          color: _wardrobeColor,
+                                        ),
+                                    ],
                                   ),
                                 ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    if (item.photoPath != null)
-                                      ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(8),
-                                        child: _WardrobePhoto(
-                                          path: item.photoPath!,
-                                          width: 30,
-                                          height: 30,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      )
-                                    else
-                                      Text(
-                                        item.category.emoji,
-                                        style: const TextStyle(fontSize: 22),
-                                      ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      item.name,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 8,
-                                        fontFamily: 'Nunito',
-                                        color: isSel ? _wardrobeColor : sub,
-                                      ),
-                                    ),
-                                    if (isSel)
-                                      const Icon(
-                                        Icons.check_circle_rounded,
-                                        size: 12,
-                                        color: _wardrobeColor,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                              );
+                            }).toList(),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  );
-                }),
-              ],
+                        const SizedBox(height: 8),
+                      ],
+                    );
+                  }),
+                ],
 
-              LifeSaveButton(
-                label: existing != null ? 'Update Outfit' : 'Log Outfit',
-                color: _wardrobeColor,
-                onTap: () {
-                  if (selected.isEmpty) return;
-                  onLog(
-                    OutfitLog(
-                      id: existing?.id ?? '',
-                      walletId: walletId,
-                      memberId: memberId,
-                      itemIds: selected.toList(),
-                      date: DateTime.now(),
-                    ),
-                  );
-                  Navigator.pop(ctx2);
-                },
-              ),
-            ],
-          ),
-        ),
+                LifeSaveButton(
+                  label: saving
+                      ? 'Saving…'
+                      : (existing != null ? 'Update Outfit' : 'Log Outfit'),
+                  color: _wardrobeColor,
+                  onTap: doSave,
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -2423,7 +2650,7 @@ class _WardrobePhoto extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
-        errorBuilder: (_, __, ___) => Container(
+        errorBuilder: (_, e, stack) => Container(
           width: width,
           height: height,
           color: _wardrobeColor.withValues(alpha: 0.08),
@@ -2511,6 +2738,147 @@ class _WishlistCard extends StatelessWidget {
           ),
           const Icon(Icons.favorite_rounded, color: _wardrobeColor, size: 20),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OUTFIT PHOTO SECTION — camera / gallery picker for Log Outfit sheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OutfitPhotoSection extends StatelessWidget {
+  final String? pickedLocalPath;
+  final String? existingUrl;
+  final Color surfBg;
+  final bool enabled;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  const _OutfitPhotoSection({
+    required this.pickedLocalPath,
+    required this.existingUrl,
+    required this.surfBg,
+    required this.enabled,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Newly picked local file takes priority over existing URL.
+    final hasNew = pickedLocalPath != null;
+    final hasExisting = existingUrl != null && !hasNew;
+
+    if (hasNew || hasExisting) {
+      return Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: hasNew
+                ? Image.file(
+                    File(pickedLocalPath!),
+                    width: double.infinity,
+                    height: 110,
+                    fit: BoxFit.cover,
+                  )
+                : _WardrobePhoto(
+                    path: existingUrl!,
+                    width: double.infinity,
+                    height: 110,
+                    fit: BoxFit.cover,
+                  ),
+          ),
+          // Change / clear button
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: enabled ? onPick : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_rounded,
+                            size: 12, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Change',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (hasNew) ...[
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: enabled ? onClear : null,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close,
+                          size: 14, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Empty state — tap to pick
+    return GestureDetector(
+      onTap: enabled ? onPick : null,
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: surfBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _wardrobeColor.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_a_photo_rounded,
+                size: 18,
+                color: _wardrobeColor.withValues(alpha: 0.65),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Add selfie / photo  (optional)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w600,
+                  color: _wardrobeColor.withValues(alpha: 0.65),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

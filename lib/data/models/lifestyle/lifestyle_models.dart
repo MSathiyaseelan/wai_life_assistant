@@ -276,6 +276,7 @@ class OutfitLog {
   List<String> itemIds;
   DateTime date;
   String? notes;
+  String? photoPath;
   OutfitLog({
     required this.id,
     required this.walletId,
@@ -283,6 +284,7 @@ class OutfitLog {
     required this.itemIds,
     required this.date,
     this.notes,
+    this.photoPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -291,6 +293,7 @@ class OutfitLog {
     'item_ids': itemIds,
     'date': date.toIso8601String().substring(0, 10),
     if (notes != null) 'notes': notes,
+    if (photoPath != null) 'photo_url': photoPath,
   };
 
   factory OutfitLog.fromJson(Map<String, dynamic> j) => OutfitLog(
@@ -300,6 +303,7 @@ class OutfitLog {
     itemIds: (j['item_ids'] as List<dynamic>? ?? []).cast<String>(),
     date: DateTime.parse(j['date'] as String),
     notes: j['notes'] as String?,
+    photoPath: j['photo_url'] as String?,
   );
 }
 
