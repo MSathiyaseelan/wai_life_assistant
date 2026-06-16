@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -18,7 +18,8 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
-import 'package:wai_life_assistant/features/wallet/ai/SparkBottomSheet.dart';
+import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
+import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/category_detector.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
@@ -108,7 +109,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   bool _wasOnline = true;
   int _unreadNotifCount = 0;
-  bool _pendingPasteSms = false;
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
@@ -143,18 +143,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (type == null || !mounted) return;
     ShortcutService.pending.value = null;
     if (type == ShortcutService.pasteBankSms) {
-      setState(() => _pendingPasteSms = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        final ctx = context;
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final surfBg = Theme.of(ctx).colorScheme.surface;
-        final wallets = AppStateScope.of(ctx).wallets;
-        final walletId = wallets.isNotEmpty ? wallets.first.id : '';
-        _showFabSheet(ctx, isDark, surfBg, walletId, startPasteSms: true);
-        setState(() => _pendingPasteSms = false);
+        _pasteSmsShortcut(AppStateScope.of(context).activeWalletId);
       });
     }
+  }
+
+  Future<void> _pasteSmsShortcut(String walletId) async {
+    final clip = await Clipboard.getData('text/plain');
+    final text = clip?.text?.trim() ?? '';
+    if (!mounted) return;
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Clipboard is empty — copy your bank SMS first.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    final parsed = await SMSParserService.parseSMSText(text);
+    if (!mounted) return;
+    if (parsed == null || !parsed.isTransaction) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not read a transaction from the clipboard text.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    await IntentConfirmSheet.show(
+      context,
+      intent: parsed.toParsedIntent(),
+      walletId: walletId,
+      onSave: (tx) {
+        setState(() => _transactions.insert(0, tx));
+        WalletService.txChangeSignal.value++;
+        WalletService.instance.ensureCategory(tx.category, tx.type.name);
+      },
+      onOpenFlow: () {},
+    );
   }
 
   Future<void> _loadProfile() async {
@@ -971,7 +997,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: bg,
-      floatingActionButton: _buildFab(context, isDark, surfBg, walletId),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: RefreshIndicator(
@@ -1104,6 +1129,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       AIAssistantWidget(
                         walletId: appState.activeWalletId,
                         onNavigate: widget.onTabSwitch,
+                        onTransactionSaved: (tx) {
+                          setState(() => _transactions.insert(0, tx));
+                          WalletService.txChangeSignal.value++;
+                          WalletService.instance.ensureCategory(tx.category, tx.type.name);
+                        },
                       ),
                       const SizedBox(height: 16),
 
@@ -1485,51 +1515,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // ── FAB ──────────────────────────────────────────────────────────────────────
-  Widget _buildFab(
-    BuildContext context,
-    bool isDark,
-    Color surfBg,
-    String walletId,
-  ) {
-    return FloatingActionButton(
-      onPressed: () => _showFabSheet(context, isDark, surfBg, walletId),
-      backgroundColor: AppColors.primary,
-      child: const Icon(Icons.add_rounded, color: Colors.white),
-    );
-  }
-
-  void _showFabSheet(
-    BuildContext context,
-    bool isDark,
-    Color surfBg,
-    String walletId, {
-    bool startPasteSms = false,
-  }) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DashFabSheet(
-        isDark: isDark,
-        surfBg: surfBg,
-        walletId: walletId,
-        startPasteSms: startPasteSms,
-        // IntentConfirmSheet now persists directly — onAiSave is UI-only.
-        onAiSave: (tx) {
-          setState(() => _transactions.insert(0, tx));
-          WalletService.txChangeSignal.value++;
-          WalletService.instance.ensureCategory(tx.category, tx.type.name);
-        },
-        onQuickSave: (tx) {
-          setState(() => _transactions.add(tx));
-          WalletService.txChangeSignal.value++;
-          WalletService.instance.ensureCategory(tx.category, tx.type.name);
-        },
       ),
     );
   }
@@ -4524,500 +4509,6 @@ class _PlanNudge {
     required this.walletLabel,
     this.onTap,
   });
-}
-
-// ── FAB tabbed sheet ──────────────────────────────────────────────────────────
-
-class _DashFabSheet extends StatefulWidget {
-  final bool isDark;
-  final Color surfBg;
-  final String walletId;
-  final void Function(TxModel tx) onAiSave;
-  final void Function(TxModel tx) onQuickSave;
-  final bool startPasteSms;
-
-  const _DashFabSheet({
-    required this.isDark,
-    required this.surfBg,
-    required this.walletId,
-    required this.onAiSave,
-    required this.onQuickSave,
-    this.startPasteSms = false,
-  });
-
-  @override
-  State<_DashFabSheet> createState() => _DashFabSheetState();
-}
-
-class _DashFabSheetState extends State<_DashFabSheet>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-
-    final mq          = MediaQuery.of(context);
-    final keyboardH   = mq.viewInsets.bottom;
-    final safeH       = mq.size.height - mq.padding.top - mq.padding.bottom;
-    // Overhead: top padding(12) + handle(4) + spacing(8) + tab bar(~48) + breathing room(8)
-    const sheetOverhead = 80.0;
-    final tabsH = (safeH - keyboardH - sheetOverhead).clamp(200.0, 380.0);
-
-    return Padding(
-      padding: EdgeInsets.only(bottom: keyboardH),
-      child: Container(
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            // Drag handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Tab bar
-            TabBar(
-              controller: _tabCtrl,
-              labelStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Nunito',
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Nunito',
-              ),
-              labelColor: AppColors.primary,
-              unselectedLabelColor: sub,
-              indicatorColor: AppColors.primary,
-              indicatorSize: TabBarIndicatorSize.label,
-              tabs: const [
-                Tab(text: '✨  AI Parse'),
-                Tab(text: '⚡  Quick Add'),
-              ],
-            ),
-            // Tab content — height shrinks when keyboard is visible
-            SizedBox(
-              height: tabsH,
-              child: TabBarView(
-                controller: _tabCtrl,
-                children: [
-                  // ── AI Parse tab ──────────────────────────────────────
-                  SparkBottomSheet(
-                    embedded: true,
-                    walletId: widget.walletId,
-                    onSave: (tx) {
-                      // _DashFabSheet was already dismissed by SparkBottomSheet
-                      // before IntentConfirmSheet was shown. IntentConfirmSheet
-                      // pops its own route in _save(). Just notify the parent.
-                      widget.onAiSave(tx);
-                    },
-                    onOpenFlow: () {
-                      // Same: _DashFabSheet is already gone and IntentConfirmSheet
-                      // pops itself before calling this. Nothing to pop here.
-                    },
-                  ),
-                  // ── Quick Add tab ─────────────────────────────────────
-                  _QuickAddTab(
-                    isDark: isDark,
-                    surfBg: widget.surfBg,
-                    walletId: widget.walletId,
-                    onSaved: (tx) {
-                      Navigator.pop(context);
-                      widget.onQuickSave(tx);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Quick Add tab content ─────────────────────────────────────────────────────
-
-class _QuickAddTab extends StatefulWidget {
-  final bool isDark;
-  final Color surfBg;
-  final String walletId;
-  final void Function(TxModel tx) onSaved;
-
-  const _QuickAddTab({
-    required this.isDark,
-    required this.surfBg,
-    required this.walletId,
-    required this.onSaved,
-  });
-
-  @override
-  State<_QuickAddTab> createState() => _QuickAddTabState();
-}
-
-class _QuickAddTabState extends State<_QuickAddTab> {
-  final _amtCtrl = TextEditingController();
-  final _titleCtrl = TextEditingController();
-  final _noteCtrl = TextEditingController();
-  TxType _txType = TxType.expense;
-  PayMode _payMode = PayMode.online;
-  String _cat = '';
-  String _autoDetectedCat = '';
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    CategoryDetector.ensureLoaded();
-  }
-
-  @override
-  void dispose() {
-    _amtCtrl.dispose();
-    _titleCtrl.dispose();
-    _noteCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final amt = double.tryParse(_amtCtrl.text.trim());
-    if (amt == null || amt <= 0) return;
-    HapticFeedback.lightImpact();
-    setState(() => _saving = true);
-    try {
-      final row = await WalletService.instance.addTransaction(
-        walletId: widget.walletId,
-        type: _txType.name,
-        amount: amt,
-        category: _cat.isEmpty ? 'Expense' : _cat,
-        title: _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim(),
-        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-        payMode: (_txType == TxType.expense || _txType == TxType.income)
-            ? _payMode.name
-            : null,
-      );
-      if (!mounted) return;
-      widget.onSaved(TxModel.fromRow(row));
-    } catch (e, stack) {
-      debugPrint('[Dashboard] quickAdd error: $e');
-      ErrorLogger.log(e, stackTrace: stack, action: 'quick_add_tx_sheet');
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = widget.isDark;
-    final surfBg = widget.surfBg;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Type selector
-          SizedBox(
-            height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [TxType.expense, TxType.income, TxType.lend, TxType.borrow]
-                  .map((t) => GestureDetector(
-                        onTap: () => setState(() => _txType = t),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _txType == t
-                                ? t.color.withValues(alpha: 0.15)
-                                : surfBg,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: _txType == t
-                                  ? t.color
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(t.emoji,
-                                  style: const TextStyle(fontSize: 12)),
-                              const SizedBox(width: 5),
-                              Text(
-                                t.label,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: 'Nunito',
-                                  color: _txType == t ? t.color : sub,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Amount input
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: surfBg,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  '₹',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'DM Mono',
-                    color: _txType.color,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: TextField(
-                    controller: _amtCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    autofocus: false,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'DM Mono',
-                      color: _txType.color,
-                    ),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      hintText: '0',
-                      hintStyle: TextStyle(
-                        color: _txType.color.withValues(alpha: 0.3),
-                        fontFamily: 'DM Mono',
-                      ),
-                    ),
-                  ),
-                ),
-                if (_txType == TxType.expense || _txType == TxType.income)
-                  GestureDetector(
-                    onTap: () => setState(() => _payMode =
-                        _payMode == PayMode.cash
-                            ? PayMode.online
-                            : PayMode.cash),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: _payMode == PayMode.cash
-                            ? AppColors.cash.withValues(alpha: 0.12)
-                            : AppColors.online.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        _payMode == PayMode.cash ? '💵 Cash' : '📲 Online',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                          color: _payMode == PayMode.cash
-                              ? AppColors.cash
-                              : AppColors.online,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Title
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: surfBg,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TextField(
-              controller: _titleCtrl,
-              style: TextStyle(
-                  fontSize: 13, fontFamily: 'Nunito', color: tc),
-              onChanged: (val) {
-                final detected = CategoryDetector.detect(val,
-                    isIncome: _txType == TxType.income);
-                if (detected != null) {
-                  setState(() {
-                    _cat = detected;
-                    _autoDetectedCat = detected;
-                  });
-                }
-              },
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Title',
-                prefixIcon:
-                    Icon(Icons.label_outline_rounded, size: 16),
-                prefixIconConstraints:
-                    BoxConstraints(minWidth: 28, minHeight: 0),
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Note
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: surfBg,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: TextField(
-              controller: _noteCtrl,
-              style: TextStyle(
-                  fontSize: 13, fontFamily: 'Nunito', color: tc),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: 'Add a note?',
-                prefixIcon: Icon(Icons.notes_rounded, size: 16),
-                prefixIconConstraints:
-                    BoxConstraints(minWidth: 28, minHeight: 0),
-                contentPadding: EdgeInsets.symmetric(vertical: 10),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Category chips
-          if (_txType == TxType.expense || _txType == TxType.income)
-            SizedBox(
-              height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: () {
-                  final all = WalletService.instance.categoriesFor(
-                      _txType == TxType.income ? 'income' : 'expense');
-                  return [
-                    if (_autoDetectedCat.isNotEmpty &&
-                        all.contains(_autoDetectedCat))
-                      _autoDetectedCat,
-                    ...all.where((c) => c != _autoDetectedCat),
-                  ];
-                }()
-                    .map((c) => GestureDetector(
-                          onTap: () {
-                            setState(() => _cat = c);
-                            final title = _titleCtrl.text.trim();
-                            if (title.isNotEmpty && c != _autoDetectedCat) {
-                              CategoryDetector.learn(title, c);
-                              setState(() => _autoDetectedCat = c);
-                            }
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 100),
-                            margin: const EdgeInsets.only(right: 7),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _cat == c
-                                  ? AppColors.primary
-                                      .withValues(alpha: 0.12)
-                                  : surfBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: _cat == c
-                                    ? AppColors.primary
-                                    : Colors.transparent,
-                              ),
-                            ),
-                            child: Text(
-                              c,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Nunito',
-                                color: _cat == c ? AppColors.primary : sub,
-                              ),
-                            ),
-                          ),
-                        ))
-                    .toList(),
-              ),
-            ),
-
-          const SizedBox(height: 16),
-
-          // Save button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: _txType.color,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-              child: _saving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2),
-                    )
-                  : Text(
-                      'Save ${_txType.label}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Nunito',
-                        color: Colors.white,
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _SettingItem {
