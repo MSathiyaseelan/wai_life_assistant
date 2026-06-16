@@ -26,6 +26,7 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/create_list_sheet.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -41,6 +42,9 @@ class PantryScreen extends StatefulWidget {
 
 class _PantryScreenState extends State<PantryScreen>
     with SingleTickerProviderStateMixin {
+  // Mirrors AppStateNotifier._isPlaceholder — prevents loading with fake wallet ID on first launch.
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   // ── State ──────────────────────────────────────────────────────────────────
   DateTime _selectedDate = DateTime.now();
   late TabController _sectionTab; // 0=MealMap, 1=Basket, 2=RecipeBox
@@ -353,7 +357,7 @@ class _PantryScreenState extends State<PantryScreen>
 
   Future<void> _loadRecipes() async {
     if (!mounted) return;
-    if (widget.activeWalletId.isEmpty) {
+    if (_isPlaceholder(widget.activeWalletId)) {
       setState(() => _recipesLoading = false);
       return;
     }
@@ -365,16 +369,17 @@ class _PantryScreenState extends State<PantryScreen>
         _recipes = rows.map(RecipeModel.fromMap).toList();
         _recipesLoading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
       setState(() => _recipesLoading = false);
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_load_recipes');
       _showLoadError();
     }
   }
 
   Future<void> _loadMeals() async {
     if (!mounted) return;
-    if (widget.activeWalletId.isEmpty) {
+    if (_isPlaceholder(widget.activeWalletId)) {
       setState(() => _mealsLoading = false);
       return;
     }
@@ -386,15 +391,16 @@ class _PantryScreenState extends State<PantryScreen>
         _meals = rows.map(MealEntry.fromMap).toList();
         _mealsLoading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
       setState(() => _mealsLoading = false);
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_load_meals');
       _showLoadError();
     }
   }
 
   Future<void> _loadFoodPrefs() async {
-    if (!mounted || widget.activeWalletId.isEmpty) return;
+    if (!mounted || _isPlaceholder(widget.activeWalletId)) return;
     try {
       final rows = await PantryService.instance.fetchFoodPrefs(widget.activeWalletId);
       if (!mounted) return;
@@ -406,7 +412,7 @@ class _PantryScreenState extends State<PantryScreen>
 
   Future<void> _loadGroceries() async {
     if (!mounted) return;
-    if (widget.activeWalletId.isEmpty) {
+    if (_isPlaceholder(widget.activeWalletId)) {
       setState(() => _groceriesLoading = false);
       return;
     }
@@ -418,9 +424,10 @@ class _PantryScreenState extends State<PantryScreen>
         _groceries = rows.map(GroceryItem.fromMap).toList();
         _groceriesLoading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
       setState(() => _groceriesLoading = false);
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_load_groceries');
       _showLoadError();
     }
   }
