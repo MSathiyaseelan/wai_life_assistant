@@ -855,10 +855,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
-    // Active medications — show as daily nudge
+    // Active medications within their course window
     for (final entry in _healthMedsMap.entries) {
       final wLabel = _walletLabel(entry.key);
-      final activeMeds = entry.value.where((m) => m['is_active'] == true).toList();
+      final activeMeds = entry.value.where((m) {
+        if (m['is_active'] != true) return false;
+        final rawEnd = m['end_date'] as String?;
+        if (rawEnd == null) return true;
+        final endDate = DateTime.tryParse(rawEnd);
+        if (endDate == null) return true;
+        final endDay = DateTime(endDate.year, endDate.month, endDate.day);
+        return !endDay.isBefore(today);
+      }).toList();
       if (activeMeds.isNotEmpty) {
         list.add(_PlanNudge(
           emoji: '💊',

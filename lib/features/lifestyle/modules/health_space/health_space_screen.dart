@@ -666,8 +666,50 @@ class _MedicationsTab extends StatelessWidget {
     final notesCtrl = TextEditingController(text: existing?.notes);
     final startRef = <DateTime>[existing?.startDate ?? DateTime.now()];
     final refillRef = <DateTime?>[existing?.refillDate];
+    final endRef = <DateTime?>[existing?.endDate];
     final scheduleTimesRef = <List<String>>[List.from(existing?.scheduleTimes ?? [])];
     final mealTimingRef = <String?>[existing?.mealTiming ?? ''];
+
+    // Duration options: (label, days, months) — 0/0 = ongoing
+    final durations = <(String, int, int)>[
+      ('3 Days', 3, 0), ('5 Days', 5, 0), ('7 Days', 7, 0), ('10 Days', 10, 0),
+      ('14 Days', 14, 0), ('1 Month', 0, 1), ('3 Months', 0, 3), ('6 Months', 0, 6),
+      ('Ongoing', 0, 0),
+    ];
+
+    DateTime? computeEnd(DateTime start, String label) {
+      if (label == 'Ongoing') return null;
+      for (final (lbl, days, months) in durations) {
+        if (lbl == label) {
+          return months > 0
+              ? DateTime(start.year, start.month + months, start.day)
+              : start.add(Duration(days: days));
+        }
+      }
+      return null;
+    }
+
+    // Pre-select chip for existing med's end_date
+    String? initLabel;
+    if (existing != null) {
+      if (existing.endDate == null) {
+        initLabel = 'Ongoing';
+      } else {
+        final s = existing.startDate;
+        final e = existing.endDate!;
+        for (final (lbl, days, months) in durations) {
+          if (lbl == 'Ongoing') continue;
+          final exp = months > 0
+              ? DateTime(s.year, s.month + months, s.day)
+              : s.add(Duration(days: days));
+          if (exp.year == e.year && exp.month == e.month && exp.day == e.day) {
+            initLabel = lbl;
+            break;
+          }
+        }
+      }
+    }
+    final durationLabel = <String?>[initLabel];
 
     const scheduleOptions = [
       ('🌅', 'Morning'), ('☀️', 'Afternoon'), ('🌆', 'Evening'), ('🌙', 'Night'),
@@ -733,6 +775,45 @@ class _MedicationsTab extends StatelessWidget {
             mealTimingRef[0] = mealTimingRef[0] == label ? null : label;
             ss(() {});
           }),
+          const LifeLabel(text: 'DURATION'),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final (lbl, _, _) in durations)
+              GestureDetector(
+                onTap: () {
+                  durationLabel[0] = lbl;
+                  endRef[0] = computeEnd(startRef[0], lbl);
+                  ss(() {});
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: durationLabel[0] == lbl
+                        ? _healthColor.withValues(alpha: 0.15)
+                        : surfBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: durationLabel[0] == lbl ? _healthColor : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(lbl, style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito',
+                    color: durationLabel[0] == lbl ? _healthColor : sub,
+                  )),
+                ),
+              ),
+          ]),
+          if (endRef[0] != null) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.flag_rounded, size: 13, color: _healthColor),
+              const SizedBox(width: 4),
+              Text(
+                'Until ${_fmtDate(endRef[0]!)}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: _healthColor),
+              ),
+            ]),
+          ],
           const SizedBox(height: 8),
           LifeInput(controller: notesCtrl, hint: 'Notes (optional)', maxLines: 2),
           const SizedBox(height: 8),
@@ -750,12 +831,13 @@ class _MedicationsTab extends StatelessWidget {
             final mealTiming = mealTimingRef[0]?.isEmpty == true ? null : mealTimingRef[0];
             final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
             final start = startRef[0];
+            final end = endRef[0];
             final refill = refillRef[0];
             Navigator.pop(ctx2);
             () async {
               try {
                 if (existing == null) {
-                  final data = Medication(id: '', walletId: walletId, memberId: memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, startDate: start, refillDate: refill);
+                  final data = Medication(id: '', walletId: walletId, memberId: memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, startDate: start, endDate: end, refillDate: refill);
                   final row = await HealthService.instance.addMedication(data.toJson());
                   onAdd(Medication.fromJson(row));
                 } else {
@@ -765,10 +847,11 @@ class _MedicationsTab extends StatelessWidget {
                     'meal_timing': mealTiming,
                     'notes': notes,
                     'start_date': start.toIso8601String().substring(0, 10),
+                    'end_date': end?.toIso8601String().substring(0, 10),
                     if (refill != null) 'refill_date': refill.toIso8601String().substring(0, 10),
                   };
                   await HealthService.instance.updateMedication(existing.id, updates);
-                  onUpdate(Medication(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, isActive: existing.isActive, startDate: start, refillDate: refill));
+                  onUpdate(Medication(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, isActive: existing.isActive, startDate: start, endDate: end, refillDate: refill));
                 }
               } catch (e) { debugPrint('[Health] saveMed: $e'); }
             }();
@@ -892,16 +975,34 @@ class _MedCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.03),
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16))),
-            child: Row(children: [
-              Icon(Icons.calendar_today_rounded, size: 12, color: sub),
-              const SizedBox(width: 4),
-              Text('Since ${_fmtDate(m.startDate)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-              if (m.refillDate != null) ...[
-                const Spacer(),
-                const Icon(Icons.refresh_rounded, size: 12, color: Colors.orange),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.calendar_today_rounded, size: 12, color: sub),
                 const SizedBox(width: 4),
-                Text('Refill ${_fmtDate(m.refillDate!)}',
-                  style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.orange, fontWeight: FontWeight.w700)),
+                Text('Since ${_fmtDate(m.startDate)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                if (m.endDate != null) ...[
+                  const SizedBox(width: 6),
+                  Text('·', style: TextStyle(fontSize: 11, color: sub)),
+                  const SizedBox(width: 6),
+                  Icon(Icons.flag_rounded, size: 12, color: accent),
+                  const SizedBox(width: 4),
+                  Text('Until ${_fmtDate(m.endDate!)}',
+                    style: TextStyle(fontSize: 11, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: accent)),
+                ] else ...[
+                  const SizedBox(width: 6),
+                  Text('·', style: TextStyle(fontSize: 11, color: sub)),
+                  const SizedBox(width: 6),
+                  Text('Ongoing', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                ],
+              ]),
+              if (m.refillDate != null) ...[
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Icon(Icons.refresh_rounded, size: 12, color: Colors.orange),
+                  const SizedBox(width: 4),
+                  Text('Refill ${_fmtDate(m.refillDate!)}',
+                    style: const TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.orange, fontWeight: FontWeight.w700)),
+                ]),
               ],
             ]),
           ),

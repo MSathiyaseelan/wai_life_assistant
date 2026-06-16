@@ -99,21 +99,26 @@ class _OtpScreenState extends State<OtpScreen> {
       }
       if (!mounted) return;
       // If a profile exists for this UID, skip setup entirely.
-      // In bypass mode, cache-clear produces a new anonymous UID, so the profile
-      // won't be found by UID — bootstrapNewUser then hits the phone unique
-      // constraint. We catch that, then linkProfileByPhone migrates the existing
-      // profile (and all its data) to the new UID.
+      // In bypass mode, anonymous sign-in creates a new UID each time, so the
+      // profile won't be found by UID. bootstrapNewUser or linkProfileByPhone
+      // may fail due to FK constraints while SMS auth is incomplete — that's
+      // expected; we still navigate home since authentication succeeded.
       final existing = await ProfileService.instance.fetchProfile();
       if (existing == null) {
         try {
           await ProfileService.instance.bootstrapNewUser();
         } catch (e) {
-          // Duplicate phone — another UID already owns this profile (bypass mode).
-          // linkProfileByPhone below will migrate it to the current UID.
-          debugPrint('[OTP] bootstrapNewUser skipped — profile exists for this phone: $e');
+          debugPrint('[OTP] bootstrapNewUser skipped: $e');
         }
-        final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
-        if (migrated) debugPrint('[OTP] Profile migrated to new UID for ${widget.phone}');
+        try {
+          final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
+          if (migrated) debugPrint('[OTP] Profile migrated to new UID for ${widget.phone}');
+        } catch (e) {
+          // Profile migration can fail in bypass mode (anonymous UID has no phone).
+          // Auth succeeded, so navigate home anyway — profile will be set up via
+          // onboarding flow once proper SMS auth is in place.
+          debugPrint('[OTP] linkProfileByPhone skipped: $e');
+        }
       } else {
         debugPrint('[OTP] Profile already exists for this UID, skipping setup');
       }
@@ -127,10 +132,9 @@ class _OtpScreenState extends State<OtpScreen> {
       if (!mounted) return;
       setState(() => _error = e.message);
     } catch (e) {
+      debugPrint('[OTP] verification error: $e');
       if (!mounted) return;
-      setState(() => _error = kBypassOtp
-          ? 'Bypass failed: $e'
-          : 'Invalid OTP. Please try again.');
+      setState(() => _error = 'Verification failed. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

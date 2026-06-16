@@ -166,8 +166,25 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  // Called by any tab's wallet switcher pill — switches wallet AND persists scope
+  // so that _applyScope restores the correct wallet when returning to any tab.
+  void _onWalletChange(String walletId) {
+    _appState.switchWallet(walletId);
+    final wallets = _appState.wallets;
+    if (wallets.isEmpty) return;
+    final wallet = wallets.firstWhere((w) => w.id == walletId, orElse: () => wallets.first);
+    final scope = wallet.isPersonal ? 'personal' : 'family';
+    final prefs = AppPrefs.instance;
+    if (!prefs.ready) return;
+    // Persist to all tab scopes so switching tabs doesn't reset the selection.
+    prefs.walletScope = scope;
+    prefs.pantryScope = scope;
+    prefs.hubScope    = scope;
+    prefs.planItScope = scope;
+  }
+
   // Tab index → which AppPrefs scope key to read.
-  // 1 = Wallet, 2 = Pantry, 3 = PlanIt (Dashboard and LifeStyle have no scope pref).
+  // 1 = Wallet, 2 = Pantry, 3 = MyHub, 4 = PlanIt.
   void _applyScope(int tabIndex) {
     final prefs = AppPrefs.instance;
     if (!prefs.ready) return;
@@ -217,23 +234,23 @@ class _AppShellState extends State<AppShell> {
             ),
             WalletScreen(
               activeWalletId: walletId,
-              onWalletChange: _appState.switchWallet,
+              onWalletChange: _onWalletChange,
             ),
             PantryScreen(
               activeWalletId: walletId,
-              onWalletChange: _appState.switchWallet,
+              onWalletChange: _onWalletChange,
             ),
             MyHubScreen(
               activeWalletId: walletId,
-              onWalletChange: _appState.switchWallet,
+              onWalletChange: _onWalletChange,
             ),
             PlanItScreen(
               activeWalletId: walletId,
-              onWalletChange: _appState.switchWallet,
+              onWalletChange: _onWalletChange,
             ),
             LifeStyleScreen(
               activeWalletId: walletId,
-              onWalletChange: _appState.switchWallet,
+              onWalletChange: _onWalletChange,
             ),
           ];
 

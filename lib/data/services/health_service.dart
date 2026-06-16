@@ -70,6 +70,16 @@ class HealthService {
   // ── Medications ───────────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchMedications(String walletId) async {
+    // Auto-deactivate any med whose course has ended (end_date < today)
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    await _db
+        .from('health_medications')
+        .update({'is_active': false})
+        .eq('wallet_id', walletId)
+        .eq('is_active', true)
+        .not('end_date', 'is', null)
+        .lt('end_date', today);
+
     final rows = await _db
         .from('health_medications')
         .select()
