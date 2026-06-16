@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 class WardrobeService {
   WardrobeService._();
@@ -40,8 +41,9 @@ class WardrobeService {
         final filePath = segments.sublist(bucketIdx + 1).join('/');
         await _db.storage.from(_bucket).remove([filePath]);
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Wardrobe] deletePhoto error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'delete_wardrobe_photo');
     }
   }
 

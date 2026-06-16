@@ -14,6 +14,7 @@ import 'package:wai_life_assistant/data/services/wish_service.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
@@ -178,8 +179,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (prefs.pantryScope != ps) prefs.pantryScope = ps;
         if (prefs.planItScope != ls) prefs.planItScope = ls;
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] _loadProfile error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_profile');
     }
   }
 
@@ -231,8 +233,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() => _userPhotoUrl = url);
         ss(() {});
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] photo upload error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'upload_profile_photo');
     }
   }
 
@@ -286,8 +289,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       setState(() {
         _myListMap[walletId] = rows.map(GroceryItem.fromMap).toList();
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] _loadMyList error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_my_list');
     }
   }
 
@@ -323,8 +327,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _transactions.removeWhere((t) => t.walletId == walletId);
         _transactions.addAll(rows.map(TxModel.fromRow));
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] fetchTransactions error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'fetch_transactions');
     }
   }
 
@@ -333,8 +338,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final groups = await WalletService.instance.fetchPinnedSplitGroups();
       pinnedSplitGroupsNotifier.value = groups;
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] fetchPinnedSplitGroups failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'fetch_pinned_split_groups');
     }
   }
 
@@ -443,8 +449,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .map(FunctionModel.fromJson)
             .toList();
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] _loadPlanItData error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_planit_data');
     }
   }
 
@@ -463,8 +470,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _healthMedsMap[walletId] = List<Map<String, dynamic>>.from(results[1] as List);
         _healthVaccsMap[walletId] = List<Map<String, dynamic>>.from(results[2] as List);
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] _loadHealthData error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_health_data');
     }
   }
 
@@ -1939,8 +1947,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         setState(() => _transactions.add(TxModel.fromRow(row)));
                         WalletService.txChangeSignal.value++;
                         WalletService.instance.ensureCategory(cat.isEmpty ? 'Expense' : cat, txType.name);
-                      } catch (e) {
+                      } catch (e, stack) {
                         debugPrint('[Dashboard] quickAdd error: $e');
+                        ErrorLogger.log(e, stackTrace: stack, action: 'quick_add_transaction');
                       }
                     },
                     style: FilledButton.styleFrom(
@@ -2614,10 +2623,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               try {
                                                 await ProfileService.instance
                                                     .updateProfile(name: name);
-                                              } catch (e) {
-                                                debugPrint(
-                                                  '[Dashboard] save: $e',
-                                                );
+                                              } catch (e, stack) {
+                                                debugPrint('[Dashboard] save: $e');
+                                                ErrorLogger.log(e, stackTrace: stack, action: 'save_profile_name');
                                               }
                                             }
                                             ss(() => profileExpanded = false);
@@ -4718,8 +4726,9 @@ class _QuickAddTabState extends State<_QuickAddTab> {
       );
       if (!mounted) return;
       widget.onSaved(TxModel.fromRow(row));
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Dashboard] quickAdd error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'quick_add_tx_sheet');
       if (mounted) setState(() => _saving = false);
     }
   }

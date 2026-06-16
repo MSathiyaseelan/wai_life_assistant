@@ -73,7 +73,7 @@ class ActionExecutor {
           category: _str(d, 'category', fallback: 'other'),
           title: d['title'] as String?,
           note: d['note'] as String?,
-          payMode: _str(d, 'pay_mode', fallback: 'cash'),
+          payMode: _payMode(d, fallback: 'cash'),
         );
 
       case ActionType.addIncome:
@@ -84,7 +84,7 @@ class ActionExecutor {
           category: _str(d, 'category', fallback: 'salary'),
           title: d['title'] as String?,
           note: d['note'] as String?,
-          payMode: _str(d, 'pay_mode', fallback: 'bank'),
+          payMode: _payMode(d, fallback: 'online'),
         );
 
       case ActionType.addFunctionUpcoming:
@@ -211,6 +211,12 @@ class ActionExecutor {
 
   String _str(Map<String, dynamic> d, String key, {String fallback = ''}) =>
       (d[key] as String? ?? fallback).trim();
+
+  // DB only accepts 'cash' or 'online' — normalize any AI value (upi/card/bank/other → online).
+  String _payMode(Map<String, dynamic> d, {String fallback = 'cash'}) {
+    final raw = _str(d, 'pay_mode', fallback: fallback).toLowerCase();
+    return raw == 'cash' ? 'cash' : 'online';
+  }
 
   double _num(Map<String, dynamic> d, String key, {double fallback = 0}) =>
       (d[key] as num?)?.toDouble() ?? fallback;

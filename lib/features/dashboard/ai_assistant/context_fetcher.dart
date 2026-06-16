@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
@@ -190,7 +191,8 @@ class ContextFetcher {
         if (topCats.isNotEmpty) 'top_expense_categories': topCats,
         if (recent.isNotEmpty) 'recent_transactions': recent.join(' | '),
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_wallet');
       debugPrint('[ContextFetcher] _fetchWallet error: $e');
       return {};
     }
@@ -221,7 +223,8 @@ class ContextFetcher {
             .order('logged_at', ascending: false)
             .limit(5);
         mealRows = List<Map<String, dynamic>>.from(raw);
-      } catch (e) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_meal_entries');
         debugPrint('[ContextFetcher] meal_entries error: $e');
       }
 
@@ -234,7 +237,8 @@ class ContextFetcher {
         'shopping_count': pending.length,
         if (meals.isNotEmpty) 'recent_meals': meals.join(', '),
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_pantry');
       debugPrint('[ContextFetcher] _fetchPantry error: $e');
       return {};
     }
@@ -266,7 +270,8 @@ class ContextFetcher {
             .order('due_date')
             .limit(5);
         billRows = List<Map<String, dynamic>>.from(raw);
-      } catch (e) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_bills');
         debugPrint('[ContextFetcher] bills error: $e');
       }
 
@@ -280,7 +285,8 @@ class ContextFetcher {
             .order('due_date')
             .limit(5);
         reminderRows = List<Map<String, dynamic>>.from(raw);
-      } catch (e) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_reminders');
         debugPrint('[ContextFetcher] reminders error: $e');
       }
 
@@ -289,7 +295,8 @@ class ContextFetcher {
       try {
         final raw = await SpecialDayService.instance.fetchDays(walletId);
         specialDayRows = raw;
-      } catch (e) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_special_days');
         debugPrint('[ContextFetcher] special_days error: $e');
       }
 
@@ -319,7 +326,8 @@ class ContextFetcher {
         if (reminders.isNotEmpty)   'reminders':      reminders.join(', '),
         if (specialDays.isNotEmpty) 'special_days':   specialDays.join(' | '),
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_planit');
       debugPrint('[ContextFetcher] _fetchPlanit error: $e');
       return {};
     }
@@ -363,7 +371,8 @@ class ContextFetcher {
         if (upcomingList.isNotEmpty) 'upcoming_functions': upcomingList.join(', '),
         if (myList.isNotEmpty) 'my_functions': myList.join(', '),
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_functions');
       debugPrint('[ContextFetcher] _fetchFunctions error: $e');
       return {};
     }
@@ -386,7 +395,8 @@ class ContextFetcher {
         if (members.isNotEmpty) 'members': members.join(', '),
         'count': members.length,
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_family');
       debugPrint('[ContextFetcher] _fetchFamily error: $e');
       return {};
     }
@@ -499,7 +509,8 @@ class ContextFetcher {
         if (doctors.isNotEmpty)   'doctors':               doctors.join(', '),
         if (insurance.isNotEmpty) 'insurance_policies':    insurance.join(' | '),
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_health');
       debugPrint('[ContextFetcher] _fetchHealth error: $e');
       return {};
     }
@@ -545,7 +556,8 @@ class ContextFetcher {
         'stored_items': entries.join(' | '),
         'item_count':   items.length,
       };
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_myhub');
       debugPrint('[ContextFetcher] _fetchMyHub error: $e');
       return {};
     }

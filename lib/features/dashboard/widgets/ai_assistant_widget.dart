@@ -7,6 +7,7 @@ import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classi
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/action_executor.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AIAssistantWidget
@@ -184,7 +185,8 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         _loading = false;
       });
       _animCtrl.forward(from: 0);
-    } catch (e) {
+    } catch (e, stack) {
+      await ErrorLogger.log(e, stackTrace: stack, action: 'wai_ask');
       if (!mounted) return;
       setState(() {
         _response = const AssistantResponse(
@@ -213,7 +215,8 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         _actionDone = true;
         _actionSuccessMsg = '${action.icon} ${action.label} — done!';
       });
-    } catch (e) {
+    } catch (e, stack) {
+      await ErrorLogger.log(e, stackTrace: stack, action: 'wai_action_execute');
       debugPrint('[WAI Action] execute failed: $e');
       if (!mounted) return;
       setState(() {

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/create_list_sheet.dart';
 
 class MyListSection extends StatelessWidget {
@@ -587,7 +588,8 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
         widget.onAdded();
         Navigator.pop(context);
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'my_list_add_item');
       debugPrint('[MyList] save error: $e');
       if (mounted) {
         setState(() => _saving = false);

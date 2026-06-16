@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/gemini_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_context_builder.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DashboardAiBar
@@ -96,7 +97,8 @@ class _DashboardAiBarState extends State<DashboardAiBar>
         _loading = false;
       });
       _animCtrl.forward(from: 0);
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'dashboard_ai_ask');
       if (!mounted) return;
       setState(() {
         _answer = 'Sorry, I couldn\'t fetch an answer right now. Try again.';

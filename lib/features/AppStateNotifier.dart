@@ -4,6 +4,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/data/services/app_config_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP STATE — single source of truth for active wallet across all tabs
@@ -92,7 +93,8 @@ class AppStateNotifier extends ChangeNotifier {
           }
         }
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'app_state_init', severity: ErrorSeverity.critical);
       debugPrint('[AppState] init error: $e');
       if (_wallets.isEmpty) {
         _wallets = [personalWallet];

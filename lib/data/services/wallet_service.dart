@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 /// Thin service layer between the wallet UI and Supabase.
 /// All methods throw [PostgrestException] on failure — callers should catch.
@@ -91,8 +92,9 @@ class WalletService {
           .where((r) => r['tx_type'] == 'transfer')
           .map((r) => r['name'] as String)
           .toList();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[WalletService] loadCategories error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_tx_categories');
     }
   }
 
@@ -114,8 +116,9 @@ class WalletService {
               ? _customTransfer
               : _customExpense;
       if (!cache.contains(cat)) cache.add(cat);
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[WalletService] ensureCategory error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'ensure_tx_category', extra: {'name': name});
     }
   }
 

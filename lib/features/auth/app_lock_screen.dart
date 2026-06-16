@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,7 +113,8 @@ class _AppLockGuardState extends State<AppLockGuard>
         setState(() => _locked = false);
       }
       // success == false → user cancelled; keep lock screen for retry.
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'biometric_auth');
       debugPrint('[AppLock] biometric error: $e');
       // Don't auto-switch to PIN — keep biometric screen visible so the user
       // can retry or tap "Use PIN instead" themselves.

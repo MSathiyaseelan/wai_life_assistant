@@ -3,6 +3,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../widgets/life_widgets.dart';
 
 const _locatorColor = Color(0xFF6C63FF);
@@ -48,7 +49,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
           ..clear()
           ..addAll(results[1].map(StoredItem.fromJson));
       });
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_load');
       debugPrint('[ItemLocator] load error: $e');
     }
   }
@@ -260,7 +262,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
             () async {
               try {
                 await ItemLocatorService.instance.deleteContainer(cid);
-              } catch (e) {
+              } catch (e, stack) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_delete_container');
                 debugPrint('[ItemLocator] deleteContainer error: $e');
               }
             }();
@@ -536,7 +539,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
           ss(() { selType = parsed!['type'] as StorageType; });
         }
         ss(() { aiParsing = false; modeIdx = 1; });
-      } catch (e) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_ai_parse_container');
         ss(() { aiError = 'Error: $e'; aiParsing = false; });
       }
     }
@@ -752,7 +756,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                     try {
                       final row = await ItemLocatorService.instance.addContainer(data.toJson());
                       if (mounted) setState(() => _containers.add(StorageContainer.fromJson(row)));
-                    } catch (e) {
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_container');
                       debugPrint('[ItemLocator] addContainer error: $e');
                     }
                   }();
@@ -897,7 +902,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                   () async {
                     try {
                       await ItemLocatorService.instance.updateContainer(c.id, c.toJson());
-                    } catch (e) {
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_update_container');
                       debugPrint('[ItemLocator] updateContainer error: $e');
                     }
                   }();
@@ -1081,13 +1087,15 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
               setState(() => _containers.add(created));
               newCid = created.id;
               aiContainerNote = 'Created container "${created.name}"';
-            } catch (e) {
+            } catch (e, stack) {
+              ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_ai_create_container');
               debugPrint('[ItemLocator] auto-create container error: $e');
             }
           }
         }
         ss(() { selCid = newCid; aiParsing = false; modeIdx = 1; });
-      } catch (e) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_ai_parse_item');
         ss(() { aiError = 'Error: $e'; aiParsing = false; });
       }
     }
@@ -1501,7 +1509,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                     () async {
                       try {
                         await ItemLocatorService.instance.updateItem(editing.id, editing.toJson());
-                      } catch (e) {
+                      } catch (e, stack) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_update_item');
                         debugPrint('[ItemLocator] updateItem error: $e');
                       }
                     }();
@@ -1530,7 +1539,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                             setState(() => _items.insert(0, item));
                           }
                         }
-                      } catch (e) {
+                      } catch (e, stack) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_item');
                         debugPrint('[ItemLocator] addItem error: $e');
                       }
                     }();

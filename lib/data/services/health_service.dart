@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/health/health_models.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 class HealthService {
   HealthService._();
@@ -33,8 +34,9 @@ class HealthService {
       if (idx >= 0 && idx < segs.length - 1) {
         await _db.storage.from(_bucket).remove([segs.sublist(idx + 1).join('/')]);
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Health] deleteDoc error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'delete_health_doc');
     }
   }
 

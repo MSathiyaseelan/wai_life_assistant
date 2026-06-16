@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'auth_coordinator.dart';
 
 // TODO: Set to false once OTP delivery is working in production
@@ -131,7 +132,8 @@ class _OtpScreenState extends State<OtpScreen> {
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'otp_verify', severity: ErrorSeverity.critical);
       debugPrint('[OTP] verification error: $e');
       if (!mounted) return;
       setState(() => _error = 'Verification failed. Please try again.');

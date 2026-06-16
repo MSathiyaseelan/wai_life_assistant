@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/invite_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
@@ -150,7 +151,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         content: Text(msg),
         backgroundColor: AppColors.primary,
       ));
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'send_family_invite');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Failed to send invite: $e'),
@@ -174,7 +176,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         'Use invite code: $token\n'
         '(Code expires in 7 days)',
       );
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'share_invite_link');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Failed to generate invite link: $e'),
@@ -208,7 +211,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           backgroundColor: AppColors.expense,
         ));
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'join_family_by_code');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Failed to join: $e'),

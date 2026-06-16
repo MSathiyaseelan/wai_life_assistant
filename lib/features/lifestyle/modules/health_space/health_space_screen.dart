@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/health/health_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../widgets/life_widgets.dart';
 
 const _healthColor = Color(0xFF00BFA5);
@@ -121,7 +122,8 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
         _insurance = (results[7] as List).map((r) => InsurancePolicy.fromJson(r as Map<String, dynamic>)).toList();
         _loading = false;
       });
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'health_load_data');
       debugPrint('[HealthSpace] loadData error: $e');
       if (mounted) setState(() => _loading = false);
     }
@@ -589,7 +591,8 @@ class _ProfileTab extends StatelessWidget {
               );
               await HealthService.instance.upsertProfile(p);
               onSaved();
-            } catch (e) {
+            } catch (e, stack) {
+              ErrorLogger.log(e, stackTrace: stack, action: 'health_upsert_profile');
               debugPrint('[Health] upsertProfile: $e');
             }
           }();
@@ -639,7 +642,7 @@ class _MedicationsTab extends StatelessWidget {
                     try {
                       await HealthService.instance.updateMedication(m.id, {'is_active': false});
                       onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, scheduleTimes: m.scheduleTimes, mealTiming: m.mealTiming, notes: m.notes, isActive: false, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
-                    } catch (e) { debugPrint('[Health] toggleMed: $e'); }
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_deactivate_med'); debugPrint('[Health] toggleMed: $e'); }
                   })),
               ],
               if (past.isNotEmpty) ...[
@@ -652,7 +655,7 @@ class _MedicationsTab extends StatelessWidget {
                     try {
                       await HealthService.instance.updateMedication(m.id, {'is_active': true});
                       onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, scheduleTimes: m.scheduleTimes, mealTiming: m.mealTiming, notes: m.notes, isActive: true, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
-                    } catch (e) { debugPrint('[Health] toggleMed: $e'); }
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_activate_med'); debugPrint('[Health] toggleMed: $e'); }
                   })),
               ],
             ]),
@@ -853,7 +856,7 @@ class _MedicationsTab extends StatelessWidget {
                   await HealthService.instance.updateMedication(existing.id, updates);
                   onUpdate(Medication(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, isActive: existing.isActive, startDate: start, endDate: end, refillDate: refill));
                 }
-              } catch (e) { debugPrint('[Health] saveMed: $e'); }
+              } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_save_med'); debugPrint('[Health] saveMed: $e'); }
             }();
           }),
         ]),
@@ -1046,7 +1049,7 @@ class _DoctorsTab extends StatelessWidget {
                   direction: DismissDirection.endToStart,
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   onDismissed: (_) async {
-                    try { await HealthService.instance.deleteDoctor(d.id); onDelete(d.id); } catch (e) { debugPrint('[Health] deleteDoctor: $e'); }
+                    try { await HealthService.instance.deleteDoctor(d.id); onDelete(d.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_doctor'); debugPrint('[Health] deleteDoctor: $e'); }
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),

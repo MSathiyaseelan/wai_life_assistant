@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/notification_service.dart';
 import 'package:wai_life_assistant/data/services/invite_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/notification/notification_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,7 +248,8 @@ class _InviteTileState extends State<_InviteTile> {
       } else {
         _showError('Invite expired or invalid.');
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'accept_family_invite');
       if (mounted) _showError('Failed to accept invite.');
     } finally {
       if (mounted) setState(() => _loading = false);
