@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/action_executor.dart';
+import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
+import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
+import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,11 +24,13 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 class AIAssistantWidget extends StatefulWidget {
   final String walletId;
   final void Function(int tabIndex)? onNavigate;
+  final void Function(TxModel tx)? onTransactionSaved;
 
   const AIAssistantWidget({
     super.key,
     required this.walletId,
     this.onNavigate,
+    this.onTransactionSaved,
   });
 
   @override
@@ -47,6 +54,13 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   List<ContactEntry> _suggestions = [];
   bool _showSuggestions = false;
   int? _mentionStart;
+
+  // Speech-to-text
+  final SpeechToText _speech = SpeechToText();
+  bool _isListening = false;
+
+  // Paste SMS loading
+  bool _smsLoading = false;
 
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
@@ -241,6 +255,87 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     _animCtrl.reverse();
   }
 
+  // ── Mic / Speech ───────────────────────────────────────────────────────────
+
+  Future<void> _startListening() async {
+    final available = await _speech.initialize(
+      onStatus: (s) {
+        if (s == 'done' || s == 'notListening') _onSpeechDone();
+      },
+      onError: (e) {
+        setState(() => _isListening = false);
+      },
+    );
+    if (!available || !mounted) return;
+    setState(() { _isListening = true; _ctrl.clear(); });
+    await _speech.listen(
+      localeId: 'en_IN',
+      listenOptions: SpeechListenOptions(
+        listenMode: ListenMode.dictation,
+        partialResults: true,
+        cancelOnError: true,
+      ),
+      pauseFor: const Duration(seconds: 3),
+      listenFor: const Duration(seconds: 30),
+      onResult: (r) {
+        setState(() => _ctrl.text = r.recognizedWords);
+        if (r.finalResult) _onSpeechDone();
+      },
+    );
+  }
+
+  Future<void> _stopListening() async {
+    await _speech.stop();
+    _onSpeechDone();
+  }
+
+  void _onSpeechDone() {
+    if (!mounted) return;
+    setState(() => _isListening = false);
+    final text = _ctrl.text.trim();
+    if (text.isNotEmpty) _submit(text);
+  }
+
+  // ── Paste bank SMS ─────────────────────────────────────────────────────────
+
+  Future<void> _pasteSms() async {
+    final clip = await Clipboard.getData('text/plain');
+    final text = clip?.text?.trim() ?? '';
+    if (text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Clipboard is empty — copy your bank SMS first.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      return;
+    }
+    setState(() => _smsLoading = true);
+    final parsed = await SMSParserService.parseSMSText(text);
+    if (!mounted) return;
+    setState(() => _smsLoading = false);
+    if (parsed == null || !parsed.isTransaction) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Could not read a transaction from the clipboard text.'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    await IntentConfirmSheet.show(
+      context,
+      intent:     parsed.toParsedIntent(),
+      walletId:   widget.walletId,
+      onSave:     (tx) => widget.onTransactionSaved?.call(tx),
+      onOpenFlow: () {},
+    );
+  }
+
+  // ── Import past transactions ───────────────────────────────────────────────
+
+  void _openImport() {
+    SmsHistoryImportScreen.show(context, walletId: widget.walletId);
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
@@ -337,10 +432,25 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                       ),
                     ),
                   ),
+                  // Mic button
+                  GestureDetector(
+                    onTap: _loading ? null : (_isListening ? _stopListening : _startListening),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 6, right: 4),
+                      child: Icon(
+                        _isListening ? Icons.stop_circle_rounded : Icons.mic_rounded,
+                        size: 20,
+                        color: _isListening
+                            ? Colors.redAccent
+                            : Colors.white.withAlpha(160),
+                      ),
+                    ),
+                  ),
+                  // Send button
                   GestureDetector(
                     onTap: () => _loading ? null : _submit(_ctrl.text),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Container(
                         width: 28,
                         height: 28,
@@ -437,7 +547,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _quickQuestions.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 6),
+                  separatorBuilder: (context, i) => const SizedBox(width: 6),
                   itemBuilder: (_, i) => GestureDetector(
                     onTap: () {
                       _ctrl.text = _quickQuestions[i];
@@ -465,6 +575,23 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                     ),
                   ),
                 ),
+              ),
+              const SizedBox(height: 8),
+              // ── Action chips (SMS & import) ────────────────────────────────
+              Row(
+                children: [
+                  _ActionChip(
+                    icon: Icons.content_paste_rounded,
+                    label: _smsLoading ? 'Reading…' : 'Paste bank SMS',
+                    onTap: _smsLoading ? null : _pasteSms,
+                  ),
+                  const SizedBox(width: 8),
+                  _ActionChip(
+                    icon: Icons.history_rounded,
+                    label: 'Import transactions',
+                    onTap: _openImport,
+                  ),
+                ],
               ),
             ],
 
@@ -969,6 +1096,52 @@ class _HighlightChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ActionChip — tappable chip for paste SMS / import actions
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _ActionChip({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(enabled ? 25 : 12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFA5B4FC).withAlpha(enabled ? 80 : 40),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: const Color(0xFFA5B4FC).withAlpha(enabled ? 200 : 120)),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withAlpha(enabled ? 190 : 110),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
