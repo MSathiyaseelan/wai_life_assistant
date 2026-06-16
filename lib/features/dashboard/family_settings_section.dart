@@ -306,7 +306,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       child: Column(
         children: [
           // Sub-section header
-          ListTile(
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
             leading: Container(
@@ -345,6 +347,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             ),
             onTap: () =>
                 setState(() => _myFamilyExpanded = !_myFamilyExpanded),
+          ),
           ),
 
           if (_myFamilyExpanded)
@@ -852,7 +855,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       ),
       child: Column(
         children: [
-          ListTile(
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
             leading: Container(
@@ -893,6 +898,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             ),
             onTap: () => setState(
                 () => _permissionsExpanded = !_permissionsExpanded),
+          ),
           ),
           if (_permissionsExpanded)
             Padding(
@@ -1197,7 +1203,10 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: borderColor, width: 1.5),
         ),
-        child: ListTile(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: ListTile(
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           leading: Container(
@@ -1239,6 +1248,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             size: 13,
             color: iconColor,
           ),
+        ),
         ),
       ),
     );
