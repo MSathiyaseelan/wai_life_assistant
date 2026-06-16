@@ -67,11 +67,18 @@ add_reminder — set a reminder
   repeat: none | daily | weekly | monthly | yearly
 
 add_expense — record money spent
-  data: { "title": "Dinner at restaurant", "amount": 850, "category": "food", "pay_mode": "upi" }
-  pay_mode: cash | upi | card | bank | other
+  data: { "title": "Dinner at restaurant", "amount": 850, "category": "food", "pay_mode": "cash" }
+  pay_mode: cash | online
 
 add_income — record money received
-  data: { "title": "Salary", "amount": 50000, "category": "salary", "pay_mode": "bank" }
+  data: { "title": "Salary", "amount": 50000, "category": "salary", "pay_mode": "online" }
+  pay_mode: cash | online
+
+add_lend — record money lent to someone (you gave money, expect it back)
+  data: { "person": "Ravi", "amount": 500, "note": "for petrol" }
+
+add_borrow — record money borrowed from someone (you received money, owe it back)
+  data: { "person": "Amma", "amount": 1000, "note": "for groceries" }
 
 add_function_upcoming — function/event to attend (someone else's)
   data: { "function_title": "Wedding", "person_name": "Ramesh Kumar", "type": "wedding", "date": "YYYY-MM-DD", "venue": "Kalyana Mandapam, Chennai" }
@@ -146,7 +153,7 @@ $PROMPT$,
     "confidence": "number 0-1"
   }',
   true,
-  2
+  3
 )
 ON CONFLICT (feature, sub_feature, input_type, version)
 DO UPDATE SET
@@ -161,4 +168,4 @@ SET    is_active = false
 WHERE  feature     = 'dashboard'
   AND  sub_feature = 'ai_assistant'
   AND  input_type  = 'text'
-  AND  version     < 2;
+  AND  version     < 3;

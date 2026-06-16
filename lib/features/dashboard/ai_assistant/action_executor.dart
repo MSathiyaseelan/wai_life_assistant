@@ -87,6 +87,28 @@ class ActionExecutor {
           payMode: _payMode(d, fallback: 'online'),
         );
 
+      case ActionType.addLend:
+        await WalletService.instance.addTransaction(
+          walletId: walletId,
+          type: 'lend',
+          amount: _num(d, 'amount'),
+          category: _str(d, 'category', fallback: 'lend'),
+          title: d['title'] as String?,
+          note: d['note'] as String?,
+          person: _str(d, 'person').isEmpty ? null : _str(d, 'person'),
+        );
+
+      case ActionType.addBorrow:
+        await WalletService.instance.addTransaction(
+          walletId: walletId,
+          type: 'borrow',
+          amount: _num(d, 'amount'),
+          category: _str(d, 'category', fallback: 'borrow'),
+          title: d['title'] as String?,
+          note: d['note'] as String?,
+          person: _str(d, 'person').isEmpty ? null : _str(d, 'person'),
+        );
+
       case ActionType.addFunctionUpcoming:
         await FunctionsService.instance.addUpcoming({
           'wallet_id':      walletId,
