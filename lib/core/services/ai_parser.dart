@@ -83,22 +83,22 @@ class AIParser {
       debugPrint('[AIParser] raw=$raw');
 
       if (status != 200) {
-        // Extract a readable error message from whatever the body is
-        String errMsg;
+        // Extract raw error string (for logging + mapping)
+        String rawErr;
         if (raw is Map<String, dynamic>) {
-          errMsg = raw['error'] as String? ?? raw['message'] as String? ?? 'Server error ($status)';
+          rawErr = raw['error'] as String? ?? raw['message'] as String? ?? 'Server error ($status)';
         } else if (raw is String && raw.isNotEmpty) {
-          // Try to parse as JSON error, otherwise use raw text
           try {
             final decoded = jsonDecode(raw) as Map<String, dynamic>;
-            errMsg = decoded['error'] as String? ?? decoded['message'] as String? ?? 'Server error ($status)';
+            rawErr = decoded['error'] as String? ?? decoded['message'] as String? ?? 'Server error ($status)';
           } catch (_) {
-            errMsg = raw.length > 120 ? '${raw.substring(0, 120)}…' : raw;
+            rawErr = raw.length > 200 ? '${raw.substring(0, 200)}…' : raw;
           }
         } else {
-          errMsg = 'Server error ($status)';
+          rawErr = 'Server error ($status)';
         }
-        return AIParseResult.error(errMsg);
+        debugPrint('[AIParser] non-200 error: $rawErr');
+        return AIParseResult.error(_friendlyError(rawErr));
       }
 
       // Edge functions sometimes return data as a raw JSON string instead of
@@ -113,26 +113,91 @@ class AIParser {
           return AIParseResult.error('Could not read AI response. Please try again.');
         }
       } else {
-        return AIParseResult.error('Unexpected response format from AI service.');
+        return AIParseResult.error('Unexpected response format. Please try again.');
       }
 
       return AIParseResult.fromJson(json);
     } on FunctionException catch (e) {
       final details = e.details;
-      String errMsg;
+      String rawErr;
       if (details is Map) {
-        errMsg = details['error'] as String? ?? details['message'] as String? ?? 'Server error (${e.status})';
+        rawErr = details['error'] as String? ?? details['message'] as String? ?? 'Server error (${e.status})';
       } else {
-        errMsg = e.reasonPhrase ?? 'Server error (${e.status})';
+        rawErr = e.reasonPhrase ?? 'Server error (${e.status})';
       }
-      debugPrint('[AIParser] FunctionException status=${e.status} error=$errMsg');
-      return AIParseResult.error(errMsg);
+      debugPrint('[AIParser] FunctionException status=${e.status} raw=$rawErr');
+      return AIParseResult.error(_friendlyError(rawErr));
     } catch (e, st) {
       debugPrint('[AIParser] EXCEPTION type=${e.runtimeType}');
       debugPrint('[AIParser] EXCEPTION message=$e');
       debugPrint('[AIParser] EXCEPTION stacktrace=$st');
-      return AIParseResult.error(e.toString());
+      return AIParseResult.error(_friendlyError(e.toString()));
     }
+  }
+
+  /// Maps any raw Gemini/server/network error to a short, user-friendly string.
+  /// Raw errors are preserved in debugPrint; callers never see technical details.
+  static String _friendlyError(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return 'Something went wrong. Please try again.';
+    }
+    final msg = raw.toLowerCase();
+
+    // Quota / rate limit (Gemini 429 / RESOURCE_EXHAUSTED)
+    if (msg.contains('quota_exceeded') || msg.contains('quota') ||
+        msg.contains('resource_exhausted') || msg.contains('rate_limit') ||
+        msg.contains('rate limit') || msg.contains('429') ||
+        msg.contains('you exceeded')) {
+      return 'AI request limit reached. Please wait a moment and try again.';
+    }
+
+    // Service overloaded / busy (Gemini 503)
+    if (msg.contains('service_overloaded') || msg.contains('overloaded') ||
+        msg.contains('503') || msg.contains('high demand') ||
+        msg.contains('capacity') || msg.contains('too many requests')) {
+      return 'AI service is busy right now. Please try again in a few seconds.';
+    }
+
+    // Auth / API key issues (401 / 403)
+    if (msg.contains('api_key_invalid') || msg.contains('unauthenticated') ||
+        msg.contains('permission_denied') || msg.contains('401') ||
+        msg.contains('403') || msg.contains('unauthorized')) {
+      return 'AI service is not available right now. Please try again later.';
+    }
+
+    // Timeout
+    if (msg.contains('timeout') || msg.contains('timed out') ||
+        msg.contains('deadline exceeded')) {
+      return 'Request timed out. Please check your connection and try again.';
+    }
+
+    // Network / no internet
+    if (msg.contains('socketexception') || msg.contains('no address') ||
+        msg.contains('failed host lookup') || msg.contains('network is unreachable')) {
+      return 'No internet connection. Please check your network and try again.';
+    }
+
+    // Empty / malformed AI response
+    if (msg.contains('empty response') || msg.contains('no candidates') ||
+        msg.contains('invalid json') || msg.contains('json parse')) {
+      return 'AI returned an unexpected response. Please try rephrasing.';
+    }
+
+    // Prompt not configured
+    if (msg.contains('no active prompt') || msg.contains('no prompt found') ||
+        msg.contains('not configured') || msg.contains('404')) {
+      return 'This AI feature is not yet available. Please try again later.';
+    }
+
+    // Generic server errors (500 / 502 / server_error / gemini_error_*)
+    if (msg.contains('server_error') || msg.contains('server error') ||
+        msg.contains('502') || msg.contains('500') ||
+        msg.contains('gemini_error')) {
+      return 'AI service encountered an error. Please try again.';
+    }
+
+    // Fallback
+    return 'Something went wrong. Please try again.';
   }
 
   static String _getDayName(int weekday) {

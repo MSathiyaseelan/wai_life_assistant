@@ -310,32 +310,12 @@ class AssistantResponse {
 
   static AssistantResponse fromResult(AIParseResult result) {
     if (!result.success || result.data == null) {
-      return AssistantResponse(answer: _friendlyError(result.error));
+      // result.error is already a user-friendly string from AIParser._friendlyError
+      return AssistantResponse(
+        answer: result.error ?? 'Sorry, something went wrong. Please try again.',
+      );
     }
     return _fromMap(result.data!);
-  }
-
-  static String _friendlyError(String? raw) {
-    if (raw == null) return 'Sorry, I couldn\'t fetch an answer right now. Please try again.';
-    final msg = raw.toLowerCase();
-    if (msg.contains('high demand') || msg.contains('overloaded') ||
-        msg.contains('try again later') || msg.contains('resource_exhausted') ||
-        msg.contains('503') || msg.contains('capacity')) {
-      return 'WAI is a bit busy right now — too many requests at the moment. Please try again in a few seconds.';
-    }
-    if (msg.contains('quota') || msg.contains('rate limit') || msg.contains('rate_limit') || msg.contains('429')) {
-      return 'WAI has hit its request limit for now. Please wait a moment and try again.';
-    }
-    if (msg.contains('timeout') || msg.contains('deadline') || msg.contains('timed out')) {
-      return 'WAI took too long to respond. Please check your connection and try again.';
-    }
-    if (msg.contains('no active prompt') || msg.contains('no prompt found')) {
-      return 'WAI is still being configured for this type of question. Please try again soon.';
-    }
-    if (msg.contains('invalid json') || msg.contains('json parse')) {
-      return 'WAI returned an unexpected response. Please try rephrasing your question.';
-    }
-    return 'Sorry, I couldn\'t fetch an answer right now. Please try again.';
   }
 
   static AssistantResponse _fromMap(Map<String, dynamic> data) {

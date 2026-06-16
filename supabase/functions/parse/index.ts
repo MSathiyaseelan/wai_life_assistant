@@ -191,8 +191,27 @@ async function callGemini(
   });
 
   if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${err}`);
+    const errText = await response.text();
+    // Map to a structured code so the Flutter client can show a friendly message
+    // instead of the raw Gemini JSON blob.
+    let errCode = `GEMINI_ERROR_${response.status}`;
+    try {
+      const errJson = JSON.parse(errText);
+      const status = (errJson?.error?.status as string | undefined)?.toUpperCase();
+      if (status === "RESOURCE_EXHAUSTED" || response.status === 429) {
+        errCode = "QUOTA_EXCEEDED";
+      } else if (status === "UNAVAILABLE" || response.status === 503) {
+        errCode = "SERVICE_OVERLOADED";
+      } else if (
+        status === "UNAUTHENTICATED" || status === "PERMISSION_DENIED" ||
+        response.status === 401 || response.status === 403
+      ) {
+        errCode = "API_KEY_INVALID";
+      } else if (response.status === 500 || response.status === 502) {
+        errCode = "SERVER_ERROR";
+      }
+    } catch { /* JSON parse failed — use generic code */ }
+    throw new Error(errCode);
   }
 
   const data = await response.json();
