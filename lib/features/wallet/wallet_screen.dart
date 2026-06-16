@@ -968,9 +968,13 @@ class _WalletScreenState extends State<WalletScreen>
                   final localeId = lang.$1;
                   final name = lang.$2;
                   final isSelected = _speechLocale == localeId;
-                  // Locale is either confirmed supported, or STT wasn't available to check
-                  final isSupported =
-                      !available || supported.contains(localeId);
+                  // Locale is either confirmed supported, or STT wasn't available to check.
+                  // Match by language prefix (e.g. en-US counts as en-IN being available).
+                  final langPrefix = localeId.split(RegExp(r'[-_]')).first.toLowerCase();
+                  final isSupported = !available ||
+                      supported.contains(localeId) ||
+                      supported.any((s) =>
+                          s.split(RegExp(r'[-_]')).first.toLowerCase() == langPrefix);
                   return GestureDetector(
                     onTap: isSupported
                         ? () {
