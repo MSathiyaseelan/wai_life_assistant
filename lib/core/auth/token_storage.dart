@@ -6,7 +6,11 @@ class TokenStorage {
   static const _phoneKey = 'auth_phone';
   static const _isLoggedInKey = 'is_logged_in';
 
-  final _storage = const FlutterSecureStorage();
+  static const _androidOptions = AndroidOptions(
+    resetOnError: true,
+  );
+
+  final _storage = const FlutterSecureStorage(aOptions: _androidOptions);
 
   Future<void> saveTokens({
     required String accessToken,

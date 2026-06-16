@@ -27,7 +27,9 @@ class PrivacyPrefs extends ChangeNotifier {
   static const _pfx = 'privacy_';
   static const _pinKey = 'app_pin';
 
-  static const _ss = FlutterSecureStorage();
+  static const _ss = FlutterSecureStorage(
+    aOptions: AndroidOptions(resetOnError: true),
+  );
 
   SharedPreferences? _prefs;
 
