@@ -333,7 +333,13 @@ class _PantryScreenState extends State<PantryScreen>
     DashNavService.pantry.value = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (signal == 'basket:tobuy') {
+      if (signal == 'meal_map' || signal.startsWith('meal_map:')) {
+        final parts = signal.split(':');
+        if (parts.length == 2 && parts[1].isNotEmpty) {
+          widget.onWalletChange(parts[1]);
+        }
+        _sectionTab.animateTo(0);
+      } else if (signal == 'basket:tobuy') {
         _basketTabNotifier.value = 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _basketTabNotifier.value = 1;

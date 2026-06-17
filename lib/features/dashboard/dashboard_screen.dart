@@ -1345,7 +1345,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         title: "Today's Plate",
                         sub: sub,
                         action: 'Pantry →',
-                        onAction: () {},
+                        onAction: () {
+                          DashNavService.pantry.value = 'meal_map';
+                          widget.onTabSwitch?.call(2);
+                        },
                       ),
                       const SizedBox(height: 10),
                       Builder(
@@ -1411,12 +1414,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             ? 8.0
                                             : 0,
                                       ),
-                                      child: _TodaysPlateCard(
-                                        label: label,
-                                        meals: meals,
-                                        isDark: isDark,
-                                        cardBg: cardBg,
-                                        onMealTap: _showMealDetail,
+                                      child: GestureDetector(
+                                        onTap: () {
+                                          DashNavService.pantry.value = 'meal_map:${w.id}';
+                                          widget.onTabSwitch?.call(2);
+                                        },
+                                        child: _TodaysPlateCard(
+                                          label: label,
+                                          meals: meals,
+                                          isDark: isDark,
+                                          cardBg: cardBg,
+                                          onMealTap: _showMealDetail,
+                                        ),
                                       ),
                                     );
                                   },

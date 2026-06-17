@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 ///
 /// PlanIt signals  : 'alerts' | 'tasks' | 'special_days' | 'wishes'
 /// MyHub signals   : 'health:meds' | 'health:appointments' | 'health:vaccines' | 'functions'
-/// Pantry signals  : 'basket:tobuy'
+/// Pantry signals  : 'basket:tobuy' | 'meal_map' | 'meal_map:`<walletId>`'
+///   meal_map                  — switch to Meal Map tab, keep current wallet
+///   meal_map:`<walletId>`     — switch wallet then go to Meal Map tab
 class DashNavService {
   DashNavService._();
   static final planIt = ValueNotifier<String?>(null);
