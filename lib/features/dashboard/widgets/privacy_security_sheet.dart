@@ -525,7 +525,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
   void _showPrivacyPolicy(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: _bg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Privacy Policy',
@@ -542,7 +542,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Close',
                 style: TextStyle(
                     fontFamily: 'Nunito',

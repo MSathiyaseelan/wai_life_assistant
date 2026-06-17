@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '_prefs_sheet_base.dart';
 
 class DefaultScopeSheet extends StatefulWidget {
@@ -42,6 +43,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
           final surf = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
           final tc   = isDark ? AppColors.textDark : AppColors.textLight;
           final sub  = isDark ? AppColors.subDark  : AppColors.subLight;
+          final hasFamily = AppStateScope.of(context).families.isNotEmpty;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,6 +78,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
               _ScopePicker(
                 isDark: isDark, surf: surf, tc: tc,
                 value: _p.walletScope,
+                hasFamily: hasFamily,
                 onChanged: (v) { setState(() => _p.walletScope = v); _persist(); },
               ),
               const SizedBox(height: 16),
@@ -85,6 +88,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
               _ScopePicker(
                 isDark: isDark, surf: surf, tc: tc,
                 value: _p.pantryScope,
+                hasFamily: hasFamily,
                 onChanged: (v) { setState(() => _p.pantryScope = v); _persist(); },
               ),
               const SizedBox(height: 16),
@@ -94,6 +98,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
               _ScopePicker(
                 isDark: isDark, surf: surf, tc: tc,
                 value: _p.planItScope,
+                hasFamily: hasFamily,
                 onChanged: (v) { setState(() => _p.planItScope = v); _persist(); },
               ),
             ],
@@ -109,6 +114,7 @@ class _ScopePicker extends StatelessWidget {
   final Color surf;
   final Color tc;
   final String value;
+  final bool hasFamily;
   final ValueChanged<String> onChanged;
 
   const _ScopePicker({
@@ -116,35 +122,51 @@ class _ScopePicker extends StatelessWidget {
     required this.surf,
     required this.tc,
     required this.value,
+    required this.hasFamily,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
           color: surf, borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: ['personal', 'family'].map((scope) {
-          final active = value == scope;
-          final label  = scope == 'personal' ? '👤  Personal' : '👨‍👩‍👧  Family';
+          final isFamily  = scope == 'family';
+          final disabled  = isFamily && !hasFamily;
+          final active    = value == scope && !disabled;
+          final label     = isFamily ? '👨‍👩‍👧  Family' : '👤  Personal';
           return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(scope),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: active ? AppColors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Text(label,
+            child: Tooltip(
+              message: disabled ? 'No family group created' : '',
+              child: GestureDetector(
+                onTap: disabled ? null : () => onChanged(scope),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    label,
                     style: TextStyle(
-                        fontSize: 13, fontFamily: 'Nunito',
-                        fontWeight: FontWeight.w800,
-                        color: active ? Colors.white : tc)),
+                      fontSize: 13,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w800,
+                      color: active
+                          ? Colors.white
+                          : disabled
+                              ? sub.withValues(alpha: 0.45)
+                              : tc,
+                    ),
+                  ),
+                ),
               ),
             ),
           );

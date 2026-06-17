@@ -2457,8 +2457,9 @@ class _WalletScreenState extends State<WalletScreen>
         // Individual (ungrouped) tiles — draggable + drop target
         ...entry.value.map((tx) {
           final currentUid = AuthCoordinator.instance.currentUser?.id;
-          final isRecipient =
-              tx.type == TxType.request && tx.userId != currentUid;
+          final isRecipient = tx.type == TxType.request &&
+              tx.userId != null &&
+              tx.userId != currentUid;
           final tile = TxTile(
             tx: tx,
             onTap: () => _showDetail(tx),

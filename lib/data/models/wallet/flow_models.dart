@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import '../../../../../core/theme/app_theme.dart';
 
@@ -123,6 +124,7 @@ extension FlowTypeExt on FlowType {
         return [
           FlowStep.amount,
           FlowStep.person,
+          FlowStep.dueDate,
           FlowStep.title,
           FlowStep.note,
           FlowStep.confirm,
@@ -226,7 +228,9 @@ extension FlowStepExt on FlowStep {
             return 'Who is the person?';
         }
       case FlowStep.dueDate:
-        return 'Set a due date?';
+        return flow == FlowType.request
+            ? '📅 Set a tentative return date? (optional)'
+            : 'Set a due date?';
       case FlowStep.title:
         switch (flow) {
           case FlowType.expense:
@@ -307,6 +311,7 @@ class FlowData {
       person: person,
       persons: persons,
       dueDate: dueDate,
+      userId: Supabase.instance.client.auth.currentUser?.id,
     );
   }
 
