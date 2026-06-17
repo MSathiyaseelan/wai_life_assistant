@@ -412,14 +412,29 @@ class _WalletScreenState extends State<WalletScreen>
     );
   }
 
+  bool _isPlaceholderWalletId(String id) => id.isEmpty || id == 'personal';
+
   void _openConversation(FlowType flowType) {
+    if (_isPlaceholderWalletId(widget.activeWalletId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account is still loading. Please wait a moment and try again.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    // Filter out placeholder wallets so the flow always sees real UUIDs
+    final readyWallets = _allWallets
+        .where((w) => !_isPlaceholderWalletId(w.id))
+        .toList();
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (_, anim, __) => ConversationScreen(
           flowType: flowType,
           walletId: widget.activeWalletId,
-          wallets: _allWallets,
+          wallets: readyWallets,
           transactions: _transactions,
           onComplete: _onTransactionSaved,
         ),
@@ -2582,13 +2597,16 @@ class _WalletScreenState extends State<WalletScreen>
       },
       onOpenFlow: () {
         // open the conversation flow for this type
+        final readyWallets = _allWallets
+            .where((w) => !_isPlaceholderWalletId(w.id))
+            .toList();
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ConversationScreen(
               flowType: flowType,
               walletId: widget.activeWalletId,
-              wallets: _allWallets,
+              wallets: readyWallets,
               onComplete: _onTransactionSaved,
             ),
           ),

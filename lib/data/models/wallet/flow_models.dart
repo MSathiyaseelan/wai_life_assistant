@@ -298,7 +298,9 @@ class FlowData {
       amount: amount ?? 0,
       category: cat,
       date: txDate,
-      walletId: selectedWalletId ?? walletId,
+      walletId: (selectedWalletId != null && selectedWalletId!.isNotEmpty && selectedWalletId != 'personal')
+          ? selectedWalletId!
+          : walletId,
       payMode: pm,
       title: (title?.isEmpty ?? true) ? null : title,
       note: (note?.isEmpty ?? true) ? null : note,

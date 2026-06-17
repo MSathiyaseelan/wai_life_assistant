@@ -694,20 +694,72 @@ class _PersonStepState extends State<PersonStep> {
       );
     }
 
+    final typedName = _searchCtrl.text.trim();
+
     if (_denied) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
+        padding: const EdgeInsets.only(top: 8),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Contacts permission denied.\nPlease allow access in Settings.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+            // Manual name entry when contacts access is denied
+            TextField(
+              controller: _searchCtrl,
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Nunito',
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Type a name…',
+                hintStyle: TextStyle(fontSize: 13, color: sub),
+                prefixIcon: Icon(Icons.person_outline_rounded, size: 18, color: sub),
+                filled: true,
+                fillColor: isDark ? AppColors.surfDark : AppColors.bgLight,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: _loadContacts,
-              child: const Text('Retry'),
+            if (typedName.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => widget.onSelectSingle(typedName),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: widget.color,
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    'Use "$typedName" →',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        fontSize: 14),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Text(
+              'Contacts permission denied. Allow access in Settings to search.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: OutlinedButton(
+                onPressed: _loadContacts,
+                child: const Text('Retry'),
+              ),
             ),
           ],
         ),
@@ -743,13 +795,51 @@ class _PersonStepState extends State<PersonStep> {
           ),
           const SizedBox(height: 10),
 
+          // "Use this name" option when typed text doesn't match any contact
+          if (!widget.multiSelect && typedName.isNotEmpty &&
+              !_filtered.any((c) => c.name.toLowerCase() == typedName.toLowerCase())) ...[
+            GestureDetector(
+              onTap: () => widget.onSelectSingle(typedName),
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: widget.color.withValues(alpha: 0.3), width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_add_rounded, size: 18, color: widget.color),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Use "$typedName"',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: widget.color,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios_rounded,
+                        size: 14, color: widget.color),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
           // Contact list — fixed height so it doesn't push parent scroll to bottom
           if (_filtered.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Center(
                 child: Text(
-                  'No contacts found',
+                  typedName.isEmpty ? 'No contacts found' : 'No matching contacts',
                   style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
                 ),
               ),
@@ -1046,6 +1136,7 @@ class _TitleStepState extends State<TitleStep> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: TextField(
               controller: _ctrl,
+              autofocus: true,
               maxLines: 1,
               textCapitalization: TextCapitalization.sentences,
               style: TextStyle(
@@ -1067,11 +1158,10 @@ class _TitleStepState extends State<TitleStep> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _hasText ? () => widget.onConfirm(_ctrl.text.trim()) : null,
+              onPressed: () => widget.onConfirm(_ctrl.text.trim()),
               style: ElevatedButton.styleFrom(
                 backgroundColor: widget.color,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: widget.color.withValues(alpha: 0.3),
                 elevation: 3,
                 shadowColor: widget.color.withValues(alpha: 0.4),
                 padding: const EdgeInsets.symmetric(vertical: 13),
@@ -1079,9 +1169,9 @@ class _TitleStepState extends State<TitleStep> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              child: const Text(
-                'Next →',
-                style: TextStyle(
+              child: Text(
+                _hasText ? 'Next →' : 'Skip →',
+                style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontFamily: 'Nunito',
                   fontSize: 14,

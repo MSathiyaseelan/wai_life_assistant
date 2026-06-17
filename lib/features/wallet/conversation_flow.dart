@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
@@ -170,7 +170,7 @@ class _ConversationFlowState extends State<ConversationFlow> {
       if (_messages.isNotEmpty) {
         _messages[_messages.length - 1] = _messages[_messages.length - 1].done();
       }
-      _messages.add(_Message(role: ChatRole.user, text: '🏷️ $title', animate: true));
+      _messages.add(_Message(role: ChatRole.user, text: title.isEmpty ? 'Skip' : '🏷️ $title', animate: true));
     });
     _scrollToBottom();
     _data.title = title;
@@ -380,6 +380,19 @@ class _ConversationFlowState extends State<ConversationFlow> {
 
       // ── Owner ────────────────────────────────────────────────────────────────
       case FlowStep.owner:
+        // Auto-answer when there's only one wallet — no need to ask the user.
+        if (widget.wallets.length == 1) {
+          final only = widget.wallets.first;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _answer(step, only.name, () {
+                _data.owner = only.name;
+                _data.selectedWalletId = only.id;
+              });
+            }
+          });
+          return const SizedBox.shrink();
+        }
         final walletOptions = widget.wallets.map((w) => ToggleOption(
           label: w.name,
           emoji: w.emoji.startsWith('http') || w.emoji.startsWith('/')
