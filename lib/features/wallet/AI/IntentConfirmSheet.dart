@@ -7,6 +7,7 @@ import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTENT CONFIRM SHEET
@@ -124,7 +125,13 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       return;
     }
 
-    if (widget.walletId.isEmpty || widget.walletId == 'personal') {
+    // Resolve real wallet ID — widget.walletId may still be the placeholder
+    // 'personal' if AppState hadn't propagated to the caller yet.
+    final resolvedWalletId = (widget.walletId.isEmpty || widget.walletId == 'personal')
+        ? AppStateScope.of(context).activeWalletId
+        : widget.walletId;
+
+    if (resolvedWalletId.isEmpty || resolvedWalletId == 'personal') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Wallet not ready — please wait a moment and try again.'),
@@ -162,7 +169,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       WalletService.instance.ensureCategory(category, _flowType.txType.name);
 
       final row = await WalletService.instance.addTransaction(
-        walletId: widget.walletId,
+        walletId: resolvedWalletId,
         type:     _flowType.txType.name,
         amount:   amount,
         category: category,

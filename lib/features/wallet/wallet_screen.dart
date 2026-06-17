@@ -415,7 +415,16 @@ class _WalletScreenState extends State<WalletScreen>
   bool _isPlaceholderWalletId(String id) => id.isEmpty || id == 'personal';
 
   void _openConversation(FlowType flowType) {
-    if (_isPlaceholderWalletId(widget.activeWalletId)) {
+    // Use _currentWallet which already resolves placeholder → first real wallet.
+    // Only block if _allWallets itself is entirely placeholder (not yet loaded).
+    final readyWallets = _allWallets
+        .where((w) => !_isPlaceholderWalletId(w.id))
+        .toList();
+    final activeId = _isPlaceholderWalletId(widget.activeWalletId) && readyWallets.isNotEmpty
+        ? readyWallets.first.id
+        : widget.activeWalletId;
+
+    if (_isPlaceholderWalletId(activeId)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Account is still loading. Please wait a moment and try again.'),
@@ -424,16 +433,12 @@ class _WalletScreenState extends State<WalletScreen>
       );
       return;
     }
-    // Filter out placeholder wallets so the flow always sees real UUIDs
-    final readyWallets = _allWallets
-        .where((w) => !_isPlaceholderWalletId(w.id))
-        .toList();
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (_, anim, __) => ConversationScreen(
           flowType: flowType,
-          walletId: widget.activeWalletId,
+          walletId: activeId,
           wallets: readyWallets,
           transactions: _transactions,
           onComplete: _onTransactionSaved,
@@ -2596,17 +2601,19 @@ class _WalletScreenState extends State<WalletScreen>
         _onTransactionSaved(saved);
       },
       onOpenFlow: () {
-        // open the conversation flow for this type
-        final readyWallets = _allWallets
+        final readyWallets2 = _allWallets
             .where((w) => !_isPlaceholderWalletId(w.id))
             .toList();
+        final activeId2 = _isPlaceholderWalletId(widget.activeWalletId) && readyWallets2.isNotEmpty
+            ? readyWallets2.first.id
+            : widget.activeWalletId;
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => ConversationScreen(
               flowType: flowType,
-              walletId: widget.activeWalletId,
-              wallets: readyWallets,
+              walletId: activeId2,
+              wallets: readyWallets2,
               onComplete: _onTransactionSaved,
             ),
           ),

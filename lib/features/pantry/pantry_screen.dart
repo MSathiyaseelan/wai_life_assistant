@@ -1274,10 +1274,15 @@ class _PantryScreenState extends State<PantryScreen>
   // ── Recipe handlers ────────────────────────────────────────────────────────
 
   Future<void> _addRecipe(RecipeModel r) async {
+    final walletId = _currentWallet.id;
+    if (_isPlaceholder(walletId)) {
+      _showSavedSnack('Account still loading. Please try again in a moment.', AppColors.subLight);
+      return;
+    }
     setState(() => _recipes.add(r)); // optimistic
     try {
       final row = await PantryService.instance.addRecipe(
-        walletId: widget.activeWalletId,
+        walletId: walletId,
         name: r.name,
         emoji: r.emoji,
         cuisine: r.cuisine.name,
