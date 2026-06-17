@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
-import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '_prefs_sheet_base.dart';
 
 class DefaultScopeSheet extends StatefulWidget {
   final bool isDark;
-  const DefaultScopeSheet({super.key, required this.isDark});
+  final bool hasFamily;
+  const DefaultScopeSheet({super.key, required this.isDark, required this.hasFamily});
   @override
   State<DefaultScopeSheet> createState() => _DefaultScopeSheetState();
 }
@@ -43,7 +43,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
           final surf = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
           final tc   = isDark ? AppColors.textDark : AppColors.textLight;
           final sub  = isDark ? AppColors.subDark  : AppColors.subLight;
-          final hasFamily = AppStateScope.of(context).families.isNotEmpty;
+          final hasFamily = widget.hasFamily;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
