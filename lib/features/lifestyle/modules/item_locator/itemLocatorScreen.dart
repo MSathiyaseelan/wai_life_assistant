@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
@@ -2517,6 +2518,7 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
                             size: 24,
                           ),
                         ),
+                        confirmDismiss: (_) => confirmDelete(context),
                         onDismissed: (_) {
                           setState(() => _localItems.remove(item));
                           widget.onDeleteItem(item);

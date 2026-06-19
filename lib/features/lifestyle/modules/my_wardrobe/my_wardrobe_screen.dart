@@ -2455,15 +2455,24 @@ class _OutfitLogTab extends StatelessWidget {
       child: StatefulBuilder(
         builder: (ctx2, ss) {
           void doSave() async {
-            if (selected.isEmpty || saving) return;
+            final hasPhoto = pickedLocalPath != null || existing?.photoPath != null;
+            if ((selected.isEmpty && !hasPhoto) || saving) return;
             ss(() => saving = true);
             String? photoUrl = existing?.photoPath;
             if (pickedLocalPath != null) {
               try {
                 photoUrl = await WardrobeService.instance
                     .uploadPhoto(pickedLocalPath!, memberId: memberId);
-              } catch (_) {
-                if (ctx2.mounted) ss(() => saving = false);
+              } catch (e) {
+                if (ctx2.mounted) {
+                  ss(() => saving = false);
+                  ScaffoldMessenger.of(ctx2).showSnackBar(
+                    const SnackBar(
+                      content: Text('Photo upload failed. Please try again.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
                 return;
               }
             }

@@ -64,7 +64,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
   String _userName = '';
   String _userPhone = '';
   String _userDob = '';
@@ -122,6 +122,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _walletPageController = PageController();
     _platePageController = PageController();
     _wasOnline = NetworkService.instance.isOnline.value;
+    WidgetsBinding.instance.addObserver(this);
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     PantryService.mealChangeSignal.addListener(_onMealChange);
     PantryService.listChangeSignal.addListener(_onListChange);
@@ -375,6 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _walletPageController.dispose();
     _platePageController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     PantryService.mealChangeSignal.removeListener(_onMealChange);
     PantryService.listChangeSignal.removeListener(_onListChange);
@@ -385,6 +387,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     NotificationService.instance.unsubscribe();
     ShortcutService.pending.removeListener(_onShortcut);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _onHealthChange();
   }
 
   void _onMealChange() {

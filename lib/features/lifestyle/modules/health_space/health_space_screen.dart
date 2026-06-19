@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/health/health_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
@@ -895,6 +896,7 @@ class _MedCard extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.delete_rounded, color: Colors.red)),
+      confirmDismiss: (_) => confirmDelete(context),
       onDismissed: (_) => onDelete(),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -1048,6 +1050,7 @@ class _DoctorsTab extends StatelessWidget {
                   key: ValueKey(d.id),
                   direction: DismissDirection.endToStart,
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                  confirmDismiss: (_) => confirmDelete(context),
                   onDismissed: (_) async {
                     try { await HealthService.instance.deleteDoctor(d.id); onDelete(d.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_doctor'); debugPrint('[Health] deleteDoctor: $e'); }
                   },
@@ -1197,6 +1200,7 @@ class _DocumentsTab extends StatelessWidget {
                   key: ValueKey(d.id),
                   direction: DismissDirection.endToStart,
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                  confirmDismiss: (_) => confirmDelete(context),
                   onDismissed: (_) async {
                     try { await HealthService.instance.deleteDocument(d.id, d.fileUrl); onDelete(d.id); } catch (e) { debugPrint('[Health] deleteDoc: $e'); }
                   },
@@ -1496,6 +1500,7 @@ class _ApptCard extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.delete_rounded, color: Colors.red)),
+      confirmDismiss: (_) => confirmDelete(context),
       onDismissed: (_) => onDelete(),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -1630,6 +1635,7 @@ class _VitalsTabState extends State<_VitalsTab> {
                       key: ValueKey(v.id),
                       direction: DismissDirection.endToStart,
                       background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                      confirmDismiss: (_) => confirmDelete(context),
                       onDismissed: (_) async { try { await HealthService.instance.deleteVital(v.id); widget.onDelete(v.id); } catch (e) { debugPrint('[Health] deleteVital: $e'); } },
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -1858,6 +1864,7 @@ class _VaccineCard extends StatelessWidget {
       key: ValueKey(v.id),
       direction: DismissDirection.endToStart,
       background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+      confirmDismiss: (_) => confirmDelete(context),
       onDismissed: (_) => onDelete(),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -1959,6 +1966,7 @@ class _InsuranceTab extends StatelessWidget {
                   key: ValueKey(p.id),
                   direction: DismissDirection.endToStart,
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
+                  confirmDismiss: (_) => confirmDelete(context),
                   onDismissed: (_) async { try { await HealthService.instance.deleteInsurance(p.id); onDelete(p.id); } catch (e) { debugPrint('[Health] deleteInsurance: $e'); } },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),

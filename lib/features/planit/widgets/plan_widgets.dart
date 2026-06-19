@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 // ── Reusable bottom-sheet launcher ────────────────────────────────────────────
@@ -500,28 +501,7 @@ class SwipeTile extends StatelessWidget {
         size: 24,
       ),
     ),
-    confirmDismiss: (_) => showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete?',
-          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-        content: const Text('This item will be permanently deleted.',
-          style: TextStyle(fontFamily: 'Nunito')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.expense),
-            child: const Text('Delete',
-              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-          ),
-        ],
-      ),
-    ),
+    confirmDismiss: (_) => confirmDelete(context),
     onDismissed: (_) => onDelete(),
     child: child,
   );

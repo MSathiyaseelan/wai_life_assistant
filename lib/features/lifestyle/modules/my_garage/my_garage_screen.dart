@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
+import '../../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import '../../widgets/life_widgets.dart';
 
@@ -2143,6 +2144,7 @@ class _InsuranceTabState extends State<_InsuranceTab> {
               size: 24,
             ),
           ),
+          confirmDismiss: (_) => confirmDelete(context),
           onDismissed: (_) => setState(() {
             v.policies.remove(p);
             widget.onUpdate();
@@ -2439,6 +2441,7 @@ class _ServiceTabState extends State<_ServiceTab> {
               size: 24,
             ),
           ),
+          confirmDismiss: (_) => confirmDelete(context),
           onDismissed: (_) => setState(() {
             v.services.remove(s);
             widget.onUpdate();
@@ -2679,6 +2682,7 @@ class _RepairTabState extends State<_RepairTab> {
             size: 24,
           ),
         ),
+        confirmDismiss: (_) => confirmDelete(context),
         onDismissed: (_) => setState(() {
           v.repairs.remove(r);
           widget.onUpdate();

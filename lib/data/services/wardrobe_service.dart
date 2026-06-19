@@ -19,12 +19,20 @@ class WardrobeService {
     final file = File(localPath);
     final bytes = await file.readAsBytes();
     final ext = localPath.contains('.') ? localPath.split('.').last.toLowerCase() : 'jpg';
+    final mime = switch (ext) {
+      'png'  => 'image/png',
+      'webp' => 'image/webp',
+      'gif'  => 'image/gif',
+      'heic' => 'image/heic',
+      'heif' => 'image/heif',
+      _      => 'image/jpeg',
+    };
     final storagePath = '$_uid/$memberId/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     await _db.storage.from(_bucket).uploadBinary(
       storagePath,
       bytes,
-      fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false),
+      fileOptions: FileOptions(contentType: mime, upsert: false),
     );
 
     return _db.storage.from(_bucket).getPublicUrl(storagePath);
