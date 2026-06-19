@@ -126,6 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     PantryService.mealChangeSignal.addListener(_onMealChange);
     PantryService.listChangeSignal.addListener(_onListChange);
     WalletService.txChangeSignal.addListener(_onTxChange);
+    HealthService.changeSignal.addListener(_onHealthChange);
     pinnedSplitGroupsNotifier.addListener(_onSplitGroupsChanged);
     NotificationService.changeSignal.addListener(_onNotifChange);
     NotificationService.instance.subscribe();
@@ -378,6 +379,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     PantryService.mealChangeSignal.removeListener(_onMealChange);
     PantryService.listChangeSignal.removeListener(_onListChange);
     WalletService.txChangeSignal.removeListener(_onTxChange);
+    HealthService.changeSignal.removeListener(_onHealthChange);
     pinnedSplitGroupsNotifier.removeListener(_onSplitGroupsChanged);
     NotificationService.changeSignal.removeListener(_onNotifChange);
     NotificationService.instance.unsubscribe();
@@ -400,6 +402,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _onTxChange() {
     for (final wid in List<String>.from(_loadedWalletIds)) {
       _loadTransactions(wid);
+    }
+  }
+
+  void _onHealthChange() {
+    final wids = List<String>.from(_loadedHealthWalletIds);
+    _loadedHealthWalletIds.clear();
+    for (final wid in wids) {
+      _loadHealthData(wid);
     }
   }
 

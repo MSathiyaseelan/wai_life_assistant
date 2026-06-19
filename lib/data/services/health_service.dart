@@ -8,6 +8,9 @@ class HealthService {
   HealthService._();
   static final HealthService instance = HealthService._();
 
+  /// Increment to notify listeners (e.g. dashboard) that health data changed.
+  static final changeSignal = ValueNotifier<int>(0);
+
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid => _db.auth.currentUser!.id;
 
@@ -97,15 +100,18 @@ class HealthService {
         .insert({...data, 'user_id': _uid})
         .select()
         .single();
+    changeSignal.value++;
     return row;
   }
 
   Future<void> updateMedication(String id, Map<String, dynamic> updates) async {
     await _db.from('health_medications').update(updates).eq('id', id);
+    changeSignal.value++;
   }
 
   Future<void> deleteMedication(String id) async {
     await _db.from('health_medications').delete().eq('id', id);
+    changeSignal.value++;
   }
 
   // ── Doctors ───────────────────────────────────────────────────────────────────
