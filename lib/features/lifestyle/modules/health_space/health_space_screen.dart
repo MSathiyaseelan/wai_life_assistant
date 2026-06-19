@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/utils/confirm_delete.dart';
+import '../../../../../core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/models/health/health_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
@@ -261,6 +262,80 @@ class _MemberChips extends StatelessWidget {
   }
 }
 
+
+// ── Shared AI helpers ─────────────────────────────────────────────────────────
+
+Widget _aiButton(bool active, VoidCallback onTap) => GestureDetector(
+  onTap: onTap,
+  child: AnimatedContainer(
+    duration: const Duration(milliseconds: 200),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+    decoration: BoxDecoration(
+      gradient: active ? null : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+      color: active ? _healthColor.withValues(alpha: 0.15) : null,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Text('✦', style: TextStyle(fontSize: 12, color: active ? _healthColor : Colors.white)),
+      const SizedBox(width: 5),
+      Text('Fill with AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+        fontFamily: 'Nunito', color: active ? _healthColor : Colors.white)),
+    ]),
+  ),
+);
+
+Widget _aiBox(TextEditingController ctrl, bool parsing, Future<void> Function() onFill,
+    Color sub, Color surfBg, bool isDark, {required String hint}) =>
+  Container(
+    decoration: BoxDecoration(
+      color: surfBg,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: _healthColor.withValues(alpha: 0.35)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+        child: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          minLines: 2,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+            color: isDark ? AppColors.textDark : AppColors.textLight),
+          decoration: InputDecoration.collapsed(
+            hintText: hint,
+            hintStyle: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito', height: 1.45),
+          ),
+        ),
+      ),
+      Divider(height: 1, indent: 14, endIndent: 14, color: _healthColor.withValues(alpha: 0.2)),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 10, 8),
+        child: Row(children: [
+          Expanded(child: Text('Plain text → AI fills all fields',
+            style: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito'))),
+          GestureDetector(
+            onTap: parsing ? null : onFill,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+              decoration: BoxDecoration(
+                gradient: parsing ? null : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+                color: parsing ? _healthColor.withValues(alpha: 0.3) : null,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: parsing
+                ? const SizedBox(width: 64, height: 16,
+                    child: LinearProgressIndicator(backgroundColor: Colors.transparent, color: Colors.white))
+                : const Text('Fill →', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito', color: Colors.white)),
+            ),
+          ),
+        ]),
+      ),
+    ]),
+  );
 
 Widget _chip(String text, Color color) => Container(
   margin: const EdgeInsets.only(right: 6, bottom: 6),
@@ -521,6 +596,10 @@ class _ProfileTab extends StatelessWidget {
     final allergyCtrl = TextEditingController();
     final condCtrl = TextEditingController();
     final disCtrl = TextEditingController();
+    final aiCtrl = TextEditingController();
+    bool aiActive = false;
+    bool aiParsing = false;
+    String? aiError;
 
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
       void addItem(List<String> list, TextEditingController ctrl) {
@@ -546,9 +625,195 @@ class _ProfileTab extends StatelessWidget {
           ),
       ]);
 
+      void applyAiData(Map<String, dynamic> data) {
+        final bg = data['blood_group'] as String?;
+        final ht = data['height'] as String?;
+        final wt = data['weight'] as String?;
+        final allergies = (data['allergies'] as List<dynamic>?)?.cast<String>() ?? [];
+        final conditions = (data['conditions'] as List<dynamic>?)?.cast<String>() ?? [];
+        final disabilities = (data['disabilities'] as List<dynamic>?)?.cast<String>() ?? [];
+        final ec = data['emergency_contact'] as String?;
+        final ep = data['emergency_phone'] as String?;
+        ss(() {
+          if (bg != null && bg.isNotEmpty) bgCtrl.text = bg;
+          if (ht != null && ht.isNotEmpty) htCtrl.text = ht;
+          if (wt != null && wt.isNotEmpty) wtCtrl.text = wt;
+          for (final a in allergies) {
+            if (!allergiesRef[0].contains(a)) allergiesRef[0].add(a);
+          }
+          for (final c in conditions) {
+            if (!conditionsRef[0].contains(c)) conditionsRef[0].add(c);
+          }
+          for (final d in disabilities) {
+            if (!disabilitiesRef[0].contains(d)) disabilitiesRef[0].add(d);
+          }
+          if (ec != null && ec.isNotEmpty) ecCtrl.text = ec;
+          if (ep != null && ep.isNotEmpty) epCtrl.text = ep;
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      // Local regex fallback when AI is unavailable
+      Map<String, dynamic> parseLocally(String text) {
+        final result = <String, dynamic>{};
+        // Blood group
+        final bgMatch = RegExp(r'\b(AB|A|B|O)\s*(positive|negative|\+|-)\b', caseSensitive: false).firstMatch(text);
+        if (bgMatch != null) {
+          final group = bgMatch.group(1)!.toUpperCase();
+          final sign = bgMatch.group(2)!.toLowerCase();
+          result['blood_group'] = '$group${(sign == 'positive' || sign == '+') ? '+' : '-'}';
+        }
+        // Height cm
+        final htCm = RegExp(r'(\d+(?:\.\d+)?)\s*cm', caseSensitive: false).firstMatch(text);
+        if (htCm != null) result['height'] = htCm.group(1)!;
+        // Weight kg
+        final wtKg = RegExp(r'(\d+(?:\.\d+)?)\s*kg', caseSensitive: false).firstMatch(text);
+        if (wtKg != null) result['weight'] = wtKg.group(1)!;
+        // Allergies
+        final allergyMatch = RegExp(r'allerg(?:ic\s+to|y\s*:?)\s+([^.;\n]+)', caseSensitive: false).firstMatch(text);
+        if (allergyMatch != null) {
+          result['allergies'] = allergyMatch.group(1)!
+              .split(RegExp(r'[,&]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        }
+        // Conditions — keyword scan
+        final conditionWords = ['diabetes', 'diabetic', 'hypertension', 'asthma', 'thyroid',
+          'arthritis', 'migraine', 'cardiac', 'cholesterol', 'bp', 'pcod', 'pcos',
+          'anemia', 'epilepsy', 'depression', 'anxiety'];
+        final found = conditionWords.where((w) => text.toLowerCase().contains(w)).toList();
+        if (found.isNotEmpty) result['conditions'] = found;
+        return result;
+      }
+
+      Future<void> runAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() { aiParsing = true; aiError = null; });
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle',
+            subFeature: 'health_profile',
+            text: text,
+          );
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyAiData(result.data!);
+          } else {
+            // Fallback to local parser
+            applyAiData(parseLocally(text));
+          }
+        } catch (_) {
+          if (!ctx2.mounted) return;
+          applyAiData(parseLocally(aiCtrl.text.trim()));
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
+        }
+      }
+
+      final isDark = Theme.of(ctx2).brightness == Brightness.dark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
       return Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 36), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        const Text('Edit Health Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+
+        // ── Header ──────────────────────────────────────────────────────
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          const Expanded(child: Text('Edit Health Profile',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+          GestureDetector(
+            onTap: () => ss(() { aiActive = !aiActive; aiError = null; }),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: aiActive ? null : const LinearGradient(
+                  colors: [_healthColor, Color(0xFF00897B)]),
+                color: aiActive ? _healthColor.withValues(alpha: 0.15) : null,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('✦', style: TextStyle(fontSize: 12,
+                  color: aiActive ? _healthColor : Colors.white)),
+                const SizedBox(width: 5),
+                Text('Fill with AI',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                    color: aiActive ? _healthColor : Colors.white)),
+              ]),
+            ),
+          ),
+        ]),
         const SizedBox(height: 12),
+
+        // ── AI input box ─────────────────────────────────────────────────
+        if (aiActive) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _healthColor.withValues(alpha: 0.35)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                child: TextField(
+                  controller: aiCtrl,
+                  maxLines: 3,
+                  minLines: 2,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                    color: isDark ? AppColors.textDark : AppColors.textLight),
+                  decoration: InputDecoration.collapsed(
+                    hintText: 'e.g. "I\'m O+, 172cm, 68kg, allergic to penicillin, have diabetes and hypertension. Emergency: Priya, 9876543210"',
+                    hintStyle: TextStyle(fontSize: 12, color: sub,
+                      fontFamily: 'Nunito', height: 1.45),
+                  ),
+                ),
+              ),
+              Divider(height: 1, indent: 14, endIndent: 14,
+                color: _healthColor.withValues(alpha: 0.2)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 10, 8),
+                child: Row(children: [
+                  Expanded(child: Text('Plain text → AI fills all fields',
+                    style: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito'))),
+                  GestureDetector(
+                    onTap: aiParsing ? null : runAI,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                      decoration: BoxDecoration(
+                        gradient: aiParsing ? null
+                          : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+                        color: aiParsing ? _healthColor.withValues(alpha: 0.3) : null,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: aiParsing
+                        ? const SizedBox(width: 64, height: 16,
+                            child: LinearProgressIndicator(
+                              backgroundColor: Colors.transparent,
+                              color: Colors.white))
+                        : const Text('Fill →',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito', color: Colors.white)),
+                    ),
+                  ),
+                ]),
+              ),
+              if (aiError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                  child: Text(aiError!,
+                    style: TextStyle(fontSize: 11, color: Colors.red.withValues(alpha: 0.8),
+                      fontFamily: 'Nunito')),
+                ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // ── Form fields ──────────────────────────────────────────────────
         Row(children: [
           Expanded(child: LifeInput(controller: bgCtrl, hint: 'Blood Group (e.g. O+)')),
           const SizedBox(width: 8),
@@ -722,10 +987,115 @@ class _MedicationsTab extends StatelessWidget {
       ('🍽️', 'Before food'), ('🥢', 'After food'),
     ];
 
+    final aiCtrl    = TextEditingController();
+    bool aiActive   = false;
+    bool aiParsing  = false;
+
     showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
       final isDark = ctx2.isDark;
       final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
       final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+      void applyMedAiData(Map<String, dynamic> data) {
+        final name      = data['name']       as String?;
+        final dosage    = data['dosage']     as String?;
+        final freq      = data['frequency']  as String?;
+        final times     = (data['schedule_times'] as List<dynamic>?)?.cast<String>() ?? [];
+        final meal      = data['meal_timing'] as String?;
+        final durLabel  = data['duration_label'] as String?;
+        final notesVal  = data['notes']      as String?;
+        ss(() {
+          if (name    != null && name.isNotEmpty)   nameCtrl.text   = name;
+          if (dosage  != null && dosage.isNotEmpty) dosageCtrl.text = dosage;
+          if (freq    != null && freq.isNotEmpty)   freqCtrl.text   = freq;
+          if (times.isNotEmpty) scheduleTimesRef[0] = times;
+          if (meal    != null && meal.isNotEmpty)   mealTimingRef[0] = meal;
+          if (durLabel != null) {
+            final valid = durations.any((d) => d.$1 == durLabel);
+            if (valid) {
+              durationLabel[0] = durLabel;
+              endRef[0] = computeEnd(startRef[0], durLabel);
+            }
+          }
+          if (notesVal != null && notesVal.isNotEmpty) notesCtrl.text = notesVal;
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      Map<String, dynamic> parseMedLocally(String text) {
+        final result = <String, dynamic>{};
+        // Medicine name — first capitalized word(s) before dosage
+        final nameMatch = RegExp(r'^([A-Za-z][A-Za-z\s]+?)(?:\s+\d)', multiLine: false).firstMatch(text.trim());
+        if (nameMatch != null) result['name'] = nameMatch.group(1)!.trim();
+        // Dosage
+        final dosageMatch = RegExp(r'(\d+(?:\.\d+)?\s*(?:mg|mcg|ml|g|iu|units?))', caseSensitive: false).firstMatch(text);
+        if (dosageMatch != null) result['dosage'] = dosageMatch.group(1)!;
+        // Frequency
+        final freqMap = {
+          r'once\s+(a\s+)?day|1\s+time': 'Once daily',
+          r'twice\s+(a\s+)?day|2\s+times': 'Twice daily',
+          r'three\s+times|thrice': 'Thrice daily',
+          r'every\s+8\s+hours': 'Every 8 hours',
+          r'every\s+12\s+hours': 'Every 12 hours',
+          r'once\s+a\s+week': 'Once a week',
+          r'as\s+needed|sos': 'As needed',
+        };
+        for (final entry in freqMap.entries) {
+          if (RegExp(entry.key, caseSensitive: false).hasMatch(text)) {
+            result['frequency'] = entry.value;
+            break;
+          }
+        }
+        // Schedule times
+        final times = <String>[];
+        if (RegExp(r'\bmorning\b', caseSensitive: false).hasMatch(text)) times.add('Morning');
+        if (RegExp(r'\bafternoon\b', caseSensitive: false).hasMatch(text)) times.add('Afternoon');
+        if (RegExp(r'\bevening\b', caseSensitive: false).hasMatch(text)) times.add('Evening');
+        if (RegExp(r'\bnight\b|\bbedtime\b', caseSensitive: false).hasMatch(text)) times.add('Night');
+        if (times.isNotEmpty) result['schedule_times'] = times;
+        // Meal timing
+        if (RegExp(r'\bbefore\s+(food|meal|eating)\b', caseSensitive: false).hasMatch(text)) {
+          result['meal_timing'] = 'Before food';
+        } else if (RegExp(r'\bafter\s+(food|meal|eating)\b', caseSensitive: false).hasMatch(text)) {
+          result['meal_timing'] = 'After food';
+        }
+        // Duration
+        final durPatterns = {
+          r'3\s*days?': '3 Days', r'5\s*days?': '5 Days', r'7\s*days?|one\s+week': '7 Days',
+          r'10\s*days?': '10 Days', r'14\s*days?|two\s+weeks?|fortnight': '14 Days',
+          r'1\s*month|one\s+month': '1 Month', r'3\s*months?|three\s+months?': '3 Months',
+          r'6\s*months?|six\s+months?': '6 Months', r'ongoing|lifelong|life\s+long|chronic': 'Ongoing',
+        };
+        for (final e in durPatterns.entries) {
+          if (RegExp(e.key, caseSensitive: false).hasMatch(text)) {
+            result['duration_label'] = e.value;
+            break;
+          }
+        }
+        return result;
+      }
+
+      Future<void> runMedAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() { aiParsing = true; });
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle', subFeature: 'medication', text: text);
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyMedAiData(result.data!);
+          } else {
+            applyMedAiData(parseMedLocally(text));
+          }
+        } catch (_) {
+          if (!ctx2.mounted) return;
+          applyMedAiData(parseMedLocally(aiCtrl.text.trim()));
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
+        }
+      }
 
       Widget pillRow(List<(String, String)> options, String? selected, bool multiSelect, void Function(String) onTap) {
         return Wrap(spacing: 8, runSpacing: 8, children: [
@@ -759,8 +1129,82 @@ class _MedicationsTab extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(existing == null ? 'Add Medication' : 'Edit Medication', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(child: Text(existing == null ? 'Add Medication' : 'Edit Medication',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+            GestureDetector(
+              onTap: () => ss(() { aiActive = !aiActive; }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: aiActive ? null : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+                  color: aiActive ? _healthColor.withValues(alpha: 0.15) : null,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('✦', style: TextStyle(fontSize: 12, color: aiActive ? _healthColor : Colors.white)),
+                  const SizedBox(width: 5),
+                  Text('Fill with AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito', color: aiActive ? _healthColor : Colors.white)),
+                ]),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          if (aiActive) ...[
+            Container(
+              decoration: BoxDecoration(
+                color: surfBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _healthColor.withValues(alpha: 0.35)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                  child: TextField(
+                    controller: aiCtrl,
+                    maxLines: 3,
+                    minLines: 2,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                      color: isDark ? AppColors.textDark : AppColors.textLight),
+                    decoration: InputDecoration.collapsed(
+                      hintText: 'e.g. "Metformin 500mg, twice daily after food, morning and night, for 3 months"',
+                      hintStyle: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito', height: 1.45),
+                    ),
+                  ),
+                ),
+                Divider(height: 1, indent: 14, endIndent: 14, color: _healthColor.withValues(alpha: 0.2)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 10, 8),
+                  child: Row(children: [
+                    Expanded(child: Text('Plain text → AI fills all fields',
+                      style: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito'))),
+                    GestureDetector(
+                      onTap: aiParsing ? null : runMedAI,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                        decoration: BoxDecoration(
+                          gradient: aiParsing ? null : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+                          color: aiParsing ? _healthColor.withValues(alpha: 0.3) : null,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: aiParsing
+                          ? const SizedBox(width: 64, height: 16,
+                              child: LinearProgressIndicator(backgroundColor: Colors.transparent, color: Colors.white))
+                          : const Text('Fill →', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito', color: Colors.white)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 10),
+          ],
           LifeInput(controller: nameCtrl, hint: 'Medicine name *'),
           const SizedBox(height: 8),
           Row(children: [
@@ -1135,35 +1579,158 @@ class _DoctorsTab extends StatelessWidget {
     final hospCtrl  = TextEditingController(text: existing?.hospital ?? '');
     final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
-    showLifeSheet(ctx, child: Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 36), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-      Text(existing == null ? 'Add Doctor' : 'Edit Doctor', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-      const SizedBox(height: 12),
-      LifeInput(controller: nameCtrl, hint: 'Doctor name *'),
-      const SizedBox(height: 8),
-      LifeInput(controller: specCtrl, hint: 'Specialty (e.g. Cardiologist)'),
-      const SizedBox(height: 8),
-      LifeInput(controller: hospCtrl, hint: 'Hospital / Clinic'),
-      const SizedBox(height: 8),
-      LifeInput(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
-      const SizedBox(height: 8),
-      LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-      LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
-        if (nameCtrl.text.trim().isEmpty) return;
-        final name      = nameCtrl.text.trim();
-        final specialty = specCtrl.text.trim().isEmpty  ? null : specCtrl.text.trim();
-        final hospital  = hospCtrl.text.trim().isEmpty  ? null : hospCtrl.text.trim();
-        final phone     = phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim();
-        final notes     = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
-        Navigator.pop(ctx);
-        if (existing == null) {
-          final data = DoctorRecord(id: '', walletId: walletId, memberId: memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes);
-          () async { try { final row = await HealthService.instance.addDoctor(data.toJson()); onAdd(DoctorRecord.fromJson(row)); } catch (e) { debugPrint('[Health] addDoctor: $e'); } }();
-        } else {
-          final updates = {'name': name, 'specialty': specialty, 'hospital': hospital, 'phone': phone, 'notes': notes};
-          () async { try { await HealthService.instance.updateDoctor(existing.id, updates); onUpdate(DoctorRecord(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes)); } catch (e) { debugPrint('[Health] updateDoctor: $e'); } }();
+    final aiCtrl    = TextEditingController();
+    bool aiActive   = false;
+    bool aiParsing  = false;
+
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final isDark = Theme.of(ctx2).brightness == Brightness.dark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
+      void applyDocAiData(Map<String, dynamic> data) {
+        final name     = data['name']      as String?;
+        final spec     = data['specialty'] as String?;
+        final hosp     = data['hospital']  as String?;
+        final phone    = data['phone']     as String?;
+        final notesVal = data['notes']     as String?;
+        ss(() {
+          if (name     != null && name.isNotEmpty)     nameCtrl.text  = name;
+          if (spec     != null && spec.isNotEmpty)     specCtrl.text  = spec;
+          if (hosp     != null && hosp.isNotEmpty)     hospCtrl.text  = hosp;
+          if (phone    != null && phone.isNotEmpty)    phoneCtrl.text = phone;
+          if (notesVal != null && notesVal.isNotEmpty) notesCtrl.text = notesVal;
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      Future<void> runDocAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() => aiParsing = true);
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle', subFeature: 'doctor', text: text);
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyDocAiData(result.data!);
+          } else {
+            // Simple local fallback — just put the whole text in name
+            ss(() { if (nameCtrl.text.isEmpty) nameCtrl.text = text; aiActive = false; });
+          }
+        } catch (_) {
+          if (!ctx2.mounted) return;
+          ss(() { if (nameCtrl.text.isEmpty) nameCtrl.text = text; aiActive = false; });
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
         }
-      }),
-    ])));
+      }
+
+      return Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 36), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Text(existing == null ? 'Add Doctor' : 'Edit Doctor',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+          GestureDetector(
+            onTap: () => ss(() => aiActive = !aiActive),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: aiActive ? null : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+                color: aiActive ? _healthColor.withValues(alpha: 0.15) : null,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('✦', style: TextStyle(fontSize: 12, color: aiActive ? _healthColor : Colors.white)),
+                const SizedBox(width: 5),
+                Text('Fill with AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito', color: aiActive ? _healthColor : Colors.white)),
+              ]),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        if (aiActive) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _healthColor.withValues(alpha: 0.35)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+                child: TextField(
+                  controller: aiCtrl,
+                  maxLines: 3,
+                  minLines: 2,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                    color: isDark ? AppColors.textDark : AppColors.textLight),
+                  decoration: InputDecoration.collapsed(
+                    hintText: 'e.g. "Dr. Ramesh Kumar, Cardiologist at Apollo Hospital, Chennai. 9876543210"',
+                    hintStyle: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito', height: 1.45),
+                  ),
+                ),
+              ),
+              Divider(height: 1, indent: 14, endIndent: 14, color: _healthColor.withValues(alpha: 0.2)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 10, 8),
+                child: Row(children: [
+                  Expanded(child: Text('Plain text → AI fills all fields',
+                    style: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito'))),
+                  GestureDetector(
+                    onTap: aiParsing ? null : runDocAI,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                      decoration: BoxDecoration(
+                        gradient: aiParsing ? null : const LinearGradient(colors: [_healthColor, Color(0xFF00897B)]),
+                        color: aiParsing ? _healthColor.withValues(alpha: 0.3) : null,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: aiParsing
+                        ? const SizedBox(width: 64, height: 16,
+                            child: LinearProgressIndicator(backgroundColor: Colors.transparent, color: Colors.white))
+                        : const Text('Fill →', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito', color: Colors.white)),
+                    ),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+        ],
+        LifeInput(controller: nameCtrl, hint: 'Doctor name *'),
+        const SizedBox(height: 8),
+        LifeInput(controller: specCtrl, hint: 'Specialty (e.g. Cardiologist)'),
+        const SizedBox(height: 8),
+        LifeInput(controller: hospCtrl, hint: 'Hospital / Clinic'),
+        const SizedBox(height: 8),
+        LifeInput(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
+        const SizedBox(height: 8),
+        LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
+        LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
+          if (nameCtrl.text.trim().isEmpty) return;
+          final name      = nameCtrl.text.trim();
+          final specialty = specCtrl.text.trim().isEmpty  ? null : specCtrl.text.trim();
+          final hospital  = hospCtrl.text.trim().isEmpty  ? null : hospCtrl.text.trim();
+          final phone     = phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim();
+          final notes     = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+          Navigator.pop(ctx2);
+          if (existing == null) {
+            final data = DoctorRecord(id: '', walletId: walletId, memberId: memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes);
+            () async { try { final row = await HealthService.instance.addDoctor(data.toJson()); onAdd(DoctorRecord.fromJson(row)); } catch (e) { debugPrint('[Health] addDoctor: $e'); } }();
+          } else {
+            final updates = {'name': name, 'specialty': specialty, 'hospital': hospital, 'phone': phone, 'notes': notes};
+            () async { try { await HealthService.instance.updateDoctor(existing.id, updates); onUpdate(DoctorRecord(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes)); } catch (e) { debugPrint('[Health] updateDoctor: $e'); } }();
+          }
+        }),
+      ]));
+    }));
   }
 }
 
@@ -1406,12 +1973,67 @@ class _AppointmentsTab extends StatelessWidget {
     final locationCtrl = TextEditingController(text: existing?.location ?? '');
     final notesCtrl    = TextEditingController(text: existing?.notes ?? '');
     final dateRef = <DateTime>[existing?.apptDate ?? DateTime.now().add(const Duration(days: 1))];
+    final aiCtrl   = TextEditingController();
+    bool aiActive  = false;
+    bool aiParsing = false;
 
-    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final isDark = Theme.of(ctx2).brightness == Brightness.dark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
+      void applyData(Map<String, dynamic> data) {
+        final doctor   = data['doctor_name'] as String?;
+        final time     = data['time']        as String?;
+        final location = data['location']    as String?;
+        final notesVal = data['notes']       as String?;
+        final dateStr  = data['date']        as String?;
+        ss(() {
+          if (doctor   != null && doctor.isNotEmpty)   doctorCtrl.text   = doctor;
+          if (time     != null && time.isNotEmpty)     timeCtrl.text     = time;
+          if (location != null && location.isNotEmpty) locationCtrl.text = location;
+          if (notesVal != null && notesVal.isNotEmpty) notesCtrl.text    = notesVal;
+          if (dateStr  != null) { final d = DateTime.tryParse(dateStr); if (d != null) dateRef[0] = d; }
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      Future<void> runAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() => aiParsing = true);
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle', subFeature: 'appointment', text: text,
+            context: {'today': DateTime.now().toIso8601String().split('T')[0]});
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyData(result.data!);
+          } else {
+            ss(() { aiActive = false; });
+          }
+        } catch (_) {
+          if (ctx2.mounted) ss(() { aiActive = false; });
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
+        }
+      }
+
+      return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(existing == null ? 'Book Appointment' : 'Edit Appointment', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Text(existing == null ? 'Book Appointment' : 'Edit Appointment',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+          _aiButton(aiActive, () => ss(() => aiActive = !aiActive)),
+        ]),
+        const SizedBox(height: 10),
+        if (aiActive) ...[
+          _aiBox(aiCtrl, aiParsing, runAI, sub, surfBg, isDark,
+            hint: 'e.g. "Dr. Ramesh, Apollo Hospital, 15 July 10:30 AM, ground floor OPD"'),
+          const SizedBox(height: 10),
+        ],
         LifeInput(controller: doctorCtrl, hint: 'Doctor / Hospital *'),
         const SizedBox(height: 8),
         Row(children: [
@@ -1450,7 +2072,8 @@ class _AppointmentsTab extends StatelessWidget {
           }
         }),
       ]),
-    )));
+    );
+    }));
   }
 }
 
@@ -1697,12 +2320,68 @@ class _VitalsTabState extends State<_VitalsTab> {
     final subCtrl   = TextEditingController(text: existing?.subType ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
     final typeRef   = <VitalType>[existing?.type ?? _selected];
+    final aiCtrl   = TextEditingController();
+    bool aiActive  = false;
+    bool aiParsing = false;
 
-    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final isDark = Theme.of(ctx2).brightness == Brightness.dark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
+      void applyData(Map<String, dynamic> data) {
+        final typeName = data['vital_type'] as String?;
+        final val      = data['value']      as num?;
+        final val2     = data['value2']     as num?;
+        final subType  = data['sub_type']   as String?;
+        final notesVal = data['notes']      as String?;
+        ss(() {
+          if (typeName != null) {
+            try { typeRef[0] = VitalType.values.firstWhere((t) => t.name == typeName); } catch (_) {}
+          }
+          if (val    != null) v1Ctrl.text = val.toString();
+          if (val2   != null) v2Ctrl.text = val2.toString();
+          if (subType  != null && subType.isNotEmpty)  subCtrl.text   = subType;
+          if (notesVal != null && notesVal.isNotEmpty) notesCtrl.text = notesVal;
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      Future<void> runAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() => aiParsing = true);
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle', subFeature: 'vital', text: text);
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyData(result.data!);
+          } else {
+            ss(() { aiActive = false; });
+          }
+        } catch (_) {
+          if (ctx2.mounted) ss(() { aiActive = false; });
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
+        }
+      }
+
+      return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(existing == null ? 'Log Vital' : 'Edit Vital', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Text(existing == null ? 'Log Vital' : 'Edit Vital',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+          _aiButton(aiActive, () => ss(() => aiActive = !aiActive)),
+        ]),
+        const SizedBox(height: 10),
+        if (aiActive) ...[
+          _aiBox(aiCtrl, aiParsing, runAI, sub, surfBg, isDark,
+            hint: 'e.g. "BP 120/80" or "Blood sugar fasting 95 mg/dL" or "Weight 68kg, Heart rate 78 bpm"'),
+          const SizedBox(height: 10),
+        ],
         if (existing == null) ...[
           const LifeLabel(text: 'TYPE'),
           SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, children: [
@@ -1757,7 +2436,8 @@ class _VitalsTabState extends State<_VitalsTab> {
           }
         }),
       ]),
-    )));
+    );
+    }));
   }
 }
 
@@ -1800,17 +2480,72 @@ class _VaccinesTab extends StatelessWidget {
   }
 
   void _showSheet(BuildContext ctx, {Vaccination? existing}) {
-    final nameCtrl = TextEditingController(text: existing?.vaccineName ?? '');
-    final doseCtrl = TextEditingController(text: existing?.doseNumber?.toString() ?? '');
+    final nameCtrl  = TextEditingController(text: existing?.vaccineName ?? '');
+    final doseCtrl  = TextEditingController(text: existing?.doseNumber?.toString() ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
-    final givenRef = <DateTime>[existing?.dateGiven ?? DateTime.now()];
-    final dueRef = <DateTime?>[existing?.nextDue];
+    final givenRef  = <DateTime>[existing?.dateGiven ?? DateTime.now()];
+    final dueRef    = <DateTime?>[existing?.nextDue];
+    final aiCtrl   = TextEditingController();
+    bool aiActive  = false;
+    bool aiParsing = false;
 
-    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final isDark = Theme.of(ctx2).brightness == Brightness.dark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
+      void applyData(Map<String, dynamic> data) {
+        final name     = data['vaccine_name'] as String?;
+        final dose     = data['dose_number']  as num?;
+        final notesVal = data['notes']        as String?;
+        final givenStr = data['date_given']   as String?;
+        final dueStr   = data['next_due']     as String?;
+        ss(() {
+          if (name     != null && name.isNotEmpty)     nameCtrl.text  = name;
+          if (dose     != null) doseCtrl.text = dose.toInt().toString();
+          if (notesVal != null && notesVal.isNotEmpty) notesCtrl.text = notesVal;
+          if (givenStr != null) { final d = DateTime.tryParse(givenStr); if (d != null) givenRef[0] = d; }
+          if (dueStr   != null) { final d = DateTime.tryParse(dueStr);   if (d != null) dueRef[0]   = d; }
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      Future<void> runAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() => aiParsing = true);
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle', subFeature: 'vaccination', text: text,
+            context: {'today': DateTime.now().toIso8601String().split('T')[0]});
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyData(result.data!);
+          } else {
+            ss(() { aiActive = false; });
+          }
+        } catch (_) {
+          if (ctx2.mounted) ss(() { aiActive = false; });
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
+        }
+      }
+
+      return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(existing == null ? 'Add Vaccination' : 'Edit Vaccination', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Text(existing == null ? 'Add Vaccination' : 'Edit Vaccination',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+          _aiButton(aiActive, () => ss(() => aiActive = !aiActive)),
+        ]),
+        const SizedBox(height: 10),
+        if (aiActive) ...[
+          _aiBox(aiCtrl, aiParsing, runAI, sub, surfBg, isDark,
+            hint: 'e.g. "Covishield dose 2, given 15 Mar 2022, next due Mar 2023"'),
+          const SizedBox(height: 10),
+        ],
         LifeInput(controller: nameCtrl, hint: 'Vaccine name *'),
         const SizedBox(height: 8),
         LifeInput(controller: doseCtrl, hint: 'Dose number (optional)', inputType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
@@ -1845,7 +2580,8 @@ class _VaccinesTab extends StatelessWidget {
           }();
         }),
       ]),
-    )));
+    );
+    }));
   }
 }
 
@@ -2039,18 +2775,75 @@ class _InsuranceTab extends StatelessWidget {
   }
 
   void _showSheet(BuildContext ctx, {InsurancePolicy? existing}) {
-    final nameCtrl = TextEditingController(text: existing?.policyName ?? '');
-    final numCtrl = TextEditingController(text: existing?.policyNumber ?? '');
-    final provCtrl = TextEditingController(text: existing?.provider ?? '');
-    final covCtrl = TextEditingController(text: existing?.coverageAmount?.toStringAsFixed(0) ?? '');
+    final nameCtrl  = TextEditingController(text: existing?.policyName ?? '');
+    final numCtrl   = TextEditingController(text: existing?.policyNumber ?? '');
+    final provCtrl  = TextEditingController(text: existing?.provider ?? '');
+    final covCtrl   = TextEditingController(text: existing?.coverageAmount?.toStringAsFixed(0) ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
     final expiryRef = <DateTime?>[existing?.expiryDate];
+    final aiCtrl   = TextEditingController();
+    bool aiActive  = false;
+    bool aiParsing = false;
 
-    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final isDark = Theme.of(ctx2).brightness == Brightness.dark;
+      final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
+      void applyData(Map<String, dynamic> data) {
+        final name       = data['policy_name']    as String?;
+        final num_       = data['policy_number']  as String?;
+        final prov       = data['provider']       as String?;
+        final cov        = data['coverage_amount'] as num?;
+        final notesVal   = data['notes']          as String?;
+        final expiryStr  = data['expiry_date']    as String?;
+        ss(() {
+          if (name     != null && name.isNotEmpty)     nameCtrl.text = name;
+          if (num_     != null && num_.isNotEmpty)     numCtrl.text  = num_;
+          if (prov     != null && prov.isNotEmpty)     provCtrl.text = prov;
+          if (cov      != null) covCtrl.text = cov.toInt().toString();
+          if (notesVal != null && notesVal.isNotEmpty) notesCtrl.text = notesVal;
+          if (expiryStr != null) { final d = DateTime.tryParse(expiryStr); if (d != null) expiryRef[0] = d; }
+          aiActive = false;
+          aiCtrl.clear();
+        });
+      }
+
+      Future<void> runAI() async {
+        final text = aiCtrl.text.trim();
+        if (text.isEmpty) return;
+        ss(() => aiParsing = true);
+        try {
+          final result = await AIParser.parseText(
+            feature: 'lifestyle', subFeature: 'insurance_policy', text: text,
+            context: {'today': DateTime.now().toIso8601String().split('T')[0]});
+          if (!ctx2.mounted) return;
+          if (result.success && result.data != null) {
+            applyData(result.data!);
+          } else {
+            ss(() { aiActive = false; });
+          }
+        } catch (_) {
+          if (ctx2.mounted) ss(() { aiActive = false; });
+        } finally {
+          if (ctx2.mounted) ss(() => aiParsing = false);
+        }
+      }
+
+      return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(existing == null ? 'Add Insurance Policy' : 'Edit Insurance Policy', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(child: Text(existing == null ? 'Add Insurance Policy' : 'Edit Insurance Policy',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'))),
+          _aiButton(aiActive, () => ss(() => aiActive = !aiActive)),
+        ]),
+        const SizedBox(height: 10),
+        if (aiActive) ...[
+          _aiBox(aiCtrl, aiParsing, runAI, sub, surfBg, isDark,
+            hint: 'e.g. "Star Health individual, policy SH12345, Star Health Insurance, coverage 5 lakhs, expires Jan 2026"'),
+          const SizedBox(height: 10),
+        ],
         LifeInput(controller: nameCtrl, hint: 'Policy name *'),
         const SizedBox(height: 8),
         Row(children: [
@@ -2068,11 +2861,11 @@ class _InsuranceTab extends StatelessWidget {
         LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
         LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
           if (nameCtrl.text.trim().isEmpty) return;
-          final policyName = nameCtrl.text.trim();
-          final policyNumber = numCtrl.text.trim().isEmpty ? null : numCtrl.text.trim();
-          final provider = provCtrl.text.trim().isEmpty ? null : provCtrl.text.trim();
+          final policyName   = nameCtrl.text.trim();
+          final policyNumber = numCtrl.text.trim().isEmpty  ? null : numCtrl.text.trim();
+          final provider     = provCtrl.text.trim().isEmpty ? null : provCtrl.text.trim();
           final coverageAmount = double.tryParse(covCtrl.text.trim());
-          final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+          final notes  = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
           final expiry = expiryRef[0];
           Navigator.pop(ctx2);
           () async {
@@ -2090,7 +2883,8 @@ class _InsuranceTab extends StatelessWidget {
           }();
         }),
       ]),
-    )));
+      );
+    }));
   }
 }
 
