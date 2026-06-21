@@ -14,6 +14,7 @@ class MyListSection extends StatelessWidget {
   final Color sub;
   final VoidCallback onItemsChanged;
   final VoidCallback onGoToPantry;
+  final bool isPersonal;
 
   const MyListSection({
     super.key,
@@ -24,10 +25,14 @@ class MyListSection extends StatelessWidget {
     required this.sub,
     required this.onItemsChanged,
     required this.onGoToPantry,
+    this.isPersonal = true,
   });
 
   List<GroceryItem> get _groceryItems  => items.where((i) => i.isGrocery).toList();
   List<GroceryItem> get _quickItems    => items.where((i) => !i.isGrocery).toList();
+
+  String get _quickListLabel =>
+      isPersonal ? '🧴 Personal Care' : '🏠 Household Supplies';
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +50,7 @@ class MyListSection extends StatelessWidget {
             const Text('🛍️', style: TextStyle(fontSize: 16)),
             const SizedBox(width: 7),
             Text(
-              'My List',
+              'Shopping List',
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w900,
@@ -62,14 +67,21 @@ class MyListSection extends StatelessWidget {
                   backgroundColor: Colors.transparent,
                   builder: (_) => CreateListSheet(items: items),
                 ),
-                child: Text(
-                  '📋 List',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito',
-                    color: AppColors.lend,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.share_rounded, size: 13, color: AppColors.lend),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Share',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: AppColors.lend,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (items.isNotEmpty) const SizedBox(width: 12),
@@ -147,7 +159,7 @@ class MyListSection extends StatelessWidget {
                 // ── Quick list sub-section ────────────────────────────────────
                 if (quick.isNotEmpty) ...[
                   _SubHeader(
-                    label: '📋 Quick List',
+                    label: _quickListLabel,
                     count: quick.length,
                     color: AppColors.lend,
                     isDark: isDark,
@@ -262,6 +274,7 @@ class MyListSection extends StatelessWidget {
       builder: (_) => _AddListItemSheet(
         walletId: walletId,
         isDark: isDark,
+        isPersonal: isPersonal,
         onAdded: () {
           PantryService.listChangeSignal.value++;
           onItemsChanged();
@@ -543,10 +556,12 @@ class _AddListItemSheet extends StatefulWidget {
   final String walletId;
   final bool isDark;
   final VoidCallback onAdded;
+  final bool isPersonal;
   const _AddListItemSheet({
     required this.walletId,
     required this.isDark,
     required this.onAdded,
+    required this.isPersonal,
   });
 
   @override
@@ -634,7 +649,7 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
 
           // Title
           Text(
-            'Add to My List',
+            'Add to Shopping List',
             style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w900,
@@ -754,7 +769,7 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
               ),
               const SizedBox(width: 10),
               _TypeChip(
-                label: '📋 Quick List',
+                label: widget.isPersonal ? '🧴 Personal Care' : '🏠 Household Supplies',
                 selected: !_isGrocery,
                 color: AppColors.lend,
                 isDark: isDark,

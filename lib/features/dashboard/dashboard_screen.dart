@@ -85,6 +85,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Page controller for swipeable wallet cards
   late final PageController _walletPageController;
 
+  // Page controller for swipeable shopping list cards
+  late final PageController _listPageController;
+
   // PlanIt data — merged from all loaded wallets, keyed by walletId
   final Map<String, List<ReminderModel>> _remindersMap = {};
   final Map<String, List<TaskModel>> _tasksMap = {};
@@ -121,6 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     super.initState();
     _walletPageController = PageController();
     _platePageController = PageController();
+    _listPageController = PageController();
     _wasOnline = NetworkService.instance.isOnline.value;
     WidgetsBinding.instance.addObserver(this);
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
@@ -376,6 +380,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   void dispose() {
     _walletPageController.dispose();
     _platePageController.dispose();
+    _listPageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     PantryService.mealChangeSignal.removeListener(_onMealChange);
@@ -1493,23 +1498,103 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       ),
                       const SizedBox(height: 16),
 
-                      // ④  MY LIST ──────────────────────────────────────────────
+                      // ④  SHOPPING LIST ────────────────────────────────────────
                       Builder(builder: (ctx) {
-                        final allItems = _myListMap[walletId] ?? [];
+                        final personalW = appState.wallets.firstWhere(
+                          (w) => w.isPersonal,
+                          orElse: () => personalWallet,
+                        );
+                        final familyWs = appState.wallets
+                            .where((w) => !w.isPersonal)
+                            .toList();
+                        final allCards = [personalW, ...familyWs];
+
+                        // header(38) + subheader(43) + row(42) + addBtn(49) + empty(88)
+                        double listCardHeight(String wid) {
+                          final its = _myListMap[wid] ?? [];
+                          final g = its.where((i) => i.isGrocery).length;
+                          final q = its.where((i) => !i.isGrocery).length;
+                          if (g == 0 && q == 0) return 38 + 88 + 49;
+                          double h = 38; // section header
+                          if (g > 0) {
+                            h += 43 + g.clamp(0, 3) * 42;
+                            if (g > 3) h += 25;
+                          }
+                          if (q > 0) {
+                            if (g > 0) h += 1;
+                            h += 43 + q * 42;
+                          }
+                          return h + 49; // add button
+                        }
+
+                        final listH = allCards
+                            .map((w) => listCardHeight(w.id))
+                            .fold<double>(0, (a, b) => a > b ? a : b)
+                            .clamp(156.0, 600.0);
+
                         return Column(
                           children: [
-                            MyListSection(
-                              items: allItems,
-                              walletId: walletId,
-                              isDark: isDark,
-                              cardBg: cardBg,
-                              sub: sub,
-                              onItemsChanged: () => _loadMyList(walletId),
-                              onGoToPantry: () {
-                                DashNavService.pantry.value = 'basket:tobuy';
-                                widget.onTabSwitch?.call(2);
-                              },
+                            SizedBox(
+                              height: listH,
+                              child: PageView.builder(
+                                controller: _listPageController,
+                                itemCount: allCards.length,
+                                physics: allCards.length > 1
+                                    ? const PageScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                itemBuilder: (ctx, idx) {
+                                  final w = allCards[idx];
+                                  final allItems = _myListMap[w.id] ?? [];
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      right: idx < allCards.length - 1 ? 8.0 : 0,
+                                    ),
+                                    child: MyListSection(
+                                      items: allItems,
+                                      walletId: w.id,
+                                      isDark: isDark,
+                                      cardBg: cardBg,
+                                      sub: sub,
+                                      isPersonal: w.isPersonal,
+                                      onItemsChanged: () => _loadMyList(w.id),
+                                      onGoToPantry: () {
+                                        DashNavService.pantry.value = 'basket:tobuy:${w.id}';
+                                        widget.onTabSwitch?.call(2);
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
+                            if (allCards.length > 1) ...[
+                              const SizedBox(height: 8),
+                              AnimatedBuilder(
+                                animation: _listPageController,
+                                builder: (ctx, _) {
+                                  final page = _listPageController.hasClients
+                                      ? (_listPageController.page ?? 0).round()
+                                      : 0;
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: List.generate(allCards.length, (i) {
+                                      final active = page == i;
+                                      return AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                                        width: active ? 16 : 6,
+                                        height: 6,
+                                        decoration: BoxDecoration(
+                                          color: active
+                                              ? AppColors.primary
+                                              : sub.withValues(alpha: 0.3),
+                                          borderRadius: BorderRadius.circular(3),
+                                        ),
+                                      );
+                                    }),
+                                  );
+                                },
+                              ),
+                            ],
                             const SizedBox(height: 16),
                           ],
                         );

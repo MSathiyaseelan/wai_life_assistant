@@ -339,7 +339,11 @@ class _PantryScreenState extends State<PantryScreen>
           widget.onWalletChange(parts[1]);
         }
         _sectionTab.animateTo(0);
-      } else if (signal == 'basket:tobuy') {
+      } else if (signal == 'basket:tobuy' || signal.startsWith('basket:tobuy:')) {
+        final parts = signal.split(':');
+        if (parts.length == 3 && parts[2].isNotEmpty) {
+          widget.onWalletChange(parts[2]);
+        }
         _basketTabNotifier.value = 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _basketTabNotifier.value = 1;
