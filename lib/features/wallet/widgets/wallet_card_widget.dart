@@ -7,6 +7,11 @@ class WalletCardWidget extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
   final VoidCallback? onReports;
+  final VoidCallback? onBudget;
+
+  /// Budget models that have crossed 80% or 100% of their monthly limit.
+  /// When non-empty an alert banner is shown at the bottom of the card.
+  final List<BudgetModel> budgetAlerts;
 
   /// When provided, overrides the wallet's all-time breakdown with period stats.
   final double? periodCashIn;
@@ -21,6 +26,8 @@ class WalletCardWidget extends StatefulWidget {
     required this.isActive,
     required this.onTap,
     this.onReports,
+    this.onBudget,
+    this.budgetAlerts = const [],
     this.periodCashIn,
     this.periodCashOut,
     this.periodOnlineIn,
@@ -67,6 +74,10 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final alerts   = widget.budgetAlerts;
+    final hasAlerts = alerts.isNotEmpty;
+    final anyOver   = alerts.any((b) => b.isOver);
+
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedContainer(
@@ -126,7 +137,7 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
               ],
             ),
             const SizedBox(height: 8),
-            // ── Balance row with eye toggle ───────────────────────────────
+            // ── Balance row with icons ────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -158,6 +169,27 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
                     ],
                   ),
                 ),
+                // ── Budget icon (before report) ───────────────────────────
+                if (widget.onBudget != null)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      widget.onBudget!();
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4, right: 12),
+                      child: Icon(
+                        Icons.donut_small_rounded,
+                        color: hasAlerts
+                            ? (anyOver
+                                ? const Color(0xFFFF5C7A)
+                                : const Color(0xFFFFAA2C))
+                            : Colors.white60,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                // ── Report icon ───────────────────────────────────────────
                 if (widget.onReports != null)
                   GestureDetector(
                     onTap: () {
@@ -173,6 +205,7 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
                       ),
                     ),
                   ),
+                // ── Eye toggle ────────────────────────────────────────────
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
@@ -223,10 +256,76 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
                 ],
               ),
             ),
+            // ── Budget alert banner ───────────────────────────────────────
+            if (hasAlerts) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  widget.onBudget?.call();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: anyOver
+                        ? const Color(0xFFFF5C7A).withValues(alpha: 0.20)
+                        : const Color(0xFFFFAA2C).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: anyOver
+                          ? const Color(0xFFFF5C7A).withValues(alpha: 0.35)
+                          : const Color(0xFFFFAA2C).withValues(alpha: 0.35),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(anyOver ? '🔴' : '🟠',
+                          style: const TextStyle(fontSize: 13)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _alertSummary(alerts),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            color: anyOver
+                                ? const Color(0xFFFF5C7A)
+                                : const Color(0xFFFFAA2C),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 16,
+                        color: anyOver
+                            ? const Color(0xFFFF5C7A)
+                            : const Color(0xFFFFAA2C),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  static String _alertSummary(List<BudgetModel> alerts) {
+    final over = alerts.where((b) => b.isOver).toList();
+    final near = alerts.where((b) => b.isNear).toList();
+    if (over.isNotEmpty && near.isNotEmpty) {
+      return '${over.map((b) => b.category).join(', ')} over · ${near.map((b) => b.category).join(', ')} near limit';
+    }
+    if (over.isNotEmpty) {
+      return '${over.map((b) => b.category).join(', ')} budget exceeded!';
+    }
+    return '${near.map((b) => b.category).join(', ')} budget almost full';
   }
 }
 

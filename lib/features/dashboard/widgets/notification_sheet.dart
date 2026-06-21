@@ -159,6 +159,11 @@ class _NotificationSheetState extends State<NotificationSheet> {
                               onDeclined: () => _removeItem(n.id),
                             );
                           }
+                          if (n.isBudgetAlert) {
+                            return _BudgetAlertTile(
+                              n: n, surf: surf, tc: tc, sub: sub,
+                            );
+                          }
                           return _NotifTile(
                             n: n, isDark: isDark, surf: surf, tc: tc, sub: sub,
                           );
@@ -414,6 +419,115 @@ class _InviteTileState extends State<_InviteTile> {
                 decoration: BoxDecoration(
                   color: AppColors.primary, shape: BoxShape.circle,
                 ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Budget alert tile
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BudgetAlertTile extends StatelessWidget {
+  final AppNotification n;
+  final Color surf, tc, sub;
+
+  const _BudgetAlertTile({
+    required this.n,
+    required this.surf,
+    required this.tc,
+    required this.sub,
+  });
+
+  Color get _alertColor => n.actorEmoji == '🔴'
+      ? const Color(0xFFFF5C7A)
+      : const Color(0xFFFFAA2C);
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1)  return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24)   return '${diff.inHours}h ago';
+    if (diff.inDays < 7)     return '${diff.inDays}d ago';
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _alertColor;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15), shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(n.actorEmoji, style: const TextStyle(fontSize: 20)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Budget Alert',
+                        style: TextStyle(
+                          fontSize: 14, fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800, color: tc,
+                        ),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        n.txCategory,
+                        style: TextStyle(
+                          fontSize: 11, fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700, color: color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  n.txTitle ?? 'Budget threshold reached',
+                  style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _timeAgo(n.createdAt),
+                  style: TextStyle(
+                    fontSize: 11, fontFamily: 'Nunito',
+                    color: sub.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!n.isRead)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 8),
+              child: Container(
+                width: 8, height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
             ),
         ],

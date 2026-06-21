@@ -344,6 +344,71 @@ class FamilyModel {
   bool get canDelete => permDelete == 'any_member' || isAdmin;
 }
 
+// ── Budget ────────────────────────────────────────────────────────────────────
+
+/// Monthly spending limit for a single expense category in a wallet.
+/// [spent] is computed on the client from the loaded transaction list.
+class BudgetModel {
+  final String id;
+  final String walletId;
+  final String category;
+  final double limitAmount;
+  String? last80AlertMonth;  // YYYY-MM
+  String? last100AlertMonth; // YYYY-MM
+  double spent; // set by caller after computing from transactions
+
+  BudgetModel({
+    required this.id,
+    required this.walletId,
+    required this.category,
+    required this.limitAmount,
+    this.last80AlertMonth,
+    this.last100AlertMonth,
+    this.spent = 0,
+  });
+
+  factory BudgetModel.fromRow(Map<String, dynamic> row) => BudgetModel(
+        id: row['id'] as String,
+        walletId: row['wallet_id'] as String,
+        category: row['category'] as String,
+        limitAmount: (row['limit_amount'] as num).toDouble(),
+        last80AlertMonth: row['last_80_alert_month'] as String?,
+        last100AlertMonth: row['last_100_alert_month'] as String?,
+      );
+
+  double get pct => limitAmount > 0 ? spent / limitAmount : 0;
+  bool get isOver => pct >= 1.0;
+  bool get isNear => pct >= 0.8 && !isOver;
+  bool get isAlert => isNear || isOver;
+  String get alertEmoji => isOver ? '🔴' : '🟠';
+}
+
+// ── Shared category-emoji helper ──────────────────────────────────────────────
+
+String walletCategoryEmoji(String cat) => switch (cat.toLowerCase()) {
+  'food' || 'dining' || 'restaurant' => '🍔',
+  'groceries'                        => '🛒',
+  'transport' || 'transportation' || 'commute' => '🚗',
+  'fuel' || 'petrol' || 'diesel'     => '⛽',
+  'shopping'                         => '🛍️',
+  'health' || 'medical'              => '💊',
+  'hospital'                         => '🏥',
+  'education' || 'school' || 'college' => '📚',
+  'entertainment'                    => '🎬',
+  'utilities' || 'utility' || 'electricity' || 'water' => '💡',
+  'rent' || 'housing'                => '🏠',
+  'salary'                           => '💰',
+  'freelance'                        => '💻',
+  'investment'                       => '📈',
+  'travel' || 'vacation'             => '✈️',
+  'clothing' || 'clothes' || 'fashion' => '👕',
+  'subscription' || 'ott'            => '📺',
+  'bills'                            => '💳',
+  'gifts'                            => '🎁',
+  'insurance'                        => '🛡️',
+  _                                  => '📦',
+};
+
 // ── Fallback placeholder — no financial data ──────────────────────────────────
 
 /// Minimal placeholder used only as a UI fallback while real data loads.

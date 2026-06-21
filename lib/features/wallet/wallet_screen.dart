@@ -26,6 +26,7 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/features/planit/modules/bill_watch/bill_watch_screen.dart';
 import 'package:wai_life_assistant/features/wallet/wallet_reports_sheet.dart';
+import 'package:wai_life_assistant/features/wallet/budget_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_group_card.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -80,6 +81,9 @@ class _WalletScreenState extends State<WalletScreen>
   // Bill Watch — lifted state + key to trigger add-sheet from bottom bar
   final List<BillModel> _bills = [];
   final _billWatchKey = GlobalKey<BillWatchScreenState>();
+
+  // Budgets — keyed by walletId
+  final Map<String, List<BudgetModel>> _budgetsMap = {};
 
   // Search
   bool _searchActive = false;
@@ -138,6 +142,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (_sgLoading) _loadSplitGroups();
     if (_txGroups.isEmpty) _loadTxGroups();
     WalletService.instance.loadCategories();
+    _loadBudgets();
   }
 
   @override
@@ -147,8 +152,48 @@ class _WalletScreenState extends State<WalletScreen>
       _loadTransactions();
       _loadSplitGroups();
       _loadTxGroups();
+      _loadBudgets();
       _syncFamilyPage();
     }
+  }
+
+  Future<void> _loadBudgets() async {
+    final walletId = _appState.activeWalletId.isNotEmpty &&
+            _appState.activeWalletId != 'personal'
+        ? _appState.activeWalletId
+        : widget.activeWalletId;
+    if (!AuthCoordinator.instance.isLoggedIn ||
+        walletId.isEmpty ||
+        walletId == 'personal') {
+      return;
+    }
+    try {
+      final budgets = await WalletService.instance.fetchBudgets(walletId);
+      final spent = WalletService.computeMonthlySpent(_transactions);
+      for (final b in budgets) {
+        b.spent = spent[b.category] ?? 0;
+      }
+      if (mounted) setState(() => _budgetsMap[walletId] = budgets);
+    } catch (e) {
+      debugPrint('[WalletScreen] fetchBudgets error: $e');
+    }
+  }
+
+  /// Re-compute spent amounts and fire alerts after an expense is persisted.
+  Future<void> _checkBudgetsAfterExpense(String walletId) async {
+    final budgets = _budgetsMap[walletId];
+    if (budgets == null || budgets.isEmpty) return;
+    final spent = WalletService.computeMonthlySpent(_transactions);
+    for (final b in budgets) {
+      b.spent = spent[b.category] ?? 0;
+    }
+    if (mounted) setState(() => _budgetsMap[walletId] = budgets);
+    // Fire async notifications — don't await so UI stays snappy
+    WalletService.instance.checkAndAlertBudgets(
+      walletId: walletId,
+      budgets: budgets,
+      spentMap: spent,
+    );
   }
 
   void _syncFamilyPage() {
@@ -505,6 +550,10 @@ class _WalletScreenState extends State<WalletScreen>
       // Reload wallet so the card reflects updated balance
       await AppStateScope.of(context).reload();
       if (!mounted) return;
+      // Check budget thresholds whenever an expense is saved
+      if (saved.type == TxType.expense) {
+        _checkBudgetsAfterExpense(saved.walletId);
+      }
       // ConversationScreen may still be on top (it pops after a 1800ms delay).
       // Wait until WalletScreen's route is active before starting the snackbar
       // timer — otherwise the timer expires while the screen is hidden and the
@@ -1932,7 +1981,18 @@ class _WalletScreenState extends State<WalletScreen>
                   periodOnlineIn: ps.onlineIn,
                   periodOnlineOut: ps.onlineOut,
                   periodLabel: periodLabel,
+                  budgetAlerts: (_budgetsMap[wallets[0].id] ?? [])
+                      .where((b) => b.isAlert)
+                      .toList(),
                   onTap: () {},
+                  onBudget: () => BudgetSheet.show(
+                    context,
+                    walletId: wallets[0].id,
+                    transactions: _transactions
+                        .where((t) => t.walletId == wallets[0].id)
+                        .toList(),
+                    isDark: isDark,
+                  ).then((_) => _loadBudgets()),
                   onReports: () => WalletReportsSheet.show(
                     context,
                     transactions: _transactions
@@ -1967,7 +2027,18 @@ class _WalletScreenState extends State<WalletScreen>
                       periodOnlineIn: ps.onlineIn,
                       periodOnlineOut: ps.onlineOut,
                       periodLabel: periodLabel,
+                      budgetAlerts: (_budgetsMap[wallets[i].id] ?? [])
+                          .where((b) => b.isAlert)
+                          .toList(),
                       onTap: () {},
+                      onBudget: () => BudgetSheet.show(
+                        context,
+                        walletId: wallets[i].id,
+                        transactions: _transactions
+                            .where((t) => t.walletId == wallets[i].id)
+                            .toList(),
+                        isDark: isDark,
+                      ).then((_) => _loadBudgets()),
                       onReports: () => WalletReportsSheet.show(
                         context,
                         transactions: _transactions
@@ -2944,26 +3015,7 @@ class _WalletScreenState extends State<WalletScreen>
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  static String _categoryEmoji(String cat) => switch (cat.toLowerCase()) {
-        'food' || 'dining' || 'restaurant' => '🍔',
-        'groceries' => '🛒',
-        'transport' || 'transportation' || 'commute' => '🚗',
-        'fuel' || 'petrol' || 'diesel' => '⛽',
-        'shopping' => '🛍️',
-        'health' => '💊',
-        'medical' => '🏥',
-        'education' || 'school' || 'college' => '📚',
-        'entertainment' => '🎬',
-        'utilities' || 'utility' || 'electricity' || 'water' => '💡',
-        'rent' || 'housing' => '🏠',
-        'salary' => '💰',
-        'freelance' => '💻',
-        'investment' => '📈',
-        'travel' || 'vacation' => '✈️',
-        'clothing' || 'clothes' || 'fashion' => '👕',
-        'subscription' || 'ott' => '📺',
-        _ => '📦',
-      };
+  static String _categoryEmoji(String cat) => walletCategoryEmoji(cat);
 
   static String _fmtAmt(double v) {
     if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';

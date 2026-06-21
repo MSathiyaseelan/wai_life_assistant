@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 /// Thin service layer between the wallet UI and Supabase.
@@ -679,5 +680,165 @@ class WalletService {
   /// Delete a bill.
   Future<void> deleteBill(String billId) async {
     await _db.from('bills').delete().eq('id', billId);
+  }
+
+  // ── Budgets ───────────────────────────────────────────────────────────────
+
+  /// Fetch all budget limits for [walletId].
+  Future<List<BudgetModel>> fetchBudgets(String walletId) async {
+    final rows = await _db
+        .from('wallet_budgets')
+        .select()
+        .eq('wallet_id', walletId)
+        .order('category');
+    return (rows as List).map((r) => BudgetModel.fromRow(r as Map<String, dynamic>)).toList();
+  }
+
+  /// Upsert a budget limit. Pass [budgetId] to update, omit to insert.
+  Future<BudgetModel> setBudget({
+    required String walletId,
+    required String category,
+    required double limitAmount,
+  }) async {
+    final row = await _db.from('wallet_budgets').upsert(
+      {
+        'wallet_id': walletId,
+        'category': category,
+        'limit_amount': limitAmount,
+      },
+      onConflict: 'wallet_id,category',
+      ignoreDuplicates: false,
+    ).select().single();
+    return BudgetModel.fromRow(row);
+  }
+
+  /// Remove a budget limit by its id.
+  Future<void> deleteBudget(String budgetId) async {
+    await _db.from('wallet_budgets').delete().eq('id', budgetId);
+  }
+
+  /// Add a new expense category to the shared user_tx_categories table.
+  Future<void> addExpenseCategory(String name) async {
+    final cat = name.trim();
+    if (cat.isEmpty) return;
+    await _db.from('user_tx_categories').upsert(
+      {'user_id': _uid, 'name': cat, 'tx_type': 'expense'},
+      onConflict: 'user_id,name,tx_type',
+    );
+    if (!_customExpense.contains(cat)) _customExpense.add(cat);
+  }
+
+  /// Delete an expense category from user_tx_categories.
+  /// Does NOT delete transactions that used it — just removes the category entry.
+  Future<void> deleteExpenseCategory(String name) async {
+    await _db
+        .from('user_tx_categories')
+        .delete()
+        .eq('user_id', _uid)
+        .eq('name', name)
+        .eq('tx_type', 'expense');
+    _customExpense.remove(name);
+  }
+
+  /// Compute current-month spending per expense category from a loaded
+  /// transaction list. Returns {category: totalSpent}.
+  static Map<String, double> computeMonthlySpent(List<TxModel> transactions) {
+    final now = DateTime.now();
+    final month = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final map = <String, double>{};
+    for (final tx in transactions) {
+      if (tx.type != TxType.expense) continue;
+      final txMonth =
+          '${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}';
+      if (txMonth != month) continue;
+      map[tx.category] = (map[tx.category] ?? 0) + tx.amount;
+    }
+    return map;
+  }
+
+  /// Check budget thresholds and send in-app notifications to all wallet
+  /// members when 80% or 100% limits are first crossed this month.
+  /// Updates [last_80_alert_month] / [last_100_alert_month] to avoid repeats.
+  Future<void> checkAndAlertBudgets({
+    required String walletId,
+    required List<BudgetModel> budgets,
+    required Map<String, double> spentMap,
+  }) async {
+    final currentMonth =
+        '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+
+    // Resolve family_id — needed for notifications table.
+    // Personal wallets have no family, so no in-app notifications.
+    final walletRow = await _db
+        .from('wallets')
+        .select('family_id')
+        .eq('id', walletId)
+        .maybeSingle();
+    final familyId = walletRow?['family_id'] as String?;
+
+    // Fetch all linked member user_ids (family wallet only).
+    List<String> memberUserIds = [];
+    if (familyId != null) {
+      final members = await _db
+          .from('family_members')
+          .select('user_id')
+          .eq('family_id', familyId)
+          .not('user_id', 'is', null);
+      memberUserIds = (members as List)
+          .map((m) => m['user_id'] as String)
+          .toList();
+    }
+
+    for (final budget in budgets) {
+      final spent = spentMap[budget.category] ?? 0;
+      final pct = budget.limitAmount > 0 ? spent / budget.limitAmount : 0;
+
+      bool shouldAlert80  = pct >= 0.8  && pct < 1.0 && budget.last80AlertMonth  != currentMonth;
+      bool shouldAlert100 = pct >= 1.0               && budget.last100AlertMonth != currentMonth;
+
+      if (!shouldAlert80 && !shouldAlert100) continue;
+
+      final threshold = shouldAlert100 ? 100 : 80;
+      final alertMsg = threshold == 100
+          ? '${budget.category} budget exceeded! Spent ₹${spent.toStringAsFixed(0)} of ₹${budget.limitAmount.toStringAsFixed(0)}'
+          : '${budget.category} budget at ${(pct * 100).toStringAsFixed(0)}%. Spent ₹${spent.toStringAsFixed(0)} of ₹${budget.limitAmount.toStringAsFixed(0)}';
+
+      // Send in-app notifications to family members
+      if (familyId != null && memberUserIds.isNotEmpty) {
+        for (final userId in memberUserIds) {
+          try {
+            await _db.from('notifications').insert({
+              'user_id':     userId,
+              'family_id':   familyId,
+              'actor_emoji': threshold == 100 ? '🔴' : '🟠',
+              'actor_name':  'Budget Alert',
+              'tx_type':     'budget_alert',
+              'tx_category': budget.category,
+              'tx_amount':   spent,
+              'tx_title':    alertMsg,
+              'is_read':     false,
+            });
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'budget_alert_notify');
+          }
+        }
+      }
+
+      // Update the alert month column so we don't repeat
+      try {
+        final updatePayload = <String, dynamic>{};
+        if (shouldAlert80)  updatePayload['last_80_alert_month']  = currentMonth;
+        if (shouldAlert100) updatePayload['last_100_alert_month'] = currentMonth;
+        await _db
+            .from('wallet_budgets')
+            .update(updatePayload)
+            .eq('id', budget.id);
+        // Reflect in local model so the caller's list stays accurate
+        if (shouldAlert80)  budget.last80AlertMonth  = currentMonth;
+        if (shouldAlert100) budget.last100AlertMonth = currentMonth;
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'budget_alert_update_month');
+      }
+    }
   }
 }
