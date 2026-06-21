@@ -34,7 +34,7 @@ class ActionExecutor {
           unit: _str(d, 'unit', fallback: 'pcs'),
           inStock: false,
           toBuy: true,
-          isGrocery: true,
+          isGrocery: d['is_grocery'] as bool? ?? true,
         );
 
       case ActionType.addTask:

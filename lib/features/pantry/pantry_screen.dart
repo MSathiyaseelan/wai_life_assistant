@@ -1440,6 +1440,20 @@ class _PantryScreenState extends State<PantryScreen>
 
   /// Mark a To-Buy item as purchased: move it to In Stock, off the shopping list.
   Future<void> _markBought(GroceryItem i) async {
+    // Non-grocery items (Personal Care / Household) are one-off purchases —
+    // delete them on mark-bought rather than moving them to pantry stock.
+    if (!i.isGrocery) {
+      setState(() => _groceries.remove(i));
+      try {
+        await PantryService.instance.deleteGroceryItem(i.id);
+        PantryService.listChangeSignal.value++;
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _groceries.add(i));
+        _showSavedSnack('Failed to update item', AppColors.expense);
+      }
+      return;
+    }
     setState(() {
       i.inStock = true;
       i.toBuy = false;
