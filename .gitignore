@@ -1,3 +1,6 @@
+# Claude Code worktrees (auto-created by agent runs, should not be committed)
+.claude/worktrees/
+
 # Miscellaneous
 *.class
 *.log
