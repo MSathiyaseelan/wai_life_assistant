@@ -14,6 +14,7 @@ import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/auth/app_lock_screen.dart';
 
 const _kThemePrefKey = 'theme_mode';
@@ -90,6 +91,7 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _appState.init();
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
     FcmService.pendingTab.addListener(_onFcmTab);
     final pending = FcmService.pendingTab.value;
     if (pending != null) {
@@ -159,8 +161,20 @@ class _AppShellState extends State<AppShell> {
 
   static const _hiddenTabIndices = {5}; // MyLife
 
+  void _onNetworkChange() {
+    // Reload when connection is restored and we're still on the offline placeholder
+    // (real wallets have UUIDs; the offline fallback has id='personal' or id='')
+    if (NetworkService.instance.isOnline.value && !_appState.loading) {
+      final id = _appState.activeWallet.id;
+      if (id.isEmpty || id == 'personal') {
+        _appState.reload();
+      }
+    }
+  }
+
   @override
   void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     FcmService.pendingTab.removeListener(_onFcmTab);
     _appState.dispose();
     super.dispose();

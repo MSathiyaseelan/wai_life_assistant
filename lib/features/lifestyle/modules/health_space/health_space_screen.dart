@@ -902,7 +902,12 @@ class _MedicationsTab extends StatelessWidget {
               if (active.isNotEmpty) ...[
                 const LifeLabel(text: 'ACTIVE MEDICATIONS'),
                 ...active.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark,
-                  onDelete: () => onDelete(m.id),
+                  onDelete: () async {
+                    try {
+                      await HealthService.instance.deleteMedication(m.id);
+                      onDelete(m.id);
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_med'); debugPrint('[Health] deleteMed: $e'); }
+                  },
                   onEdit: () => _showMedSheet(context, existing: m),
                   onToggle: () async {
                     try {
@@ -915,7 +920,12 @@ class _MedicationsTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 const LifeLabel(text: 'PAST MEDICATIONS'),
                 ...past.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark,
-                  onDelete: () => onDelete(m.id),
+                  onDelete: () async {
+                    try {
+                      await HealthService.instance.deleteMedication(m.id);
+                      onDelete(m.id);
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_med'); debugPrint('[Health] deleteMed: $e'); }
+                  },
                   onEdit: () => _showMedSheet(context, existing: m),
                   onToggle: () async {
                     try {
@@ -1314,7 +1324,8 @@ class _MedCard extends StatelessWidget {
   final Medication m;
   final Color cardBg;
   final bool isDark;
-  final VoidCallback onDelete, onToggle, onEdit;
+  final Future<void> Function() onDelete;
+  final VoidCallback onToggle, onEdit;
   const _MedCard({required this.m, required this.cardBg, required this.isDark, required this.onDelete, required this.onToggle, required this.onEdit});
 
   static const _scheduleEmojis = {'Morning': '🌅', 'Afternoon': '☀️', 'Evening': '🌆', 'Night': '🌙'};
