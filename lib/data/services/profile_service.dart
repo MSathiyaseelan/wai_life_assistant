@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wallet/wallet_models.dart';
+import '../models/subscription/subscription_models.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 
 /// Handles profile setup, personal vs family selection, and family management.
@@ -314,5 +315,20 @@ class ProfileService {
     final url = _db.storage.from('wai-photos').getPublicUrl(filename);
     debugPrint('[Storage] uploaded → $url');
     return url;
+  }
+
+  // ── Subscription plans ────────────────────────────────────────────────────
+
+  /// Fetches all active subscription plans with their limits.
+  /// Returns plans ordered by sort_order (personal_free → family_plus → family_pro).
+  Future<List<SubscriptionPlanData>> fetchSubscriptionPlans() async {
+    final rows = await _db
+        .from('subscription_plans')
+        .select('plan_key, name, price_monthly, price_yearly, plan_limits(*)')
+        .eq('is_active', true)
+        .order('sort_order');
+    return (rows as List)
+        .map((r) => SubscriptionPlanData.fromRow(r as Map<String, dynamic>))
+        .toList();
   }
 }

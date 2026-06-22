@@ -68,7 +68,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   String _userName = '';
   String _userPhone = '';
   String _userDob = '';
-  String _userPlan = 'Free';
+  String _userPlan = 'personal_free';
   String _userPhotoUrl = '';
   bool _balanceHidden = true;
   // Today's meals — merged list from all loaded wallets
@@ -198,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           if (name.isNotEmpty) _userName = name;
           _userPhone = (profile['phone'] as String?) ?? '';
           _userDob = (profile['dob'] as String?) ?? '';
-          _userPlan = (profile['plan'] as String?) ?? 'Free';
+          _userPlan = (profile['plan'] as String?) ?? 'personal_free';
           _userPhotoUrl = (profile['photo_url'] as String?) ?? '';
         });
         // Sync default scope preferences from DB into local AppPrefs.
@@ -2437,7 +2437,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                         color: AppColors.primary.withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
-                                      child: Text(_userPlan,
+                                      child: Text(
+                                        _userPlan == 'family_pro'   ? 'Family Pro'  :
+                                        _userPlan == 'family_plus'  ? 'Family+'     : 'Personal',
                                         style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
                                           fontFamily: 'Nunito', color: AppColors.primary)),
                                     ),
@@ -2815,25 +2817,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           ),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: _userPlan == 'Free'
-                                  ? const [Color(0xFFD97706), Color(0xFFB45309)]
-                                  : _userPlan == 'Family'
+                              colors: _userPlan == 'family_pro'
                                   ? const [Color(0xFF6C63FF), Color(0xFF3D35CC)]
-                                  : const [
-                                      Color(0xFFD97706),
-                                      Color(0xFFB45309),
-                                    ],
+                                  : _userPlan == 'family_plus'
+                                  ? const [Color(0xFFD97706), Color(0xFFB45309)]
+                                  : const [Color(0xFF8E8EA0), Color(0xFF6E6E90)],
                             ),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
                             children: [
                               Text(
-                                _userPlan == 'Free'
-                                    ? '⭐'
-                                    : _userPlan == 'Family'
+                                _userPlan == 'family_pro'
+                                    ? '👑'
+                                    : _userPlan == 'family_plus'
                                     ? '👨‍👩‍👧'
-                                    : '⭐',
+                                    : '👤',
                                 style: const TextStyle(fontSize: 26),
                               ),
                               const SizedBox(width: 12),
@@ -2842,7 +2841,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'WAI $_userPlan',
+                                      _userPlan == 'family_pro'
+                                          ? 'WAI Family Pro'
+                                          : _userPlan == 'family_plus'
+                                          ? 'WAI Family Plus'
+                                          : 'WAI Personal',
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w900,
@@ -2851,8 +2854,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                       ),
                                     ),
                                     Text(
-                                      _userPlan == 'Free'
-                                          ? 'Upgrade to unlock all features'
+                                      _userPlan == 'personal_free'
+                                          ? 'Upgrade to Family Plus or Pro'
                                           : 'Manage your subscription',
                                       style: const TextStyle(
                                         fontSize: 11,
@@ -2873,7 +2876,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
-                                  _userPlan == 'Free' ? 'UPGRADE' : 'MANAGE',
+                                  _userPlan == 'personal_free' ? 'UPGRADE' : 'ACTIVE',
                                   style: const TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w900,
