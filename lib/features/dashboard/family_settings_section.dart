@@ -474,11 +474,20 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                       _sectionLabel('Members'),
                       const Spacer(),
                       Text(
-                        '${family.members.length} member${family.members.length == 1 ? '' : 's'}',
+                        () {
+                          final max = widget.appState.maxFamilyMembers;
+                          final count = family.members.length;
+                          return max > 0
+                              ? '$count/$max member${max == 1 ? '' : 's'}'
+                              : '$count member${count == 1 ? '' : 's'}';
+                        }(),
                         style: TextStyle(
                           fontSize: 10,
                           fontFamily: 'Nunito',
-                          color: sub,
+                          color: (widget.appState.maxFamilyMembers > 0 &&
+                                  family.members.length >= widget.appState.maxFamilyMembers)
+                              ? Colors.orange
+                              : sub,
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -503,10 +512,40 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   }),
                   const SizedBox(height: 14),
 
-                  // ── Invite Member (gated by perm_invite) ─────────────────
+                  // ── Invite Member (gated by perm_invite + member cap) ────
                   _sectionLabel('Invite Member'),
                   const SizedBox(height: 8),
-                  if (family.canInvite) ...[
+                  if (widget.appState.maxFamilyMembers > 0 &&
+                      family.members.length >= widget.appState.maxFamilyMembers)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.group_off_rounded,
+                              size: 13, color: Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Member limit reached (${family.members.length}/${widget.appState.maxFamilyMembers}). '
+                              'Upgrade your plan to add more members.',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (family.canInvite) ...[
                     // By phone
                     Row(
                       children: [
@@ -1159,7 +1198,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   Widget _buildCreateFamilyTile(BuildContext context) {
     final currentCount = widget.appState.families.length;
     final maxAllowed  = widget.appState.maxFamilyGroups;
-    final isEnabled   = currentCount < maxAllowed;
+    final maxMembers  = widget.appState.maxFamilyMembers;
+    final noPlanAccess = maxMembers == 0;
+    final isEnabled   = !noPlanAccess && currentCount < maxAllowed;
 
     final tileColor  = isEnabled
         ? AppColors.primary.withValues(alpha: 0.06)
@@ -1178,9 +1219,11 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             : Colors.black.withValues(alpha: 0.06));
     final iconColor  = isEnabled ? AppColors.primary : _sub;
     final titleColor = isEnabled ? AppColors.primary : _sub;
-    final subtitle   = isEnabled
-        ? 'Add a new family or group'
-        : 'Limit reached ($currentCount/$maxAllowed families)';
+    final subtitle   = noPlanAccess
+        ? 'Requires Family Plus or Pro plan'
+        : isEnabled
+            ? 'Add a new family or group'
+            : 'Limit reached ($currentCount/$maxAllowed families)';
 
     return GestureDetector(
       onTap: isEnabled

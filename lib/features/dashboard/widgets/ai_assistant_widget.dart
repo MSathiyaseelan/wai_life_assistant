@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
@@ -62,6 +63,12 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   // Paste SMS loading
   bool _smsLoading = false;
 
+  // Usage limit
+  bool _limitChecking = true;
+  bool _limitReached = false;
+  int _monthlyUsed = 0;
+  int _monthlyLimit = 20;
+
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
 
@@ -85,6 +92,43 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     _focus.addListener(() => setState(() {}));
     _ctrl.addListener(_onMentionChanged);
     ContactService.instance.preload();
+    _checkLimitOnOpen();
+  }
+
+  Future<void> _checkLimitOnOpen() async {
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) { setState(() => _limitChecking = false); return; }
+      final month =
+          '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+      final results = await Future.wait([
+        client
+            .from('feature_usage')
+            .select('count')
+            .eq('user_id', userId)
+            .eq('feature', 'ai_assistant')
+            .eq('month', month)
+            .maybeSingle(),
+        client
+            .from('feature_limits')
+            .select('monthly_limit')
+            .eq('feature', 'ai_assistant')
+            .maybeSingle(),
+      ]);
+      if (!mounted) return;
+      final count = (results[0]?['count'] as int?) ?? 0;
+      final limit = (results[1]?['monthly_limit'] as int?) ?? 20;
+      setState(() {
+        _monthlyUsed = count;
+        _monthlyLimit = limit;
+        _limitReached = count >= limit;
+        _limitChecking = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _limitChecking = false);
+    }
   }
 
   @override
@@ -158,7 +202,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
 
   Future<void> _submit(String q) async {
     final question = q.trim();
-    if (question.isEmpty || _loading) return;
+    if (question.isEmpty || _loading || _limitReached) return;
     _hideSuggestions();
     _focus.unfocus();
     HapticFeedback.lightImpact();
@@ -173,6 +217,24 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     _animCtrl.forward(from: 0);
 
     try {
+      // Check + increment usage before calling AI
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final allowed = await Supabase.instance.client.rpc(
+          'check_feature_limit',
+          params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
+        ) as bool? ?? true;
+        if (!mounted) return;
+        if (!allowed) {
+          setState(() {
+            _limitReached = true;
+            _loading = false;
+          });
+          return;
+        }
+        setState(() => _monthlyUsed = _monthlyUsed + 1);
+      }
+
       final intent = IntentClassifier.instance.classify(question);
       debugPrint('[WAI] walletId=${widget.walletId} sources=${intent.dataSources}');
       final ctx = await ContextFetcher.instance.fetch(intent, widget.walletId);
@@ -388,14 +450,58 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                       strokeWidth: 2,
                       valueColor: AlwaysStoppedAnimation(Color(0xFFA5B4FC)),
                     ),
+                  )
+                else if (!_limitChecking)
+                  Text(
+                    '$_monthlyUsed/$_monthlyLimit',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: _limitReached
+                          ? Colors.redAccent.withAlpha(200)
+                          : Colors.white.withAlpha(100),
+                    ),
                   ),
               ],
             ),
 
             const SizedBox(height: 12),
 
+            // ── Limit reached banner ────────────────────────────────────────
+            if (_limitReached) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withAlpha(28),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.redAccent.withAlpha(80)),
+                ),
+                child: Row(
+                  children: [
+                    const Text('🚫', style: TextStyle(fontSize: 16)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Monthly limit of $_monthlyLimit calls reached.\nUpgrade your plan to continue.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withAlpha(200),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // ── Input bar ────────────────────────────────────────────────────
-            Container(
+            if (!_limitReached) Container(
               height: 44,
               decoration: BoxDecoration(
                 color: Colors.white.withAlpha(18),
@@ -540,7 +646,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
             ],
 
             // ── Quick question chips ──────────────────────────────────────────
-            if (!_showSuggestions && _response == null && !_loading) ...[
+            if (!_showSuggestions && _response == null && !_loading && !_limitReached) ...[
               const SizedBox(height: 10),
               SizedBox(
                 height: 26,

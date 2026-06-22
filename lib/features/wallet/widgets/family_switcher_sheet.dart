@@ -700,14 +700,20 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                     Row(
                       children: [
                         Expanded(child: _Label('MEMBERS', sub)),
-                        Text(
-                          '${_members.length} member${_members.length != 1 ? "s" : ""}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontFamily: 'Nunito',
-                            color: sub,
-                          ),
-                        ),
+                        Builder(builder: (_) {
+                          final max = widget.appState.maxFamilyMembers;
+                          final count = _members.length;
+                          final atCap = max > 0 && count >= max;
+                          return Text(
+                            max > 0 ? '$count/$max' : '$count member${count != 1 ? "s" : ""}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: atCap ? Colors.orange : sub,
+                              fontWeight: atCap ? FontWeight.w700 : FontWeight.normal,
+                            ),
+                          );
+                        }),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -745,39 +751,69 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                         ,
 
                     const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _addMember(context, isDark, surfBg),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.income.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: AppColors.income.withOpacity(0.3),
+                    Builder(builder: (_) {
+                      final max = widget.appState.maxFamilyMembers;
+                      final atCap = max > 0 && _members.length >= max;
+                      if (atCap) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.25)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.group_off_rounded, size: 16, color: Colors.orange),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Member limit reached (${_members.length}/$max)',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: 'Nunito',
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return GestureDetector(
+                        onTap: () => _addMember(context, isDark, surfBg),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.income.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppColors.income.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person_add_alt_1_rounded,
+                                color: AppColors.income,
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add Family Member',
+                                style: TextStyle(
+                                  color: AppColors.income,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                  fontFamily: 'Nunito',
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.person_add_alt_1_rounded,
-                              color: AppColors.income,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Add Family Member',
-                              style: TextStyle(
-                                color: AppColors.income,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                                fontFamily: 'Nunito',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                      );
+                    }),
                     const SizedBox(height: 20),
 
                     SizedBox(

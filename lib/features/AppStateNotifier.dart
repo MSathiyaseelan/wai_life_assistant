@@ -16,6 +16,7 @@ class AppStateNotifier extends ChangeNotifier {
   bool _loading = false;
   String _activeWalletId = '';
   int _maxFamilyGroups = 1; // V1 safe default
+  int _maxFamilyMembers = 0; // 0 = personal_free (no family allowed)
 
   List<WalletModel> get wallets => _wallets;
   List<FamilyModel> get families => _families;
@@ -23,6 +24,10 @@ class AppStateNotifier extends ChangeNotifier {
 
   /// Server-controlled limit on how many family/group wallets a user can create.
   int get maxFamilyGroups => _maxFamilyGroups;
+
+  /// Max members per family group from the user's subscription plan.
+  /// 0 means the user's plan does not allow family groups.
+  int get maxFamilyMembers => _maxFamilyMembers;
 
   String get activeWalletId => _activeWalletId;
 
@@ -62,8 +67,11 @@ class AppStateNotifier extends ChangeNotifier {
         AppConfigService.instance.fetchMaxFamilyGroups(),
         if (loggedIn) ProfileService.instance.fetchSwitcherData()
         else Future.value(null),
+        if (loggedIn) ProfileService.instance.fetchMaxFamilyMembers()
+        else Future.value(0),
       ]);
       _maxFamilyGroups = fetched[0] as int;
+      if (loggedIn) _maxFamilyMembers = fetched[2] as int;
 
       if (!loggedIn) {
         _wallets = [personalWallet];

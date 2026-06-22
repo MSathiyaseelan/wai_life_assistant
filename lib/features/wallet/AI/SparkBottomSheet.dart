@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard;
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -45,18 +46,61 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
   String _spokenText = '';
   String? _errorMsg;
 
+  // Usage limit
+  bool _limitChecking = true;
+  bool _limitReached = false;
+  int _monthlyUsed = 0;
+  int _monthlyLimit = 20;
+
   @override
   void initState() {
     super.initState();
     if (widget.autoPasteSms) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _pasteSms());
     }
+    _checkLimitOnOpen();
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkLimitOnOpen() async {
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) { setState(() => _limitChecking = false); return; }
+      final month =
+          '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+      final results = await Future.wait([
+        client
+            .from('feature_usage')
+            .select('count')
+            .eq('user_id', userId)
+            .eq('feature', 'ai_parser')
+            .eq('month', month)
+            .maybeSingle(),
+        client
+            .from('feature_limits')
+            .select('monthly_limit')
+            .eq('feature', 'ai_parser')
+            .maybeSingle(),
+      ]);
+      if (!mounted) return;
+      final count = (results[0]?['count'] as int?) ?? 0;
+      final limit = (results[1]?['monthly_limit'] as int?) ?? 20;
+      setState(() {
+        _monthlyUsed = count;
+        _monthlyLimit = limit;
+        _limitReached = count >= limit;
+        _limitChecking = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _limitChecking = false);
+    }
   }
 
   // ── Speech ──────────────────────────────────────────────────────────────────
@@ -146,12 +190,31 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
 
   Future<void> _parseInput() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _limitReached) return;
 
     setState(() {
       _isLoading = true;
       _errorMsg = null;
     });
+
+    // Check + increment usage before calling AI
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final allowed = await Supabase.instance.client.rpc(
+        'check_feature_limit',
+        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+      ) as bool? ?? true;
+      if (!mounted) return;
+      if (!allowed) {
+        setState(() {
+          _limitReached = true;
+          _isLoading = false;
+          _errorMsg = 'Monthly limit of $_monthlyLimit AI parses reached. Upgrade to continue.';
+        });
+        return;
+      }
+      setState(() => _monthlyUsed = _monthlyUsed + 1);
+    }
 
     final result = await AIParser.parseText(
       feature: 'wallet',
@@ -265,6 +328,17 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                   ),
                 ],
               ),
+              const Spacer(),
+              if (!_limitChecking)
+                Text(
+                  '$_monthlyUsed/$_monthlyLimit',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                    color: _limitReached ? Colors.redAccent : sub,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -282,7 +356,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
             Expanded(
               child: TextField(
                 controller: _controller,
-                enabled: !_isLoading,
+                enabled: !_isLoading && !_limitReached,
                 onSubmitted: (_) => _parseInput(),
                 style: TextStyle(
                   fontSize: 14,
@@ -337,7 +411,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                     ),
                   )
                 : FilledButton(
-                    onPressed: _parseInput,
+                    onPressed: _limitReached ? null : _parseInput,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       minimumSize: const Size(44, 44),

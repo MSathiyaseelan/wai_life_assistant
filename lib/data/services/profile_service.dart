@@ -331,4 +331,25 @@ class ProfileService {
         .map((r) => SubscriptionPlanData.fromRow(r as Map<String, dynamic>))
         .toList();
   }
+
+  /// Returns the maximum number of family members allowed by the user's current plan.
+  /// Returns 0 for personal_free (no family groups allowed).
+  Future<int> fetchMaxFamilyMembers() async {
+    try {
+      final profile = await _db
+          .from('profiles')
+          .select('plan')
+          .eq('id', _uid)
+          .maybeSingle();
+      final planKey = (profile?['plan'] as String?) ?? 'personal_free';
+      final planRow = await _db
+          .from('subscription_plans')
+          .select('plan_limits!inner(family_max_members)')
+          .eq('plan_key', planKey)
+          .maybeSingle();
+      return (planRow?['plan_limits']?['family_max_members'] as int?) ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
 }
