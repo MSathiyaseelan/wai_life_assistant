@@ -82,9 +82,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   List<TxModel> _transactions = [];
   final Set<String> _loadedWalletIds = {};
 
-  // Page controller for swipeable wallet cards
-  late final PageController _walletPageController;
-
   // Page controller for swipeable shopping list cards
   late final PageController _listPageController;
 
@@ -122,7 +119,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
-    _walletPageController = PageController();
     _platePageController = PageController();
     _listPageController = PageController();
     _wasOnline = NetworkService.instance.isOnline.value;
@@ -378,7 +374,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   @override
   void dispose() {
-    _walletPageController.dispose();
     _platePageController.dispose();
     _listPageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -1186,116 +1181,32 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         onAction: () {},
                       ),
                       const SizedBox(height: 10),
-                      // Swipeable wallet summary cards (personal + family)
                       Builder(
                         builder: (ctx) {
-                          final personalW = appState.wallets.firstWhere(
-                            (w) => w.isPersonal,
-                            orElse: () => personalWallet,
+                          final activeW = appState.wallets.firstWhere(
+                            (w) => w.id == walletId,
+                            orElse: () => appState.wallets.firstWhere(
+                              (w) => w.isPersonal,
+                              orElse: () => personalWallet,
+                            ),
                           );
-                          final familyWs = appState.wallets
-                              .where((w) => !w.isPersonal)
-                              .toList();
-                          final allCards = [personalW, ...familyWs];
-
-                          const height = 220.0;
-
-                          return Column(
-                            children: [
-                              SizedBox(
-                                height: height,
-                                child: PageView.builder(
-                                  controller: _walletPageController,
-                                  itemCount: allCards.length,
-                                  onPageChanged: (idx) {
-                                    AppStateScope.read(
-                                      context,
-                                    ).switchWallet(allCards[idx].id);
-                                  },
-                                  itemBuilder: (ctx, idx) {
-                                    final w = allCards[idx];
-                                    final label = w.isPersonal
-                                        ? 'Personal'
-                                        : (appState.families
-                                                  .where(
-                                                    (f) => f.walletId == w.id,
-                                                  )
-                                                  .firstOrNull
-                                                  ?.name ??
-                                              w.name);
-                                    final txToday = _todayTx(w.id);
-                                    final bal = txToday.fold<double>(
-                                      0.0,
-                                      (s, t) => t.type.isPositive
-                                          ? s + t.amount
-                                          : (t.type == TxType.expense ||
-                                                t.type == TxType.lend ||
-                                                t.type == TxType.split)
-                                          ? s - t.amount
-                                          : s,
-                                    );
-                                    return Padding(
-                                      padding: EdgeInsets.only(
-                                        right: idx < allCards.length - 1
-                                            ? 8.0
-                                            : 0,
-                                      ),
-                                      child: _MoneyPulseCard(
-                                        label: label,
-                                        wallet: w,
-                                        todayTx: txToday,
-                                        balance: bal,
-                                        hidden: _balanceHidden,
-                                        onToggleHide: () => setState(
-                                          () =>
-                                              _balanceHidden = !_balanceHidden,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              if (allCards.length > 1) ...[
-                                const SizedBox(height: 8),
-                                AnimatedBuilder(
-                                  animation: _walletPageController,
-                                  builder: (ctx, _) {
-                                    final page =
-                                        _walletPageController.hasClients
-                                        ? (_walletPageController.page ?? 0)
-                                              .round()
-                                        : 0;
-                                    return Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: List.generate(allCards.length, (
-                                        i,
-                                      ) {
-                                        final active = page == i;
-                                        return AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 200,
-                                          ),
-                                          margin: const EdgeInsets.symmetric(
-                                            horizontal: 3,
-                                          ),
-                                          width: active ? 16 : 6,
-                                          height: 6,
-                                          decoration: BoxDecoration(
-                                            color: active
-                                                ? AppColors.primary
-                                                : sub.withValues(alpha: 0.3),
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                          ),
-                                        );
-                                      }),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ],
+                          final wLabel = activeW.isPersonal
+                              ? 'Personal'
+                              : (appState.families
+                                        .where((f) => f.walletId == walletId)
+                                        .firstOrNull
+                                        ?.name ??
+                                    activeW.name);
+                          return _SpendingPulseCard(
+                            walletLabel: wLabel,
+                            txToday: _todayTx(walletId),
+                            hidden: _balanceHidden,
+                            onToggleHide: () =>
+                                setState(() => _balanceHidden = !_balanceHidden),
+                            isDark: isDark,
+                            cardBg: cardBg,
+                            tc: tc,
+                            sub: sub,
                           );
                         },
                       ),
@@ -2949,24 +2860,26 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ① MONEY PULSE CARD
+// ① SPENDING PULSE CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MoneyPulseCard extends StatelessWidget {
-  final String label;
-  final WalletModel wallet;
+class _SpendingPulseCard extends StatelessWidget {
+  final String walletLabel;
+  final List<TxModel> txToday;
   final bool hidden;
-  final List<TxModel> todayTx;
-  final double balance;
   final VoidCallback onToggleHide;
+  final bool isDark;
+  final Color cardBg, tc, sub;
 
-  const _MoneyPulseCard({
-    required this.label,
-    required this.wallet,
-    required this.todayTx,
-    required this.balance,
+  const _SpendingPulseCard({
+    required this.walletLabel,
+    required this.txToday,
     required this.hidden,
     required this.onToggleHide,
+    required this.isDark,
+    required this.cardBg,
+    required this.tc,
+    required this.sub,
   });
 
   String _fmt(double v) {
@@ -2981,224 +2894,226 @@ class _MoneyPulseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cashIn = todayTx
-        .where((t) => t.payMode == PayMode.cash && t.type.isPositive)
-        .fold(0.0, (s, t) => s + t.amount);
-    final cashOut = todayTx
-        .where(
-          (t) =>
-              t.payMode == PayMode.cash &&
-              (t.type == TxType.expense ||
-                  t.type == TxType.lend ||
-                  t.type == TxType.split),
-        )
-        .fold(0.0, (s, t) => s + t.amount);
-    final onlineIn = todayTx
-        .where((t) => t.payMode == PayMode.online && t.type.isPositive)
-        .fold(0.0, (s, t) => s + t.amount);
-    final onlineOut = todayTx
-        .where(
-          (t) =>
-              t.payMode == PayMode.online &&
-              (t.type == TxType.expense ||
-                  t.type == TxType.lend ||
-                  t.type == TxType.split),
-        )
-        .fold(0.0, (s, t) => s + t.amount);
+    final spent = txToday.fold(0.0, (s, t) =>
+        (t.type == TxType.expense || t.type == TxType.lend || t.type == TxType.split)
+            ? s + t.amount
+            : s);
+    final received = txToday.fold(0.0, (s, t) => t.type.isPositive ? s + t.amount : s);
+    final recent = txToday.take(3).toList();
+    final extra = txToday.length - recent.length;
 
     return Container(
-      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: wallet.gradient,
-        ),
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: tc.withValues(alpha: 0.07)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top — label + balance + hide toggle
+          // ── Stat row ──────────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Spent today',
+                          style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      const SizedBox(height: 3),
+                      Text(_fmt(spent),
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'DM Mono',
+                            color: tc,
+                          )),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  margin: const EdgeInsets.symmetric(horizontal: 14),
+                  color: tc.withValues(alpha: 0.1),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Received',
+                          style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      const SizedBox(height: 3),
+                      Text(_fmt(received),
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'DM Mono',
+                            color: Color(0xFF2ECC71),
+                          )),
+                    ],
+                  ),
+                ),
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Nunito',
+                    GestureDetector(
+                      onTap: onToggleHide,
+                      child: Icon(
+                        hidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                        size: 16,
+                        color: sub,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _fmt(balance),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'DM Mono',
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        walletLabel,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                   ],
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: onToggleHide,
-                  child: Icon(
-                    hidden
-                        ? Icons.visibility_off_rounded
-                        : Icons.visibility_rounded,
-                    color: Colors.white60,
-                    size: 18,
-                  ),
                 ),
               ],
             ),
           ),
 
-          // Middle — today's Cash / Online summary
-          Container(
-            margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _TodayPaySection(
-                      icon: Icons.payments_rounded,
-                      title: 'Cash',
-                      inAmt: _fmt(cashIn),
-                      outAmt: _fmt(cashOut),
-                    ),
-                  ),
-                  Container(
-                    width: 1,
-                    color: Colors.white.withValues(alpha: 0.25),
-                    margin: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  Expanded(
-                    child: _TodayPaySection(
-                      icon: Icons.account_balance_wallet_rounded,
-                      title: 'Online',
-                      inAmt: _fmt(onlineIn),
-                      outAmt: _fmt(onlineOut),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          Divider(height: 1, color: tc.withValues(alpha: 0.08)),
 
-          // Bottom — most recent transaction + "+n more" link
-          if (todayTx.isNotEmpty)
-            GestureDetector(
-              onTap: () => _showTodayTxSheet(context),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
+          // ── Transaction rows ───────────────────────────────────────────────
+          if (txToday.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Text(
+                'No transactions today',
+                style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+              ),
+            )
+          else ...[
+            ...recent.map((tx) => _TxRow(tx: tx, hidden: hidden, tc: tc, sub: sub)),
+            if (extra > 0)
+              GestureDetector(
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => _TodayTxSheet(
+                    label: walletLabel,
+                    transactions: txToday,
+                    hidden: hidden,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    // Most recent transaction
-                    Expanded(
-                      child: _buildRecentTxRow(todayTx.first),
-                    ),
-                    // "+n more" badge
-                    if (todayTx.length > 1) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '+${todayTx.length - 1} more',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: Colors.white,
-                          ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        'See all ${txToday.length} →',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
-                    const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right_rounded,
-                        size: 14, color: Colors.white60),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              )
+            else
+              const SizedBox(height: 12),
+          ],
         ],
       ),
     );
   }
+}
 
-  Widget _buildRecentTxRow(TxModel tx) {
-    final isPositive = tx.type.isPositive;
-    final amt = hidden
-        ? '••••'
-        : isPositive
-            ? '+₹${tx.amount.toStringAsFixed(0)}'
-            : '-₹${tx.amount.toStringAsFixed(0)}';
-    final amtColor = isPositive
-        ? const Color(0xFF80FFD0)
-        : const Color(0xFFFFB3BE);
-    return Row(
-      children: [
-        Text(tx.type.emoji, style: const TextStyle(fontSize: 13)),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            tx.title?.isNotEmpty == true ? tx.title! : tx.category,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Nunito',
-              color: Colors.white,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          amt,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'DM Mono',
-            color: amtColor,
-          ),
-        ),
-      ],
-    );
+class _TxRow extends StatelessWidget {
+  final TxModel tx;
+  final bool hidden;
+  final Color tc, sub;
+
+  const _TxRow({
+    required this.tx,
+    required this.hidden,
+    required this.tc,
+    required this.sub,
+  });
+
+  String _fmtAmt() {
+    if (hidden) return '••••';
+    final prefix = tx.type.isPositive ? '+₹' : '-₹';
+    final v = tx.amount;
+    if (v >= 100000) return '$prefix${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) {
+      final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+      return '$prefix${s}k';
+    }
+    return '$prefix${v.toStringAsFixed(0)}';
   }
 
-  void _showTodayTxSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _TodayTxSheet(
-        label: label,
-        transactions: todayTx,
-        hidden: hidden,
+  @override
+  Widget build(BuildContext context) {
+    final isPositive = tx.type.isPositive;
+    final amtColor = isPositive ? const Color(0xFF2ECC71) : const Color(0xFFFF6B81);
+    final label = tx.title?.isNotEmpty == true ? tx.title! : tx.category;
+    final detail = tx.title?.isNotEmpty == true ? tx.category : (tx.note ?? '');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      child: Row(
+        children: [
+          Text(tx.type.emoji, style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Nunito',
+                    color: tc,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (detail.isNotEmpty)
+                  Text(
+                    detail,
+                    style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _fmtAmt(),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'DM Mono',
+              color: amtColor,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3420,93 +3335,6 @@ class _TodayTxSheet extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── Today payment section (Cash / Online) ────────────────────────────────────
-class _TodayPaySection extends StatelessWidget {
-  final IconData icon;
-  final String title, inAmt, outAmt;
-
-  const _TodayPaySection({
-    required this.icon,
-    required this.title,
-    required this.inAmt,
-    required this.outAmt,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: Colors.white70),
-            const SizedBox(width: 5),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 11,
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        _TodayAmtRow(label: 'In', amount: inAmt, isIn: true),
-        const SizedBox(height: 4),
-        _TodayAmtRow(label: 'Out', amount: outAmt, isIn: false),
-      ],
-    );
-  }
-}
-
-class _TodayAmtRow extends StatelessWidget {
-  final String label, amount;
-  final bool isIn;
-
-  const _TodayAmtRow({
-    required this.label,
-    required this.amount,
-    required this.isIn,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isIn ? Colors.greenAccent : Colors.redAccent[100]!;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Nunito',
-            ),
-          ),
-        ),
-        Text(
-          amount,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'DM Mono',
-          ),
-        ),
-      ],
     );
   }
 }
