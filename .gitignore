@@ -46,3 +46,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# JVM crash/heap dumps generated during Gradle builds
+android/*.hprof
+android/hs_err_pid*.log
+
+# Gradle build cache (should not be committed)
+android/.gradle/
