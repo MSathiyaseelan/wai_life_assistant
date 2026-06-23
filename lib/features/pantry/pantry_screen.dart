@@ -2203,348 +2203,31 @@ class _PantryScreenState extends State<PantryScreen>
 
   void _showAddGrocerySheet(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-
-    final nameCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController();
-    final noteCtrl = TextEditingController();
-    GroceryCategory cat = GroceryCategory.other;
-    String selectedUnit = 'kg';
-    DateTime? expiryDate;
-    bool addToInStock = true;   // true = In Stock, false = To Buy
-
-    const units = ['kg', 'g', 'litre', 'ml', 'pieces', 'packet', 'bunch'];
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                  // Handle
-                  Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(top: 12, bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-
-                  // Header
-                  Row(
-                    children: [
-                      const Text('🛒', style: TextStyle(fontSize: 22)),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Add to Basket',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Item name
-                  _inputField(nameCtrl, 'Item name', surfBg, tc, sub),
-                  const SizedBox(height: 10),
-
-                  // Qty
-                  _inputField(
-                    qtyCtrl,
-                    'Qty',
-                    surfBg,
-                    tc,
-                    sub,
-                    inputType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Unit chips
-                  SizedBox(
-                    height: 34,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: units.map((u) {
-                        final sel = u == selectedUnit;
-                        return GestureDetector(
-                          onTap: () => setSt(() => selectedUnit = u),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? AppColors.expense.withValues(alpha: 0.15)
-                                  : surfBg,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: sel
-                                    ? AppColors.expense
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              u,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                                color: sel ? AppColors.expense : sub,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Category chips
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: GroceryCategory.values.map((c) {
-                      final sel = c == cat;
-                      return GestureDetector(
-                        onTap: () => setSt(() => cat = c),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: sel
-                                ? AppColors.expense.withValues(alpha: 0.15)
-                                : surfBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: sel
-                                  ? AppColors.expense
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Text(
-                            '${c.emoji} ${c.label}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              fontFamily: 'Nunito',
-                              color: sel ? AppColors.expense : sub,
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Notes
-                  _inputField(
-                    noteCtrl,
-                    'Notes (optional)',
-                    surfBg,
-                    tc,
-                    sub,
-                  ),
-                  const SizedBox(height: 14),
-
-                  // In Stock / To Buy toggle
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setSt(() => addToInStock = true),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(vertical: 11),
-                            decoration: BoxDecoration(
-                              color: addToInStock
-                                  ? AppColors.income.withValues(alpha: 0.15)
-                                  : surfBg,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: addToInStock
-                                    ? AppColors.income
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              '🏠  In Stock',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                                color: addToInStock ? AppColors.income : sub,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setSt(() => addToInStock = false),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(vertical: 11),
-                            decoration: BoxDecoration(
-                              color: !addToInStock
-                                  ? AppColors.expense.withValues(alpha: 0.15)
-                                  : surfBg,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: !addToInStock
-                                    ? AppColors.expense
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              '🛒  To Buy',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                                color: !addToInStock ? AppColors.expense : sub,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Save
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final name = nameCtrl.text.trim();
-                        if (name.isEmpty) return;
-                        _addGrocery(
-                          GroceryItem(
-                            id: DateTime.now().millisecondsSinceEpoch
-                                .toString(),
-                            name: name,
-                            category: cat,
-                            quantity: double.tryParse(qtyCtrl.text) ?? 1,
-                            unit: selectedUnit,
-                            walletId: widget.activeWalletId,
-                            inStock: addToInStock,
-                            toBuy: !addToInStock,
-                            expiryDate: expiryDate,
-                            note: noteCtrl.text.trim().isEmpty
-                                ? null
-                                : noteCtrl.text.trim(),
-                          ),
-                        );
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '$name added to basket!',
-                              style: const TextStyle(
-                                fontFamily: 'Nunito',
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            backgroundColor: AppColors.expense,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            margin: const EdgeInsets.all(16),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.expense,
-                        foregroundColor: Colors.white,
-                        elevation: 4,
-                        shadowColor: AppColors.expense.withValues(alpha: 0.4),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Add to Basket →',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 15,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                ),
-              ),
-            ),
-          );
+      builder: (_) => _AddBasketSheet(
+        isDark: isDark,
+        walletId: widget.activeWalletId,
+        onItemAdded: (item) {
+          _addGrocery(item);
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('${item.name} added to basket!',
+                style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
+            backgroundColor: AppColors.expense,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 2),
+          ));
         },
-      ),
-    );
-  }
-
-  Widget _inputField(
-    TextEditingController ctrl,
-    String hint,
-    Color surfBg,
-    Color tc,
-    Color sub, {
-    TextInputType? inputType,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: surfBg,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: inputType ?? TextInputType.text,
-        textCapitalization: TextCapitalization.words,
-        style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
-        decoration: InputDecoration.collapsed(
-          hintText: hint,
-          hintStyle: TextStyle(fontSize: 13, color: sub, fontFamily: 'Nunito'),
-        ),
+        onMultiItems: (items) {
+          Navigator.pop(context);
+          _showMultiBasketConfirm(items);
+        },
+        mapBasketItems: _mapBasketItems,
       ),
     );
   }
@@ -2587,6 +2270,534 @@ class _PantryScreenState extends State<PantryScreen>
           ),
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD BASKET SHEET  (AI Parse | Manual tabs)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AddBasketSheet extends StatefulWidget {
+  final bool isDark;
+  final String walletId;
+  final void Function(GroceryItem item) onItemAdded;
+  final void Function(List<GroceryItem> items) onMultiItems;
+  final List<GroceryItem> Function(List<dynamic> raw) mapBasketItems;
+
+  const _AddBasketSheet({
+    required this.isDark,
+    required this.walletId,
+    required this.onItemAdded,
+    required this.onMultiItems,
+    required this.mapBasketItems,
+  });
+
+  @override
+  State<_AddBasketSheet> createState() => _AddBasketSheetState();
+}
+
+class _AddBasketSheetState extends State<_AddBasketSheet>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tab;
+
+  // Manual form
+  final _nameCtrl = TextEditingController();
+  final _qtyCtrl  = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  GroceryCategory _cat      = GroceryCategory.other;
+  String _unit              = 'kg';
+  bool _inStock             = true;
+
+  // AI Parse
+  final _aiCtrl   = TextEditingController();
+  bool _parsing   = false;
+
+  static const _units = ['kg', 'g', 'litre', 'ml', 'pieces', 'packet', 'bunch'];
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    _nameCtrl.dispose();
+    _qtyCtrl.dispose();
+    _noteCtrl.dispose();
+    _aiCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── AI parse ─────────────────────────────────────────────────────────────
+
+  Future<void> _runAiParse() async {
+    final text = _aiCtrl.text.trim();
+    if (text.isEmpty || _parsing) return;
+    setState(() => _parsing = true);
+    final nav = Navigator.of(context);
+    try {
+      final result = await AIParser.parseText(
+        feature: 'pantry',
+        subFeature: 'basket',
+        text: text,
+      );
+      if (!mounted) return;
+      if (result.success && result.data != null) {
+        final data = result.data!;
+        final rawItems = data['items'];
+        if (rawItems is List && rawItems.isNotEmpty) {
+          nav.pop();
+          widget.onMultiItems(widget.mapBasketItems(rawItems));
+          return;
+        }
+        // Single item — fill manual tab and switch to it
+        final name      = (data['item_name'] as String? ?? '').trim();
+        final catName   = data['category'] as String? ?? 'other';
+        final parsedCat = GroceryCategory.values.firstWhere(
+            (c) => c.name == catName, orElse: () => GroceryCategory.other);
+        final parsedUnit = data['unit'] as String? ?? 'kg';
+        final parsedQty  = (data['quantity'] as num?)?.toDouble() ?? 1.0;
+        setState(() {
+          if (name.isNotEmpty) _nameCtrl.text = name;
+          _cat  = parsedCat;
+          _unit = _units.contains(parsedUnit) ? parsedUnit : _units[0];
+          _qtyCtrl.text = parsedQty == parsedQty.truncateToDouble()
+              ? parsedQty.toInt().toString()
+              : parsedQty.toString();
+          _aiCtrl.clear();
+        });
+        _tab.animateTo(1); // switch to Manual tab
+      }
+    } catch (_) {
+      // silently fall through
+    } finally {
+      if (mounted) setState(() => _parsing = false);
+    }
+  }
+
+  // ── Submit manual form ───────────────────────────────────────────────────
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    widget.onItemAdded(GroceryItem(
+      id:       DateTime.now().millisecondsSinceEpoch.toString(),
+      name:     name,
+      category: _cat,
+      quantity: double.tryParse(_qtyCtrl.text) ?? 1,
+      unit:     _unit,
+      walletId: widget.walletId,
+      inStock:  _inStock,
+      toBuy:    !_inStock,
+      note:     _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+    ));
+  }
+
+  // ── Build ────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final bg     = widget.isDark ? AppColors.cardDark  : AppColors.cardLight;
+    final surfBg = widget.isDark ? AppColors.surfDark  : AppColors.bgLight;
+    final tc     = widget.isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub    = widget.isDark ? AppColors.subDark   : AppColors.subLight;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(children: [
+                const Text('🛒', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                const Text('Add to Basket',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+
+            // Tab switcher — pill style
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: surfBg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TabBar(
+                  controller: _tab,
+                  indicator: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: sub,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontFamily: 'Nunito',
+                  ),
+                  tabs: const [
+                    Tab(text: '✦ AI Parse'),
+                    Tab(text: '✏️ Manual'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Tab views
+            Flexible(
+              child: TabBarView(
+                controller: _tab,
+                children: [
+                  _AiTab(
+                    aiCtrl: _aiCtrl,
+                    parsing: _parsing,
+                    surfBg: surfBg,
+                    tc: tc,
+                    sub: sub,
+                    onParse: _runAiParse,
+                  ),
+                  _ManualTab(
+                    nameCtrl: _nameCtrl,
+                    qtyCtrl:  _qtyCtrl,
+                    noteCtrl: _noteCtrl,
+                    cat:      _cat,
+                    unit:     _unit,
+                    inStock:  _inStock,
+                    units:    _units,
+                    surfBg:   surfBg,
+                    tc:       tc,
+                    sub:      sub,
+                    onCatChanged:  (c)  => setState(() => _cat     = c),
+                    onUnitChanged: (u)  => setState(() => _unit    = u),
+                    onStockChanged:(s)  => setState(() => _inStock = s),
+                    onSubmit: _submit,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── AI Parse tab ──────────────────────────────────────────────────────────────
+
+class _AiTab extends StatelessWidget {
+  final TextEditingController aiCtrl;
+  final bool parsing;
+  final Color surfBg, tc, sub;
+  final VoidCallback onParse;
+
+  const _AiTab({
+    required this.aiCtrl,
+    required this.parsing,
+    required this.surfBg,
+    required this.tc,
+    required this.sub,
+    required this.onParse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Describe item(s) in natural language',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                fontFamily: 'Nunito', color: tc),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: TextField(
+              controller: aiCtrl,
+              maxLines: 4,
+              minLines: 3,
+              style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
+              decoration: InputDecoration.collapsed(
+                hintText: 'e.g. "2 kg tomatoes, 500g rice, 1 litre milk"\nor just "tomatoes"',
+                hintStyle: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Single item fills the Manual tab · Multiple items opens a bulk confirm',
+            style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: parsing ? null : onParse,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
+                elevation: 3,
+                shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: parsing
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('✦', style: TextStyle(fontSize: 14)),
+                        SizedBox(width: 6),
+                        Text('Parse with AI',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Manual tab ────────────────────────────────────────────────────────────────
+
+class _ManualTab extends StatelessWidget {
+  final TextEditingController nameCtrl, qtyCtrl, noteCtrl;
+  final GroceryCategory cat;
+  final String unit;
+  final bool inStock;
+  final List<String> units;
+  final Color surfBg, tc, sub;
+  final void Function(GroceryCategory) onCatChanged;
+  final void Function(String) onUnitChanged;
+  final void Function(bool) onStockChanged;
+  final VoidCallback onSubmit;
+
+  const _ManualTab({
+    required this.nameCtrl,
+    required this.qtyCtrl,
+    required this.noteCtrl,
+    required this.cat,
+    required this.unit,
+    required this.inStock,
+    required this.units,
+    required this.surfBg,
+    required this.tc,
+    required this.sub,
+    required this.onCatChanged,
+    required this.onUnitChanged,
+    required this.onStockChanged,
+    required this.onSubmit,
+  });
+
+  Widget _field(TextEditingController ctrl, String hint,
+      {TextInputType? inputType}) {
+    return Container(
+      decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(14)),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: inputType ?? TextInputType.text,
+        textCapitalization: TextCapitalization.words,
+        style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
+        decoration: InputDecoration.collapsed(
+          hintText: hint,
+          hintStyle: TextStyle(fontSize: 13, color: sub, fontFamily: 'Nunito'),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+      child: Column(
+        children: [
+          _field(nameCtrl, 'Item name'),
+          const SizedBox(height: 10),
+          _field(qtyCtrl, 'Qty', inputType: TextInputType.number),
+          const SizedBox(height: 10),
+
+          // Unit chips
+          SizedBox(
+            height: 34,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: units.map((u) {
+                final sel = u == unit;
+                return GestureDetector(
+                  onTap: () => onUnitChanged(u),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: sel ? AppColors.expense.withValues(alpha: 0.15) : surfBg,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: sel ? AppColors.expense : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(u,
+                      style: TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: sel ? AppColors.expense : sub,
+                      )),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Category chips
+          Wrap(
+            spacing: 6, runSpacing: 6,
+            children: GroceryCategory.values.map((c) {
+              final sel = c == cat;
+              return GestureDetector(
+                onTap: () => onCatChanged(c),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: sel ? AppColors.expense.withValues(alpha: 0.15) : surfBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: sel ? AppColors.expense : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text('${c.emoji} ${c.label}',
+                    style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: sel ? AppColors.expense : sub,
+                    )),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+
+          _field(noteCtrl, 'Notes (optional)'),
+          const SizedBox(height: 14),
+
+          // In Stock / To Buy toggle
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onStockChanged(true),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: inStock ? AppColors.income.withValues(alpha: 0.15) : surfBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: inStock ? AppColors.income : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text('🏠  In Stock',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: inStock ? AppColors.income : sub)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onStockChanged(false),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  decoration: BoxDecoration(
+                    color: !inStock ? AppColors.expense.withValues(alpha: 0.15) : surfBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: !inStock ? AppColors.expense : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text('🛒  To Buy',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: !inStock ? AppColors.expense : sub)),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onSubmit,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.expense,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                shadowColor: AppColors.expense.withValues(alpha: 0.4),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              child: const Text('Add to Basket →',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, fontFamily: 'Nunito')),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

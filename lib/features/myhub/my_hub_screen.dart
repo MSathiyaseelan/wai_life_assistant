@@ -393,7 +393,13 @@ class _MyHubScreenState extends State<MyHubScreen> {
                       emptyLabel: 'Tap ➕ to add your first outfit',
                       onTap: () => _openWardrobe(context),
                       quickActionLabel: '➕ Add',
-                      onQuickAction: () => _openWardrobe(context),
+                      onQuickAction: () => showAddClothingSheet(
+                        context,
+                        walletId: _currentWallet.id,
+                        memberId: _wardrobeMembers.first.id,
+                        onItemAdded: (saved) =>
+                            setState(() => _wardrobeItems.insert(0, saved)),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _buildModuleCard(

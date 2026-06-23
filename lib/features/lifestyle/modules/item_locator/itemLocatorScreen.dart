@@ -521,7 +521,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
           );
           if (result.success && result.data != null) {
             final d = result.data!;
-            final rawName = (d['container'] as String? ?? d['container_label'] as String? ?? '').trim();
+            final rawName = (d['container_label'] as String? ?? d['container'] as String? ?? '').trim();
             if (rawName.isNotEmpty) {
               parsed = {
                 'name': rawName,

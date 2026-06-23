@@ -6,6 +6,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
@@ -606,245 +607,561 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
 
   // ── Add clothing item ──────────────────────────────────────────────────────
   void _showAddItem(BuildContext ctx, bool isDark, Color surfBg) {
-    final nameCtrl = TextEditingController();
-    final brandCtrl = TextEditingController();
-    final sizeCtrl = TextEditingController();
-    final colorCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final sourceCtrl = TextEditingController();
-    // Use List wrappers so mutations inside StatefulBuilder closures are guaranteed
-    // to be visible to the save handler regardless of how many times the builder fires.
-    final catRef = <ClothingCategory>[ClothingCategory.topwear];
-    final wishlistRef = <bool>[_tab.index == 2];
-    final pickedPathRef = <String?>[null];
-
-    showLifeSheet(
+    showAddClothingSheet(
       ctx,
-      child: StatefulBuilder(
-        builder: (ctx2, ss) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                wishlistRef[0] ? 'Add to Wishlist' : 'Add Clothing Item',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
+      walletId: widget.walletId,
+      memberId: _selectedMember,
+      isWishlist: _tab.index == 2,
+      onItemAdded: (saved) {
+        if (mounted) setState(() => _clothes.insert(0, saved));
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADD CLOTHING SHEET  (AI Parse | Manual tabs)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Opens the Add Clothing sheet as a modal bottom sheet.
+/// Can be called from anywhere — wardrobe screen or hub summary card.
+void showAddClothingSheet(
+  BuildContext ctx, {
+  required String walletId,
+  required String memberId,
+  bool isWishlist = false,
+  void Function(ClothingItem saved)? onItemAdded,
+}) {
+  final isDark = Theme.of(ctx).brightness == Brightness.dark;
+  showModalBottomSheet(
+    context: ctx,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => AddClothingSheet(
+      isDark: isDark,
+      isWishlist: isWishlist,
+      walletId: walletId,
+      memberId: memberId,
+      onItemAdded: onItemAdded,
+    ),
+  );
+}
+
+class AddClothingSheet extends StatefulWidget {
+  final bool isDark;
+  final bool isWishlist;
+  final String walletId;
+  final String memberId;
+  final void Function(ClothingItem saved)? onItemAdded;
+
+  const AddClothingSheet({
+    super.key,
+    required this.isDark,
+    required this.isWishlist,
+    required this.walletId,
+    required this.memberId,
+    this.onItemAdded,
+  });
+
+  @override
+  State<AddClothingSheet> createState() => _AddClothingSheetState();
+}
+
+class _AddClothingSheetState extends State<AddClothingSheet>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tab;
+
+  // Manual form fields
+  final _nameCtrl   = TextEditingController();
+  final _brandCtrl  = TextEditingController();
+  final _sizeCtrl   = TextEditingController();
+  final _colorCtrl  = TextEditingController();
+  final _notesCtrl  = TextEditingController();
+  final _sourceCtrl = TextEditingController();
+  ClothingCategory _cat      = ClothingCategory.topwear;
+  String?          _photoPath;
+
+  // AI tab
+  final _aiCtrl = TextEditingController();
+  bool _parsing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    _nameCtrl.dispose();
+    _brandCtrl.dispose();
+    _sizeCtrl.dispose();
+    _colorCtrl.dispose();
+    _notesCtrl.dispose();
+    _sourceCtrl.dispose();
+    _aiCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Infer category from AI response ──────────────────────────────────────
+
+  ClothingCategory _inferCategory(String? itemType, String? occasion) {
+    final t = (itemType ?? '').toLowerCase();
+    final o = (occasion ?? '').toLowerCase();
+    if (o.contains('formal') || o.contains('office') || o.contains('business')) {
+      return ClothingCategory.formal;
+    }
+    if (o.contains('sport') || o.contains('gym') || o.contains('workout') || o.contains('active')) {
+      return ClothingCategory.sportswear;
+    }
+    if (o.contains('winter') || o.contains('cold') || t.contains('jacket') ||
+        t.contains('coat') || t.contains('hoodie')) {
+      return ClothingCategory.winterwear;
+    }
+    if (o.contains('night') || o.contains('sleep') || t.contains('pyjama') ||
+        t.contains('pajama') || t.contains('nightwear')) {
+      return ClothingCategory.nightwear;
+    }
+    if (t.contains('shoe') || t.contains('sandal') || t.contains('sneaker') ||
+        t.contains('boot') || t.contains('slipper') || t.contains('heel')) {
+      return ClothingCategory.footwear;
+    }
+    if (t.contains('pant') || t.contains('jean') || t.contains('trouser') ||
+        t.contains('skirt') || t.contains('short') || t.contains('legging')) {
+      return ClothingCategory.bottomwear;
+    }
+    if (t.contains('saree') || t.contains('kurta') || t.contains('lehenga') ||
+        t.contains('dhoti') || t.contains('lungi') || t.contains('dupatta') ||
+        t.contains('salwar') || t.contains('ethnic')) {
+      return ClothingCategory.ethnic;
+    }
+    if (t.contains('brief') || t.contains('bra') || t.contains('underwear') ||
+        t.contains('inner') || t.contains('innerwear')) {
+      return ClothingCategory.innerwear;
+    }
+    if (t.contains('ring') || t.contains('necklace') || t.contains('watch') ||
+        t.contains('bracelet') || t.contains('earring') || t.contains('belt') ||
+        t.contains('bag') || t.contains('scarf') || t.contains('cap') ||
+        t.contains('hat') || t.contains('accessory')) {
+      return ClothingCategory.accessories;
+    }
+    if (t.contains('uniform')) return ClothingCategory.schoolUniform;
+    return ClothingCategory.topwear;
+  }
+
+  // ── AI parse ─────────────────────────────────────────────────────────────
+
+  Future<void> _runAiParse() async {
+    final text = _aiCtrl.text.trim();
+    if (text.isEmpty || _parsing) return;
+    setState(() => _parsing = true);
+    try {
+      final result = await AIParser.parseText(
+        feature: 'mylife',
+        subFeature: 'wardrobe',
+        text: text,
+      );
+      if (!mounted) return;
+      if (result.success && result.data != null) {
+        final d = result.data!;
+        setState(() {
+          final itemType = d['item_type'] as String?;
+          if ((itemType ?? '').isNotEmpty) _nameCtrl.text = itemType!;
+          final color = d['color'] as String?;
+          if ((color ?? '').isNotEmpty) _colorCtrl.text = color!;
+          final brand = d['brand'] as String?;
+          if ((brand ?? '').isNotEmpty) _brandCtrl.text = brand!;
+          final size = d['size'] as String?;
+          if ((size ?? '').isNotEmpty) _sizeCtrl.text = size!;
+          final note = d['note'] as String?;
+          if ((note ?? '').isNotEmpty) _notesCtrl.text = note!;
+          _cat = _inferCategory(itemType, d['occasion'] as String?);
+          _aiCtrl.clear();
+        });
+        _tab.animateTo(1);
+      }
+    } catch (_) {
+      // silently fall through
+    } finally {
+      if (mounted) setState(() => _parsing = false);
+    }
+  }
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+
+  void _submit() {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+    final localPath = _photoPath;
+    Navigator.pop(context);
+    () async {
+      try {
+        final svc = WardrobeService.instance;
+        String? photoUrl;
+        if (localPath != null) {
+          photoUrl = await svc.uploadPhoto(localPath, memberId: widget.memberId);
+        }
+        final item = ClothingItem(
+          id:             '',
+          memberId:       widget.memberId,
+          walletId:       widget.walletId,
+          name:           name,
+          category:       _cat,
+          gender:         ClothingGender.unisex,
+          brand:          _brandCtrl.text.trim().isEmpty ? null : _brandCtrl.text.trim(),
+          size:           _sizeCtrl.text.trim().isEmpty  ? null : _sizeCtrl.text.trim(),
+          color:          _colorCtrl.text.trim().isEmpty ? null : _colorCtrl.text.trim(),
+          notes:          _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          photoPath:      photoUrl,
+          wishlist:       widget.isWishlist,
+          wishlistSource: _sourceCtrl.text.trim().isEmpty ? null : _sourceCtrl.text.trim(),
+        );
+        final row   = await svc.addItem(item.toJson());
+        final saved = ClothingItem.fromJson(row);
+        widget.onItemAdded?.call(saved);
+      } catch (e) {
+        debugPrint('[Wardrobe] addItem error: $e');
+      }
+    }();
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final bg     = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc     = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
               ),
-              const LifeLabel(text: 'CATEGORY'),
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    for (final c in ClothingCategory.values)
-                      GestureDetector(
-                        onTap: () { catRef[0] = c; ss(() {}); },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: catRef[0] == c
-                                ? _wardrobeColor.withValues(alpha: 0.15)
-                                : surfBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: catRef[0] == c
-                                  ? _wardrobeColor
-                                  : Colors.transparent,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                c.emoji,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                c.label,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: 'Nunito',
-                                  color: catRef[0] == c
-                                      ? _wardrobeColor
-                                      : (isDark
-                                            ? AppColors.subDark
-                                            : AppColors.subLight),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+            ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(children: [
+                Text(widget.isWishlist ? '🛍️' : '👗',
+                    style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 10),
+                Text(
+                  widget.isWishlist ? 'Add to Wishlist' : 'Add Clothing Item',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+
+            // Tab switcher — pill style
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: surfBg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: TabBar(
+                  controller: _tab,
+                  indicator: BoxDecoration(
+                    color: _wardrobeColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: sub,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    fontFamily: 'Nunito',
+                  ),
+                  tabs: const [
+                    Tab(text: '✦ AI Parse'),
+                    Tab(text: '✏️ Manual'),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              LifeInput(controller: nameCtrl, hint: 'Item name *'),
-              const SizedBox(height: 8),
-              LifeInput(controller: brandCtrl, hint: 'Brand (optional)'),
-              const SizedBox(height: 8),
-              Row(
+            ),
+            const SizedBox(height: 8),
+
+            // Tab views
+            Flexible(
+              child: TabBarView(
+                controller: _tab,
                 children: [
-                  Expanded(
-                    child: LifeInput(
-                      controller: sizeCtrl,
-                      hint: 'Size (e.g. L, 32)',
+                  // ── AI Parse tab ────────────────────────────────────────
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Describe the clothing item',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito', color: tc),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: surfBg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: _wardrobeColor.withValues(alpha: 0.3)),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          child: TextField(
+                            controller: _aiCtrl,
+                            maxLines: 4,
+                            minLines: 3,
+                            style: TextStyle(
+                                fontSize: 13, fontFamily: 'Nunito', color: tc),
+                            decoration: InputDecoration.collapsed(
+                              hintText:
+                                  'e.g. "Blue Levi\'s jeans size 32"\nor "Red Nike running shoes M"',
+                              hintStyle: TextStyle(
+                                  fontSize: 12, fontFamily: 'Nunito', color: sub),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'AI fills the form fields — you can review before saving',
+                          style: TextStyle(
+                              fontSize: 10, fontFamily: 'Nunito', color: sub),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _parsing ? null : _runAiParse,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _wardrobeColor,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor:
+                                  _wardrobeColor.withValues(alpha: 0.5),
+                              elevation: 3,
+                              shadowColor: _wardrobeColor.withValues(alpha: 0.4),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: _parsing
+                                ? const SizedBox(
+                                    width: 20, height: 20,
+                                    child: CircularProgressIndicator(
+                                        color: Colors.white, strokeWidth: 2))
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text('✦',
+                                          style: TextStyle(fontSize: 14)),
+                                      SizedBox(width: 6),
+                                      Text('Parse with AI',
+                                          style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w900,
+                                              fontFamily: 'Nunito')),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: LifeInput(controller: colorCtrl, hint: 'Color'),
+
+                  // ── Manual tab ──────────────────────────────────────────
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Category chips
+                        Text('CATEGORY',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.1,
+                                fontFamily: 'Nunito',
+                                color: sub)),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 40,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              for (final c in ClothingCategory.values)
+                                GestureDetector(
+                                  onTap: () => setState(() => _cat = c),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: _cat == c
+                                          ? _wardrobeColor.withValues(alpha: 0.15)
+                                          : surfBg,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: _cat == c
+                                            ? _wardrobeColor
+                                            : Colors.transparent,
+                                      ),
+                                    ),
+                                    child: Row(children: [
+                                      Text(c.emoji,
+                                          style: const TextStyle(fontSize: 13)),
+                                      const SizedBox(width: 4),
+                                      Text(c.label,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'Nunito',
+                                            color: _cat == c
+                                                ? _wardrobeColor
+                                                : sub,
+                                          )),
+                                    ]),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        LifeInput(controller: _nameCtrl, hint: 'Item name *'),
+                        const SizedBox(height: 8),
+                        LifeInput(
+                            controller: _brandCtrl, hint: 'Brand (optional)'),
+                        const SizedBox(height: 8),
+                        Row(children: [
+                          Expanded(
+                              child: LifeInput(
+                                  controller: _sizeCtrl,
+                                  hint: 'Size (e.g. L, 32)')),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child:
+                                  LifeInput(controller: _colorCtrl, hint: 'Color')),
+                        ]),
+                        const SizedBox(height: 8),
+                        LifeInput(
+                            controller: _notesCtrl,
+                            hint: 'Notes (optional)',
+                            maxLines: 2),
+                        if (widget.isWishlist) ...[
+                          const SizedBox(height: 8),
+                          LifeInput(
+                              controller: _sourceCtrl,
+                              hint: 'Source / URL (e.g. Zara, ₹4500)',
+                              maxLines: 2),
+                        ],
+                        const SizedBox(height: 12),
+
+                        // Photo capture
+                        GestureDetector(
+                          onTap: () async {
+                            final path = await _pickPhoto(context);
+                            if (path != null) setState(() => _photoPath = path);
+                          },
+                          child: Container(
+                            height: 100,
+                            width: double.infinity,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              color: surfBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _photoPath != null
+                                    ? _wardrobeColor
+                                    : _wardrobeColor.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: _photoPath != null
+                                ? Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      _WardrobePhoto(
+                                          path: _photoPath!, fit: BoxFit.cover),
+                                      Positioned(
+                                        bottom: 6, right: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: const Text('Tap to change',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontFamily: 'Nunito')),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo_rounded,
+                                          color: _wardrobeColor
+                                              .withValues(alpha: 0.5),
+                                          size: 28),
+                                      const SizedBox(height: 4),
+                                      Text('Tap to add photo',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              fontFamily: 'Nunito',
+                                              color: _wardrobeColor
+                                                  .withValues(alpha: 0.7))),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        LifeSaveButton(
+                          label: 'Save Item',
+                          color: _wardrobeColor,
+                          onTap: _submit,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              LifeInput(
-                controller: notesCtrl,
-                hint: 'Notes (optional)',
-                maxLines: 2,
-              ),
-              if (wishlistRef[0]) ...[
-                const SizedBox(height: 8),
-                LifeInput(
-                  controller: sourceCtrl,
-                  hint: 'Source / URL (e.g. Zara, ₹4500)',
-                  maxLines: 2,
-                ),
-              ],
-              const SizedBox(height: 12),
-
-              // Photo capture
-              GestureDetector(
-                onTap: () async {
-                  final path = await _pickPhoto(ctx2);
-                  if (path != null) ss(() { pickedPathRef[0] = path; });
-                },
-                child: Container(
-                  height: 100,
-                  width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: surfBg,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: pickedPathRef[0] != null
-                          ? _wardrobeColor
-                          : _wardrobeColor.withValues(alpha: 0.25),
-                    ),
-                  ),
-                  child: pickedPathRef[0] != null
-                      ? Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            _WardrobePhoto(
-                              path: pickedPathRef[0]!,
-                              fit: BoxFit.cover,
-                            ),
-                            Positioned(
-                              bottom: 6,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Text(
-                                  'Tap to change',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontFamily: 'Nunito',
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_a_photo_rounded,
-                              color: _wardrobeColor.withValues(alpha: 0.5),
-                              size: 28,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tap to add photo',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'Nunito',
-                                color: _wardrobeColor.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-
-              LifeSaveButton(
-                label: 'Save Item',
-                color: _wardrobeColor,
-                onTap: () {
-                  if (nameCtrl.text.trim().isEmpty) return;
-                  final localPath = pickedPathRef[0];
-                  final name = nameCtrl.text.trim();
-                  final brand = brandCtrl.text.trim().isEmpty ? null : brandCtrl.text.trim();
-                  final size = sizeCtrl.text.trim().isEmpty ? null : sizeCtrl.text.trim();
-                  final color = colorCtrl.text.trim().isEmpty ? null : colorCtrl.text.trim();
-                  final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
-                  final source = sourceCtrl.text.trim().isEmpty ? null : sourceCtrl.text.trim();
-                  final selectedCat = catRef[0];
-                  final isWishlist = wishlistRef[0];
-                  Navigator.pop(ctx);
-                  () async {
-                    try {
-                      final svc = WardrobeService.instance;
-                      String? photoUrl;
-                      if (localPath != null) {
-                        photoUrl = await svc.uploadPhoto(localPath, memberId: _selectedMember);
-                      }
-                      final data = ClothingItem(
-                        id: '',
-                        memberId: _selectedMember,
-                        name: name,
-                        walletId: widget.walletId,
-                        category: selectedCat,
-                        gender: ClothingGender.unisex,
-                        brand: brand,
-                        size: size,
-                        color: color,
-                        notes: notes,
-                        photoPath: photoUrl,
-                        wishlist: isWishlist,
-                        wishlistSource: source,
-                      );
-                      final row = await svc.addItem(data.toJson());
-                      final saved = ClothingItem.fromJson(row);
-                      if (mounted) setState(() => _clothes.insert(0, saved));
-                    } catch (e) {
-                      debugPrint('[Wardrobe] addItem error: $e');
-                    }
-                  }();
-                },
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
