@@ -166,9 +166,14 @@ class HealthService {
     await _db.from('health_documents').update(updates).eq('id', id);
   }
 
-  Future<void> deleteDocument(String id, String? fileUrl) async {
+  Future<List<String>> uploadDocs(List<String> localPaths, {String memberId = 'me'}) async {
+    final urls = await Future.wait(localPaths.map((p) => uploadDoc(p, memberId: memberId)));
+    return urls;
+  }
+
+  Future<void> deleteDocument(String id, List<String> fileUrls) async {
     await _db.from('health_documents').delete().eq('id', id);
-    await deleteDoc(fileUrl);
+    await Future.wait(fileUrls.map(deleteDoc));
   }
 
   // ── Appointments ──────────────────────────────────────────────────────────────

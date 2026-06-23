@@ -203,7 +203,8 @@ enum MedDocType {
 class MedicalDocument {
   String id, walletId, memberId, title;
   MedDocType docType;
-  String? fileUrl, notes;
+  List<String> fileUrls;
+  String? notes;
   DateTime docDate;
 
   MedicalDocument({
@@ -212,34 +213,46 @@ class MedicalDocument {
     required this.memberId,
     required this.title,
     required this.docType,
-    this.fileUrl,
+    List<String>? fileUrls,
     this.notes,
     DateTime? docDate,
-  }) : docDate = docDate ?? DateTime.now();
+  })  : fileUrls = fileUrls ?? [],
+        docDate = docDate ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
         'wallet_id': walletId,
         'member_id': memberId,
         'title': title,
         'doc_type': docType.name,
-        if (fileUrl != null) 'file_url': fileUrl,
+        'file_urls': fileUrls,
         if (notes != null) 'notes': notes,
         'doc_date': _dateStr(docDate),
       };
 
-  factory MedicalDocument.fromJson(Map<String, dynamic> j) => MedicalDocument(
-        id: j['id'] as String,
-        walletId: j['wallet_id'] as String,
-        memberId: j['member_id'] as String,
-        title: j['title'] as String,
-        docType: MedDocType.values.firstWhere(
-          (e) => e.name == j['doc_type'],
-          orElse: () => MedDocType.other,
-        ),
-        fileUrl: j['file_url'] as String?,
-        notes: j['notes'] as String?,
-        docDate: _parseDate(j['doc_date']) ?? DateTime.now(),
-      );
+  factory MedicalDocument.fromJson(Map<String, dynamic> j) {
+    // Support both old single file_url and new file_urls array
+    final rawUrls = j['file_urls'];
+    List<String> urls = rawUrls is List
+        ? List<String>.from(rawUrls)
+        : <String>[];
+    final legacyUrl = j['file_url'] as String?;
+    if (urls.isEmpty && legacyUrl != null && legacyUrl.isNotEmpty) {
+      urls = [legacyUrl];
+    }
+    return MedicalDocument(
+      id: j['id'] as String,
+      walletId: j['wallet_id'] as String,
+      memberId: j['member_id'] as String,
+      title: j['title'] as String,
+      docType: MedDocType.values.firstWhere(
+        (e) => e.name == j['doc_type'],
+        orElse: () => MedDocType.other,
+      ),
+      fileUrls: urls,
+      notes: j['notes'] as String?,
+      docDate: _parseDate(j['doc_date']) ?? DateTime.now(),
+    );
+  }
 }
 
 // ── Appointment ───────────────────────────────────────────────────────────────

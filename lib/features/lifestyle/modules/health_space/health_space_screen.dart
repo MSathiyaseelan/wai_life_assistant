@@ -1780,7 +1780,7 @@ class _DocumentsTab extends StatelessWidget {
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   confirmDismiss: (_) => confirmDelete(context),
                   onDismissed: (_) async {
-                    try { await HealthService.instance.deleteDocument(d.id, d.fileUrl); onDelete(d.id); } catch (e) { debugPrint('[Health] deleteDoc: $e'); }
+                    try { await HealthService.instance.deleteDocument(d.id, d.fileUrls); onDelete(d.id); } catch (e) { debugPrint('[Health] deleteDoc: $e'); }
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -1819,27 +1819,31 @@ class _DocumentsTab extends StatelessWidget {
                           ]),
                         ]),
                       ),
-                      // ── Body (notes + file) ──
-                      if (d.notes != null || d.fileUrl != null)
+                      // ── Body (notes + attachments) ──
+                      if (d.notes != null || d.fileUrls.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             if (d.notes != null) Text(d.notes!, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: isDark ? AppColors.subDark : AppColors.subLight), maxLines: 2, overflow: TextOverflow.ellipsis),
-                            if (d.fileUrl != null) ...[
+                            if (d.fileUrls.isNotEmpty) ...[
                               if (d.notes != null) const SizedBox(height: 8),
-                              GestureDetector(
-                                onTap: () => launchUrl(Uri.parse(d.fileUrl!), mode: LaunchMode.externalApplication),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                  decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: _healthColor.withValues(alpha: 0.3))),
-                                  child: Row(children: [
-                                    Icon(d.fileUrl!.endsWith('.pdf') ? Icons.picture_as_pdf_rounded : Icons.image_rounded, size: 14, color: _healthColor),
-                                    const SizedBox(width: 6),
-                                    Expanded(child: Text('View Attachment', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: _healthColor))),
-                                    Icon(Icons.open_in_new_rounded, size: 13, color: _healthColor.withValues(alpha: 0.7)),
-                                  ]),
-                                ),
-                              ),
+                              Wrap(spacing: 6, runSpacing: 6, children: [
+                                for (int i = 0; i < d.fileUrls.length; i++)
+                                  GestureDetector(
+                                    onTap: () => launchUrl(Uri.parse(d.fileUrls[i]), mode: LaunchMode.externalApplication),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                      decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: _healthColor.withValues(alpha: 0.3))),
+                                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                        Icon(d.fileUrls[i].endsWith('.pdf') ? Icons.picture_as_pdf_rounded : Icons.image_rounded, size: 14, color: _healthColor),
+                                        const SizedBox(width: 6),
+                                        Text(d.fileUrls.length == 1 ? 'View Attachment' : 'Attachment ${i + 1}', style: const TextStyle(fontSize: 12, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: _healthColor)),
+                                        const SizedBox(width: 4),
+                                        Icon(Icons.open_in_new_rounded, size: 12, color: _healthColor.withValues(alpha: 0.7)),
+                                      ]),
+                                    ),
+                                  ),
+                              ]),
                             ],
                           ]),
                         ),
@@ -1853,82 +1857,210 @@ class _DocumentsTab extends StatelessWidget {
   void _showSheet(BuildContext ctx, {MedicalDocument? existing}) {
     final titleCtrl = TextEditingController(text: existing?.title ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
-    final typeRef = <MedDocType>[existing?.docType ?? MedDocType.prescription];
-    final dateRef = <DateTime>[existing?.docDate ?? DateTime.now()];
-    final pathRef = <String?>[null];
+    final typeRef   = <MedDocType>[existing?.docType ?? MedDocType.prescription];
+    final dateRef   = <DateTime>[existing?.docDate ?? DateTime.now()];
+    // existingUrls: already-uploaded URLs (shown in edit mode; user can remove them)
+    final existingUrls = <String>[...?existing?.fileUrls];
+    // newLocalPaths: newly picked local files (to be uploaded on save)
+    final newLocalPaths = <String>[];
 
-    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text(existing == null ? 'Add Document' : 'Edit Document', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-        const SizedBox(height: 12),
-        const LifeLabel(text: 'TYPE'),
-        SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, children: [
-          for (final t in MedDocType.values)
-            GestureDetector(
-              onTap: () { typeRef[0] = t; ss(() {}); },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: typeRef[0] == t ? _healthColor.withValues(alpha: 0.15) : (ctx2.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5)), borderRadius: BorderRadius.circular(20), border: Border.all(color: typeRef[0] == t ? _healthColor : Colors.transparent)),
-                child: Text('${t.emoji} ${t.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: typeRef[0] == t ? _healthColor : (ctx2.isDark ? AppColors.subDark : AppColors.subLight))),
+    showLifeSheet(ctx, child: StatefulBuilder(builder: (ctx2, ss) {
+      final surfBg = ctx2.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+      final sub    = ctx2.isDark ? AppColors.subDark  : AppColors.subLight;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(existing == null ? 'Add Document' : 'Edit Document',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+          const SizedBox(height: 12),
+          const LifeLabel(text: 'TYPE'),
+          SizedBox(height: 38, child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final t in MedDocType.values)
+              GestureDetector(
+                onTap: () { typeRef[0] = t; ss(() {}); },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: typeRef[0] == t ? _healthColor.withValues(alpha: 0.15) : surfBg, borderRadius: BorderRadius.circular(20), border: Border.all(color: typeRef[0] == t ? _healthColor : Colors.transparent)),
+                  child: Text('${t.emoji} ${t.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: typeRef[0] == t ? _healthColor : sub)),
+                ),
               ),
-            ),
-        ])),
-        const SizedBox(height: 8),
-        LifeInput(controller: titleCtrl, hint: 'Title *'),
-        const SizedBox(height: 8),
-        LifeDateTile(date: dateRef[0], hint: 'Document Date', color: _healthColor, onTap: () async { final d = await _pickDate(ctx2, initial: dateRef[0]); if (d != null) ss(() => dateRef[0] = d); }),
-        const SizedBox(height: 8),
-        LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
-        if (existing == null) ...[
+          ])),
           const SizedBox(height: 8),
+          LifeInput(controller: titleCtrl, hint: 'Title *'),
+          const SizedBox(height: 8),
+          LifeDateTile(date: dateRef[0], hint: 'Document Date', color: _healthColor,
+              onTap: () async { final d = await _pickDate(ctx2, initial: dateRef[0]); if (d != null) ss(() => dateRef[0] = d); }),
+          const SizedBox(height: 8),
+          LifeInput(controller: notesCtrl, hint: 'Notes', maxLines: 2),
+          const SizedBox(height: 12),
+
+          // ── Attachments section ──────────────────────────────────────────
+          Text('ATTACHMENTS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1, fontFamily: 'Nunito', color: sub)),
+          const SizedBox(height: 8),
+          // Existing uploaded URLs
+          if (existingUrls.isNotEmpty) ...[
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (int i = 0; i < existingUrls.length; i++)
+                _AttachmentChip(
+                  label: 'File ${i + 1}',
+                  isPdf: existingUrls[i].endsWith('.pdf'),
+                  isLocal: false,
+                  onRemove: () => ss(() => existingUrls.removeAt(i)),
+                  onTap: () => launchUrl(Uri.parse(existingUrls[i]), mode: LaunchMode.externalApplication),
+                ),
+            ]),
+            const SizedBox(height: 8),
+          ],
+          // Newly picked local files
+          if (newLocalPaths.isNotEmpty) ...[
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (int i = 0; i < newLocalPaths.length; i++)
+                _AttachmentChip(
+                  label: newLocalPaths[i].split('/').last.split('\\').last,
+                  isPdf: newLocalPaths[i].toLowerCase().endsWith('.pdf'),
+                  isLocal: true,
+                  localPath: newLocalPaths[i],
+                  onRemove: () => ss(() => newLocalPaths.removeAt(i)),
+                ),
+            ]),
+            const SizedBox(height: 8),
+          ],
+          // Add attachment button
           GestureDetector(
-            onTap: () async { final p = await _pickPhoto(ctx2); if (p != null) ss(() => pathRef[0] = p); },
+            onTap: () async {
+              final p = await _pickPhoto(ctx2);
+              if (p != null) ss(() => newLocalPaths.add(p));
+            },
             child: Container(
-              height: 80, decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: _healthColor.withValues(alpha: 0.3), style: BorderStyle.solid)),
-              child: pathRef[0] != null
-                  ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(pathRef[0]!), fit: BoxFit.cover, width: double.infinity))
-                  : Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.add_photo_alternate_rounded, color: _healthColor.withValues(alpha: 0.6), size: 28), const SizedBox(height: 4), Text('Tap to attach photo', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _healthColor.withValues(alpha: 0.7)))])),
+              height: 56,
+              decoration: BoxDecoration(
+                color: _healthColor.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _healthColor.withValues(alpha: 0.3), style: BorderStyle.solid),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.add_photo_alternate_rounded, color: _healthColor.withValues(alpha: 0.7), size: 22),
+                const SizedBox(width: 8),
+                Text('Add Attachment', style: TextStyle(fontSize: 13, fontFamily: 'Nunito', fontWeight: FontWeight.w700, color: _healthColor.withValues(alpha: 0.8))),
+              ]),
             ),
           ),
-        ],
-        LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
-          if (titleCtrl.text.trim().isEmpty) return;
-          final title = titleCtrl.text.trim();
-          final notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
-          final type  = typeRef[0];
-          final date  = dateRef[0];
-          Navigator.pop(ctx2);
-          if (existing == null) {
-            final localPath = pathRef[0];
+          const SizedBox(height: 4),
+
+          LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
+            if (titleCtrl.text.trim().isEmpty) return;
+            final title      = titleCtrl.text.trim();
+            final notes      = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+            final type       = typeRef[0];
+            final date       = dateRef[0];
+            final retained   = List<String>.from(existingUrls);
+            final newPaths   = List<String>.from(newLocalPaths);
+            Navigator.pop(ctx2);
             () async {
               try {
-                String? fileUrl;
-                if (localPath != null) fileUrl = await HealthService.instance.uploadDoc(localPath, memberId: memberId);
-                final data = MedicalDocument(id: '', walletId: walletId, memberId: memberId, title: title, docType: type, fileUrl: fileUrl, notes: notes, docDate: date);
-                final row = await HealthService.instance.addDocument(data.toJson());
-                onAdd(MedicalDocument.fromJson(row));
-              } catch (e) { debugPrint('[Health] addDoc: $e'); }
+                final svc = HealthService.instance;
+                // Upload newly picked files
+                final newUrls = newPaths.isNotEmpty
+                    ? await svc.uploadDocs(newPaths, memberId: memberId)
+                    : <String>[];
+                final allUrls = [...retained, ...newUrls];
+                if (existing == null) {
+                  final data = MedicalDocument(id: '', walletId: walletId, memberId: memberId, title: title, docType: type, fileUrls: allUrls, notes: notes, docDate: date);
+                  final row = await svc.addDocument(data.toJson());
+                  onAdd(MedicalDocument.fromJson(row));
+                } else {
+                  // Delete removed URLs from storage
+                  final removedUrls = existing.fileUrls.where((u) => !retained.contains(u)).toList();
+                  await Future.wait(removedUrls.map(svc.deleteDoc));
+                  final updates = {'title': title, 'doc_type': type.name, 'doc_date': date.toIso8601String().substring(0, 10), 'file_urls': allUrls, if (notes != null) 'notes': notes else 'notes': null};
+                  await svc.updateDocument(existing.id, updates);
+                  onUpdate(MedicalDocument(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, title: title, docType: type, fileUrls: allUrls, notes: notes, docDate: date));
+                }
+              } catch (e) { debugPrint('[Health] saveDoc: $e'); }
             }();
-          } else {
-            final updates = {'title': title, 'doc_type': type.name, 'doc_date': date.toIso8601String().substring(0, 10), if (notes != null) 'notes': notes};
-            () async {
-              try {
-                await HealthService.instance.updateDocument(existing.id, updates);
-                onUpdate(MedicalDocument(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, title: title, docType: type, fileUrl: existing.fileUrl, notes: notes, docDate: date));
-              } catch (e) { debugPrint('[Health] updateDoc: $e'); }
-            }();
-          }
-        }),
-      ]),
-    )));
+          }),
+        ]),
+      );
+    }));
   }
 }
 
 extension _CtxDark on BuildContext {
   bool get isDark => Theme.of(this).brightness == Brightness.dark;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTACHMENT CHIP
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AttachmentChip extends StatelessWidget {
+  final String label;
+  final bool isPdf;
+  final bool isLocal;
+  final String? localPath;
+  final VoidCallback onRemove;
+  final VoidCallback? onTap;
+
+  const _AttachmentChip({
+    required this.label,
+    required this.isPdf,
+    required this.isLocal,
+    required this.onRemove,
+    this.localPath,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 180),
+        padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: _healthColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _healthColor.withValues(alpha: 0.35)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          // Thumbnail for local images; icon otherwise
+          if (isLocal && !isPdf && localPath != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.file(File(localPath!), width: 32, height: 32, fit: BoxFit.cover),
+            )
+          else
+            Icon(
+              isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded,
+              size: 22,
+              color: _healthColor,
+            ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppColors.textDark : AppColors.textLight,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: onRemove,
+            child: Icon(Icons.close_rounded, size: 16, color: _healthColor.withValues(alpha: 0.7)),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
