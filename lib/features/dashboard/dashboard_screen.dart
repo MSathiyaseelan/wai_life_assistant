@@ -30,6 +30,8 @@ import 'package:wai_life_assistant/features/dashboard/family_settings_section.da
 import 'package:wai_life_assistant/data/services/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/about_wai_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/report_issue_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_sheet.dart';
@@ -2192,6 +2194,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         sheet = AiParserSheet(isDark: isDark);
       case 'Subscription':
         sheet = SubscriptionSheet(isDark: isDark, currentPlan: _userPlan);
+      case 'About':
+        sheet = AboutWaiSheet(isDark: isDark);
+      case 'Report Issue':
+        sheet = ReportIssueSheet(isDark: isDark);
       default:
         return () {};
     }
@@ -2217,6 +2223,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final nameCtrl = TextEditingController(text: _userName);
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     bool profileExpanded = false;
+    bool appearanceExpanded = false;
+    bool featuresExpanded = false;
+    bool privacyExpanded = false;
+    bool dangerExpanded = false;
     final themeLabel = switch (widget.themeMode) {
       ThemeMode.light => 'Light',
       ThemeMode.dark => 'Dark',
@@ -2226,7 +2236,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
     final sub = isDark ? AppColors.subDark   : AppColors.subLight;
 
-    // Section label
+    // Section label (static)
     Widget sLabel(String text) => Padding(
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
       child: Text(text,
@@ -2234,6 +2244,27 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           letterSpacing: 1.1, fontFamily: 'Nunito', color: sub),
       ),
     );
+
+    // Collapsible section label with chevron
+    Widget sToggleLabel(String text, bool expanded, VoidCallback onToggle) =>
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Row(
+              children: [
+                Text(text,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1, fontFamily: 'Nunito', color: sub)),
+                const Spacer(),
+                Icon(
+                  expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                  size: 18, color: sub),
+              ],
+            ),
+          ),
+        );
 
     // A single row inside a settings card
     Widget sRow({
@@ -2750,8 +2781,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
                       // ── APPEARANCE ────────────────────────────────────────
                       const SizedBox(height: 24),
-                      sLabel('APPEARANCE'),
-                      sCard([
+                      sToggleLabel('APPEARANCE', appearanceExpanded,
+                          () => ss(() => appearanceExpanded = !appearanceExpanded)),
+                      if (appearanceExpanded) sCard([
                         sRow(emoji: '🎨', bg: const Color(0xFFFFE0E0), title: 'Theme',
                           subtitle: 'App colour scheme', value: themeLabel,
                           onTap: _prefsTap(ctx, isDark, 'Theme')),
@@ -2768,8 +2800,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
                       // ── FEATURES ──────────────────────────────────────────
                       const SizedBox(height: 24),
-                      sLabel('FEATURES'),
-                      sCard([
+                      sToggleLabel('FEATURES', featuresExpanded,
+                          () => ss(() => featuresExpanded = !featuresExpanded)),
+                      if (featuresExpanded) sCard([
                         sRow(emoji: '🏠', bg: const Color(0xFFFFEDD5), title: 'Default Scope',
                           subtitle: 'Personal or Family on tab open', value: 'Per tab',
                           onTap: _prefsTap(ctx, isDark, 'Default Scope')),
@@ -2783,14 +2816,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
                       // ── PRIVACY & ABOUT ───────────────────────────────────
                       const SizedBox(height: 24),
-                      sLabel('PRIVACY & ABOUT'),
-                      sCard([
+                      sToggleLabel('PRIVACY & ABOUT', privacyExpanded,
+                          () => ss(() => privacyExpanded = !privacyExpanded)),
+                      if (privacyExpanded) sCard([
                         sRow(emoji: '🔒', bg: const Color(0xFFFFF0E0), title: 'Privacy & Security',
                           subtitle: 'PIN lock, policy & data', value: '',
                           onTap: _prefsTap(ctx, isDark, 'Privacy & Security')),
                         sRow(emoji: 'ℹ️', bg: const Color(0xFFF0F0F0), title: 'About WAI',
                           subtitle: 'Version, licences & credits', value: 'v1.0.0',
                           onTap: _prefsTap(ctx, isDark, 'About')),
+                      ]),
+
+                      // ── REPORT ISSUE ──────────────────────────────────────
+                      const SizedBox(height: 16),
+                      sCard([
+                        sRow(emoji: '🐛', bg: const Color(0xFFFFE8E8), title: 'Report Issue',
+                          subtitle: 'Report bugs, crashes or suggestions', value: '',
+                          onTap: _prefsTap(ctx, isDark, 'Report Issue')),
                       ]),
 
                       // ── SUBSCRIPTION ──────────────────────────────────────
@@ -2879,8 +2921,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
                       // ── DANGER ZONE ───────────────────────────────────────
                       const SizedBox(height: 24),
-                      sLabel('DANGER ZONE'),
-                      Container(
+                      sToggleLabel('DANGER ZONE', dangerExpanded,
+                          () => ss(() => dangerExpanded = !dangerExpanded)),
+                      if (dangerExpanded) Container(
                         decoration: BoxDecoration(
                           color: Colors.red.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(18),
