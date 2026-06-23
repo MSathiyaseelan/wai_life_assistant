@@ -76,6 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   final Set<String> _loadedMealWalletIds = {};
 
   // Page controller for swipeable plate cards
+  final PageController _pulsePageController = PageController();
   late final PageController _platePageController;
 
   // Transactions — merged list from all loaded wallets
@@ -374,6 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   @override
   void dispose() {
+    _pulsePageController.dispose();
     _platePageController.dispose();
     _listPageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -1183,30 +1185,104 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       const SizedBox(height: 10),
                       Builder(
                         builder: (ctx) {
-                          final activeW = appState.wallets.firstWhere(
-                            (w) => w.id == walletId,
-                            orElse: () => appState.wallets.firstWhere(
-                              (w) => w.isPersonal,
-                              orElse: () => personalWallet,
-                            ),
+                          final personalW = appState.wallets.firstWhere(
+                            (w) => w.isPersonal,
+                            orElse: () => personalWallet,
                           );
-                          final wLabel = activeW.isPersonal
+                          final familyWs = appState.wallets
+                              .where((w) => !w.isPersonal)
+                              .toList();
+                          final allWallets = [personalW, ...familyWs];
+
+                          String labelFor(WalletModel w) => w.isPersonal
                               ? 'Personal'
                               : (appState.families
-                                        .where((f) => f.walletId == walletId)
+                                        .where((f) => f.walletId == w.id)
                                         .firstOrNull
                                         ?.name ??
-                                    activeW.name);
-                          return _SpendingPulseCard(
-                            walletLabel: wLabel,
-                            txToday: _todayTx(walletId),
-                            hidden: _balanceHidden,
-                            onToggleHide: () =>
-                                setState(() => _balanceHidden = !_balanceHidden),
-                            isDark: isDark,
-                            cardBg: cardBg,
-                            tc: tc,
-                            sub: sub,
+                                    w.name);
+
+                          // Height: stat row 70 + divider 1 + 3 tx rows 111
+                          // + "see all" footer 38 + outer padding 14 = 234
+                          const cardH = 290.0;
+
+                          return Column(
+                            children: [
+                              SizedBox(
+                                height: cardH,
+                                child: PageView.builder(
+                                controller: _pulsePageController,
+                                itemCount: allWallets.length,
+                                physics: allWallets.length > 1
+                                    ? const PageScrollPhysics()
+                                    : const NeverScrollableScrollPhysics(),
+                                onPageChanged: (idx) => AppStateScope.read(
+                                  context,
+                                ).switchWallet(allWallets[idx].id),
+                                itemBuilder: (ctx, idx) {
+                                  final w = allWallets[idx];
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      right: idx < allWallets.length - 1
+                                          ? 8.0
+                                          : 0,
+                                    ),
+                                    child: _SpendingPulseCard(
+                                      walletLabel: labelFor(w),
+                                      txToday: _todayTx(w.id),
+                                      hidden: _balanceHidden,
+                                      onToggleHide: () => setState(
+                                        () => _balanceHidden = !_balanceHidden,
+                                      ),
+                                      isDark: isDark,
+                                      cardBg: cardBg,
+                                      tc: tc,
+                                      sub: sub,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                              if (allWallets.length > 1) ...[
+                                const SizedBox(height: 8),
+                                AnimatedBuilder(
+                                  animation: _pulsePageController,
+                                  builder: (ctx, _) {
+                                    final page = _pulsePageController.hasClients
+                                        ? (_pulsePageController.page ?? 0)
+                                              .round()
+                                        : 0;
+                                    return Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: List.generate(
+                                        allWallets.length,
+                                        (i) {
+                                          final active = page == i;
+                                          return AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
+                                            margin: const EdgeInsets.symmetric(
+                                              horizontal: 3,
+                                            ),
+                                            width: active ? 16 : 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              color: active
+                                                  ? AppColors.primary
+                                                  : sub.withValues(alpha: 0.3),
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
                           );
                         },
                       ),
