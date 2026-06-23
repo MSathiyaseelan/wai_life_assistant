@@ -34,6 +34,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   bool _permissionsExpanded = false;
   bool _savingPerms = false;
 
+  // Which family is currently being managed (index into appState.families)
+  int _selectedFamilyIdx = 0;
+
   final _inviteCtrl = TextEditingController();
   final _codeCtrl   = TextEditingController();
   bool _joiningCode = false;
@@ -63,8 +66,23 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   void didUpdateWidget(FamilySettingsSection old) {
     super.didUpdateWidget(old);
     if (old.appState.families != widget.appState.families) {
+      // Clamp selected index in case a family was removed
+      final count = widget.appState.families.length;
+      if (_selectedFamilyIdx >= count) {
+        _selectedFamilyIdx = count > 0 ? count - 1 : 0;
+      }
       _syncPermsFromModel();
     }
+  }
+
+  void _selectFamily(int idx) {
+    setState(() {
+      _selectedFamilyIdx = idx;
+      _myFamilyExpanded = false;
+      _permissionsExpanded = false;
+      _inviteCtrl.clear();
+    });
+    _syncPermsFromModel();
   }
 
   void _syncPermsFromModel() {
@@ -111,8 +129,12 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     super.dispose();
   }
 
-  FamilyModel? get _family =>
-      widget.appState.families.isEmpty ? null : widget.appState.families.first;
+  FamilyModel? get _family {
+    final families = widget.appState.families;
+    if (families.isEmpty) return null;
+    final idx = _selectedFamilyIdx.clamp(0, families.length - 1);
+    return families[idx];
+  }
 
   // ── Invite actions ────────────────────────────────────────────────────────────
 
@@ -273,6 +295,12 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         ),
 
         if (_sectionExpanded) ...[
+          // ── Family selector (shown when member of 2+ families) ────────────
+          if (widget.appState.families.length > 1) ...[
+            _buildFamilySelector(context),
+            const SizedBox(height: 8),
+          ],
+
           // ── My Family card (only when family exists) ──────────────────────
           if (family != null) ...[
             _buildMyFamilyCard(context, family),
@@ -287,6 +315,66 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           _buildJoinWithCodeTile(context),
         ],
       ],
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FAMILY SELECTOR
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildFamilySelector(BuildContext context) {
+    final families = widget.appState.families;
+    final selected = _selectedFamilyIdx.clamp(0, families.length - 1);
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: families.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final f = families[i];
+          final isSelected = i == selected;
+          return GestureDetector(
+            onTap: () => _selectFamily(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary
+                    : (widget.isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : Colors.black.withValues(alpha: 0.05)),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.primary
+                      : (widget.isDark
+                          ? Colors.white.withValues(alpha: 0.12)
+                          : Colors.black.withValues(alpha: 0.10)),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(f.emoji, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  Text(
+                    f.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? Colors.white : _sub,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -622,24 +622,26 @@ class _PersonStepState extends State<PersonStep> {
     }
     _cacheLoading = true;
     try {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
+      final status = await FlutterContacts.permissions.request(PermissionType.read);
+      final granted = status == PermissionStatus.granted || status == PermissionStatus.limited;
       if (!granted) {
         _cacheLoading = false;
         if (mounted) setState(() { _loading = false; _denied = true; });
         return;
       }
-      final raw = await FlutterContacts.getContacts(withProperties: true);
+      final raw = await FlutterContacts.getAll(
+        properties: {ContactProperty.name, ContactProperty.phone},
+      );
       final seen = <String>{};
       final contacts = <_Contact>[];
       for (final c in raw) {
-        final name = c.displayName.trim();
+        final name = (c.displayName ?? '').trim();
         if (name.isEmpty || seen.contains(name)) continue;
         seen.add(name);
-        final phone = c.phones.isNotEmpty
-            ? (c.phones.first.normalizedNumber.isNotEmpty
-                ? c.phones.first.normalizedNumber
-                : c.phones.first.number)
-            : '';
+        final p = c.phones.isNotEmpty ? c.phones.first : null;
+        final phone = (p?.normalizedNumber?.isNotEmpty == true
+            ? p!.normalizedNumber!
+            : p?.number) ?? '';
         contacts.add((name: name, phone: phone));
       }
       contacts.sort((a, b) => a.name.compareTo(b.name));

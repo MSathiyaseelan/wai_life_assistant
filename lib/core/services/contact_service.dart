@@ -26,20 +26,18 @@ class ContactService {
 
   Future<List<ContactEntry>> _load() async {
     try {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
+      final status = await FlutterContacts.permissions.request(PermissionType.read);
+      final granted = status == PermissionStatus.granted || status == PermissionStatus.limited;
       if (!granted) {
         _pending = null;
         return [];
       }
-      final raw = await FlutterContacts.getContacts(
-        withProperties: true,
-        withThumbnail: false,
-        withPhoto: false,
-        sorted: true,
+      final raw = await FlutterContacts.getAll(
+        properties: {ContactProperty.name, ContactProperty.phone},
       );
       final list = <ContactEntry>[];
       for (final c in raw) {
-        final name = c.displayName.trim();
+        final name = (c.displayName ?? '').trim();
         if (name.isEmpty) continue;
         final phone = c.phones.isNotEmpty
             ? c.phones.first.number.replaceAll(RegExp(r'\D'), '')

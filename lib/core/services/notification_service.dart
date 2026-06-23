@@ -99,7 +99,7 @@ Future<void> _handleAction(NotificationResponse response) async {
     final notifId    = response.id ?? 0;
 
     tz.initializeTimeZones();
-    final tzName   = await FlutterTimezone.getLocalTimezone();
+    final tzName   = (await FlutterTimezone.getLocalTimezone()).identifier;
     final location = tz.getLocation(tzName);
     final snoozeAt = tz.TZDateTime.now(location).add(const Duration(minutes: 10));
 
@@ -152,7 +152,7 @@ class NotificationService {
     if (_initialized) return;
     tz.initializeTimeZones();
 
-    final tzName = await FlutterTimezone.getLocalTimezone();
+    final tzName = (await FlutterTimezone.getLocalTimezone()).identifier;
     tz.setLocalLocation(tz.getLocation(tzName));
     debugPrint('[Notifications] timezone=$tzName');
 
@@ -223,7 +223,7 @@ class NotificationService {
   Future<void> schedule(ReminderModel r) async {
     await init();
 
-    final tzName   = await FlutterTimezone.getLocalTimezone();
+    final tzName   = (await FlutterTimezone.getLocalTimezone()).identifier;
     final location = tz.getLocation(tzName);
 
     final scheduledDate = tz.TZDateTime(

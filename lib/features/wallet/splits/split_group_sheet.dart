@@ -145,21 +145,24 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
     if (_contactsLoading) return;
     setState(() => _contactsLoading = true);
     try {
-      final granted = await FlutterContacts.requestPermission(readonly: true);
+      final status = await FlutterContacts.permissions.request(PermissionType.read);
+      final granted = status == PermissionStatus.granted || status == PermissionStatus.limited;
       if (!granted) {
         if (mounted) setState(() { _contacts = []; _contactsLoading = false; });
         return;
       }
-      final raw = await FlutterContacts.getContacts(withProperties: true);
+      final raw = await FlutterContacts.getAll(
+        properties: {ContactProperty.name, ContactProperty.phone},
+      );
       final result = <(String, String, String)>[];
       for (final c in raw) {
-        if (c.displayName.isEmpty) continue;
-        final phone = c.phones.isNotEmpty
-            ? c.phones.first.normalizedNumber.isNotEmpty
-                ? c.phones.first.normalizedNumber
-                : c.phones.first.number
-            : '';
-        result.add((c.displayName, '🧑', phone));
+        final name = (c.displayName ?? '').trim();
+        if (name.isEmpty) continue;
+        final p = c.phones.isNotEmpty ? c.phones.first : null;
+        final phone = (p?.normalizedNumber?.isNotEmpty == true
+            ? p!.normalizedNumber!
+            : p?.number) ?? '';
+        result.add((name, '🧑', phone));
       }
       result.sort((a, b) => a.$1.toLowerCase().compareTo(b.$1.toLowerCase()));
       if (mounted) setState(() { _contacts = result; _contactsLoading = false; });
