@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
@@ -46,7 +47,7 @@ class SplitGroupSheet extends StatefulWidget {
 }
 
 class _SplitGroupSheetState extends State<SplitGroupSheet>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _nameCtrl = TextEditingController();
   String _emoji = '👥';
   String? _groupPhotoPath; // local path when user picks from gallery/camera
@@ -59,6 +60,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
   // Contacts
   List<(String, String, String)>? _contacts; // (name, emoji, phone)
   bool _contactsLoading = false;
+  bool _openedSettings = false; // true while user is in app settings
   final _contactSearchCtrl = TextEditingController();
   String _contactSearch = '';
 
@@ -73,6 +75,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _addTab = TabController(length: 2, vsync: this);
     _addTab.addListener(() {
       setState(() {});
@@ -108,12 +111,23 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nameCtrl.dispose();
     _addTab.dispose();
     _manualNameCtrl.dispose();
     _manualPhoneCtrl.dispose();
     _contactSearchCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // User returned from app settings — reload contacts if we sent them there
+    if (state == AppLifecycleState.resumed && _openedSettings) {
+      _openedSettings = false;
+      _contacts = null; // reset so _loadContacts re-runs fully
+      _loadContacts();
+    }
   }
 
   // ── Profile ───────────────────────────────────────────────────────────────
@@ -169,6 +183,20 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
     } catch (e) {
       debugPrint('[Contacts] $e');
       if (mounted) setState(() { _contacts = []; _contactsLoading = false; });
+    }
+  }
+
+  Future<void> _grantContactPermission() async {
+    // Check current status using permission_handler (more reliable than re-requesting)
+    final status = await ph.Permission.contacts.status;
+    if (status.isPermanentlyDenied || status.isDenied) {
+      // System won't show dialog — send user to app settings
+      _openedSettings = true;
+      await ph.openAppSettings();
+    } else {
+      // Permission might still be requestable
+      _contacts = null;
+      await _loadContacts();
     }
   }
 
@@ -728,7 +756,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
             if (_contacts != null && _contacts!.isEmpty) ...[
               const SizedBox(height: 10),
               TextButton(
-                onPressed: _loadContacts,
+                onPressed: _grantContactPermission,
                 child: const Text(
                   'Grant Permission',
                   style: TextStyle(
