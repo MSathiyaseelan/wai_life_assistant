@@ -197,25 +197,6 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       _errorMsg = null;
     });
 
-    // Check + increment usage before calling AI
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId != null) {
-      final allowed = await Supabase.instance.client.rpc(
-        'check_feature_limit',
-        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-      ) as bool? ?? true;
-      if (!mounted) return;
-      if (!allowed) {
-        setState(() {
-          _limitReached = true;
-          _isLoading = false;
-          _errorMsg = 'Monthly limit of $_monthlyLimit AI parses reached. Upgrade to continue.';
-        });
-        return;
-      }
-      setState(() => _monthlyUsed = _monthlyUsed + 1);
-    }
-
     final result = await AIParser.parseText(
       feature: 'wallet',
       subFeature: 'expense',
@@ -230,6 +211,21 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
         _errorMsg = result.error ?? 'Could not understand. Try rephrasing.';
       });
       return;
+    }
+
+    // Increment usage only on a successful AI response
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final allowed = await Supabase.instance.client.rpc(
+        'check_feature_limit',
+        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+      ) as bool? ?? true;
+      if (mounted) {
+        setState(() {
+          _monthlyUsed = _monthlyUsed + 1;
+          if (!allowed) _limitReached = true;
+        });
+      }
     }
 
     final intent = _mapToIntent(result.data!);

@@ -217,24 +217,6 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     _animCtrl.forward(from: 0);
 
     try {
-      // Check + increment usage before calling AI
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId != null) {
-        final allowed = await Supabase.instance.client.rpc(
-          'check_feature_limit',
-          params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
-        ) as bool? ?? true;
-        if (!mounted) return;
-        if (!allowed) {
-          setState(() {
-            _limitReached = true;
-            _loading = false;
-          });
-          return;
-        }
-        setState(() => _monthlyUsed = _monthlyUsed + 1);
-      }
-
       final intent = IntentClassifier.instance.classify(question);
       debugPrint('[WAI] walletId=${widget.walletId} sources=${intent.dataSources}');
       final ctx = await ContextFetcher.instance.fetch(intent, widget.walletId);
@@ -255,6 +237,22 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       );
       if (!mounted) return;
 
+      // Increment usage only on a successful AI response
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null && result.success) {
+        final allowed = await Supabase.instance.client.rpc(
+          'check_feature_limit',
+          params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
+        ) as bool? ?? true;
+        if (mounted) {
+          setState(() {
+            _monthlyUsed = _monthlyUsed + 1;
+            if (!allowed) _limitReached = true;
+          });
+        }
+      }
+
+      if (!mounted) return;
       final response = AssistantResponse.fromResult(result);
       setState(() {
         _response = response;

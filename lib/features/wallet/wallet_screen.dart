@@ -857,28 +857,6 @@ class _WalletScreenState extends State<WalletScreen>
     final isSplit = _looksLikeSplit(text);
     final subFeature = isSplit ? 'split' : 'expense';
 
-    // Check + increment usage before calling AI
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId != null) {
-      final allowed = await Supabase.instance.client.rpc(
-        'check_feature_limit',
-        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-      ) as bool? ?? true;
-      if (!mounted) return;
-      if (!allowed) {
-        setState(() { _aiLimitReached = true; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Monthly limit of $_aiMonthlyLimit AI parses reached. Upgrade to continue.'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return;
-      }
-      if (mounted) setState(() => _aiMonthlyUsed = _aiMonthlyUsed + 1);
-    }
-
     // Show parsing indicator
     final sm = ScaffoldMessenger.of(context);
     sm.showSnackBar(
@@ -917,6 +895,20 @@ class _WalletScreenState extends State<WalletScreen>
 
     ParsedIntent intent;
     if (result.success && result.data != null) {
+      // Increment usage only on a successful AI response
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final allowed = await Supabase.instance.client.rpc(
+          'check_feature_limit',
+          params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+        ) as bool? ?? true;
+        if (mounted) {
+          setState(() {
+            _aiMonthlyUsed = _aiMonthlyUsed + 1;
+            if (!allowed) _aiLimitReached = true;
+          });
+        }
+      }
       intent = isSplit
           ? _splitResultToIntent(result.data!)
           : _aiResultToIntent(result.data!);
@@ -927,6 +919,7 @@ class _WalletScreenState extends State<WalletScreen>
       intent = NlpParser.parse(text);
     }
 
+    if (!mounted) return;
     IntentConfirmSheet.show(
       context,
       intent: intent,
