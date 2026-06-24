@@ -17,8 +17,16 @@ class AppRoutes {
     dashboard: (context) => const DashboardScreen(),
     login: (context) => const LoginScreen(),
     otp: (context) {
-      final phone = ModalRoute.of(context)!.settings.arguments as String;
-      return OtpScreen(phone: phone);
+      final args = ModalRoute.of(context)!.settings.arguments;
+      if (args is Map) {
+        return OtpScreen(
+          phone: args['phone'] as String,
+          name:  args['name']  as String? ?? '',
+          dob:   args['dob']   as String? ?? '',
+        );
+      }
+      // Legacy: plain String argument
+      return OtpScreen(phone: args as String);
     },
     bottomNav: (context) => const BottomNavScreen(),
   };

@@ -12,7 +12,9 @@ const bool kBypassOtp = true;
 
 class OtpScreen extends StatefulWidget {
   final String phone;
-  const OtpScreen({super.key, required this.phone});
+  final String name;
+  final String dob;
+  const OtpScreen({super.key, required this.phone, this.name = '', this.dob = ''});
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -107,7 +109,12 @@ class _OtpScreenState extends State<OtpScreen> {
       final existing = await ProfileService.instance.fetchProfile();
       if (existing == null) {
         try {
-          await ProfileService.instance.bootstrapNewUser();
+          await ProfileService.instance.bootstrapNewUser(
+            name: widget.name.isNotEmpty ? widget.name : '',
+          );
+          if (widget.dob.isNotEmpty) {
+            await ProfileService.instance.updateProfile(dob: widget.dob);
+          }
         } catch (e) {
           debugPrint('[OTP] bootstrapNewUser skipped: $e');
         }

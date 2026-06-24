@@ -14,22 +14,78 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _nameCtrl  = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _focusNode = FocusNode();
+  final _nameFocus  = FocusNode();
+  final _phoneFocus = FocusNode();
+
+  DateTime? _dob;
   bool _loading = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _nameFocus.addListener(() => setState(() {}));
+    _phoneFocus.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
+    _nameCtrl.dispose();
     _phoneCtrl.dispose();
-    _focusNode.dispose();
+    _nameFocus.dispose();
+    _phoneFocus.dispose();
     super.dispose();
   }
 
-  bool get _isValid => _phoneCtrl.text.trim().length == 10;
+  bool get _isValid =>
+      _nameCtrl.text.trim().isNotEmpty &&
+      _dob != null &&
+      _phoneCtrl.text.trim().length == 10;
+
+  String get _dobDisplay {
+    if (_dob == null) return '';
+    return '${_dob!.day.toString().padLeft(2, '0')} / '
+        '${_dob!.month.toString().padLeft(2, '0')} / '
+        '${_dob!.year}';
+  }
+
+  Future<void> _pickDob() async {
+    FocusScope.of(context).unfocus();
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dob ?? DateTime(now.year - 25),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Select Date of Birth',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _dob = picked;
+        _error = null;
+      });
+    }
+  }
 
   Future<void> _sendOtp() async {
+    final name  = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Please enter your name');
+      return;
+    }
+    if (_dob == null) {
+      setState(() => _error = 'Please select your date of birth');
+      return;
+    }
     if (phone.length != 10) {
       setState(() => _error = 'Please enter a valid 10-digit mobile number');
       return;
@@ -43,7 +99,17 @@ class _LoginScreenState extends State<LoginScreen> {
         await AuthCoordinator.instance.sendOtp('+91$phone');
       }
       if (!mounted) return;
-      Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');
+      Navigator.pushNamed(
+        context,
+        AppRoutes.otp,
+        arguments: {
+          'phone': '+91$phone',
+          'name': name,
+          'dob': '${_dob!.year}-'
+              '${_dob!.month.toString().padLeft(2, '0')}-'
+              '${_dob!.day.toString().padLeft(2, '0')}',
+        },
+      );
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -57,12 +123,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF4F5FF);
-    final card = isDark ? const Color(0xFF1A1B2E) : Colors.white;
-    final tc = isDark ? Colors.white : const Color(0xFF0F172A);
-    final sub = isDark ? Colors.white54 : const Color(0xFF64748B);
-    final fieldBg = isDark ? const Color(0xFF252640) : const Color(0xFFF1F2FF);
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final bg       = isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF4F5FF);
+    final card     = isDark ? const Color(0xFF1A1B2E) : Colors.white;
+    final tc       = isDark ? Colors.white : const Color(0xFF0F172A);
+    final sub      = isDark ? Colors.white54 : const Color(0xFF64748B);
+    final fieldBg  = isDark ? const Color(0xFF252640) : const Color(0xFFF1F2FF);
 
     return Scaffold(
       backgroundColor: bg,
@@ -74,9 +140,9 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 56),
+                const SizedBox(height: 48),
 
-                // Logo / Illustration area
+                // Logo
                 Center(
                   child: Container(
                     width: 80,
@@ -102,9 +168,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
 
-                // Heading
                 Center(
                   child: Text(
                     'WAI Life Assistant',
@@ -119,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'Enter your mobile number to get started',
+                    'Create your account to get started',
                     style: TextStyle(
                       fontSize: 14,
                       fontFamily: 'Nunito',
@@ -129,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 48),
+                const SizedBox(height: 36),
 
                 // Card
                 Container(
@@ -139,7 +204,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                        color: Colors.black.withValues(
+                            alpha: isDark ? 0.3 : 0.06),
                         blurRadius: 20,
                         offset: const Offset(0, 4),
                       ),
@@ -148,50 +214,122 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Mobile Number',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Nunito',
-                          color: sub,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
 
-                      // Phone input row
-                      Container(
-                        decoration: BoxDecoration(
-                          color: fieldBg,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: _error != null
-                                ? AppColors.error
-                                : (_focusNode.hasFocus
-                                      ? AppColors.primary
-                                      : Colors.transparent),
-                            width: 1.5,
+                      // ── Name ──────────────────────────────────────────────
+                      _FieldLabel('Your Name', sub),
+                      const SizedBox(height: 8),
+                      _InputBox(
+                        hasFocus: _nameFocus.hasFocus,
+                        hasError: _error != null && _nameCtrl.text.trim().isEmpty,
+                        fieldBg: fieldBg,
+                        child: TextField(
+                          controller: _nameCtrl,
+                          focusNode: _nameFocus,
+                          keyboardType: TextInputType.name,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() => _error = null),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'e.g. Sathiyaseelan',
+                            hintStyle: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                              fontFamily: 'Nunito',
+                              color: sub.withValues(alpha: 0.5),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.person_rounded,
+                              size: 20,
+                              color: _nameFocus.hasFocus
+                                  ? AppColors.primary
+                                  : sub.withValues(alpha: 0.5),
+                            ),
                           ),
                         ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── Date of Birth ─────────────────────────────────────
+                      _FieldLabel('Date of Birth', sub),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _pickDob,
+                        child: _InputBox(
+                          hasFocus: false,
+                          hasError: _error != null && _dob == null,
+                          fieldBg: fieldBg,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.cake_rounded,
+                                  size: 20,
+                                  color: _dob != null
+                                      ? AppColors.primary
+                                      : sub.withValues(alpha: 0.5),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _dob != null
+                                      ? _dobDisplay
+                                      : 'DD / MM / YYYY',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: _dob != null
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    fontFamily: 'Nunito',
+                                    color: _dob != null
+                                        ? tc
+                                        : sub.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                                const Spacer(),
+                                Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 18,
+                                  color: sub.withValues(alpha: 0.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── Mobile Number ────────────────────────────────────
+                      _FieldLabel('Mobile Number', sub),
+                      const SizedBox(height: 8),
+                      _InputBox(
+                        hasFocus: _phoneFocus.hasFocus,
+                        hasError: _error != null &&
+                            _phoneCtrl.text.trim().length != 10,
+                        fieldBg: fieldBg,
                         child: Row(
                           children: [
                             // Country code pill
                             Container(
                               margin: const EdgeInsets.all(6),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
+                                  horizontal: 12, vertical: 10),
                               decoration: BoxDecoration(
                                 color: AppColors.primary.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Row(
                                 children: [
-                                  const Text(
-                                    '🇮🇳',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
+                                  const Text('🇮🇳',
+                                      style: TextStyle(fontSize: 16)),
                                   const SizedBox(width: 6),
                                   Text(
                                     '+91',
@@ -205,12 +343,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ],
                               ),
                             ),
-
-                            // Number field
                             Expanded(
                               child: TextField(
                                 controller: _phoneCtrl,
-                                focusNode: _focusNode,
+                                focusNode: _phoneFocus,
                                 keyboardType: TextInputType.phone,
                                 maxLength: 10,
                                 inputFormatters: [
@@ -247,18 +383,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(
-                              Icons.error_outline_rounded,
-                              size: 14,
-                              color: AppColors.error,
-                            ),
+                            const Icon(Icons.error_outline_rounded,
+                                size: 14, color: AppColors.error),
                             const SizedBox(width: 4),
-                            Text(
-                              _error!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.error,
-                                fontFamily: 'Nunito',
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.error,
+                                  fontFamily: 'Nunito',
+                                ),
                               ),
                             ),
                           ],
@@ -275,8 +410,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: (_isValid && !_loading) ? _sendOtp : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            disabledBackgroundColor: AppColors.primary
-                                .withValues(alpha: 0.4),
+                            disabledBackgroundColor:
+                                AppColors.primary.withValues(alpha: 0.4),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -307,7 +442,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 24),
 
-                // Terms note
                 Center(
                   child: Text(
                     'By continuing, you agree to our Terms & Privacy Policy',
@@ -319,6 +453,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                 ),
+
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -326,4 +462,52 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _FieldLabel(this.text, this.color);
+
+  @override
+  Widget build(BuildContext context) => Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'Nunito',
+          color: color,
+        ),
+      );
+}
+
+class _InputBox extends StatelessWidget {
+  final bool hasFocus;
+  final bool hasError;
+  final Color fieldBg;
+  final Widget child;
+
+  const _InputBox({
+    required this.hasFocus,
+    required this.hasError,
+    required this.fieldBg,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: fieldBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasError
+                ? AppColors.error
+                : hasFocus
+                    ? AppColors.primary
+                    : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: child,
+      );
 }
