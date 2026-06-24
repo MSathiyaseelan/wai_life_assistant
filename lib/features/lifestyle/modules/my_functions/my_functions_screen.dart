@@ -1,6 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
@@ -6889,6 +6894,66 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
   final _searchCtrl = TextEditingController();
   String _search = '';
   bool _loading = false;
+  bool _savingDrafts = false;
+
+  // ── Draft persistence helpers ─────────────────────────────────────────────
+  static String _draftKey(String fnId) => 'moi_draft_$fnId';
+
+  Future<List<MoiEntry>> _loadDraftEntries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_draftKey(widget.fn.id));
+    if (raw == null) return [];
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list
+        .map((e) => MoiEntry.fromDraftJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> _persistDrafts(List<MoiEntry> drafts) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (drafts.isEmpty) {
+      await prefs.remove(_draftKey(widget.fn.id));
+    } else {
+      await prefs.setString(
+        _draftKey(widget.fn.id),
+        jsonEncode(drafts.map((e) => e.toDraftJson()).toList()),
+      );
+    }
+  }
+
+  Future<void> _removeDraftEntry(String entryId) async {
+    final drafts = await _loadDraftEntries();
+    drafts.removeWhere((e) => e.id == entryId);
+    await _persistDrafts(drafts);
+  }
+
+  Future<void> _saveAllDrafts() async {
+    final drafts = widget.fn.moi.where((e) => e.isDraft).toList();
+    if (drafts.isEmpty) return;
+    setState(() => _savingDrafts = true);
+    try {
+      final dataList = drafts.map((e) => {
+        'function_id': widget.fn.id,
+        'wallet_id': widget.fn.walletId,
+        'person_name': e.personName,
+        'family_name': e.familyName,
+        'place': e.place,
+        'phone': e.phone,
+        'relation': e.relation,
+        'amount': e.amount,
+        'kind': e.kind.name,
+        'returned': false,
+        'notes': e.notes,
+      }).toList();
+      await FunctionsService.instance.addMoiEntries(dataList);
+      await _persistDrafts([]);
+      await _loadMoi();
+    } catch (e) {
+      debugPrint('[MoiTab] saveAllDrafts error: $e');
+    } finally {
+      if (mounted) setState(() => _savingDrafts = false);
+    }
+  }
 
   @override
   void initState() {
@@ -6909,13 +6974,17 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final rows = await FunctionsService.instance
-          .fetchMoiEntries(widget.fn.id);
+      final results = await Future.wait([
+        FunctionsService.instance.fetchMoiEntries(widget.fn.id),
+        _loadDraftEntries(),
+      ]);
       if (!mounted) return;
+      final dbEntries    = (results[0] as List).map((r) => MoiEntry.fromJson(r as Map<String, dynamic>)).toList();
+      final draftEntries = results[1] as List<MoiEntry>;
       setState(() {
         widget.fn.moi
           ..clear()
-          ..addAll(rows.map(MoiEntry.fromJson));
+          ..addAll([...draftEntries, ...dbEntries]);
       });
     } catch (e) {
       debugPrint('[MoiTab] load error: $e');
@@ -7081,6 +7150,63 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
           ),
         ),
 
+        // ── Save all drafts banner ────────────────────────────────────────────
+        if (!_loading) Builder(builder: (_) {
+          final draftCount = _all.where((e) => e.isDraft).length;
+          if (draftCount == 0) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_note_rounded, color: Colors.orange, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$draftCount draft${draftCount == 1 ? '' : 's'} pending — not saved yet',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Nunito',
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _savingDrafts
+                    ? const SizedBox(
+                        width: 18, height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.orange,
+                        ),
+                      )
+                    : TextButton(
+                        onPressed: _saveAllDrafts,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Save all',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+              ],
+            ),
+          );
+        }),
+
         // ── List ─────────────────────────────────────────────────────────────
         Expanded(
           child: _loading
@@ -7115,7 +7241,9 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                       final entry = listToShow[i];
                       setState(() => fn.moi.remove(entry));
                       widget.onUpdate();
-                      if (entry.id.contains('-')) {
+                      if (entry.isDraft) {
+                        _removeDraftEntry(entry.id);
+                      } else if (entry.id.contains('-')) {
                         FunctionsService.instance
                             .deleteMoiEntry(entry.id)
                             .catchError(
@@ -7168,7 +7296,11 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
         child: _AddMoiSheet(
           fn: widget.fn,
           isDark: isDark,
-          onDraft: (entries) => setState(() => widget.fn.moi.addAll(entries)),
+          onDraft: (entries) async {
+            final existing = await _loadDraftEntries();
+            await _persistDrafts([...existing, ...entries]);
+            _loadMoi();
+          },
           onSave: _loadMoi,
         ),
       ),
@@ -7617,8 +7749,9 @@ class _BulkMoiRow {
 
   bool get isValid {
     final name = nameCtrl.text.trim();
+    final place = placeCtrl.text.trim();
     final amt = double.tryParse(amountCtrl.text.trim());
-    return name.isNotEmpty && amt != null && amt > 0;
+    return name.isNotEmpty && place.isNotEmpty && amt != null && amt > 0;
   }
 
   MoiEntry? toEntry() {
@@ -7702,6 +7835,15 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
   // Bulk entry state
   final List<_BulkMoiRow> _rows = [];
 
+  // Quick entry controllers (bulk tab)
+  final _qNameCtrl   = TextEditingController();
+  final _qPlaceCtrl  = TextEditingController();
+  final _qFamilyCtrl = TextEditingController();
+  final _qAmountCtrl = TextEditingController();
+  final _qNameFocus  = FocusNode();
+  MoiKind _qKind = MoiKind.newMoi;
+  bool _csvLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -7720,9 +7862,12 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
     _relationCtrl.dispose();
     _amountCtrl.dispose();
     _notesCtrl.dispose();
-    for (final r in _rows) {
-      r.dispose();
-    }
+    _qNameCtrl.dispose();
+    _qPlaceCtrl.dispose();
+    _qFamilyCtrl.dispose();
+    _qAmountCtrl.dispose();
+    _qNameFocus.dispose();
+    for (final r in _rows) { r.dispose(); }
     super.dispose();
   }
 
@@ -7760,9 +7905,25 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
   };
 
   Future<void> _doDraft() async {
-    final entries = _tab.index == 0
-        ? _singleEntries()
-        : _rows.map((r) => r.toEntry()).whereType<MoiEntry>().toList();
+    List<MoiEntry> entries;
+    if (_tab.index == 0) {
+      final name  = _nameCtrl.text.trim();
+      final place = _placeCtrl.text.trim();
+      final amt   = double.tryParse(_amountCtrl.text.trim());
+      if (name.isEmpty || place.isEmpty || amt == null || amt <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Name, Place and Amount are required to save as draft')),
+        );
+        return;
+      }
+      entries = _singleEntries();
+    } else {
+      entries = _rows
+          .where((r) => r.isValid)
+          .map((r) => r.toEntry())
+          .whereType<MoiEntry>()
+          .toList();
+    }
     if (entries.isEmpty) return;
     widget.onDraft(entries);
     if (mounted) Navigator.pop(context);
@@ -7791,47 +7952,65 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
     }
   }
 
-  Widget _cell(
-    TextEditingController ctrl,
-    double width, [
-    TextInputType? type,
-  ]) {
-    final isDark = widget.isDark;
-    return SizedBox(
-      width: width,
-      height: 36,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: TextField(
-          controller: ctrl,
-          keyboardType: type,
-          style: TextStyle(
-            fontSize: 12,
-            fontFamily: 'Nunito',
-            color: isDark ? AppColors.textDark : AppColors.textLight,
-          ),
-          decoration: InputDecoration(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 6,
-            ),
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: _moiColor, width: 1.5),
-            ),
-          ),
+  // ── Quick entry helper ────────────────────────────────────────────────────
+
+  void _addQuickRow() {
+    final name  = _qNameCtrl.text.trim();
+    final place = _qPlaceCtrl.text.trim();
+    final amt   = double.tryParse(_qAmountCtrl.text.trim());
+    if (name.isEmpty || place.isEmpty || amt == null || amt <= 0) return;
+
+    final row = _BulkMoiRow();
+    row.nameCtrl.text   = name;
+    row.placeCtrl.text  = place;
+    row.familyCtrl.text = _qFamilyCtrl.text.trim();
+    row.amountCtrl.text = amt.toStringAsFixed(amt.truncateToDouble() == amt ? 0 : 2);
+    row.kind = _qKind;
+
+    setState(() {
+      _rows.add(row);
+      _qNameCtrl.clear();
+      _qPlaceCtrl.clear();
+      _qFamilyCtrl.clear();
+      _qAmountCtrl.clear();
+      _qKind = MoiKind.newMoi;
+    });
+    _qNameFocus.requestFocus();
+  }
+
+  // ── CSV template download ─────────────────────────────────────────────────
+
+  Future<void> _downloadTemplate() async {
+    const headers = 'Name,Family,Place,Amount,Type\n';
+    const sample  = 'Ravi Kumar,Kumar Family,Chennai,500,newMoi\n'
+                    'Meena Devi,,Coimbatore,1000,newMoi\n';
+    final csv = headers + sample;
+    try {
+      final dir  = await getTemporaryDirectory();
+      final file = File('${dir.path}/moi_template.csv');
+      await file.writeAsString(csv);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'text/csv')],
+          subject: 'Moi Entry Template',
         ),
-      ),
+      );
+    } catch (e) {
+      debugPrint('[Moi] template download error: $e');
+    }
+  }
+
+  // ── CSV import dialog ─────────────────────────────────────────────────────
+
+  Future<void> _showCsvImportDialog() async {
+    final imported = await showDialog<List<_BulkMoiRow>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _CsvImportDialog(isDark: widget.isDark),
     );
+    if (imported != null && imported.isNotEmpty) {
+      setState(() => _rows.addAll(imported));
+    }
   }
 
   Widget _buildSingleTab(bool isDark, Color surfBg, Color sub) {
@@ -7931,124 +8110,326 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
   }
 
   Widget _buildBulkTab(bool isDark, Color surfBg, Color sub) {
-    const heads = ['Type', 'Name *', 'Family', 'Place', 'Relation', 'Phone', 'Amount *', 'Notes'];
-    const widths = [86.0, 130.0, 110.0, 100.0, 90.0, 120.0, 90.0, 130.0];
+    final tc       = isDark ? AppColors.textDark  : AppColors.textLight;
+    final inputBg  = isDark ? AppColors.surfDark  : const Color(0xFFEDEEF5);
+    final totalAmt = _rows.fold(0.0, (s, r) {
+      final a = double.tryParse(r.amountCtrl.text.trim()) ?? 0;
+      return s + a;
+    });
+
+    // ── Shared input decoration ───────────────────────────────────────────
+    InputDecoration inputDec(String hint, {bool required = false}) =>
+        InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+          filled: true,
+          fillColor: inputBg,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: required ? _moiColor : AppColors.primary,
+              width: 1.5,
+            ),
+          ),
+        );
 
     return Column(
       children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header row
-                  Row(
-                    children: List.generate(
-                      heads.length,
-                      (i) => Container(
-                        width: widths[i],
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          heads[i],
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Nunito',
-                            color: sub,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  // Data rows
-                  for (var i = 0; i < _rows.length; i++) _buildDataRow(i, isDark),
-                ],
-              ),
-            ),
-          ),
-        ),
-        TextButton.icon(
-          onPressed: () {
-            if (_rows.isNotEmpty && !_rows.last.isValid) return;
-            setState(() => _rows.add(_BulkMoiRow()));
-          },
-          icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
-          label: const Text(
-            'Add Row',
-            style: TextStyle(fontSize: 13, fontFamily: 'Nunito'),
-          ),
-        ),
-        const SizedBox(height: 4),
-      ],
-    );
-  }
 
-  Widget _buildDataRow(int i, bool isDark) {
-    final row = _rows[i];
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          // Type toggle
-          GestureDetector(
-            onTap: () => setState(() {
-              row.kind = row.kind == MoiKind.newMoi
-                  ? MoiKind.returnMoi
-                  : MoiKind.newMoi;
-            }),
-            child: Container(
-              width: 86,
-              height: 36,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              decoration: BoxDecoration(
-                color: row.kind.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: row.kind.color.withValues(alpha: 0.5),
+        // ── Top action bar ──────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _csvLoading ? null : _showCsvImportDialog,
+                  icon: const Icon(Icons.upload_file_rounded, size: 16),
+                  label: const Text('Import CSV',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _moiColor,
+                    side: BorderSide(color: _moiColor.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(row.kind.emoji, style: const TextStyle(fontSize: 12)),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      row.kind == MoiKind.newMoi ? 'New' : 'Return',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Nunito',
-                        color: row.kind.color,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _downloadTemplate,
+                  icon: const Icon(Icons.download_rounded, size: 16),
+                  label: const Text('Template',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: sub,
+                    side: BorderSide(color: sub.withValues(alpha: 0.4)),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
-                ],
+                ),
               ),
+            ],
+          ),
+        ),
+
+        // ── Quick entry card ────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 4),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            decoration: BoxDecoration(
+              color: _moiColor.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _moiColor.withValues(alpha: 0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: Kind toggle + Name
+                Row(
+                  children: [
+                    // Kind toggle
+                    GestureDetector(
+                      onTap: () => setState(() => _qKind =
+                          _qKind == MoiKind.newMoi
+                              ? MoiKind.returnMoi
+                              : MoiKind.newMoi),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _qKind.color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: _qKind.color.withValues(alpha: 0.5)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_qKind.emoji,
+                                style: const TextStyle(fontSize: 14)),
+                            const SizedBox(width: 4),
+                            Text(
+                              _qKind == MoiKind.newMoi ? 'New' : 'Return',
+                              style: TextStyle(
+                                fontSize: 11, fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w700,
+                                color: _qKind.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Name
+                    Expanded(
+                      child: TextField(
+                        controller: _qNameCtrl,
+                        focusNode: _qNameFocus,
+                        textCapitalization: TextCapitalization.words,
+                        style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                            color: tc),
+                        decoration: inputDec('Name *', required: true),
+                        onSubmitted: (_) => _addQuickRow(),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Row 2: Place + Family
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _qPlaceCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                            color: tc),
+                        decoration: inputDec('Place *', required: true),
+                        onSubmitted: (_) => _addQuickRow(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _qFamilyCtrl,
+                        textCapitalization: TextCapitalization.words,
+                        style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                            color: tc),
+                        decoration: inputDec('Family (optional)'),
+                        onSubmitted: (_) => _addQuickRow(),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Row 3: Amount + Add button
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _qAmountCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                            color: tc),
+                        decoration: inputDec('Amount ₹ *', required: true),
+                        onSubmitted: (_) => _addQuickRow(),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: _addQuickRow,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _moiColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Add',
+                          style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          _cell(row.nameCtrl, 130),
-          _cell(row.familyCtrl, 110),
-          _cell(row.placeCtrl, 100),
-          _cell(row.relationCtrl, 90),
-          _cell(row.phoneCtrl, 120, TextInputType.phone),
-          _cell(
-            row.amountCtrl,
-            90,
-            const TextInputType.numberWithOptions(decimal: true),
+        ),
+
+        // ── Divider + count ─────────────────────────────────────────────
+        if (_rows.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                Text(
+                  '${_rows.length} ${_rows.length == 1 ? 'entry' : 'entries'}',
+                  style: TextStyle(
+                    fontSize: 11, fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700, color: sub,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Total ₹${totalAmt % 1 == 0 ? totalAmt.toInt() : totalAmt.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 12, fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w900, color: _moiColor,
+                  ),
+                ),
+              ],
+            ),
           ),
-          _cell(row.notesCtrl, 130),
-        ],
-      ),
+
+        // ── Entries list ────────────────────────────────────────────────
+        Expanded(
+          child: _rows.isEmpty
+              ? Center(
+                  child: Text(
+                    'Add entries above or import a CSV',
+                    style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                        color: sub),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+                  itemCount: _rows.length,
+                  itemBuilder: (_, i) {
+                    final r = _rows[i];
+                    final amt = double.tryParse(r.amountCtrl.text.trim());
+                    return Dismissible(
+                      key: ObjectKey(r),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.delete_outline_rounded,
+                            color: Colors.redAccent, size: 20),
+                      ),
+                      onDismissed: (_) =>
+                          setState(() => _rows.removeAt(i)),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(r.kind.emoji,
+                                style: const TextStyle(fontSize: 16)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r.nameCtrl.text,
+                                    style: TextStyle(
+                                      fontSize: 13, fontFamily: 'Nunito',
+                                      fontWeight: FontWeight.w800, color: tc,
+                                    ),
+                                  ),
+                                  Text(
+                                    [
+                                      r.placeCtrl.text,
+                                      if (r.familyCtrl.text.isNotEmpty)
+                                        r.familyCtrl.text,
+                                    ].join(' · '),
+                                    style: TextStyle(
+                                      fontSize: 11, fontFamily: 'Nunito',
+                                      color: sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '₹${amt == null ? '-' : amt % 1 == 0 ? amt.toInt() : amt.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 13, fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w900,
+                                color: r.kind.color,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () => setState(() => _rows.removeAt(i)),
+                              child: Icon(Icons.close_rounded,
+                                  size: 16, color: sub),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -8219,6 +8600,148 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
 // MOI CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── CSV Import Dialog ─────────────────────────────────────────────────────────
+class _CsvImportDialog extends StatefulWidget {
+  final bool isDark;
+  const _CsvImportDialog({required this.isDark});
+
+  @override
+  State<_CsvImportDialog> createState() => _CsvImportDialogState();
+}
+
+class _CsvImportDialogState extends State<_CsvImportDialog> {
+  final _pasteCtrl = TextEditingController();
+  int _preview = 0;
+
+  @override
+  void dispose() {
+    _pasteCtrl.dispose();
+    super.dispose();
+  }
+
+  List<_BulkMoiRow> _parse() {
+    final lines = _pasteCtrl.text.trim().split('\n')
+        .where((l) => l.trim().isNotEmpty).toList();
+    final hasHeader = lines.isNotEmpty &&
+        lines.first.toLowerCase().contains('name');
+    final dataLines = hasHeader ? lines.skip(1).toList() : lines;
+
+    final result = <_BulkMoiRow>[];
+    for (final line in dataLines) {
+      final cols = line.split(',');
+      if (cols.length < 4) continue;
+      final name   = cols[0].trim();
+      final family = cols.length > 1 ? cols[1].trim() : '';
+      final place  = cols.length > 2 ? cols[2].trim() : '';
+      final amt    = double.tryParse(cols[3].trim());
+      final type   = cols.length > 4 ? cols[4].trim() : '';
+      if (name.isEmpty || place.isEmpty || amt == null || amt <= 0) continue;
+      final row = _BulkMoiRow();
+      row.nameCtrl.text   = name;
+      row.familyCtrl.text = family;
+      row.placeCtrl.text  = place;
+      row.amountCtrl.text = amt.toStringAsFixed(
+          amt.truncateToDouble() == amt ? 0 : 2);
+      row.kind = type == 'returnMoi' ? MoiKind.returnMoi : MoiKind.newMoi;
+      result.add(row);
+    }
+    return result;
+  }
+
+  void _close() {
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context);
+  }
+
+  void _import() {
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context, _parse());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark  = widget.isDark;
+    final bg      = isDark ? AppColors.cardDark  : AppColors.cardLight;
+    final tc      = isDark ? AppColors.textDark  : AppColors.textLight;
+    final sub     = isDark ? AppColors.subDark   : AppColors.subLight;
+    final surfBg  = isDark ? AppColors.surfDark  : const Color(0xFFEDEEF5);
+
+    return AlertDialog(
+      backgroundColor: bg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('Import CSV',
+        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900,
+            fontSize: 17, color: tc)),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Copy your CSV content and paste below.\nExpected columns: Name, Family, Place, Amount, Type',
+              style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _pasteCtrl,
+              maxLines: 8,
+              style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: tc),
+              decoration: InputDecoration(
+                hintText: 'Paste CSV here…',
+                hintStyle: TextStyle(color: sub, fontSize: 12,
+                    fontFamily: 'Nunito'),
+                filled: true,
+                fillColor: surfBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+              onChanged: (v) {
+                final lines = v.trim().split('\n')
+                    .where((l) => l.trim().isNotEmpty).toList();
+                final hasHeader = lines.isNotEmpty &&
+                    lines.first.toLowerCase().contains('name');
+                final dataLines =
+                    hasHeader ? lines.skip(1).toList() : lines;
+                setState(() => _preview = dataLines
+                    .where((l) => l.split(',').length >= 4).length);
+              },
+            ),
+            if (_preview > 0) ...[
+              const SizedBox(height: 8),
+              Text('$_preview valid rows detected',
+                style: const TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700, color: _moiColor)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _close,
+          child: Text('Cancel',
+              style: TextStyle(color: sub, fontFamily: 'Nunito')),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _moiColor,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            elevation: 0,
+          ),
+          onPressed: _preview == 0 ? null : _import,
+          child: Text('Import $_preview rows',
+            style: const TextStyle(fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800, color: Colors.white)),
+        ),
+      ],
+    );
+  }
+}
+
 class _MoiCard extends StatelessWidget {
   final MoiEntry entry;
   final bool isDark;
@@ -8284,12 +8807,16 @@ class _MoiCard extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: cardBg,
+            color: entry.isDraft
+                ? Colors.orange.withValues(alpha: 0.06)
+                : cardBg,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: entry.returned
-                  ? AppColors.income.withOpacity(0.25)
-                  : kindColor.withOpacity(0.2),
+              color: entry.isDraft
+                  ? Colors.orange.withValues(alpha: 0.35)
+                  : entry.returned
+                      ? AppColors.income.withValues(alpha: 0.25)
+                      : kindColor.withValues(alpha: 0.2),
             ),
           ),
           child: Column(
@@ -8349,6 +8876,34 @@ class _MoiCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
+                              // Draft badge
+                              if (entry.isDraft) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.orange.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'DRAFT',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w900,
+                                      fontFamily: 'Nunito',
+                                      color: Colors.orange,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(width: 6),
                               // Kind badge
                               Container(
                                 padding: const EdgeInsets.symmetric(

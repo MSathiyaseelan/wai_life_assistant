@@ -771,6 +771,7 @@ class MoiEntry {
   DateTime? returnedOn; // when we returned
   String? returnedForFunction; // which function we returned this moi at
   String? notes;
+  bool isDraft; // true = saved locally only, not yet in DB
 
   MoiEntry({
     required this.id,
@@ -786,6 +787,7 @@ class MoiEntry {
     this.returnedOn,
     this.returnedForFunction,
     this.notes,
+    this.isDraft = false,
   });
 
   factory MoiEntry.fromJson(Map<String, dynamic> j) => MoiEntry(
@@ -822,6 +824,12 @@ class MoiEntry {
     'returned_for_function': returnedForFunction,
     'notes': notes,
   };
+
+  // Serialise for SharedPreferences draft storage (includes id).
+  Map<String, dynamic> toDraftJson() => {'id': id, ...toJson()};
+
+  factory MoiEntry.fromDraftJson(Map<String, dynamic> j) =>
+      MoiEntry.fromJson(j)..isDraft = true;
 }
 
 class FunctionChatMessage {
