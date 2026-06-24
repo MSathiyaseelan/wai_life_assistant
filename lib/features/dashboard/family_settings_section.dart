@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
@@ -9,10 +9,10 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FAMILY SETTINGS SECTION
 // Shown in Dashboard Settings between Account and Preferences.
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class FamilySettingsSection extends StatefulWidget {
   final AppStateNotifier appState;
@@ -41,12 +41,12 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   final _codeCtrl   = TextEditingController();
   bool _joiningCode = false;
 
-  // Permission state — initialised from FamilyModel, persisted to DB on change.
+  // Permission state â€” initialised from FamilyModel, persisted to DB on change.
   String _invitePerm = 'admin_only';
   String _editPerm   = 'any_member';
   String _deletePerm = 'admin_only';
 
-  // DB values → display labels
+  // DB values â†’ display labels
   static const _dbToLabel = {
     'admin_only': 'Admin only',
     'any_member': 'Any member',
@@ -136,7 +136,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     return families[idx];
   }
 
-  // ── Invite actions ────────────────────────────────────────────────────────────
+  // â”€â”€ Invite actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   bool _sendingInvite = false;
 
@@ -156,13 +156,13 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       final token = result['token'] as String? ?? '';
 
       // Always share the invite link so the invitee receives it via
-      // WhatsApp, SMS, or any messaging app — regardless of whether
+      // WhatsApp, SMS, or any messaging app â€” regardless of whether
       // they already have a WAI account.
       await Share.share(
         'Hey! You\'re invited to join "${family.name}" on WAI Life Assistant.\n'
         'Use this invite code to join: $token\n'
         '(Code expires in 7 days)\n\n'
-        'Download WAI: https://play.google.com/store/apps/details?id=com.example.wai_life_assistant',
+        'Download WAI: https://play.google.com/store/apps/details?id=com.wai.lifeassistant',
       );
 
       if (!mounted) return;
@@ -245,7 +245,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     }
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Color get _surfBg =>
       widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
@@ -254,7 +254,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   Color get _tc =>
       widget.isDark ? AppColors.textDark : AppColors.textLight;
 
-  // ── Build ─────────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +263,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Section header ────────────────────────────────────────────────────
+        // â”€â”€ Section header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => setState(() => _sectionExpanded = !_sectionExpanded),
@@ -295,13 +295,13 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         ),
 
         if (_sectionExpanded) ...[
-          // ── Family selector (shown when member of 2+ families) ────────────
+          // â”€â”€ Family selector (shown when member of 2+ families) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (widget.appState.families.length > 1) ...[
             _buildFamilySelector(context),
             const SizedBox(height: 8),
           ],
 
-          // ── My Family card (only when family exists) ──────────────────────
+          // â”€â”€ My Family card (only when family exists) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (family != null) ...[
             _buildMyFamilyCard(context, family),
             const SizedBox(height: 8),
@@ -309,7 +309,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             const SizedBox(height: 8),
           ],
 
-          // ── Create Family (enabled only when below maxFamilyGroups) ─────────
+          // â”€â”€ Create Family (enabled only when below maxFamilyGroups) â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCreateFamilyTile(context),
           const SizedBox(height: 8),
           _buildJoinWithCodeTile(context),
@@ -318,9 +318,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // FAMILY SELECTOR
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildFamilySelector(BuildContext context) {
     final families = widget.appState.families;
@@ -378,9 +378,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // MY FAMILY CARD
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildMyFamilyCard(BuildContext context, FamilyModel family) {
     final sub = _sub;
@@ -452,7 +452,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 14),
 
-                  // ── Family name ──────────────────────────────────────────
+                  // â”€â”€ Family name â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   Row(
                     children: [
                       _sectionLabel('Family Name'),
@@ -504,12 +504,12 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 14),
 
-                  // ── Family photo ─────────────────────────────────────────
+                  // â”€â”€ Family photo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   _sectionLabel('Family Photo'),
                   const SizedBox(height: 6),
                   GestureDetector(
                     onTap: () {
-                      // Photo picker — handled in edit form
+                      // Photo picker â€” handled in edit form
                       final wallet = widget.appState.wallets.firstWhere(
                         (w) => w.id == family.walletId,
                         orElse: () => personalWallet,
@@ -556,7 +556,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Members list ─────────────────────────────────────────
+                  // â”€â”€ Members list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   Row(
                     children: [
                       _sectionLabel('Members'),
@@ -600,7 +600,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   }),
                   const SizedBox(height: 14),
 
-                  // ── Invite Member (gated by perm_invite + member cap) ────
+                  // â”€â”€ Invite Member (gated by perm_invite + member cap) â”€â”€â”€â”€
                   _sectionLabel('Invite Member'),
                   const SizedBox(height: 8),
                   if (widget.appState.maxFamilyMembers > 0 &&
@@ -755,7 +755,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                     ),
                   const SizedBox(height: 16),
 
-                  // ── Leave Family ─────────────────────────────────────────
+                  // â”€â”€ Leave Family â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   GestureDetector(
                     onTap: () =>
                         _confirmLeaveFamily(context, family),
@@ -790,7 +790,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                     ),
                   ),
 
-                  // ── Delete Family (admin only) ─────────────────────────────
+                  // â”€â”€ Delete Family (admin only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   if (family.isAdmin) ...[
                     const SizedBox(height: 8),
                     GestureDetector(
@@ -835,7 +835,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ── Member row ───────────────────────────────────────────────────────────────
+  // â”€â”€ Member row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildMemberRow(
     BuildContext context,
@@ -967,9 +967,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // FAMILY PERMISSIONS CARD
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildPermissionsCard(BuildContext context) {
     final sub = _sub;
@@ -995,7 +995,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
-              child: const Text('🔐',
+              child: const Text('ðŸ”',
                   style: TextStyle(fontSize: 18)),
             ),
             title: const Text(
@@ -1040,7 +1040,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 12),
                   _buildPermissionRow(
-                    icon: '👥',
+                    icon: 'ðŸ‘¥',
                     label: 'Who can invite members',
                     currentDb: _invitePerm,
                     isEditable: isAdmin,
@@ -1051,7 +1051,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 10),
                   _buildPermissionRow(
-                    icon: '✏️',
+                    icon: 'âœï¸',
                     label: 'Who can edit entries',
                     currentDb: _editPerm,
                     isEditable: isAdmin,
@@ -1062,7 +1062,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 10),
                   _buildPermissionRow(
-                    icon: '🗑️',
+                    icon: 'ðŸ—‘ï¸',
                     label: 'Who can delete entries',
                     currentDb: _deletePerm,
                     isEditable: isAdmin,
@@ -1169,9 +1169,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // JOIN WITH CODE TILE
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildJoinWithCodeTile(BuildContext context) {
     return Container(
@@ -1193,7 +1193,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: const Text('🔗', style: TextStyle(fontSize: 18)),
+                child: const Text('ðŸ”—', style: TextStyle(fontSize: 18)),
               ),
               const SizedBox(width: 12),
               Text(
@@ -1279,9 +1279,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // CREATE FAMILY TILE
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   Widget _buildCreateFamilyTile(BuildContext context) {
     final currentCount = widget.appState.families.length;
@@ -1385,9 +1385,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // DIALOGS & SHEETS
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
   void _showEditFamily(
     BuildContext context,
@@ -1412,7 +1412,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: Text(
-          'Change Role — ${member.name}',
+          'Change Role â€” ${member.name}',
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w800,
@@ -1685,7 +1685,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  // ── Shared label widget ───────────────────────────────────────────────────
+  // â”€â”€ Shared label widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _sectionLabel(String text) {
     return Text(
@@ -1700,4 +1700,5 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 }
+
 

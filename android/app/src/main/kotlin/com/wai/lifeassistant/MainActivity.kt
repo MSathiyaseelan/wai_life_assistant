@@ -1,4 +1,4 @@
-package com.example.wai_life_assistant
+package com.wai.lifeassistant
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
