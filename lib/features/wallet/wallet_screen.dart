@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
@@ -85,6 +86,12 @@ class _WalletScreenState extends State<WalletScreen>
   // Budgets — keyed by walletId
   final Map<String, List<BudgetModel>> _budgetsMap = {};
 
+  // AI parser usage limit
+  bool _aiLimitChecking = true;
+  bool _aiLimitReached = false;
+  int _aiMonthlyUsed = 0;
+  int _aiMonthlyLimit = 20;
+
   // Search
   bool _searchActive = false;
   String _searchQuery = '';
@@ -143,6 +150,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (_txGroups.isEmpty) _loadTxGroups();
     WalletService.instance.loadCategories();
     _loadBudgets();
+    if (_aiLimitChecking) _loadAiLimit();
   }
 
   @override
@@ -176,6 +184,32 @@ class _WalletScreenState extends State<WalletScreen>
       if (mounted) setState(() => _budgetsMap[walletId] = budgets);
     } catch (e) {
       debugPrint('[WalletScreen] fetchBudgets error: $e');
+    }
+  }
+
+  Future<void> _loadAiLimit() async {
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) { if (mounted) setState(() => _aiLimitChecking = false); return; }
+      final month = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
+      final results = await Future.wait([
+        client.from('feature_usage').select('count')
+            .eq('user_id', userId).eq('feature', 'ai_parser').eq('month', month).maybeSingle(),
+        client.from('feature_limits').select('monthly_limit')
+            .eq('feature', 'ai_parser').maybeSingle(),
+      ]);
+      if (!mounted) return;
+      final count = (results[0]?['count'] as int?) ?? 0;
+      final limit = (results[1]?['monthly_limit'] as int?) ?? 20;
+      setState(() {
+        _aiMonthlyUsed  = count;
+        _aiMonthlyLimit = limit;
+        _aiLimitReached = count >= limit;
+        _aiLimitChecking = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _aiLimitChecking = false);
     }
   }
 
@@ -809,8 +843,41 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Future<void> _onChatSubmit(String text) async {
+    if (_aiLimitReached) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Monthly limit of $_aiMonthlyLimit AI parses reached. Upgrade to continue.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     final isSplit = _looksLikeSplit(text);
     final subFeature = isSplit ? 'split' : 'expense';
+
+    // Check + increment usage before calling AI
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final allowed = await Supabase.instance.client.rpc(
+        'check_feature_limit',
+        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+      ) as bool? ?? true;
+      if (!mounted) return;
+      if (!allowed) {
+        setState(() { _aiLimitReached = true; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Monthly limit of $_aiMonthlyLimit AI parses reached. Upgrade to continue.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      if (mounted) setState(() => _aiMonthlyUsed = _aiMonthlyUsed + 1);
+    }
 
     // Show parsing indicator
     final sm = ScaffoldMessenger.of(context);
@@ -1279,7 +1346,25 @@ class _WalletScreenState extends State<WalletScreen>
             ),
           ),
 
-          if (_activeTab != WalletTab.splits)
+          if (_activeTab != WalletTab.splits) ...[
+            if (!_aiLimitChecking)
+              Padding(
+                padding: const EdgeInsets.only(right: 14, bottom: 2),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '$_aiMonthlyUsed/$_aiMonthlyLimit AI parses',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: _aiLimitReached
+                          ? Colors.redAccent
+                          : (isDark ? AppColors.subDark : AppColors.subLight),
+                    ),
+                  ),
+                ),
+              ),
             ChatInputBar(
               key: _chatBarKey,
               onSubmit: _onChatSubmit,
@@ -1303,6 +1388,7 @@ class _WalletScreenState extends State<WalletScreen>
               speechLocale: _speechLocale,
               onMicLongPress: _onMicLongPress,
             ),
+          ],
         ],
       ),
       ),

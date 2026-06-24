@@ -413,12 +413,47 @@ class _BudgetSheetState extends State<BudgetSheet> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _loadError != null && _budgets.isEmpty
+                  : _loadError != null && _budgets.isEmpty && _allCategories.isEmpty
                       ? _buildError(sub, tc)
                   : ListView(
                       controller: scrollCtrl,
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
                       children: [
+                        if (_loadError != null && _budgets.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF5C7A).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.cloud_off_rounded, size: 16, color: Color(0xFFFF5C7A)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Could not load saved budgets. Showing default categories.',
+                                      style: TextStyle(
+                                        fontSize: 12, fontFamily: 'Nunito',
+                                        fontWeight: FontWeight.w600, color: sub,
+                                      ),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: _load,
+                                    child: const Text('Retry',
+                                      style: TextStyle(
+                                        fontSize: 12, fontFamily: 'Nunito',
+                                        fontWeight: FontWeight.w700, color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         // ── This month summary ────────────────────────────
                         _MonthSummaryCard(
                           spentMap: _spentMap,
