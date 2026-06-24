@@ -7975,7 +7975,10 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
           ),
         ),
         TextButton.icon(
-          onPressed: () => setState(() => _rows.add(_BulkMoiRow())),
+          onPressed: () {
+            if (_rows.isNotEmpty && !_rows.last.isValid) return;
+            setState(() => _rows.add(_BulkMoiRow()));
+          },
           icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
           label: const Text(
             'Add Row',

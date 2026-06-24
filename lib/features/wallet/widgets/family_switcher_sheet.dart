@@ -165,51 +165,95 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                       ),
                     );
                   }),
-                  if (!widget.isDashboard &&
-                      familyList.length < widget.appState.maxFamilyGroups) ...[
+                  if (!widget.isDashboard) ...[
                     const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () async {
-                        Navigator.pop(context);
-                        final newId = await showAddFamilySheet(
-                          context,
-                          isDark,
-                          widget.appState,
-                        );
-                        if (newId != null) widget.onSelect(newId);
-                      },
-                      child: Container(
+                    if (widget.appState.maxFamilyMembers == 0)
+                      // Free plan — show locked upgrade prompt
+                      Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                         decoration: BoxDecoration(
+                          color: sub.withValues(alpha: 0.06),
                           border: Border.all(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: sub.withValues(alpha: 0.2),
                             width: 1.5,
                           ),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.group_add_rounded,
-                              color: AppColors.primary,
-                              size: 18,
-                            ),
-                            SizedBox(width: 8),
+                            Icon(Icons.lock_rounded, color: sub, size: 16),
+                            const SizedBox(width: 8),
                             Text(
-                              'Add New Family',
+                              'Family Groups',
                               style: TextStyle(
-                                color: AppColors.primary,
+                                color: sub,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
                                 fontFamily: 'Nunito',
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFAA2C),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'UPGRADE',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  fontFamily: 'Nunito',
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
+                      )
+                    else if (familyList.length < widget.appState.maxFamilyGroups)
+                      GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final newId = await showAddFamilySheet(
+                            context,
+                            isDark,
+                            widget.appState,
+                          );
+                          if (newId != null) widget.onSelect(newId);
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.group_add_rounded, color: AppColors.primary, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'Add New Family',
+                                style: TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  fontFamily: 'Nunito',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                   const SizedBox(height: 24),
                 ],
