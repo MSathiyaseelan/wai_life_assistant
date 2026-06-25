@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8',
-    appId: '1:471788972864:android:2be4fd35d43e144a1568a5',
+    appId: '1:471788972864:android:1c3eab606dfb1af91568a5',
     messagingSenderId: '471788972864',
     projectId: 'waiapp-4edaf',
     storageBucket: 'waiapp-4edaf.firebasestorage.app',
@@ -59,20 +59,20 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDfgbyRneWK91zS2IKzOdPliKtIGRXbSXk',
-    appId: '1:471788972864:ios:40becde1918cab5f1568a5',
+    appId: '1:471788972864:ios:902277d09e79614b1568a5',
     messagingSenderId: '471788972864',
     projectId: 'waiapp-4edaf',
     storageBucket: 'waiapp-4edaf.firebasestorage.app',
-    iosBundleId: 'com.example.waiLifeAssistant',
+    iosBundleId: 'com.wai.lifeassistant',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyDfgbyRneWK91zS2IKzOdPliKtIGRXbSXk',
-    appId: '1:471788972864:ios:40becde1918cab5f1568a5',
+    appId: '1:471788972864:ios:902277d09e79614b1568a5',
     messagingSenderId: '471788972864',
     projectId: 'waiapp-4edaf',
     storageBucket: 'waiapp-4edaf.firebasestorage.app',
-    iosBundleId: 'com.example.waiLifeAssistant',
+    iosBundleId: 'com.wai.lifeassistant',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
