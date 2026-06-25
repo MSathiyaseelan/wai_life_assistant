@@ -3,31 +3,26 @@ import '../features/splash/splash_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/otp_screen.dart';
+import '../features/auth/profile_setup_screen.dart';
 import 'package:wai_life_assistant/navigation/bottom_nav_screen.dart';
 
 class AppRoutes {
-  static const String splash = '/';
-  static const String dashboard = '/dashboard';
-  static const String login = '/login';
-  static const String otp = '/otp';
-  static const String bottomNav = '/bottomNav';
+  static const String splash       = '/';
+  static const String dashboard    = '/dashboard';
+  static const String login        = '/login';
+  static const String otp          = '/otp';
+  static const String profileSetup = '/profileSetup';
+  static const String bottomNav    = '/bottomNav';
 
   static final Map<String, WidgetBuilder> routes = {
-    splash: (context) => const SplashScreen(),
-    dashboard: (context) => const DashboardScreen(),
-    login: (context) => const LoginScreen(),
+    splash:       (context) => const SplashScreen(),
+    dashboard:    (context) => const DashboardScreen(),
+    login:        (context) => const LoginScreen(),
     otp: (context) {
-      final args = ModalRoute.of(context)!.settings.arguments;
-      if (args is Map) {
-        return OtpScreen(
-          phone: args['phone'] as String,
-          name:  args['name']  as String? ?? '',
-          dob:   args['dob']   as String? ?? '',
-        );
-      }
-      // Legacy: plain String argument
-      return OtpScreen(phone: args as String);
+      final phone = ModalRoute.of(context)!.settings.arguments as String;
+      return OtpScreen(phone: phone);
     },
-    bottomNav: (context) => const BottomNavScreen(),
+    profileSetup: (context) => const ProfileSetupScreen(),
+    bottomNav:    (context) => const BottomNavScreen(),
   };
 }

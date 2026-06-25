@@ -1,56 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-import 'auth_coordinator.dart';
+import '../../data/services/profile_service.dart';
+import '../../core/services/error_logger.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class ProfileSetupScreen extends StatefulWidget {
+  const ProfileSetupScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _phoneCtrl  = TextEditingController();
-  final _phoneFocus = FocusNode();
+class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+  final _nameCtrl  = TextEditingController();
+  final _nameFocus = FocusNode();
 
+  DateTime? _dob;
   bool _loading = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _phoneFocus.addListener(() => setState(() {}));
+    _nameFocus.addListener(() => setState(() {}));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _nameFocus.requestFocus());
   }
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
-    _phoneFocus.dispose();
+    _nameCtrl.dispose();
+    _nameFocus.dispose();
     super.dispose();
   }
 
-  bool get _isValid => _phoneCtrl.text.trim().length == 10;
+  bool get _isValid => _nameCtrl.text.trim().isNotEmpty;
 
-  Future<void> _sendOtp() async {
-    final phone = _phoneCtrl.text.trim();
-    if (phone.length != 10) {
-      setState(() => _error = 'Please enter a valid 10-digit mobile number');
+  String get _dobDisplay {
+    if (_dob == null) return 'DD / MM / YYYY';
+    return '${_dob!.day.toString().padLeft(2, '0')} / '
+        '${_dob!.month.toString().padLeft(2, '0')} / '
+        '${_dob!.year}';
+  }
+
+  Future<void> _pickDob() async {
+    FocusScope.of(context).unfocus();
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dob ?? DateTime(now.year - 25),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      helpText: 'Select Date of Birth',
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _dob = picked);
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Please enter your name');
       return;
     }
     setState(() { _loading = true; _error = null; });
     try {
-      await AuthCoordinator.instance.sendOtp('+91$phone');
+      final profile = await ProfileService.instance.fetchProfile();
+      if (profile == null) {
+        await ProfileService.instance.bootstrapNewUser(name: name);
+      }
+      final dob = _dob == null
+          ? null
+          : '${_dob!.year}-'
+            '${_dob!.month.toString().padLeft(2, '0')}-'
+            '${_dob!.day.toString().padLeft(2, '0')}';
+      await ProfileService.instance.updateProfile(name: name, dob: dob);
       if (!mounted) return;
-      Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.bottomNav,
+        (route) => false,
+      );
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'profile_setup');
       if (!mounted) return;
-      setState(() => _error = 'Failed to send OTP. Please try again.');
+      setState(() => _error = 'Failed to save profile. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -75,41 +117,40 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 64),
+                const SizedBox(height: 48),
 
-                // Logo
                 Center(
                   child: Container(
-                    width: 80,
-                    height: 80,
+                    width: 72,
+                    height: 72,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: const Center(
-                      child: Text('✨', style: TextStyle(fontSize: 36)),
+                      child: Text('👤', style: TextStyle(fontSize: 30)),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
 
                 Center(
                   child: Text(
-                    'WAI Life Assistant',
+                    'Set up your profile',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: 22,
                       fontWeight: FontWeight.w900,
                       fontFamily: 'Nunito',
                       color: tc,
@@ -119,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'Enter your mobile number to continue',
+                    'Tell us a bit about yourself',
                     style: TextStyle(
                       fontSize: 14,
                       fontFamily: 'Nunito',
@@ -129,9 +170,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 36),
 
-                // Card
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -148,80 +188,104 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _FieldLabel('Mobile Number', sub),
+                      // Name
+                      _FieldLabel('Your Name *', sub),
                       const SizedBox(height: 8),
                       _InputBox(
-                        hasFocus: _phoneFocus.hasFocus,
-                        hasError: _error != null,
+                        hasFocus: _nameFocus.hasFocus,
+                        hasError: _error != null && _nameCtrl.text.trim().isEmpty,
                         fieldBg: fieldBg,
-                        child: Row(
-                          children: [
-                            Container(
-                              margin: const EdgeInsets.all(6),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Text('🇮🇳',
-                                      style: TextStyle(fontSize: 16)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '+91',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      fontFamily: 'Nunito',
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                        child: TextField(
+                          controller: _nameCtrl,
+                          focusNode: _nameFocus,
+                          keyboardType: TextInputType.name,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() => _error = null),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: 'e.g. Sathiyaseelan',
+                            hintStyle: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                              fontFamily: 'Nunito',
+                              color: sub.withValues(alpha: 0.5),
                             ),
-                            Expanded(
-                              child: TextField(
-                                controller: _phoneCtrl,
-                                focusNode: _phoneFocus,
-                                keyboardType: TextInputType.phone,
-                                maxLength: 10,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                ],
-                                onChanged: (_) => setState(() => _error = null),
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  fontFamily: 'Nunito',
-                                  letterSpacing: 2,
-                                  color: tc,
+                            prefixIcon: Icon(
+                              Icons.person_rounded,
+                              size: 20,
+                              color: _nameFocus.hasFocus
+                                  ? AppColors.primary
+                                  : sub.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // DOB (optional)
+                      _FieldLabel('Date of Birth (optional)', sub),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _pickDob,
+                        child: _InputBox(
+                          hasFocus: false,
+                          hasError: false,
+                          fieldBg: fieldBg,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.cake_rounded,
+                                  size: 20,
+                                  color: _dob != null
+                                      ? AppColors.primary
+                                      : sub.withValues(alpha: 0.5),
                                 ),
-                                decoration: InputDecoration(
-                                  border: InputBorder.none,
-                                  hintText: '00000 00000',
-                                  hintStyle: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w400,
+                                const SizedBox(width: 12),
+                                Text(
+                                  _dobDisplay,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: _dob != null
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
                                     fontFamily: 'Nunito',
-                                    letterSpacing: 2,
-                                    color: sub.withValues(alpha: 0.5),
+                                    color: _dob != null
+                                        ? tc
+                                        : sub.withValues(alpha: 0.5),
                                   ),
-                                  counterText: '',
                                 ),
-                              ),
+                                const Spacer(),
+                                Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 18,
+                                  color: sub.withValues(alpha: 0.4),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
 
                       if (_error != null) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.error_outline_rounded,
-                                size: 14, color: AppColors.error),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 1),
+                              child: Icon(Icons.error_outline_rounded,
+                                  size: 14, color: AppColors.error),
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
@@ -237,13 +301,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ],
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
 
                       SizedBox(
                         width: double.infinity,
                         height: 52,
                         child: FilledButton(
-                          onPressed: (_isValid && !_loading) ? _sendOtp : null,
+                          onPressed: (_isValid && !_loading) ? _save : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             disabledBackgroundColor:
@@ -262,7 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 )
                               : const Text(
-                                  'Send OTP',
+                                  'Continue',
                                   style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w800,
@@ -275,22 +339,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 24),
-
-                Center(
-                  child: Text(
-                    'By continuing, you agree to our Terms & Privacy Policy',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: 'Nunito',
-                      color: sub.withValues(alpha: 0.7),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
               ],
             ),
           ),

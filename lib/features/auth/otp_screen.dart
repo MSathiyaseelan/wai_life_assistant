@@ -7,14 +7,11 @@ import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'auth_coordinator.dart';
 
-// TODO: Set to false once OTP delivery is working in production
-const bool kBypassOtp = true;
+const bool kBypassOtp = false;
 
 class OtpScreen extends StatefulWidget {
   final String phone;
-  final String name;
-  final String dob;
-  const OtpScreen({super.key, required this.phone, this.name = '', this.dob = ''});
+  const OtpScreen({super.key, required this.phone});
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -35,8 +32,8 @@ class _OtpScreenState extends State<OtpScreen> {
     super.initState();
     _startResendTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (kBypassOtp || AuthCoordinator.instance.isAutoVerified) {
-        // Auto-proceed: bypass mode or Android auto-read the SMS
+      if (AuthCoordinator.instance.isAutoVerified) {
+        // Android auto-read the SMS — skip manual OTP entry
         _verify();
       } else {
         _nodes[0].requestFocus();
@@ -89,53 +86,32 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
-    if (!kBypassOtp && _otp.length < 6) {
+    if (_otp.length < 6) {
       setState(() => _error = 'Please enter the 6-digit OTP');
       return;
     }
     setState(() { _loading = true; _error = null; });
     try {
-      if (kBypassOtp) {
-        await AuthCoordinator.instance.bypassVerify();
-      } else {
-        await AuthCoordinator.instance.verifyOtp(widget.phone, _otp);
-      }
+      await AuthCoordinator.instance.verifyOtp(widget.phone, _otp);
       if (!mounted) return;
-      // If a profile exists for this UID, skip setup entirely.
-      // In bypass mode, anonymous sign-in creates a new UID each time, so the
-      // profile won't be found by UID. bootstrapNewUser or linkProfileByPhone
-      // may fail due to FK constraints while SMS auth is incomplete — that's
-      // expected; we still navigate home since authentication succeeded.
-      final existing = await ProfileService.instance.fetchProfile();
-      if (existing == null) {
-        try {
-          await ProfileService.instance.bootstrapNewUser(
-            name: widget.name.isNotEmpty ? widget.name : '',
-          );
-          if (widget.dob.isNotEmpty) {
-            await ProfileService.instance.updateProfile(dob: widget.dob);
-          }
-        } catch (e) {
-          debugPrint('[OTP] bootstrapNewUser skipped: $e');
-        }
-        try {
-          final migrated = await ProfileService.instance.linkProfileByPhone(widget.phone);
-          if (migrated) debugPrint('[OTP] Profile migrated to new UID for ${widget.phone}');
-        } catch (e) {
-          // Profile migration can fail in bypass mode (anonymous UID has no phone).
-          // Auth succeeded, so navigate home anyway — profile will be set up via
-          // onboarding flow once proper SMS auth is in place.
-          debugPrint('[OTP] linkProfileByPhone skipped: $e');
-        }
-      } else {
-        debugPrint('[OTP] Profile already exists for this UID, skipping setup');
-      }
+      final profile = await ProfileService.instance.fetchProfile();
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRoutes.bottomNav,
-        (route) => false,
-      );
+      final hasName = (profile?['name'] as String?)?.trim().isNotEmpty == true;
+      if (!hasName) {
+        // New user or profile has no name — go to profile setup.
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.profileSetup,
+          (route) => false,
+        );
+      } else {
+        // Returning user — go straight to dashboard.
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.bottomNav,
+          (route) => false,
+        );
+      }
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
