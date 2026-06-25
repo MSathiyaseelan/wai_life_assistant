@@ -35,8 +35,8 @@ class _OtpScreenState extends State<OtpScreen> {
     super.initState();
     _startResendTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (kBypassOtp) {
-        // Auto-proceed without waiting for digit input
+      if (kBypassOtp || AuthCoordinator.instance.isAutoVerified) {
+        // Auto-proceed: bypass mode or Android auto-read the SMS
         _verify();
       } else {
         _nodes[0].requestFocus();

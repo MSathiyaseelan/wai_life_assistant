@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -5,54 +7,110 @@ class AuthCoordinator {
   AuthCoordinator._();
   static final AuthCoordinator instance = AuthCoordinator._();
 
+  final _firebaseAuth = fb.FirebaseAuth.instance;
   SupabaseClient get _client => Supabase.instance.client;
-  String requestId = '';
 
-  /// Sends an OTP to [phone] via the MSG91-backed edge function.
-  /// [phone] must include the country code, e.g. "+919876543210".
+  String _verificationId = '';
+  int? _forceResendingToken;
+  fb.PhoneAuthCredential? _autoCredential;
+
+  /// True when Firebase auto-verified the phone on Android (no OTP entry needed).
+  bool get isAutoVerified => _autoCredential != null;
+
+  /// Sends OTP to [phone] via Firebase Phone Auth.
+  /// [phone] must include country code, e.g. "+919876543210".
   Future<void> sendOtp(String phone) async {
-    final res = await _client.functions.invoke(
-      'send-otp',
-      body: {'phone': phone},
+    _autoCredential = null;
+    final completer = Completer<void>();
+
+    await _firebaseAuth.verifyPhoneNumber(
+      phoneNumber: phone,
+      forceResendingToken: _forceResendingToken,
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: (fb.PhoneAuthCredential credential) {
+        // Android only: SMS auto-read succeeded — store credential for instant sign-in.
+        _autoCredential = credential;
+        if (!completer.isCompleted) completer.complete();
+      },
+      verificationFailed: (fb.FirebaseAuthException e) {
+        if (!completer.isCompleted) {
+          completer.completeError(
+            AuthException(e.message ?? 'Phone verification failed'),
+          );
+        }
+      },
+      codeSent: (String verificationId, int? forceResendingToken) {
+        _verificationId = verificationId;
+        _forceResendingToken = forceResendingToken;
+        if (!completer.isCompleted) completer.complete();
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {
+        _verificationId = verificationId;
+      },
     );
-    if (res.status != 200) {
-      final msg =
-          (res.data as Map<String, dynamic>?)?['error'] as String? ??
-          'Failed to send OTP';
-      throw AuthException(msg);
-    }
-    requestId = res.data['request_id'];
+
+    return completer.future;
   }
 
-  /// Verifies [otp] for [phone] via the edge function.
-  /// On success the returned session is activated so [isLoggedIn] becomes true.
+  /// Verifies [otp] entered by the user (or auto-credential on Android).
+  /// On success, exchanges the Firebase ID token for a Supabase session.
   Future<void> verifyOtp(String phone, String otp) async {
-    final res = await _client.functions.invoke(
-      'verify-otp',
-      body: {'phone': phone, 'otp': otp, 'request_id': requestId},
-    );
+    try {
+      final credential = _autoCredential ??
+          fb.PhoneAuthProvider.credential(
+            verificationId: _verificationId,
+            smsCode: otp,
+          );
+      _autoCredential = null;
 
-    final data = res.data as Map<String, dynamic>?;
+      final userCred = await _firebaseAuth.signInWithCredential(credential);
+      final idToken  = await userCred.user!.getIdToken();
 
-    if (res.status != 200 || data == null) {
-      final msg = data?['error'] as String? ?? 'Invalid OTP. Please try again.';
-      throw AuthException(msg);
+      // Exchange Firebase ID token for a Supabase session via edge function.
+      final res = await _client.functions.invoke(
+        'firebase-verify',
+        body: {'id_token': idToken},
+      );
+
+      final data = res.data as Map<String, dynamic>?;
+      if (res.status != 200 || data == null) {
+        throw AuthException(
+          data?['error'] as String? ?? 'Authentication failed',
+        );
+      }
+
+      final accessToken  = data['access_token']  as String?;
+      final refreshToken = data['refresh_token'] as String?;
+      if (accessToken == null || refreshToken == null) {
+        throw AuthException('Missing session tokens');
+      }
+
+      await _client.auth.setSession(refreshToken);
+      debugPrint('[Auth] Firebase OTP verified, uid=${_client.auth.currentUser?.id}');
+    } on fb.FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseError(e.code));
     }
-
-    final accessToken = data['access_token'] as String?;
-    final refreshToken = data['refresh_token'] as String?;
-
-    if (accessToken == null || refreshToken == null) {
-      throw AuthException('Authentication failed — missing session tokens.');
-    }
-
-    // Activate the session in the Supabase Flutter client.
-    await _client.auth.setSession(accessToken);
-    debugPrint('[Auth] OTP verified, uid=${_client.auth.currentUser?.id}');
   }
 
-  /// Dev-only bypass: signs in anonymously to get a real session without OTP.
-  /// Remove or gate this behind a compile flag before going to production.
+  String _mapFirebaseError(String code) {
+    switch (code) {
+      case 'invalid-verification-code':
+        return 'Invalid OTP. Please check and try again.';
+      case 'session-expired':
+        return 'OTP expired. Please request a new one.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'invalid-phone-number':
+        return 'Invalid phone number.';
+      default:
+        return 'Verification failed. Please try again.';
+    }
+  }
+
+  /// Resend OTP to [phone] — reuses the resend token for faster delivery.
+  Future<void> resendOtp(String phone) => sendOtp(phone);
+
+  /// Dev-only bypass: signs in anonymously without OTP.
   Future<void> bypassVerify() async {
     final res = await _client.auth.signInAnonymously();
     if (res.session == null) {
@@ -61,20 +119,15 @@ class AuthCoordinator {
     debugPrint('[Auth] Bypass login, uid=${_client.auth.currentUser?.id}');
   }
 
-  /// Resend OTP — same as sendOtp, exposed separately for the resend button.
-  Future<void> resendOtp(String phone) => sendOtp(phone);
-
-  /// Signs the user out and clears the session.
+  /// Signs the user out of both Firebase and Supabase.
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await Future.wait([
+      _client.auth.signOut(),
+      _firebaseAuth.signOut(),
+    ]);
   }
 
-  /// Returns true if a valid session exists.
-  bool get isLoggedIn => _client.auth.currentSession != null;
-
-  /// The currently authenticated user, or null.
+  bool get isLoggedIn  => _client.auth.currentSession != null;
   User? get currentUser => _client.auth.currentUser;
-
-  /// The current user's phone number, or null.
   String? get currentPhone => _client.auth.currentUser?.phone;
 }
