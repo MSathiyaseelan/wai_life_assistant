@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/data/services/app_config_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/realtime_sync_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APP STATE — single source of truth for active wallet across all tabs
@@ -74,6 +75,7 @@ class AppStateNotifier extends ChangeNotifier {
       if (loggedIn) _maxFamilyMembers = fetched[2] as int;
 
       if (!loggedIn) {
+        RealtimeSyncService.instance.unsubscribeAll();
         _wallets = [personalWallet];
         _families = [];
         if (_activeWalletId.isEmpty || !_wallets.any((w) => w.id == _activeWalletId)) {
@@ -91,6 +93,7 @@ class AppStateNotifier extends ChangeNotifier {
               !_wallets.any((w) => w.id == _activeWalletId)) {
             _activeWalletId = parsed.personal.id;
           }
+          RealtimeSyncService.instance.subscribeAll(parsed.personal.id);
         } else {
           // Profile not set up yet (e.g. bypass login with cache-cleared state).
           // Fall back to a placeholder so screens don't hang on empty walletId.

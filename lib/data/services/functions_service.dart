@@ -1,7 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Thin Supabase layer for the Functions module.
-/// All methods throw [PostgrestException] on failure — callers should catch.
 class FunctionsService {
   FunctionsService._();
   static final FunctionsService instance = FunctionsService._();
@@ -16,6 +14,7 @@ class FunctionsService {
         .from('functions_my')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -34,7 +33,7 @@ class FunctionsService {
   }
 
   Future<void> deleteMyFunction(String id) async {
-    await _db.from('functions_my').delete().eq('id', id);
+    await _db.from('functions_my').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Upcoming Functions ───────────────────────────────────────────────────
@@ -44,6 +43,7 @@ class FunctionsService {
         .from('functions_upcoming')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -62,7 +62,7 @@ class FunctionsService {
   }
 
   Future<void> deleteUpcoming(String id) async {
-    await _db.from('functions_upcoming').delete().eq('id', id);
+    await _db.from('functions_upcoming').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Attended Functions ───────────────────────────────────────────────────
@@ -72,6 +72,7 @@ class FunctionsService {
         .from('functions_attended')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -90,7 +91,7 @@ class FunctionsService {
   }
 
   Future<void> deleteAttended(String id) async {
-    await _db.from('functions_attended').delete().eq('id', id);
+    await _db.from('functions_attended').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Participants ─────────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ class FunctionsService {
         .from('function_participants')
         .select()
         .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -118,7 +120,7 @@ class FunctionsService {
   }
 
   Future<void> deleteParticipant(String id) async {
-    await _db.from('function_participants').delete().eq('id', id);
+    await _db.from('function_participants').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Clothing Families ────────────────────────────────────────────────────
@@ -128,6 +130,7 @@ class FunctionsService {
         .from('function_clothing_families')
         .select()
         .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -146,7 +149,7 @@ class FunctionsService {
   }
 
   Future<void> deleteClothingFamily(String id) async {
-    await _db.from('function_clothing_families').delete().eq('id', id);
+    await _db.from('function_clothing_families').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Bridal Essentials ────────────────────────────────────────────────────
@@ -156,6 +159,7 @@ class FunctionsService {
         .from('function_bridal_essentials')
         .select()
         .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -174,7 +178,7 @@ class FunctionsService {
   }
 
   Future<void> deleteBridalEssential(String id) async {
-    await _db.from('function_bridal_essentials').delete().eq('id', id);
+    await _db.from('function_bridal_essentials').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Return Gifts ─────────────────────────────────────────────────────────
@@ -184,6 +188,7 @@ class FunctionsService {
         .from('function_return_gifts')
         .select()
         .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -202,7 +207,7 @@ class FunctionsService {
   }
 
   Future<void> deleteReturnGift(String id) async {
-    await _db.from('function_return_gifts').delete().eq('id', id);
+    await _db.from('function_return_gifts').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Moi Entries ──────────────────────────────────────────────────────────
@@ -212,6 +217,7 @@ class FunctionsService {
         .from('function_moi_entries')
         .select()
         .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -235,6 +241,10 @@ class FunctionsService {
   }
 
   Future<void> deleteMoiEntry(String id) async {
-    await _db.from('function_moi_entries').delete().eq('id', id);
+    await _db.from('function_moi_entries').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 }

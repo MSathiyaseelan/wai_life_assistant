@@ -298,6 +298,7 @@ class WalletService {
         .from('tx_groups')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at');
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -327,9 +328,9 @@ class WalletService {
     }
   }
 
-  /// Delete a group. Member transactions stay but their group_id is set to NULL.
+  /// Delete a group (soft). Member transactions stay but their group_id is set to NULL.
   Future<void> deleteTxGroup(String groupId) async {
-    await _db.from('tx_groups').delete().eq('id', groupId);
+    await _db.from('tx_groups').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', groupId);
   }
 
   /// Assign or remove a transaction from a group (groupId = null to ungroup).
@@ -642,6 +643,7 @@ class WalletService {
         .from('bills')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('due_date');
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -677,9 +679,9 @@ class WalletService {
     await _db.from('bills').update(updates).eq('id', billId);
   }
 
-  /// Delete a bill.
+  /// Delete a bill (soft).
   Future<void> deleteBill(String billId) async {
-    await _db.from('bills').delete().eq('id', billId);
+    await _db.from('bills').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', billId);
   }
 
   // ── Budgets ───────────────────────────────────────────────────────────────
@@ -690,6 +692,7 @@ class WalletService {
         .from('wallet_budgets')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('category');
     return (rows as List).map((r) => BudgetModel.fromRow(r as Map<String, dynamic>)).toList();
   }
@@ -712,9 +715,13 @@ class WalletService {
     return BudgetModel.fromRow(row);
   }
 
-  /// Remove a budget limit by its id.
+  /// Remove a budget limit by its id (soft delete).
   Future<void> deleteBudget(String budgetId) async {
-    await _db.from('wallet_budgets').delete().eq('id', budgetId);
+    await _db.from('wallet_budgets').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', budgetId);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 
   /// Add a new expense category to the shared user_tx_categories table.

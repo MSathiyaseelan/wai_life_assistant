@@ -1,6 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Thin Supabase layer for PlanIt sticky notes.
 class NoteService {
   NoteService._();
   static final NoteService instance = NoteService._();
@@ -12,6 +11,7 @@ class NoteService {
         .from('notes')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('is_pinned', ascending: false)
         .order('updated_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
@@ -27,6 +27,10 @@ class NoteService {
   }
 
   Future<void> deleteNote(String id) async {
-    await _db.from('notes').delete().eq('id', id);
+    await _db.from('notes').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 }

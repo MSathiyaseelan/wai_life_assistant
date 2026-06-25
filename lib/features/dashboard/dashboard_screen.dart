@@ -33,6 +33,7 @@ import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs
 import 'package:wai_life_assistant/features/dashboard/widgets/about_wai_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/report_issue_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/recycle_bin_sheet.dart';
 import 'package:wai_life_assistant/routes/app_routes.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_sheet.dart';
@@ -2181,6 +2182,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return () => _showThemePicker(ctx, isDark);
       case 'Notifications':
         sheet = NotificationPrefsSheet(isDark: isDark);
+      case 'Recycle Bin':
+        sheet = RecycleBinSheet(isDark: isDark);
       case 'Privacy & Security':
         sheet = PrivacySecuritySheet(isDark: isDark);
       case 'Language & Voice':
@@ -2861,6 +2864,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         sRow(emoji: '🔒', bg: const Color(0xFFFFF0E0), title: 'Privacy & Security',
                           subtitle: 'PIN lock, policy & data', value: '',
                           onTap: _prefsTap(ctx, isDark, 'Privacy & Security')),
+                        sRow(emoji: '🗑️', bg: const Color(0xFFF5F5F5), title: 'Recycle Bin',
+                          subtitle: 'Restore recently deleted items', value: '',
+                          onTap: _prefsTap(ctx, isDark, 'Recycle Bin')),
                         sRow(emoji: 'ℹ️', bg: const Color(0xFFF0F0F0), title: 'About WAI',
                           subtitle: 'Version, licences & credits', value: 'v1.0.0',
                           onTap: _prefsTap(ctx, isDark, 'About')),

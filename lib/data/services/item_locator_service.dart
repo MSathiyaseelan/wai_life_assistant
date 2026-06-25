@@ -14,6 +14,7 @@ class ItemLocatorService {
         .from('item_locator_containers')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -32,7 +33,7 @@ class ItemLocatorService {
   }
 
   Future<void> deleteContainer(String id) async {
-    await _db.from('item_locator_containers').delete().eq('id', id);
+    await _db.from('item_locator_containers').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Items ─────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ class ItemLocatorService {
         .from('item_locator_items')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -60,6 +62,10 @@ class ItemLocatorService {
   }
 
   Future<void> deleteItem(String id) async {
-    await _db.from('item_locator_items').delete().eq('id', id);
+    await _db.from('item_locator_items').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 }

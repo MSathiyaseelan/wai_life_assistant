@@ -14,7 +14,6 @@ class WardrobeService {
 
   // ── Photo Storage ────────────────────────────────────────────────────────────
 
-  /// Uploads [localPath] to Supabase Storage under `{uid}/{memberId}/` and returns the public URL.
   Future<String> uploadPhoto(String localPath, {String memberId = 'me'}) async {
     final file = File(localPath);
     final bytes = await file.readAsBytes();
@@ -38,7 +37,6 @@ class WardrobeService {
     return _db.storage.from(_bucket).getPublicUrl(storagePath);
   }
 
-  /// Deletes the file at [photoUrl] from Supabase Storage (no-op if not a storage URL).
   Future<void> deletePhoto(String? photoUrl) async {
     if (photoUrl == null || !photoUrl.contains(_bucket)) return;
     try {
@@ -62,6 +60,7 @@ class WardrobeService {
         .from('wardrobe_items')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('added_on', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -80,7 +79,11 @@ class WardrobeService {
   }
 
   Future<void> deleteItem(String id) async {
-    await _db.from('wardrobe_items').delete().eq('id', id);
+    await _db.from('wardrobe_items').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 
   // ── Outfit Logs ─────────────────────────────────────────────────────────────

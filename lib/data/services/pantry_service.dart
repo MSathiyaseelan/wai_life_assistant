@@ -57,6 +57,7 @@ class PantryService {
         .from('recipes')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -105,9 +106,9 @@ class PantryService {
         .eq('id', id);
   }
 
-  /// Delete a recipe (cascades to any meal_entries that referenced it via SET NULL).
+  /// Delete a recipe (soft delete).
   Future<void> deleteRecipe(String id) async {
-    await _db.from('recipes').delete().eq('id', id);
+    await _db.from('recipes').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -120,6 +121,7 @@ class PantryService {
         .from('meal_entries')
         .select('*, meal_reactions(*)')
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('date', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -135,6 +137,7 @@ class PantryService {
         .from('meal_entries')
         .select('*, meal_reactions(*)')
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .gte('date', mon.toIso8601String().substring(0, 10))
         .lt('date', sun.toIso8601String().substring(0, 10))
         .order('date');
@@ -151,6 +154,7 @@ class PantryService {
         .from('meal_entries')
         .select('*, meal_reactions(*)')
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .eq('date', dateStr)
         .order('meal_time');
     return List<Map<String, dynamic>>.from(rows);
@@ -200,9 +204,9 @@ class PantryService {
     await _db.from('meal_entries').update(updates).eq('id', id);
   }
 
-  /// Delete a meal entry (cascades to its reactions).
+  /// Delete a meal entry (soft delete).
   Future<void> deleteMealEntry(String id) async {
-    await _db.from('meal_entries').delete().eq('id', id);
+    await _db.from('meal_entries').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -215,6 +219,7 @@ class PantryService {
         .from('meal_reactions')
         .select()
         .eq('meal_id', mealId)
+        .isFilter('deleted_at', null)
         .order('created_at');
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -243,9 +248,13 @@ class PantryService {
     await _db.from('meal_reactions').update(updates).eq('id', id);
   }
 
-  /// Delete a reaction.
+  /// Delete a reaction (soft delete).
   Future<void> deleteReaction(String id) async {
-    await _db.from('meal_reactions').delete().eq('id', id);
+    await _db.from('meal_reactions').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

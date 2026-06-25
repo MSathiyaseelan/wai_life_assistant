@@ -258,9 +258,13 @@ class ProfileService {
     });
   }
 
-  /// Remove a member from a family.
+  /// Remove a member from a family (soft delete).
   Future<void> removeMember(String memberId) async {
-    await _db.from('family_members').delete().eq('id', memberId);
+    await _db.from('family_members').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', memberId);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 
   /// Update family permission settings (admin only — enforced by RLS).
@@ -283,6 +287,7 @@ class ProfileService {
         .from('family_members')
         .select()
         .eq('family_id', familyId)
+        .isFilter('deleted_at', null)
         .order('created_at');
     return List<Map<String, dynamic>>.from(rows);
   }

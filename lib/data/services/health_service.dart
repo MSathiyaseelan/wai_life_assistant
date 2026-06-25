@@ -8,7 +8,6 @@ class HealthService {
   HealthService._();
   static final HealthService instance = HealthService._();
 
-  /// Increment to notify listeners (e.g. dashboard) that health data changed.
   static final changeSignal = ValueNotifier<int>(0);
 
   SupabaseClient get _db => Supabase.instance.client;
@@ -75,7 +74,6 @@ class HealthService {
   // ── Medications ───────────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchMedications(String walletId) async {
-    // Auto-deactivate any med whose course has ended (end_date < today)
     final today = DateTime.now().toIso8601String().substring(0, 10);
     await _db
         .from('health_medications')
@@ -89,6 +87,7 @@ class HealthService {
         .from('health_medications')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('is_active', ascending: false)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);
@@ -110,7 +109,7 @@ class HealthService {
   }
 
   Future<void> deleteMedication(String id) async {
-    await _db.from('health_medications').delete().eq('id', id);
+    await _db.from('health_medications').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
     changeSignal.value++;
   }
 
@@ -121,6 +120,7 @@ class HealthService {
         .from('health_doctors')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('name');
     return List<Map<String, dynamic>>.from(rows as List);
   }
@@ -139,7 +139,7 @@ class HealthService {
   }
 
   Future<void> deleteDoctor(String id) async {
-    await _db.from('health_doctors').delete().eq('id', id);
+    await _db.from('health_doctors').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Documents ─────────────────────────────────────────────────────────────────
@@ -149,6 +149,7 @@ class HealthService {
         .from('health_documents')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('doc_date', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);
   }
@@ -172,7 +173,7 @@ class HealthService {
   }
 
   Future<void> deleteDocument(String id, List<String> fileUrls) async {
-    await _db.from('health_documents').delete().eq('id', id);
+    await _db.from('health_documents').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
     await Future.wait(fileUrls.map(deleteDoc));
   }
 
@@ -183,6 +184,7 @@ class HealthService {
         .from('health_appointments')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('appt_date', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);
   }
@@ -201,7 +203,7 @@ class HealthService {
   }
 
   Future<void> deleteAppointment(String id) async {
-    await _db.from('health_appointments').delete().eq('id', id);
+    await _db.from('health_appointments').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Vitals ────────────────────────────────────────────────────────────────────
@@ -211,6 +213,7 @@ class HealthService {
         .from('health_vitals')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('recorded_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);
   }
@@ -229,7 +232,7 @@ class HealthService {
   }
 
   Future<void> deleteVital(String id) async {
-    await _db.from('health_vitals').delete().eq('id', id);
+    await _db.from('health_vitals').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Vaccinations ──────────────────────────────────────────────────────────────
@@ -239,6 +242,7 @@ class HealthService {
         .from('health_vaccinations')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('date_given', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);
   }
@@ -257,7 +261,7 @@ class HealthService {
   }
 
   Future<void> deleteVaccination(String id) async {
-    await _db.from('health_vaccinations').delete().eq('id', id);
+    await _db.from('health_vaccinations').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Insurance ─────────────────────────────────────────────────────────────────
@@ -267,6 +271,7 @@ class HealthService {
         .from('health_insurance')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows as List);
   }
@@ -285,7 +290,11 @@ class HealthService {
   }
 
   Future<void> deleteInsurance(String id) async {
-    await _db.from('health_insurance').delete().eq('id', id);
+    await _db.from('health_insurance').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
+  Future<void> restore(String table, String id) async {
+    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 
   // ── Summary (for MyHub card) ──────────────────────────────────────────────────
@@ -293,9 +302,10 @@ class HealthService {
   Future<Map<String, int>> fetchSummary(String walletId) async {
     try {
       final results = await Future.wait([
-        _db.from('health_medications').select('id').eq('wallet_id', walletId).eq('is_active', true),
+        _db.from('health_medications').select('id').eq('wallet_id', walletId).eq('is_active', true).isFilter('deleted_at', null),
         _db.from('health_appointments').select('appt_date').eq('wallet_id', walletId)
-            .gte('appt_date', DateTime.now().toIso8601String().substring(0, 10)),
+            .gte('appt_date', DateTime.now().toIso8601String().substring(0, 10))
+            .isFilter('deleted_at', null),
       ]);
       return {
         'medications': (results[0] as List).length,
