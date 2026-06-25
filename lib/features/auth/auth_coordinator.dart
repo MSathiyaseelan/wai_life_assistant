@@ -119,12 +119,17 @@ class AuthCoordinator {
     debugPrint('[Auth] Bypass login, uid=${_client.auth.currentUser?.id}');
   }
 
-  /// Signs the user out of both Firebase and Supabase.
-  Future<void> signOut() async {
-    await Future.wait([
-      _client.auth.signOut(),
-      _firebaseAuth.signOut(),
-    ]);
+  /// Signs the user out of Firebase and Supabase.
+  /// Pass [allDevices: true] to revoke all refresh tokens (logout everywhere).
+  Future<void> signOut({bool allDevices = false}) async {
+    // Run both sign-outs independently — Firebase may have no active user
+    // (anonymous / bypass sessions never sign into Firebase).
+    await _client.auth.signOut(
+      scope: allDevices ? SignOutScope.global : SignOutScope.local,
+    );
+    try {
+      await _firebaseAuth.signOut();
+    } catch (_) {}
   }
 
   bool get isLoggedIn  => _client.auth.currentSession != null;

@@ -4,6 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
+import 'package:wai_life_assistant/features/splash/splash_screen.dart' show recordActivity;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AppLockGuard — wraps the main app content and enforces the app lock
@@ -61,6 +62,7 @@ class _AppLockGuardState extends State<AppLockGuard>
       if (!_authInProgress) _pausedAt = DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
       if (_authInProgress) { _pausedAt = null; return; }
+      recordActivity(); // update inactivity timestamp on every foreground
       final paused = _pausedAt;
       _pausedAt = null;
       // If _pausedAt was never set the app never truly went to background

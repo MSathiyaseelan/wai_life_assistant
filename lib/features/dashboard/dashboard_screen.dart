@@ -33,6 +33,7 @@ import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs
 import 'package:wai_life_assistant/features/dashboard/widgets/about_wai_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/report_issue_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
+import 'package:wai_life_assistant/routes/app_routes.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/currency_sheet.dart';
@@ -2215,6 +2216,44 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   // ── Settings ────────────────────────────────────────────────────────────────
+  Future<void> _confirmLogout(BuildContext sheetCtx, {required bool allDevices}) async {
+    final confirmed = await showDialog<bool>(
+      context: sheetCtx,
+      builder: (dCtx) => AlertDialog(
+        title: Text(allDevices ? 'Logout from all devices?' : 'Logout?'),
+        content: Text(allDevices
+            ? 'This will sign you out on all devices. You will need to verify your phone number again to log back in.'
+            : 'You will be signed out of this device.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await AuthCoordinator.instance.signOut(allDevices: allDevices);
+    } catch (e) {
+      debugPrint('[Dashboard] signOut error: $e');
+    }
+
+    // Use root navigator to clear entire stack (including the settings sheet)
+    // and land on the login screen.
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (route) => false,
+    );
+  }
+
   void _showSettings(BuildContext ctx, bool isDark) {
     // Load fresh profile in the background — don't block opening the sheet.
     _loadProfile();
@@ -2833,6 +2872,24 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         sRow(emoji: '🐛', bg: const Color(0xFFFFE8E8), title: 'Report Issue',
                           subtitle: 'Report bugs, crashes or suggestions', value: '',
                           onTap: _prefsTap(ctx, isDark, 'Report Issue')),
+                      ]),
+
+                      // ── ACCOUNT SESSION ───────────────────────────────────
+                      const SizedBox(height: 24),
+                      sLabel('ACCOUNT'),
+                      sCard([
+                        sRow(
+                          emoji: '🚪', bg: const Color(0xFFFFEDD5),
+                          title: 'Logout',
+                          subtitle: 'Sign out from this device',
+                          onTap: () => _confirmLogout(ctx2, allDevices: false),
+                        ),
+                        sRow(
+                          emoji: '📵', bg: const Color(0xFFFFE0E0),
+                          title: 'Logout from all devices',
+                          subtitle: 'Revoke all active sessions',
+                          onTap: () => _confirmLogout(ctx2, allDevices: true),
+                        ),
                       ]),
 
                       // ── SUBSCRIPTION ──────────────────────────────────────
