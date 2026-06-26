@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
-import 'package:wai_life_assistant/core/services/error_logger.dart';
-import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_policy_sheet.dart';
-import 'package:wai_life_assistant/routes/app_routes.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRIVACY & SECURITY SHEET
@@ -176,19 +172,6 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
                           ),
                         ]),
 
-                        const SizedBox(height: 24),
-                        _sectionLabel('Danger Zone'),
-                        _card([
-                          _arrowTile(
-                            icon: Icons.delete_forever_rounded,
-                            iconColor: const Color(0xFFEF4444),
-                            iconBg: const Color(0xFFEF4444).withAlpha(20),
-                            title: 'Delete My Account',
-                            subtitle: 'Permanently erase all your data',
-                            onTap: () => _confirmDeleteAccount(context),
-                            textColor: const Color(0xFFEF4444),
-                          ),
-                        ]),
                       ],
                     ),
             ),
@@ -556,101 +539,6 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
     );
   }
 
-  // ── Delete Account ────────────────────────────────────────────────────────
-
-  Future<void> _confirmDeleteAccount(BuildContext context) async {
-    final ctrl = TextEditingController();
-    bool confirmed = false;
-
-    // Capture before any await.
-    final rootNav  = Navigator.of(context, rootNavigator: true);
-    final localNav = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dCtx) => StatefulBuilder(
-        builder: (dCtx, ss) => AlertDialog(
-          backgroundColor: _bg,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            'Delete My Account',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFFEF4444),
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'This will permanently erase all your data — wallets, expenses, notes, pantry, reminders, and more.\n\nThis cannot be undone.',
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: _sub),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Type DELETE to confirm:',
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: _tc),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                style: TextStyle(fontFamily: 'Nunito', color: _tc),
-                decoration: InputDecoration(
-                  hintText: 'DELETE',
-                  hintStyle: TextStyle(color: _sub),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-                onChanged: (_) => ss(() {}),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dCtx),
-              child: Text('Cancel', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: _sub)),
-            ),
-            TextButton(
-              onPressed: ctrl.text.trim() == 'DELETE'
-                  ? () { confirmed = true; Navigator.pop(dCtx); }
-                  : null,
-              child: const Text('Delete Forever',
-                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, color: Color(0xFFEF4444))),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!confirmed || !mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      await Supabase.instance.client.functions.invoke('delete-account');
-      await AuthCoordinator.instance.signOut(allDevices: true);
-      rootNav.pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
-    } catch (e, s) {
-      ErrorLogger.log(e, stackTrace: s, action: 'delete_account');
-      localNav.pop(); // close loading
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Failed to delete account. Please try again.\n$e'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFFEF4444),
-        ),
-      );
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

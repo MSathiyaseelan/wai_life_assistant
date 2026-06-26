@@ -4,11 +4,11 @@
 // ============================================================
 //
 // Flow:
-//   1. Caller must send their Supabase JWT in the Authorization header.
-//   2. We verify the JWT and extract the user's UID.
-//   3. We call delete_my_account() RPC (soft-deletes all user data).
-//   4. We call auth.admin.deleteUser(uid) to remove the auth record.
-//   5. Return { success: true }.
+//   1. Caller sends their Supabase JWT in the Authorization header.
+//   2. Verify the JWT and extract the user's UID.
+//   3. Call auth.admin.deleteUser(uid) — Postgres CASCADE deletes
+//      all user data automatically across every linked table.
+//   4. Return { success: true }.
 // ============================================================
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -24,47 +24,38 @@ const corsHeaders = {
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return json("ok", 200);
   }
 
   try {
-    // ── 1. Verify caller JWT ─────────────────────────────────────────────
+    // ── 1. Extract caller JWT ────────────────────────────────────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Missing Authorization header" }, 401);
     }
     const callerToken = authHeader.replace("Bearer ", "");
 
-    // Admin client (service role) — used for privileged ops.
+    // Admin client — service role key for privileged operations.
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // User client scoped to the caller's token — used for RPC (RLS applies).
-    const userClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { Authorization: `Bearer ${callerToken}` } },
-    });
-
-    // Resolve the UID from the token.
+    // ── 2. Resolve UID from token ────────────────────────────────────────
     const { data: { user }, error: userErr } = await admin.auth.getUser(callerToken);
     if (userErr || !user) {
+      console.error("[delete-account] Token validation failed:", userErr);
       return json({ error: "Invalid or expired token" }, 401);
     }
     const uid = user.id;
+    console.log(`[delete-account] Deleting user ${uid}`);
 
-    // ── 2. Soft-delete all user data via RPC ─────────────────────────────
-    const { error: rpcErr } = await userClient.rpc("delete_my_account");
-    if (rpcErr) {
-      console.error("[delete-account] RPC error:", rpcErr);
-      return json({ error: `Data deletion failed: ${rpcErr.message}` }, 500);
-    }
-
-    // ── 3. Delete the auth.users record ──────────────────────────────────
+    // ── 3. Delete auth user — CASCADE removes all linked data ────────────
+    // profiles → wallets → transactions/wishes/reminders/notes/recipes/…
+    // auth.users → wardrobe_items / health_* / item_locator_* / functions_*
     const { error: deleteErr } = await admin.auth.admin.deleteUser(uid);
     if (deleteErr) {
-      console.error("[delete-account] Auth delete error:", deleteErr);
-      return json({ error: `Auth deletion failed: ${deleteErr.message}` }, 500);
+      console.error("[delete-account] deleteUser failed:", deleteErr);
+      return json({ error: `Deletion failed: ${deleteErr.message}` }, 500);
     }
 
     console.log(`[delete-account] User ${uid} deleted successfully.`);

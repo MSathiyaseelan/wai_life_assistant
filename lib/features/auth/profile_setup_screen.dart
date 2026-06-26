@@ -336,6 +336,23 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                 ),
                         ),
                       ),
+
+                      const SizedBox(height: 12),
+
+                      Center(
+                        child: TextButton(
+                          onPressed: _loading ? null : _skip,
+                          child: Text(
+                            'Skip for now',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w700,
+                              color: sub,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -344,6 +361,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _skip() {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.bottomNav,
+      (route) => false,
     );
   }
 }

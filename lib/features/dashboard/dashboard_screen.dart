@@ -46,6 +46,7 @@ import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/my_list_section.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2257,6 +2258,103 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
+  Future<void> _confirmDeleteAccount(BuildContext sheetCtx) async {
+    final ctrl = TextEditingController();
+    bool confirmed = false;
+
+    final rootNav   = Navigator.of(sheetCtx, rootNavigator: true);
+    final localNav  = Navigator.of(sheetCtx);
+    final messenger = ScaffoldMessenger.of(sheetCtx);
+
+    await showDialog<void>(
+      context: sheetCtx,
+      barrierDismissible: false,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, ss) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Delete Account',
+              style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w900,
+                  color: Colors.red)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This will permanently erase all your data — wallets, expenses, notes, pantry, reminders, and more.\n\nThis cannot be undone.',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              const Text('Type DELETE to confirm:',
+                  style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                style: const TextStyle(fontFamily: 'Nunito'),
+                decoration: InputDecoration(
+                  hintText: 'DELETE',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                ),
+                onChanged: (_) => ss(() {}),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: const Text('Cancel',
+                  style: TextStyle(
+                      fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+            ),
+            TextButton(
+              onPressed: ctrl.text.trim().toUpperCase() == 'DELETE'
+                  ? () {
+                      confirmed = true;
+                      Navigator.pop(dCtx);
+                    }
+                  : null,
+              child: const Text('Delete Forever',
+                  style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w900,
+                      color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!confirmed) return;
+
+    showDialog(
+      context: sheetCtx,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await Supabase.instance.client.functions.invoke('delete-account');
+      await AuthCoordinator.instance.signOut(allDevices: true);
+      rootNav.pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+    } catch (e, s) {
+      ErrorLogger.log(e, stackTrace: s, action: 'delete_account');
+      localNav.pop();
+      messenger.showSnackBar(SnackBar(
+        content: Text('Failed to delete account. Please try again.\n$e'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
   void _showSettings(BuildContext ctx, bool isDark) {
     // Load fresh profile in the background — don't block opening the sheet.
     _loadProfile();
@@ -2993,7 +3091,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
                         ),
                         child: InkWell(
-                          onTap: () {},
+                          onTap: () => _confirmDeleteAccount(ctx2),
                           borderRadius: BorderRadius.circular(18),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
