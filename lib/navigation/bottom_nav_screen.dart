@@ -306,7 +306,50 @@ class _AppShellState extends State<AppShell> {
           ];
 
           return Scaffold(
-            body: IndexedStack(index: _idx, children: screens),
+            body: Column(
+              children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: NetworkService.instance.isOnline,
+                  builder: (_, online, _) => AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: online
+                        ? const SizedBox.shrink()
+                        : Material(
+                            color: const Color(0xFFE65100),
+                            child: SafeArea(
+                              bottom: false,
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 6, horizontal: 16),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Icon(Icons.wifi_off_rounded,
+                                          color: Colors.white, size: 15),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'No internet connection',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          fontFamily: 'Nunito',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                Expanded(child: IndexedStack(index: _idx, children: screens)),
+              ],
+            ),
             bottomNavigationBar: Container(
               decoration: BoxDecoration(
                 color: isDark ? AppColors.cardDark : AppColors.cardLight,

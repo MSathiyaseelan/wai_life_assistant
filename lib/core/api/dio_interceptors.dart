@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import '../logging/app_logger.dart';
 
+const _kMaxRetries = 3;
+
 class DioInterceptors extends Interceptor {
   final Dio dio;
 
@@ -10,6 +12,7 @@ class DioInterceptors extends Interceptor {
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     AppLogger.d('➡️ ${options.method} ${options.baseUrl}${options.path}');
     AppLogger.d('Payload: ${options.data}');
+    options.extra['retryCount'] ??= 0;
     super.onRequest(options, handler);
   }
 
@@ -30,10 +33,14 @@ class DioInterceptors extends Interceptor {
       stackTrace: err.stackTrace,
     );
 
-    // 🔁 Retry logic (network errors only)
-    if (_shouldRetry(err)) {
+    final attempt = (err.requestOptions.extra['retryCount'] as int? ?? 0);
+    if (_shouldRetry(err) && attempt < _kMaxRetries) {
+      err.requestOptions.extra['retryCount'] = attempt + 1;
+      final delay = Duration(milliseconds: 500 * (1 << attempt)); // 500ms, 1s, 2s
+      AppLogger.w('🔁 Retry ${attempt + 1}/$_kMaxRetries in ${delay.inMilliseconds}ms…');
+      await Future.delayed(delay);
       try {
-        final response = await _retry(err.requestOptions);
+        final response = await dio.fetch(err.requestOptions);
         return handler.resolve(response);
       } catch (_) {
         return handler.next(err);
@@ -43,14 +50,8 @@ class DioInterceptors extends Interceptor {
     return handler.next(err);
   }
 
-  bool _shouldRetry(DioException err) {
-    return err.type == DioExceptionType.connectionTimeout ||
-        err.type == DioExceptionType.receiveTimeout ||
-        err.type == DioExceptionType.unknown;
-  }
-
-  Future<Response> _retry(RequestOptions requestOptions) async {
-    AppLogger.w('🔁 Retrying request...');
-    return dio.fetch(requestOptions);
-  }
+  bool _shouldRetry(DioException err) =>
+      err.type == DioExceptionType.connectionTimeout ||
+      err.type == DioExceptionType.receiveTimeout ||
+      err.type == DioExceptionType.unknown;
 }
