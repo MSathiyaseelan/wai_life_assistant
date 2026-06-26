@@ -12,6 +12,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:wai_life_assistant/core/services/fcm_service.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 // ── Top-level constants & helpers ─────────────────────────────────────────────
@@ -69,6 +70,17 @@ Future<void> _onBackgroundAction(NotificationResponse response) async {
 
 Future<void> _handleAction(NotificationResponse response) async {
   final plugin = FlutterLocalNotificationsPlugin();
+
+  // Deep-link notification tap — route to the appropriate tab/screen.
+  if (response.actionId == null) {
+    final link = NotifDeepLink.fromPayload(response.payload);
+    if (link != null) {
+      final tab = FcmService.routeToTab(link.route);
+      if (tab != null) FcmService.pendingTab.value = tab;
+      FcmService.pendingDeepLink.value = link;
+      return;
+    }
+  }
 
   // SMS notification tap — route payload to SMSParserService via SharedPreferences
   // (avoids cross-isolate ValueNotifier issues; app checks on resume)

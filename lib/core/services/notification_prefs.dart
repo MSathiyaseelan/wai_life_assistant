@@ -109,4 +109,28 @@ class NotificationPrefs extends ChangeNotifier {
   /// Days before function to remind (3 / 7 / 14)
   int get functionsUpcomingDays => _i('functions_upcoming_days', def: 7);
   set functionsUpcomingDays(int v) => _setI('functions_upcoming_days', v);
+
+  // ── Quiet Hours (DND) ──────────────────────────────────────────────────────
+  bool get quietHoursEnabled => _b('quiet_hours_enabled', def: false);
+  set quietHoursEnabled(bool v) => _setB('quiet_hours_enabled', v);
+
+  /// Hour (0–23) when quiet hours start. Default 22 (10 PM).
+  int get quietStart => _i('quiet_start', def: 22);
+  set quietStart(int v) => _setI('quiet_start', v);
+
+  /// Hour (0–23) when quiet hours end. Default 7 (7 AM).
+  int get quietEnd => _i('quiet_end', def: 7);
+  set quietEnd(int v) => _setI('quiet_end', v);
+
+  /// Returns true if the current local time is inside the quiet window.
+  bool get isQuietNow {
+    if (!quietHoursEnabled) return false;
+    final hour = DateTime.now().hour;
+    final start = quietStart;
+    final end   = quietEnd;
+    // Handles overnight window (e.g. 22 → 07)
+    return start > end
+        ? (hour >= start || hour < end)
+        : (hour >= start && hour < end);
+  }
 }

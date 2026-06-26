@@ -127,6 +127,43 @@ class _AppShellState extends State<AppShell> {
     if (tab == null) return;
     setState(() => _idx = tab);
     FcmService.pendingTab.value = null;
+
+    // Consume the deep link after tab switch so screens can react.
+    final link = FcmService.pendingDeepLink.value;
+    FcmService.pendingDeepLink.value = null;
+    if (link != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _navigateDeepLink(link));
+    }
+  }
+
+  void _navigateDeepLink(NotifDeepLink link) {
+    if (!mounted) return;
+    // Item-level routes that can be pushed as full pages.
+    switch (link.route) {
+      case 'split':
+        // Wallet tab is already selected; SplitGroupDetailScreen requires a
+        // full SplitGroup object so we can only go tab-level here.
+        // The wallet screen will pick up pendingDeepLink if it listens.
+        break;
+      case 'reminder':
+      case 'alert':
+      case 'task':
+      case 'bill':
+        // PlanIt tab is already selected. Sub-screens can listen to
+        // FcmService.pendingDeepLink to open the specific item.
+        break;
+      default:
+        // Tab-level navigation is sufficient for all other routes.
+        break;
+    }
+    // Re-expose for any screen that mounts after the tab switch.
+    FcmService.pendingDeepLink.value = link;
+    // Auto-clear after a short delay so it isn't replayed on re-mount.
+    Future.delayed(const Duration(seconds: 3), () {
+      if (FcmService.pendingDeepLink.value == link) {
+        FcmService.pendingDeepLink.value = null;
+      }
+    });
   }
 
   Future<void> _onPendingSms() async {

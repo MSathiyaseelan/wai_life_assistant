@@ -187,6 +187,8 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                   : null,
                             ),
                           ]),
+                          const SizedBox(height: 12),
+                          _quietHoursSection(),
                         ],
                       ],
                     ),
@@ -491,4 +493,143 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
           ),
         ],
       );
+
+  // ── Quiet Hours section ────────────────────────────────────────────────────
+
+  Widget _quietHoursSection() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+            child: Text(
+              'QUIET HOURS (DND)',
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: _sub,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: _surf,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                // Master quiet hours toggle
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Text('🌙', style: TextStyle(fontSize: 20)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Quiet Hours',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontFamily: 'Nunito',
+                                    fontWeight: FontWeight.w800,
+                                    color: _tc)),
+                            Text(
+                              _prefs.quietHoursEnabled
+                                  ? 'No alerts ${_hourLabel(_prefs.quietStart)} – ${_hourLabel(_prefs.quietEnd)}'
+                                  : 'Silence notifications during specific hours',
+                              style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _sub),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _prefs.quietHoursEnabled,
+                        onChanged: (v) => setState(() => _prefs.quietHoursEnabled = v),
+                        activeTrackColor: AppColors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+                if (_prefs.quietHoursEnabled) ...[
+                  Divider(height: 1, color: _div, indent: 16),
+                  // Start / End time row
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 32),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Text('From',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontFamily: 'Nunito',
+                                      fontWeight: FontWeight.w700,
+                                      color: _sub)),
+                              const SizedBox(width: 8),
+                              _hourChip(_prefs.quietStart,
+                                  (h) => setState(() => _prefs.quietStart = h)),
+                              const SizedBox(width: 16),
+                              Text('to',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontFamily: 'Nunito',
+                                      color: _sub)),
+                              const SizedBox(width: 8),
+                              _hourChip(_prefs.quietEnd,
+                                  (h) => setState(() => _prefs.quietEnd = h)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+
+  /// Tappable chip that opens a time picker for a whole-hour value.
+  Widget _hourChip(int hour, ValueChanged<int> onPick) => GestureDetector(
+        onTap: () async {
+          final picked = await showTimePicker(
+            context: context,
+            initialTime: TimeOfDay(hour: hour, minute: 0),
+            builder: (ctx, child) => MediaQuery(
+              data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: false),
+              child: child!,
+            ),
+          );
+          if (picked != null) onPick(picked.hour);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withAlpha(18),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            _hourLabel(hour),
+            style: const TextStyle(
+              fontSize: 12,
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+      );
+
+  String _hourLabel(int hour) {
+    final period = hour < 12 ? 'AM' : 'PM';
+    final h = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$h:00 $period';
+  }
 }
