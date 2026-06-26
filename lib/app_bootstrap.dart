@@ -1,4 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -49,12 +51,19 @@ Future<void> bootstrapApp(String env) async {
     SharedPreferences.getInstance(),
   ]);
 
-  // FCM requires Firebase to be ready — run after Phase 1.
+  // FCM + Crashlytics require Firebase to be ready — run after Phase 1.
   if (firebaseReady) {
     try {
       await FcmService.initialize();
     } catch (e) {
       debugPrint('[Bootstrap] FCM init failed — push notifications disabled: $e');
+    }
+    try {
+      // Disable Crashlytics in debug so local runs don't pollute the dashboard.
+      await FirebaseCrashlytics.instance
+          .setCrashlyticsCollectionEnabled(!kDebugMode);
+    } catch (e) {
+      debugPrint('[Bootstrap] Crashlytics init failed: $e');
     }
   }
 

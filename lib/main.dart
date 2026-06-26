@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'core/navigation/error_tracking_observer.dart';
@@ -25,12 +26,27 @@ void main() {
         'is_debug': kDebugMode,
       },
     );
+    FirebaseCrashlytics.instance.recordFlutterError(details);
     if (kDebugMode) FlutterError.presentError(details);
+  };
+
+  // ── Handler 2 (supplement): Native platform / method-channel exceptions ───
+  // PlatformDispatcher catches errors that escape the Flutter framework layer
+  // (e.g. platform channel errors, isolate startup failures).
+  PlatformDispatcher.instance.onError = (error, stack) {
+    ErrorLogger.log(
+      error,
+      stackTrace: stack,
+      severity:   ErrorSeverity.critical,
+      action:     'platform_dispatcher_error',
+    );
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
   };
 
   const env = String.fromEnvironment('ENV', defaultValue: 'dev');
 
-  // ── Handler 2: Dart async / isolate errors not caught anywhere else ────────
+  // ── Handler 3: Dart async / isolate errors not caught anywhere else ────────
   // ensureInitialized must be called inside the same zone as runApp, so it
   // lives here rather than before runZonedGuarded.
   runZonedGuarded(
@@ -45,6 +61,7 @@ void main() {
         severity:   ErrorSeverity.critical,
         action:     'unhandled_async_error',
       );
+      FirebaseCrashlytics.instance.recordError(error, stackTrace, fatal: true);
     },
   );
 }

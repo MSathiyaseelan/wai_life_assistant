@@ -608,11 +608,11 @@ class _WalletScreenState extends State<WalletScreen>
       debugPrint('[WalletScreen] addTransaction failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Save failed: $e'),
+          const SnackBar(
+            content: Text('Failed to save transaction. Please try again.'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
+            margin: EdgeInsets.all(16),
           ),
         );
       }
