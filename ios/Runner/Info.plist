@@ -33,9 +33,11 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock WAI</string>
 	<key>NSCameraUsageDescription</key>
-<string>We need camera access to set group image</string>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>We need gallery access to set group image</string>
+	<string>We need camera access to set group image</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need gallery access to set group image</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Used for voice input in the AI assistant to convert speech to text</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

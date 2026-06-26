@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import '_prefs_sheet_base.dart';
+import 'privacy_policy_sheet.dart';
+import 'terms_of_service_sheet.dart';
 
 class AboutWaiSheet extends StatelessWidget {
   final bool isDark;
@@ -65,14 +67,34 @@ class AboutWaiSheet extends StatelessWidget {
                 label: 'Terms of Service',
                 sub: _sub,
                 tc: _tc,
-                onTap: () {},
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => DraggableScrollableSheet(
+                    initialChildSize: 0.92,
+                    minChildSize: 0.5,
+                    maxChildSize: 0.95,
+                    builder: (_, ctrl) => TermsOfServiceSheet(isDark: isDark),
+                  ),
+                ),
               ),
               _InfoRow(
                 emoji: '🔒',
                 label: 'Privacy Policy',
                 sub: _sub,
                 tc: _tc,
-                onTap: () {},
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => DraggableScrollableSheet(
+                    initialChildSize: 0.92,
+                    minChildSize: 0.5,
+                    maxChildSize: 0.95,
+                    builder: (_, ctrl) => PrivacyPolicySheet(isDark: isDark),
+                  ),
+                ),
               ),
               _InfoRow(
                 emoji: '📦',
