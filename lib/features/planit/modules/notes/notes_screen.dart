@@ -1068,8 +1068,6 @@ class _NoteSheetState extends State<_NoteSheet>
 
             // ── AI TAB ───────────────────────────────────────────────────────
             if (_mode.index == 0) ...[
-              _NoteAiHint(isDark: widget.isDark, accent: accent),
-              const SizedBox(height: 12),
               _NoteAiInputBox(
                 ctrl: _aiCtrl,
                 isDark: widget.isDark,
@@ -1559,40 +1557,6 @@ class _NoteNlpParser {
   }
 }
 
-class _NoteAiHint extends StatelessWidget {
-  final bool isDark;
-  final Color accent;
-  const _NoteAiHint({required this.isDark, required this.accent});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: accent.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: accent.withValues(alpha: 0.2)),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('✨', style: TextStyle(fontSize: 15)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Describe your note in plain English — Claude AI will extract the title, content, type, and color.',
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'Nunito',
-              color: isDark ? AppColors.textDark : AppColors.textLight,
-              height: 1.45,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class _NoteAiInputBox extends StatelessWidget {
   final TextEditingController ctrl;
   final bool isDark, isParsing;
@@ -1629,8 +1593,7 @@ class _NoteAiInputBox extends StatelessWidget {
               textCapitalization: TextCapitalization.sentences,
               style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
               decoration: InputDecoration.collapsed(
-                hintText:
-                    '"Team meeting notes: action items for Ravi, Priya and me"',
+                hintText: '',
                 hintStyle: TextStyle(
                   fontSize: 12,
                   color: sub,

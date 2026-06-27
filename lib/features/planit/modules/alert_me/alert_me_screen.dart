@@ -1331,8 +1331,6 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
 
         // ── AI TAB ────────────────────────────────────────────────────────
         if (_mode.index == 0) ...[
-          _AiHintBanner(isDark: widget.isDark),
-          const SizedBox(height: 12),
           _AiInputBox(
             ctrl: _aiCtrl,
             surfBg: widget.surfBg,
@@ -1414,39 +1412,6 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
 // AI sub-widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AiHintBanner extends StatelessWidget {
-  final bool isDark;
-  const _AiHintBanner({required this.isDark});
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: AppColors.expense.withOpacity(0.07),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.expense.withOpacity(0.2)),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('✨', style: TextStyle(fontSize: 15)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Describe your reminder in plain English — Claude AI will extract the title, date, time, priority and repeat for you.',
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'Nunito',
-              color: isDark ? AppColors.textDark : AppColors.textLight,
-              height: 1.45,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class _AiInputBox extends StatelessWidget {
   final TextEditingController ctrl;
   final Color surfBg;
@@ -1483,8 +1448,7 @@ class _AiInputBox extends StatelessWidget {
               textCapitalization: TextCapitalization.sentences,
               style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
               decoration: InputDecoration.collapsed(
-                hintText:
-                    '"Pay electricity bill on 5th at 10am, monthly, high priority"',
+                hintText: '',
                 hintStyle: TextStyle(
                   fontSize: 12.5,
                   color: sub,
