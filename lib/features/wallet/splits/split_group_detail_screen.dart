@@ -3656,6 +3656,29 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                     // ── AI Parse tab ────────────────────────────────────
                     if (_mode.index == 0) ...[
                       Container(
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        child: TextField(
+                          controller: _aiCtrl,
+                          autofocus: true,
+                          maxLines: 3,
+                          minLines: 2,
+                          style: TextStyle(fontSize: 14, fontFamily: 'Nunito', color: tc),
+                          decoration: InputDecoration.collapsed(
+                            hintText: '',
+                            hintStyle: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+                          ),
+                        ),
+                      ),
+                      if (_aiError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(_aiError!, style: const TextStyle(fontSize: 12, fontFamily: 'Nunito', color: AppColors.expense)),
+                      ],
+                      const SizedBox(height: 10),
+                      Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: AppColors.split.withValues(alpha: 0.07),
@@ -3671,28 +3694,6 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                           )),
                         ]),
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: surfBg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        child: TextField(
-                          controller: _aiCtrl,
-                          maxLines: 3,
-                          minLines: 2,
-                          style: TextStyle(fontSize: 14, fontFamily: 'Nunito', color: tc),
-                          decoration: InputDecoration.collapsed(
-                            hintText: 'e.g. "Lunch ₹840, Priya paid, split equally"',
-                            hintStyle: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
-                          ),
-                        ),
-                      ),
-                      if (_aiError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(_aiError!, style: const TextStyle(fontSize: 12, fontFamily: 'Nunito', color: AppColors.expense)),
-                      ],
                       const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,

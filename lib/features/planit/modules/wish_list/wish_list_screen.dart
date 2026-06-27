@@ -2063,6 +2063,7 @@ class _ManualForm extends StatelessWidget {
             children: [
               TextField(
                 controller: titleCtrl,
+                autofocus: true,
                 textCapitalization: TextCapitalization.words,
                 style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
                 decoration: InputDecoration.collapsed(
@@ -2266,6 +2267,7 @@ class _AiInputBox extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
             child: TextField(
               controller: ctrl,
+              autofocus: true,
               maxLines: 3,
               minLines: 2,
               textCapitalization: TextCapitalization.sentences,

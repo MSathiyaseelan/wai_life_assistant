@@ -1232,6 +1232,7 @@ class _NoteSheetState extends State<_NoteSheet>
             // ── Title field ──────────────────────────────────────────────────
             TextField(
               controller: _titleCtrl,
+              autofocus: true,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -1588,6 +1589,7 @@ class _NoteAiInputBox extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
             child: TextField(
               controller: ctrl,
+              autofocus: true,
               maxLines: 3,
               minLines: 2,
               textCapitalization: TextCapitalization.sentences,
