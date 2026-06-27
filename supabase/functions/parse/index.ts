@@ -298,7 +298,7 @@ serve(async (req: Request) => {
   // ── Init Supabase client
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  // ── Get user from auth header (optional — for logging)
+  // ── Get user from auth header (required — enforces per-user limits)
   let userId: string | null = null;
   try {
     const authHeader = req.headers.get("Authorization");
@@ -307,7 +307,28 @@ serve(async (req: Request) => {
       const { data: { user } } = await supabase.auth.getUser(token);
       userId = user?.id || null;
     }
-  } catch { /* auth optional */ }
+  } catch { /* ignore auth errors — caught below */ }
+
+  if (!userId) {
+    return errorResponse("Authentication required", 401);
+  }
+
+  // ── Enforce monthly AI usage limit
+  const featureKey = feature === "dashboard" ? "ai_assistant" : "ai_parser";
+  try {
+    const { data: allowed, error: limitErr } = await supabase
+      .rpc("check_feature_limit", { p_user_id: userId, p_feature: featureKey });
+    if (limitErr) {
+      console.error("[parse] limit check error:", limitErr.message);
+    } else if (allowed === false) {
+      return errorResponse(
+        "Monthly AI usage limit reached. Upgrade your plan to continue.",
+        429
+      );
+    }
+  } catch (e) {
+    console.error("[parse] limit check threw:", (e as Error).message);
+  }
 
   // ── Fetch prompt from database
   let promptRow: { id: string; prompt: string; schema_hint: unknown } | null = null;
