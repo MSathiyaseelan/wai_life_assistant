@@ -869,7 +869,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
 
   // ── Scan limit check ────────────────────────────────────────────────────────
 
-  int _monthlyLimit = 3; // populated from feature_limits table on open
+  int _monthlyLimit = 30;
 
   @override
   void initState() {
@@ -890,24 +890,19 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       final month =
           '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
 
-      final results = await Future.wait([
-        client
-            .from('feature_usage')
-            .select('count')
-            .eq('user_id', userId)
-            .eq('feature', 'bill_scan')
-            .eq('month', month)
-            .maybeSingle(),
-        client
-            .from('feature_limits')
-            .select('monthly_limit')
-            .eq('feature', 'bill_scan')
-            .maybeSingle(),
-      ]);
+      final usageRow = await client
+          .from('feature_usage')
+          .select('count')
+          .eq('user_id', userId)
+          .eq('feature', 'bill_scan')
+          .eq('month', month)
+          .maybeSingle();
+      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
 
       if (!mounted) return;
-      final count = (results[0]?['count'] as int?) ?? 0;
-      final limit = (results[1]?['monthly_limit'] as int?) ?? 3;
+      final count = (usageRow?['count'] as int?) ?? 0;
+      // bill_scan shares the ai_parser monthly limit
+      final limit = (planLimits?['ai_parser_calls_month'] as int?) ?? 30;
       setState(() {
         _monthlyLimit = limit;
         _limitReached = count >= limit;

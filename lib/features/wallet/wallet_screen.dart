@@ -193,15 +193,12 @@ class _WalletScreenState extends State<WalletScreen>
       final userId = client.auth.currentUser?.id;
       if (userId == null) { if (mounted) setState(() => _aiLimitChecking = false); return; }
       final month = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
-      final results = await Future.wait([
-        client.from('feature_usage').select('count')
-            .eq('user_id', userId).eq('feature', 'ai_parser').eq('month', month).maybeSingle(),
-        client.from('feature_limits').select('monthly_limit')
-            .eq('feature', 'ai_parser').maybeSingle(),
-      ]);
+      final usageRow = await client.from('feature_usage').select('count')
+          .eq('user_id', userId).eq('feature', 'ai_parser').eq('month', month).maybeSingle();
+      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
       if (!mounted) return;
-      final count = (results[0]?['count'] as int?) ?? 0;
-      final limit = (results[1]?['monthly_limit'] as int?) ?? 20;
+      final count = (usageRow?['count'] as int?) ?? 0;
+      final limit = (planLimits?['ai_parser_calls_month'] as int?) ?? 30;
       setState(() {
         _aiMonthlyUsed  = count;
         _aiMonthlyLimit = limit;

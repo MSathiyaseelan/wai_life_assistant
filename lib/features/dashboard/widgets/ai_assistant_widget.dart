@@ -102,23 +102,17 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       if (userId == null) { setState(() => _limitChecking = false); return; }
       final month =
           '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
-      final results = await Future.wait([
-        client
-            .from('feature_usage')
-            .select('count')
-            .eq('user_id', userId)
-            .eq('feature', 'ai_assistant')
-            .eq('month', month)
-            .maybeSingle(),
-        client
-            .from('feature_limits')
-            .select('monthly_limit')
-            .eq('feature', 'ai_assistant')
-            .maybeSingle(),
-      ]);
+      final usageRow = await client
+          .from('feature_usage')
+          .select('count')
+          .eq('user_id', userId)
+          .eq('feature', 'ai_assistant')
+          .eq('month', month)
+          .maybeSingle();
+      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
       if (!mounted) return;
-      final count = (results[0]?['count'] as int?) ?? 0;
-      final limit = (results[1]?['monthly_limit'] as int?) ?? 20;
+      final count = (usageRow?['count'] as int?) ?? 0;
+      final limit = (planLimits?['ai_assistant_calls_month'] as int?) ?? 20;
       setState(() {
         _monthlyUsed = count;
         _monthlyLimit = limit;

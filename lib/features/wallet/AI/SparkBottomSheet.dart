@@ -74,23 +74,17 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       if (userId == null) { setState(() => _limitChecking = false); return; }
       final month =
           '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
-      final results = await Future.wait([
-        client
-            .from('feature_usage')
-            .select('count')
-            .eq('user_id', userId)
-            .eq('feature', 'ai_parser')
-            .eq('month', month)
-            .maybeSingle(),
-        client
-            .from('feature_limits')
-            .select('monthly_limit')
-            .eq('feature', 'ai_parser')
-            .maybeSingle(),
-      ]);
+      final usageRow = await client
+          .from('feature_usage')
+          .select('count')
+          .eq('user_id', userId)
+          .eq('feature', 'ai_parser')
+          .eq('month', month)
+          .maybeSingle();
+      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
       if (!mounted) return;
-      final count = (results[0]?['count'] as int?) ?? 0;
-      final limit = (results[1]?['monthly_limit'] as int?) ?? 20;
+      final count = (usageRow?['count'] as int?) ?? 0;
+      final limit = (planLimits?['ai_parser_calls_month'] as int?) ?? 30;
       setState(() {
         _monthlyUsed = count;
         _monthlyLimit = limit;
@@ -486,7 +480,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
           ),
         ),
 
-        // Error message
+        // Error message + manual entry fallback
         if (_errorMsg != null) ...[
           const SizedBox(height: 8),
           Container(
@@ -511,6 +505,22 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              widget.onOpenFlow();
+            },
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text(
+              'Enter manually instead',
+              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6366F1),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
             ),
           ),
         ],
