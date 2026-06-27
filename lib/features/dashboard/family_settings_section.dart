@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -1439,9 +1440,24 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                       color: AppColors.primary)
                   : null,
               onTap: () {
+                final originalRole = member.role;
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(dialogCtx);
+                if (role == originalRole) return;
                 setState(() => member.role = role);
-                // TODO: persist role change to backend
+                ProfileService.instance.updateMember(member.id, {
+                  'role':     role.name,
+                  'name':     member.name,
+                  'emoji':    member.emoji,
+                  'phone':    member.phone,
+                  'relation': member.relation,
+                }).catchError((Object e, StackTrace stack) {
+                  setState(() => member.role = originalRole);
+                  ErrorLogger.log(e, stackTrace: stack, action: 'update_member_role');
+                  messenger.showSnackBar(const SnackBar(
+                    content: Text('Failed to update role. Please try again.'),
+                  ));
+                });
               },
             );
           }).toList(),
@@ -1481,9 +1497,17 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           ),
           TextButton(
             onPressed: () {
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(dialogCtx);
               setState(() => family.members.remove(member));
-              // TODO: persist removal to backend
+              ProfileService.instance.removeMember(member.id)
+                  .catchError((Object e, StackTrace stack) {
+                setState(() => family.members.add(member));
+                ErrorLogger.log(e, stackTrace: stack, action: 'remove_family_member');
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('Failed to remove member. Please try again.'),
+                ));
+              });
             },
             child: const Text(
               'Remove',
@@ -1536,15 +1560,28 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           ),
           if (!isLastAdmin)
             TextButton(
-              onPressed: () {
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
+                final uid = Supabase.instance.client.auth.currentUser?.id;
+                final myMember = family.members.firstWhere(
+                  (m) => m.userId == uid,
+                  orElse: () => family.members.first,
+                );
                 widget.appState.switchWallet(
                     widget.appState.wallets
                         .firstWhere((w) => w.isPersonal,
                             orElse: () => personalWallet)
                         .id);
-                // TODO: persist leave-family action to backend
-                setState(() {});
+                try {
+                  await ProfileService.instance.removeMember(myMember.id);
+                  if (mounted) await widget.appState.reload();
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'leave_family');
+                  messenger.showSnackBar(const SnackBar(
+                    content: Text('Failed to leave family. Please try again.'),
+                  ));
+                }
               },
               child: const Text(
                 'Leave',
