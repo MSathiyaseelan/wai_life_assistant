@@ -924,6 +924,10 @@ class _PantryScreenState extends State<PantryScreen>
         'note': updated.note,
         'ingredients': updated.ingredients,
       });
+      // Trigger ingredient check when recipes/ingredients added via edit
+      if ((updated.recipeIds.isNotEmpty || updated.ingredients.isNotEmpty) && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(updated));
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

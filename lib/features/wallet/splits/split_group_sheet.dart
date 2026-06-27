@@ -1578,9 +1578,10 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
 
   void _confirmDelete() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nav = Navigator.of(context);
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
@@ -1595,7 +1596,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(ctx),
             child: const Text(
               'Cancel',
               style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
@@ -1603,8 +1604,8 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
+              Navigator.pop(ctx);  // close dialog using its own context
+              nav.pop();           // close sheet using pre-captured navigator
               widget.onDelete?.call();
             },
             style: FilledButton.styleFrom(

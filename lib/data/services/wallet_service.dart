@@ -398,6 +398,11 @@ class WalletService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  /// Permanently delete a split group and all its data.
+  Future<void> deleteSplitGroup(String groupId) async {
+    await _db.from('split_groups').delete().eq('id', groupId);
+  }
+
   /// Create a split group with an initial set of participants.
   Future<Map<String, dynamic>> createSplitGroup({
     required String walletId,

@@ -1270,6 +1270,9 @@ class _WalletScreenState extends State<WalletScreen>
       onDelete: () {
         setState(() => _splitGroups.removeWhere((g) => g.id == group.id));
         _syncPinnedGroups();
+        if (AuthCoordinator.instance.isLoggedIn) {
+          WalletService.instance.deleteSplitGroup(group.id);
+        }
       },
     );
   }

@@ -87,9 +87,14 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
   static const _steps = _MealStep.values;
   int _stepIdx = 0;
 
+  // Local copy of dayMeals that updates after each save so "Log Another"
+  // correctly detects already-occupied slots within the same session.
+  late List<MealEntry> _effectiveDayMeals;
+
   @override
   void initState() {
     super.initState();
+    _effectiveDayMeals = List.from(widget.dayMeals);
     _resetData();
     WidgetsBinding.instance.addPostFrameCallback((_) => _pushBotQuestion(0));
   }
@@ -101,7 +106,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
   }
 
   void _resetData() {
-    final occupied = widget.dayMeals.map((m) => m.mealTime).toSet();
+    final occupied = _effectiveDayMeals.map((m) => m.mealTime).toSet();
     final firstEmpty =
         MealTime.values.where((mt) => !occupied.contains(mt)).firstOrNull;
     _data.mealTime = firstEmpty ?? MealTime.lunch;
@@ -155,18 +160,22 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
   }
 
   void _save() {
-    // If the chosen slot already has a meal, update it instead of adding.
-    final existing = widget.dayMeals
+    // Use _effectiveDayMeals (updated after each save) to detect occupied slots.
+    final existing = _effectiveDayMeals
         .where((m) => m.mealTime == _data.mealTime)
         .firstOrNull;
 
     if (existing != null && widget.onUpdate != null) {
-      widget.onUpdate!(existing.copyWith(
+      final updated = existing.copyWith(
         name: _data.mealName,
         emoji: _data.emoji,
         recipeIds: _data.recipeIds,
         ingredients: [],
-      ));
+      );
+      widget.onUpdate!(updated);
+      // Keep effective list current for subsequent "Log Another" cycles.
+      final idx = _effectiveDayMeals.indexWhere((m) => m.mealTime == _data.mealTime);
+      if (idx >= 0) _effectiveDayMeals[idx] = updated;
     } else {
       final entry = MealEntry(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -179,6 +188,8 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
         ingredients: [],
       );
       widget.onSave(entry);
+      // Track locally so the next "Log Another" round sees this slot as occupied.
+      _effectiveDayMeals.add(entry);
     }
     setState(() {
       if (_messages.isNotEmpty) {
@@ -210,6 +221,7 @@ class _MealConversationFlowState extends State<MealConversationFlow> {
       case _MealStep.mealTime:
         return _MealTimeStep(
           initialSelected: _data.mealTime,
+          occupiedTimes: _effectiveDayMeals.map((m) => m.mealTime).toSet(),
           onSelect: (mt) => _answer(
             step,
             '${mt.emoji} ${mt.label}',
@@ -356,11 +368,13 @@ class _ProgressBar extends StatelessWidget {
 
 class _MealTimeStep extends StatefulWidget {
   final MealTime initialSelected;
+  final Set<MealTime> occupiedTimes;
   final void Function(MealTime) onSelect;
 
   const _MealTimeStep({
     required this.initialSelected,
     required this.onSelect,
+    this.occupiedTimes = const {},
   });
 
   @override
@@ -378,11 +392,13 @@ class _MealTimeStepState extends State<_MealTimeStep> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Row(
         children: MealTime.values.map((mt) {
           final sel = mt == _selected;
+          final occupied = widget.occupiedTimes.contains(mt);
           return Expanded(
             child: GestureDetector(
               onTap: () {
@@ -395,15 +411,38 @@ class _MealTimeStepState extends State<_MealTimeStep> {
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: sel
-                      ? mt.color
-                      : mt.color.withValues(alpha: 0.08),
+                  color: sel ? mt.color : mt.color.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Column(
                   children: [
-                    Text(mt.emoji,
-                        style: const TextStyle(fontSize: 18)),
+                    Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Text(mt.emoji,
+                              style: const TextStyle(fontSize: 18)),
+                        ),
+                        if (occupied)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: sel ? Colors.white : mt.color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: sel
+                                    ? mt.color
+                                    : (isDark
+                                        ? AppColors.cardDark
+                                        : AppColors.cardLight),
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 3),
                     Text(
                       mt.label,
