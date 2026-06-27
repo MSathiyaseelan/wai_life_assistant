@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;
@@ -168,51 +169,62 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                   if (!widget.isDashboard) ...[
                     const SizedBox(height: 4),
                     if (widget.appState.maxFamilyMembers == 0)
-                      // Free plan — show locked upgrade prompt
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: sub.withValues(alpha: 0.06),
-                          border: Border.all(
-                            color: sub.withValues(alpha: 0.2),
-                            width: 1.5,
+                      // Free plan — tapping opens the subscription/upgrade sheet
+                      GestureDetector(
+                        onTap: () => showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (_) => SubscriptionSheet(
+                            isDark: isDark,
+                            currentPlan: 'personal_free',
                           ),
-                          borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.lock_rounded, color: sub, size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Family Groups',
-                              style: TextStyle(
-                                color: sub,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
-                                fontFamily: 'Nunito',
-                              ),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: sub.withValues(alpha: 0.06),
+                            border: Border.all(
+                              color: sub.withValues(alpha: 0.2),
+                              width: 1.5,
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFAA2C),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'UPGRADE',
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.lock_rounded, color: sub, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Family Groups',
                                 style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
+                                  color: sub,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
                                   fontFamily: 'Nunito',
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFAA2C),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  'UPGRADE',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w900,
+                                    fontFamily: 'Nunito',
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     else if (familyList.length < widget.appState.maxFamilyGroups)
