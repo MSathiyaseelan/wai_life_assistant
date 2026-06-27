@@ -2161,8 +2161,8 @@ class _WalletScreenState extends State<WalletScreen>
       );
     }
 
-    // Build item list: [summary, create banner, ...groups]
-    final itemCount = groups.length + 2;
+    // Build item list: [create banner, ...groups]
+    final itemCount = groups.length + 1;
     return RefreshIndicator(
       onRefresh: _refreshAll,
       child: CustomScrollView(
@@ -2173,15 +2173,12 @@ class _WalletScreenState extends State<WalletScreen>
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate((_, i) {
                 if (i == 0) {
-                  return _buildSplitsSummary(groups, isDark, cardBg, tc, sub);
-                }
-                if (i == 1) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _CreateGroupBanner(onTap: _openCreateGroup),
                   );
                 }
-                final g = groups[i - 2];
+                final g = groups[i - 1];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _SplitGroupCard(
@@ -2201,80 +2198,6 @@ class _WalletScreenState extends State<WalletScreen>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSplitsSummary(
-    List<SplitGroup> groups,
-    bool isDark,
-    Color cardBg,
-    Color tc,
-    Color sub,
-  ) {
-    if (groups.isEmpty) return const SizedBox(height: 8);
-
-    final totalSpend = groups.fold(0.0, (s, g) => s + g.totalSpend);
-    final totalPending = groups.fold(0, (s, g) => s + g.pendingCount);
-    final activeGroups = groups
-        .where((g) => !g.transactions.every((t) => t.isFullySettled))
-        .length;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF4A9EFF), Color(0xFF0055CC)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Total Split Spend',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: 'Nunito',
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '₹${totalSpend.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'DM Mono',
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _SummaryChip('${groups.length} groups', Icons.group_rounded),
-                const SizedBox(height: 6),
-                _SummaryChip(
-                  '$activeGroups active',
-                  Icons.radio_button_on_rounded,
-                ),
-                const SizedBox(height: 6),
-                _SummaryChip('$totalPending pending', Icons.schedule_rounded),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -3767,37 +3690,6 @@ class _StatPill extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // SUMMARY CHIP (inside hero card)
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _SummaryChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  const _SummaryChip(this.label, this.icon);
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.15),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 10, color: Colors.white70),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            fontFamily: 'Nunito',
-            color: Colors.white70,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    ),
-  );
-}
 
 // ── Contact Transaction Detail Page ─────────────────────────────────────────
 class _ContactTxPage extends StatelessWidget {
