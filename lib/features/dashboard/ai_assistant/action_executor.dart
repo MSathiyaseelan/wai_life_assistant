@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/reminder_service.dart';
@@ -21,7 +22,9 @@ class ActionExecutor {
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid => _db.auth.currentUser!.id;
 
-  Future<void> execute(ActionPayload action, String walletId) async {
+  /// Returns the saved [TxModel] for transaction actions (expense/income/lend/borrow),
+  /// null for all other action types.
+  Future<TxModel?> execute(ActionPayload action, String walletId) async {
     final d = action.data;
 
     switch (action.actionType) {
@@ -66,7 +69,7 @@ class ActionExecutor {
         );
 
       case ActionType.addExpense:
-        await WalletService.instance.addTransaction(
+        final row = await WalletService.instance.addTransaction(
           walletId: walletId,
           type: 'expense',
           amount: _num(d, 'amount'),
@@ -75,9 +78,10 @@ class ActionExecutor {
           note: d['note'] as String?,
           payMode: _payMode(d, fallback: 'cash'),
         );
+        return TxModel.fromRow(row);
 
       case ActionType.addIncome:
-        await WalletService.instance.addTransaction(
+        final row = await WalletService.instance.addTransaction(
           walletId: walletId,
           type: 'income',
           amount: _num(d, 'amount'),
@@ -86,9 +90,10 @@ class ActionExecutor {
           note: d['note'] as String?,
           payMode: _payMode(d, fallback: 'online'),
         );
+        return TxModel.fromRow(row);
 
       case ActionType.addLend:
-        await WalletService.instance.addTransaction(
+        final row = await WalletService.instance.addTransaction(
           walletId: walletId,
           type: 'lend',
           amount: _num(d, 'amount'),
@@ -97,9 +102,10 @@ class ActionExecutor {
           note: d['note'] as String?,
           person: _str(d, 'person').isEmpty ? null : _str(d, 'person'),
         );
+        return TxModel.fromRow(row);
 
       case ActionType.addBorrow:
-        await WalletService.instance.addTransaction(
+        final row = await WalletService.instance.addTransaction(
           walletId: walletId,
           type: 'borrow',
           amount: _num(d, 'amount'),
@@ -108,6 +114,7 @@ class ActionExecutor {
           note: d['note'] as String?,
           person: _str(d, 'person').isEmpty ? null : _str(d, 'person'),
         );
+        return TxModel.fromRow(row);
 
       case ActionType.addFunctionUpcoming:
         await FunctionsService.instance.addUpcoming({
@@ -227,6 +234,7 @@ class ActionExecutor {
     }
 
     debugPrint('[ActionExecutor] ${action.actionType.name} executed for wallet=$walletId');
+    return null;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

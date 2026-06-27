@@ -276,12 +276,16 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     HapticFeedback.mediumImpact();
 
     try {
-      await ActionExecutor.instance.execute(action, widget.walletId);
+      final savedTx = await ActionExecutor.instance.execute(action, widget.walletId);
       if (!mounted) return;
+      if (savedTx != null) widget.onTransactionSaved?.call(savedTx);
       setState(() {
         _confirmingAction = false;
         _actionDone = true;
         _actionSuccessMsg = '${action.icon} ${action.label} — done!';
+      });
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) _clear();
       });
     } catch (e, stack) {
       await ErrorLogger.log(e, stackTrace: stack, action: 'wai_action_execute');

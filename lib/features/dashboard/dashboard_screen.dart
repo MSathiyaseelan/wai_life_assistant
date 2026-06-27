@@ -1207,9 +1207,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                         ?.name ??
                                     w.name);
 
-                          // Height: stat row 70 + divider 1 + 3 tx rows 111
-                          // + "see all" footer 38 + outer padding 14 = 234
-                          const cardH = 290.0;
+                          // Compact height when all wallets have no transactions today
+                          final hasAnyTx = allWallets.any((w) => _todayTx(w.id).isNotEmpty);
+                          final cardH = hasAnyTx ? 290.0 : 118.0;
 
                           return Column(
                             children: [
@@ -3276,7 +3276,7 @@ class _SpendingPulseCard extends StatelessWidget {
           // ── Transaction rows ───────────────────────────────────────────────
           if (txToday.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Text(
                 'No transactions today',
                 style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
