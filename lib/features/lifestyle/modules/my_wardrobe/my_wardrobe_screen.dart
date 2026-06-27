@@ -958,7 +958,71 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                           style: TextStyle(
                               fontSize: 10, fontFamily: 'Nunito', color: sub),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
+
+                        // Photo capture (shared with manual tab)
+                        GestureDetector(
+                          onTap: () async {
+                            final path = await _pickPhoto(context);
+                            if (path != null) setState(() => _photoPath = path);
+                          },
+                          child: Container(
+                            height: 100,
+                            width: double.infinity,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              color: surfBg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _photoPath != null
+                                    ? _wardrobeColor
+                                    : _wardrobeColor.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: _photoPath != null
+                                ? Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      _WardrobePhoto(
+                                          path: _photoPath!, fit: BoxFit.cover),
+                                      Positioned(
+                                        bottom: 6, right: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: const Text('Tap to change',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontFamily: 'Nunito')),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo_rounded,
+                                          color: _wardrobeColor
+                                              .withValues(alpha: 0.5),
+                                          size: 28),
+                                      const SizedBox(height: 4),
+                                      Text('Tap to add photo',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              fontFamily: 'Nunito',
+                                              color: _wardrobeColor
+                                                  .withValues(alpha: 0.7))),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -2340,42 +2404,29 @@ class _OutfitLogTab extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    myItems.isEmpty
-                        ? Text(
-                            'Add items to your wardrobe first.',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'Nunito',
-                              color: sub,
-                            ),
-                          )
-                        : SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () =>
-                                  _logOutfit(context, myItems, null, sub),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _wardrobeColor,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                              ),
-                              icon: const Icon(
-                                Icons.add_circle_outline_rounded,
-                              ),
-                              label: const Text(
-                                "Log Today's Outfit",
-                                style: TextStyle(
-                                  fontFamily: 'Nunito',
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () =>
+                            _logOutfit(context, myItems, null, sub),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _wardrobeColor,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: const Text(
+                          "Log Today's Outfit",
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
         ),
