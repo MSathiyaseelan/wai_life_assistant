@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
@@ -612,7 +613,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       proofNote: proofNote,
       proofImagePath: proofImagePath,
       proofDate: proofDate,
-    ).catchError((e) => debugPrint('[SplitGroupDetail] updateShareStatus failed: $e'));
+    ).catchError((e) => ErrorLogger.log(e, action: 'update_share_status'));
   }
 
   // ── Add message locally + persist to DB ───────────────────────────────────
@@ -2097,7 +2098,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 transactionId: tx.id,
                 participantId: share.participantId,
                 sentBy: _participantName(_myId),
-              ).catchError((_) {});
+              ).catchError((e) => ErrorLogger.warning(e, action: 'record_reminder_sent'));
             });
           },
         );
@@ -2912,7 +2913,7 @@ class _ShareRow extends StatelessWidget {
       extensionDate: share.extensionDate,
       extensionReason: share.extensionReason,
       extensionResponseMsg: responseMsg,
-    ).catchError((e) => debugPrint('[ShareRow] updateShareStatus failed: $e'));
+    ).catchError((e) => ErrorLogger.log(e, action: 'persist_share_status'));
   }
 
   void _showDebtorExtensionSheet(BuildContext context) {

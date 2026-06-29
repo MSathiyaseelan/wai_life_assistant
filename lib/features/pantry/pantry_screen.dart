@@ -417,7 +417,9 @@ class _PantryScreenState extends State<PantryScreen>
       setState(() {
         _foodPrefs = rows.map(MemberFoodPrefs.fromMap).toList();
       });
-    } catch (_) {} // non-critical — card shows empty state gracefully
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'load_food_prefs');
+    }
   }
 
   Future<void> _loadGroceries() async {
@@ -452,7 +454,9 @@ class _PantryScreenState extends State<PantryScreen>
           return;
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_user_name_profile');
+    }
     // Fallback: use auth metadata name, or email prefix
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -463,7 +467,9 @@ class _PantryScreenState extends State<PantryScreen>
         final fallback = metaName.isNotEmpty ? metaName : emailPrefix;
         if (fallback.isNotEmpty) setState(() => _currentUserName = fallback);
       }
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_user_name_fallback');
+    }
   }
 
   @override

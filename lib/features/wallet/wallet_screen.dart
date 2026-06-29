@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -154,7 +155,8 @@ class _WalletScreenState extends State<WalletScreen>
     if (_txLoading) _loadTransactions();
     if (_sgLoading) _loadSplitGroups();
     if (_txGroups.isEmpty) _loadTxGroups();
-    WalletService.instance.loadCategories();
+    WalletService.instance.loadCategories()
+        .catchError((e) => ErrorLogger.warning(e, action: 'load_categories'));
     _loadBudgets();
     if (_aiLimitChecking) _loadAiLimit();
   }
@@ -230,7 +232,7 @@ class _WalletScreenState extends State<WalletScreen>
       walletId: walletId,
       budgets: budgets,
       spentMap: spent,
-    );
+    ).catchError((e) => ErrorLogger.warning(e, action: 'check_alert_budgets'));
   }
 
   void _syncFamilyPage() {
@@ -562,7 +564,8 @@ class _WalletScreenState extends State<WalletScreen>
       return;
     }
     // Always save the category — runs regardless of whether addTransaction succeeds
-    WalletService.instance.ensureCategory(tx.category, tx.type.name);
+    WalletService.instance.ensureCategory(tx.category, tx.type.name)
+        .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
     try {
       final row = await WalletService.instance.addTransaction(
         walletId: tx.walletId,
@@ -1268,14 +1271,15 @@ class _WalletScreenState extends State<WalletScreen>
             name: updated.name,
             emoji: updated.emoji,
             pinned: updated.pinnedToDashboard,
-          );
+          ).catchError((e) => ErrorLogger.log(e, action: 'update_split_group'));
         }
       },
       onDelete: () {
         setState(() => _splitGroups.removeWhere((g) => g.id == group.id));
         _syncPinnedGroups();
         if (AuthCoordinator.instance.isLoggedIn) {
-          WalletService.instance.deleteSplitGroup(group.id);
+          WalletService.instance.deleteSplitGroup(group.id)
+              .catchError((e) => ErrorLogger.log(e, action: 'delete_split_group'));
         }
       },
     );
@@ -2753,7 +2757,8 @@ class _WalletScreenState extends State<WalletScreen>
             final idx = _transactions.indexWhere((t) => t.id == updated.id);
             if (idx >= 0) _transactions[idx] = updated;
           });
-          WalletService.instance.ensureCategory(updated.category, updated.type.name);
+          WalletService.instance.ensureCategory(updated.category, updated.type.name)
+              .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
           try {
             final fields = <String, dynamic>{
               'type': updated.type.name,

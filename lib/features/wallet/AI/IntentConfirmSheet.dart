@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
@@ -166,7 +167,8 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
         };
 
     try {
-      WalletService.instance.ensureCategory(category, _flowType.txType.name);
+      WalletService.instance.ensureCategory(category, _flowType.txType.name)
+          .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
 
       final row = await WalletService.instance.addTransaction(
         walletId: resolvedWalletId,

@@ -186,7 +186,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       onSave: (tx) {
         setState(() => _transactions.insert(0, tx));
         WalletService.txChangeSignal.value++;
-        WalletService.instance.ensureCategory(tx.category, tx.type.name);
+        WalletService.instance.ensureCategory(tx.category, tx.type.name)
+            .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
       },
       onOpenFlow: () {},
     );
@@ -575,7 +576,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _todayMeals.removeWhere((e) => e.walletId == walletId);
         _todayMeals.addAll(rows.map(MealEntry.fromMap));
       });
-    } catch (_) {} // non-critical
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'load_today_meals');
+    }
   }
 
   void _showMealDetail(MealEntry m) {
@@ -1177,7 +1180,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         onTransactionSaved: (tx) {
                           setState(() => _transactions.insert(0, tx));
                           WalletService.txChangeSignal.value++;
-                          WalletService.instance.ensureCategory(tx.category, tx.type.name);
+                          WalletService.instance.ensureCategory(tx.category, tx.type.name)
+                              .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
                         },
                       ),
                       const SizedBox(height: 16),
@@ -2059,7 +2063,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         if (!mounted) return;
                         setState(() => _transactions.add(TxModel.fromRow(row)));
                         WalletService.txChangeSignal.value++;
-                        WalletService.instance.ensureCategory(cat.isEmpty ? 'Expense' : cat, txType.name);
+                        WalletService.instance.ensureCategory(cat.isEmpty ? 'Expense' : cat, txType.name)
+                            .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
                       } catch (e, stack) {
                         debugPrint('[Dashboard] quickAdd error: $e');
                         ErrorLogger.log(e, stackTrace: stack, action: 'quick_add_transaction');
