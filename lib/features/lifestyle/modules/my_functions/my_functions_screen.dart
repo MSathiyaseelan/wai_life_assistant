@@ -75,7 +75,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   // All data is scoped to walletId — no client-side filter needed,
   // but keep getters so the rest of the UI code stays unchanged.
   List<FunctionModel> get _myFuncs => _functions;
-  List<AttendedFunction> get _myAttended => _attended;
+  List<AttendedFunction> get _myAttended =>
+      _attended.where((a) => a.date == null || !a.date!.isAfter(_today)).toList();
   List<UpcomingFunction> get _myUpcoming => _upcoming;
 
   DateTime get _today => DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
@@ -962,6 +963,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   color: _funcColor,
                   onTap: () async {
                     if (nameCtrl.text.trim().isEmpty) return;
+                    final newDate = date;
+                    final isFuture = newDate != null && newDate.isAfter(_today);
                     setState(() {
                       item.functionName = nameCtrl.text.trim();
                       item.personName = personCtrl.text.trim().isEmpty
@@ -971,15 +974,71 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           ? null
                           : familyNameCtrl.text.trim();
                       item.type = type;
-                      item.date = date;
+                      item.date = newDate;
                       item.venue = venueCtrl.text.trim().isEmpty
                           ? null
                           : venueCtrl.text.trim();
                     });
-                    await FunctionsService.instance.updateAttended(
-                      item.id,
-                      item.toJson(),
-                    );
+                    if (isFuture) {
+                      // Date moved to the future — promote to Upcoming locally first
+                      final localUpcoming = UpcomingFunction(
+                        id: item.id,
+                        walletId: item.walletId,
+                        personName: item.personName ?? '',
+                        familyName: item.familyName,
+                        functionTitle: item.functionName,
+                        memberId: 'me',
+                        type: item.type,
+                        date: newDate,
+                        venue: item.venue,
+                        notes: item.notes,
+                        plannedGifts: item.gifts,
+                      );
+                      setState(() {
+                        _attended.remove(item);
+                        _upcoming.add(localUpcoming);
+                      });
+                      // Persist: insert into upcoming, soft-delete from attended
+                      final upcomingData = {
+                        'wallet_id': item.walletId,
+                        'type': item.type.name,
+                        'person_name': item.personName ?? '',
+                        if (item.familyName != null) 'family_name': item.familyName,
+                        'function_title': item.functionName,
+                        'date': newDate.toIso8601String().split('T')[0],
+                        if (item.venue != null) 'venue': item.venue,
+                        if (item.notes != null) 'notes': item.notes,
+                        'planned_gifts': item.gifts.map((g) => g.toJson()).toList(),
+                      };
+                      FunctionsService.instance.addUpcoming(upcomingData)
+                          .then((inserted) {
+                            // Update the local id to the real DB id
+                            final idx = _upcoming.indexOf(localUpcoming);
+                            if (idx != -1) {
+                              setState(() => _upcoming[idx] = UpcomingFunction(
+                                id: inserted['id'] as String? ?? localUpcoming.id,
+                                walletId: localUpcoming.walletId,
+                                personName: localUpcoming.personName,
+                                familyName: localUpcoming.familyName,
+                                functionTitle: localUpcoming.functionTitle,
+                                memberId: 'me',
+                                type: localUpcoming.type,
+                                date: localUpcoming.date,
+                                venue: localUpcoming.venue,
+                                notes: localUpcoming.notes,
+                                plannedGifts: localUpcoming.plannedGifts,
+                              ));
+                            }
+                            FunctionsService.instance.deleteAttended(item.id)
+                                .catchError((e) => debugPrint('[Functions] deleteAttended failed: $e'));
+                          })
+                          .catchError((e) => debugPrint('[Functions] addUpcoming failed: $e'));
+                    } else {
+                      await FunctionsService.instance.updateAttended(
+                        item.id,
+                        item.toJson(),
+                      );
+                    }
                     if (ctx.mounted) Navigator.pop(ctx);
                   },
                 ),
@@ -6214,6 +6273,8 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
     try {
       await FunctionsService.instance.updateUpcoming(item.id, item.toJson());
       widget.onUpdate();
+      if (mounted) Navigator.pop(context);
+      return;
     } catch (e) {
       debugPrint('[UpcomingDetail] save error: $e');
     }

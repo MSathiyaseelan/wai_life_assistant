@@ -355,6 +355,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         .where((e) => e.fromId == _myId)
         .toList();
 
+    bool showReasonError = false;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -481,24 +482,46 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 TextField(
                   controller: ctrl,
                   maxLines: 2,
+                  onChanged: (_) {
+                    if (showReasonError) setSt(() => showReasonError = false);
+                  },
                   decoration: InputDecoration(
                     hintText: 'Reason e.g. salary credit on 5th',
                     hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
                     filled: true,
-                    fillColor: surfBg,
+                    fillColor: showReasonError
+                        ? AppColors.expense.withValues(alpha: 0.06)
+                        : surfBg,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      borderSide: showReasonError
+                          ? BorderSide(color: AppColors.expense.withValues(alpha: 0.6))
+                          : BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: showReasonError
+                          ? BorderSide(color: AppColors.expense.withValues(alpha: 0.6))
+                          : BorderSide.none,
                     ),
                     contentPadding: const EdgeInsets.all(14),
                   ),
                 ),
+                if (showReasonError) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Please enter a reason for the extension',
+                    style: TextStyle(
+                      fontSize: 11, fontFamily: 'Nunito', color: AppColors.expense,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 // Buttons
                 Row(children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
+                      onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -510,13 +533,15 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   Expanded(
                     child: FilledButton(
                       onPressed: () {
-                        if (ctrl.text.trim().isEmpty) return;
+                        if (ctrl.text.trim().isEmpty) {
+                          setSt(() => showReasonError = true);
+                          return;
+                        }
                         final reason = ctrl.text.trim();
                         for (final e in pending) {
                           e.share.status = SettleStatus.extensionRequested;
                           e.share.extensionDate = pickedDate;
                           e.share.extensionReason = reason;
-                          // Persist to DB
                           _persistShareStatus(
                             share: e.share,
                             txId: e.tx.id,
@@ -525,7 +550,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                             extensionReason: reason,
                           );
                         }
-                        Navigator.pop(ctx);
+                        Navigator.pop(context);
                         _addAndPersistMessage(
                           text: '⏰ Requested extension till ${_fmtDate(pickedDate)}: $reason',
                           type: MsgType.extensionReq,
@@ -608,6 +633,237 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       debugPrint('[SplitGroupDetail] postMessage failed: $e');
     }
   }
+
+  // ── Participant transaction breakdown sheet ────────────────────────────────
+  void _showParticipantTxSheet(SplitParticipant p, double netBal) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    // Transactions where this participant paid or has a share
+    final txs = _group.transactions.where((tx) =>
+      tx.addedById == p.id ||
+      tx.shares.any((s) => s.participantId == p.id),
+    ).toList()..sort((a, b) => b.date.compareTo(a.date));
+
+    final isOwed = netBal > 0;
+    final isEven = netBal.abs() < 0.01;
+    final balColor = isEven ? sub : (isOwed ? AppColors.income : AppColors.expense);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, scroll) => Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            children: [
+              // Handle
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: sub.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(
+                        color: balColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(p.emoji, style: const TextStyle(fontSize: 22)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.isMe ? '${p.name} (You)' : p.name,
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                                fontFamily: 'Nunito', color: tc),
+                          ),
+                          Text(
+                            isEven
+                                ? 'All settled up ✓'
+                                : isOwed
+                                    ? 'Gets back ₹${netBal.abs().toStringAsFixed(0)} overall'
+                                    : 'Owes ₹${netBal.abs().toStringAsFixed(0)} overall',
+                            style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                                color: balColor, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: balColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: balColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        isEven
+                            ? '₹0'
+                            : '${isOwed ? '+' : '-'} ₹${netBal.abs().toStringAsFixed(0)}',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
+                            fontFamily: 'DM Mono', color: balColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              Divider(height: 1, color: sub.withValues(alpha: 0.12)),
+              const SizedBox(height: 4),
+
+              // Transaction list
+              Expanded(
+                child: txs.isEmpty
+                    ? Center(
+                        child: Text('No transactions yet',
+                            style: TextStyle(fontFamily: 'Nunito', color: sub)),
+                      )
+                    : ListView.builder(
+                        controller: scroll,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                        itemCount: txs.length,
+                        itemBuilder: (_, i) {
+                          final tx = txs[i];
+                          final theyPaid = tx.addedById == p.id;
+                          final share = tx.shares.cast<SplitShare?>().firstWhere(
+                            (s) => s!.participantId == p.id,
+                            orElse: () => null,
+                          );
+                          final payer = _group.participantById(tx.addedById);
+                          final settled = share?.status == SettleStatus.settled;
+                          final shareAmt = share?.amount ?? 0;
+
+                          // Amount to highlight: if they paid, show what others owe them
+                          // from this tx (total - their own share). If they owe, show share.
+                          final highlight = theyPaid
+                              ? tx.totalAmount - (share?.amount ?? 0)
+                              : shareAmt;
+                          final highlightColor = theyPaid ? AppColors.income : AppColors.expense;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: surfBg,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(tx.title,
+                                          style: TextStyle(fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              fontFamily: 'Nunito', color: tc)),
+                                    ),
+                                    Text(
+                                      '${tx.date.day} ${_monthAbbr(tx.date.month)}',
+                                      style: TextStyle(fontSize: 11,
+                                          fontFamily: 'Nunito', color: sub),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            theyPaid
+                                                ? '${p.isMe ? 'You' : p.name} paid ₹${tx.totalAmount.toStringAsFixed(0)}'
+                                                : '${payer?.name ?? 'Someone'} paid ₹${tx.totalAmount.toStringAsFixed(0)}',
+                                            style: TextStyle(fontSize: 11,
+                                                fontFamily: 'Nunito', color: sub),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            theyPaid
+                                                ? (highlight < 0.01
+                                                    ? 'No amount to collect'
+                                                    : 'Collects ₹${highlight.toStringAsFixed(0)} from others')
+                                                : 'Share: ₹${shareAmt.toStringAsFixed(0)}',
+                                            style: TextStyle(fontSize: 12,
+                                                fontFamily: 'Nunito',
+                                                fontWeight: FontWeight.w700,
+                                                color: highlightColor),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (share != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: settled
+                                              ? AppColors.income.withValues(alpha: 0.1)
+                                              : AppColors.expense.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          settled ? '✓ Settled' : '⏳ Pending',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontFamily: 'Nunito',
+                                            fontWeight: FontWeight.w700,
+                                            color: settled
+                                                ? AppColors.income
+                                                : AppColors.expense,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _monthAbbr(int m) => const [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ][m];
 
   // ── Send reminder ──────────────────────────────────────────────────────────
   void _showReminderSheet(SplitParticipant p, double owedAmount, {VoidCallback? onReminderSent}) {
@@ -1370,7 +1626,12 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   .toList()
               : <({SplitGroupTx tx, SplitShare share})>[];
 
-          return Container(
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              _showParticipantTxSheet(p, bal);
+            },
+            child: Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -1578,7 +1839,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 ],
               ],
             ),
-          );
+          ));
         }),
 
         const SizedBox(height: 20),
@@ -2595,6 +2856,15 @@ class _ShareRow extends StatelessWidget {
       );
     }
 
+    // I AM the debtor — I can request an extension on my pending share
+    if (_isMyShare && !_iAmPayer && st == SettleStatus.pending) {
+      actions.add(
+        _ActionBtn('⏰ Request Extension', const Color(0xFF9C27B0), () {
+          _showDebtorExtensionSheet(context);
+        }),
+      );
+    }
+
     if (actions.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -2612,6 +2882,183 @@ class _ShareRow extends StatelessWidget {
       extensionReason: share.extensionReason,
       extensionResponseMsg: responseMsg,
     ).catchError((e) => debugPrint('[ShareRow] updateShareStatus failed: $e'));
+  }
+
+  void _showDebtorExtensionSheet(BuildContext context) {
+    final ctrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    DateTime pickedDate = DateTime.now().add(const Duration(days: 5));
+    bool showReasonError = false;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(children: [
+                  Container(
+                    width: 42, height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C27B0).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text('📅', style: TextStyle(fontSize: 20)),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Request Extension',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito', color: tc)),
+                    Text(
+                      'For ₹${share.amount.toStringAsFixed(0)} · ${tx.title}',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                    ),
+                  ]),
+                ]),
+                const SizedBox(height: 16),
+                // Date picker
+                GestureDetector(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: pickedDate,
+                      firstDate: DateTime.now().add(const Duration(days: 1)),
+                      lastDate: DateTime.now().add(const Duration(days: 90)),
+                    );
+                    if (d != null) setSt(() => pickedDate = d);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C27B0).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF9C27B0)),
+                      const SizedBox(width: 8),
+                      Text('Pay by: ${_fmtShareDate(pickedDate)}',
+                          style: const TextStyle(fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w700, color: Color(0xFF9C27B0))),
+                      const Spacer(),
+                      const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF9C27B0)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctrl,
+                  maxLines: 2,
+                  onChanged: (_) {
+                    if (showReasonError) setSt(() => showReasonError = false);
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Reason e.g. salary credit on 5th',
+                    hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
+                    filled: true,
+                    fillColor: showReasonError
+                        ? AppColors.expense.withValues(alpha: 0.06)
+                        : surfBg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: showReasonError
+                          ? BorderSide(color: AppColors.expense.withValues(alpha: 0.6))
+                          : BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: showReasonError
+                          ? BorderSide(color: AppColors.expense.withValues(alpha: 0.6))
+                          : BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(14),
+                  ),
+                ),
+                if (showReasonError) ...[
+                  const SizedBox(height: 4),
+                  Text('Please enter a reason for the extension',
+                      style: TextStyle(fontSize: 11, fontFamily: 'Nunito',
+                          color: AppColors.expense)),
+                ],
+                const SizedBox(height: 20),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () {
+                        if (ctrl.text.trim().isEmpty) {
+                          setSt(() => showReasonError = true);
+                          return;
+                        }
+                        final reason = ctrl.text.trim();
+                        share.status = SettleStatus.extensionRequested;
+                        share.extensionDate = pickedDate;
+                        share.extensionReason = reason;
+                        _persistShare(context, 'extension_requested');
+                        onAddChatMsg(
+                          '⏰ Requested extension till ${_fmtShareDate(pickedDate)}: $reason',
+                        );
+                        Navigator.pop(context);
+                        onUpdate();
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF9C27B0),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('Request',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _fmtShareDate(DateTime d) {
+    const m = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${d.day} ${m[d.month]} ${d.year}';
   }
 
   void _showExtensionResponseSheet(BuildContext context, {required bool agree}) {

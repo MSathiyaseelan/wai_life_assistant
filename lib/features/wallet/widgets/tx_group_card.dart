@@ -38,6 +38,8 @@ class TxGroupCard extends StatefulWidget {
   /// When provided, each tile shows who added the transaction.
   final Map<String, String>? memberNames;
 
+  final bool hideAmount;
+
   const TxGroupCard({
     super.key,
     required this.group,
@@ -50,6 +52,7 @@ class TxGroupCard extends StatefulWidget {
     this.onTxDragStarted,
     this.onTxDragEnded,
     this.memberNames,
+    this.hideAmount = false,
   });
 
   @override
@@ -334,7 +337,7 @@ class _TxGroupCardState extends State<TxGroupCard>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '₹${_fmt(g.total)}',
+                        widget.hideAmount ? '₹••••' : '₹${_fmt(g.total)}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
@@ -378,13 +381,14 @@ class _TxGroupCardState extends State<TxGroupCard>
                       feedback: _TxDragFeedback(tx: tx),
                       childWhenDragging: Opacity(
                         opacity: 0.35,
-                        child: TxTile(tx: tx, addedByName: widget.memberNames?[tx.userId]),
+                        child: TxTile(tx: tx, addedByName: widget.memberNames?[tx.userId], hideAmount: widget.hideAmount),
                       ),
                       child: TxTile(
                         tx: tx,
                         onTap: () => widget.onTxTap(tx),
                         onLongPress: () => widget.onTxLongPress(tx),
                         addedByName: widget.memberNames?[tx.userId],
+                        hideAmount: widget.hideAmount,
                       ),
                     )),
                 // Add expense button

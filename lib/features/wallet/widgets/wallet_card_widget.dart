@@ -9,6 +9,11 @@ class WalletCardWidget extends StatefulWidget {
   final VoidCallback? onReports;
   final VoidCallback? onBudget;
 
+  /// Whether amounts are hidden (•••• mask). Controlled externally so the eye
+  /// toggle affects the transaction list as well.
+  final bool hidden;
+  final VoidCallback onToggleHide;
+
   /// Budget models that have crossed 80% or 100% of their monthly limit.
   /// When non-empty an alert banner is shown at the bottom of the card.
   final List<BudgetModel> budgetAlerts;
@@ -25,6 +30,8 @@ class WalletCardWidget extends StatefulWidget {
     required this.wallet,
     required this.isActive,
     required this.onTap,
+    required this.hidden,
+    required this.onToggleHide,
     this.onReports,
     this.onBudget,
     this.budgetAlerts = const [],
@@ -40,9 +47,6 @@ class WalletCardWidget extends StatefulWidget {
 }
 
 class _WalletCardWidgetState extends State<WalletCardWidget> {
-  // Amounts hidden by default — tap the eye icon to reveal
-  bool _hidden = true;
-
   double get _periodBalance {
     if (widget.periodCashIn != null) {
       final totalIn = (widget.periodCashIn ?? 0) + (widget.periodOnlineIn ?? 0);
@@ -53,7 +57,7 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
   }
 
   String _fmt(double v) {
-    if (_hidden) return '••••';
+    if (widget.hidden) return '••••';
     if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 10000) {
       final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
@@ -63,7 +67,7 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
   }
 
   String _fmtSmall(double v) {
-    if (_hidden) return '••';
+    if (widget.hidden) return '••';
     if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 10000) {
       final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
@@ -209,12 +213,12 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
-                    setState(() => _hidden = !_hidden);
+                    widget.onToggleHide();
                   },
                   child: Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Icon(
-                      _hidden
+                      widget.hidden
                           ? Icons.visibility_off_rounded
                           : Icons.visibility_rounded,
                       color: Colors.white60,

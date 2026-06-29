@@ -38,13 +38,14 @@ class FunctionsService {
 
   // ── Upcoming Functions ───────────────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> fetchUpcoming(String walletId) async {
-    final rows = await _db
+  Future<List<Map<String, dynamic>>> fetchUpcoming(String walletId, {bool onlyMine = false}) async {
+    var query = _db
         .from('functions_upcoming')
         .select()
         .eq('wallet_id', walletId)
-        .isFilter('deleted_at', null)
-        .order('created_at', ascending: false);
+        .isFilter('deleted_at', null);
+    if (onlyMine) query = query.eq('user_id', _uid);
+    final rows = await query.order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
 

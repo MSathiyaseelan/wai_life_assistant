@@ -73,6 +73,9 @@ class _WalletScreenState extends State<WalletScreen>
   // Transaction groups (named expense bundles)
   List<TxGroup> _txGroups = [];
 
+  // Privacy toggle — eye icon hides all amounts across card + transaction list
+  bool _amountsHidden = true;
+
   // Drag-and-drop state
   TxModel? _draggingTx;
 
@@ -2059,6 +2062,8 @@ class _WalletScreenState extends State<WalletScreen>
                 return WalletCardWidget(
                   wallet: wallets[0],
                   isActive: true,
+                  hidden: _amountsHidden,
+                  onToggleHide: () => setState(() => _amountsHidden = !_amountsHidden),
                   periodCashIn: ps.cashIn,
                   periodCashOut: ps.cashOut,
                   periodOnlineIn: ps.onlineIn,
@@ -2105,6 +2110,8 @@ class _WalletScreenState extends State<WalletScreen>
                     return WalletCardWidget(
                       wallet: wallets[i],
                       isActive: wallets[i].id == widget.activeWalletId,
+                      hidden: _amountsHidden,
+                      onToggleHide: () => setState(() => _amountsHidden = !_amountsHidden),
                       periodCashIn: ps.cashIn,
                       periodCashOut: ps.cashOut,
                       periodOnlineIn: ps.onlineIn,
@@ -2520,6 +2527,7 @@ class _WalletScreenState extends State<WalletScreen>
                 child: TxGroupCard(
                   group: g,
                   isDark: isDark,
+                  hideAmount: _amountsHidden,
                   onTxTap: (tx) => _showDetail(tx),
                   onTxLongPress: (tx) => _duplicateTx(tx),
                   onAddExpense: () => _addToGroup(g),
@@ -2539,6 +2547,7 @@ class _WalletScreenState extends State<WalletScreen>
               tx.userId != currentUid;
           final tile = TxTile(
             tx: tx,
+            hideAmount: _amountsHidden,
             onTap: () => _showDetail(tx),
             onLongPress: () => _duplicateTx(tx),
             onAccept: isRecipient

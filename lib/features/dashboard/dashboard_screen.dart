@@ -97,6 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   final Map<String, List<SpecialDayModel>> _specialDaysMap = {};
   final Map<String, List<WishModel>> _wishesMap = {};
   final Map<String, List<FunctionModel>> _functionsMap = {};
+  final Map<String, List<UpcomingFunction>> _upcomingAttendingMap = {};
   final Set<String> _loadedPlanItWalletIds = {};
 
   // Health nudge data — keyed by walletId
@@ -484,6 +485,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         SpecialDayService.instance.fetchDays(walletId),
         WishService.instance.fetchWishes(walletId),
         FunctionsService.instance.fetchMyFunctions(walletId),
+        FunctionsService.instance.fetchUpcoming(walletId),
       ]);
       if (!mounted) return;
       setState(() {
@@ -497,6 +499,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _wishesMap[walletId] = (results[3]).map(WishModel.fromRow).toList();
         _functionsMap[walletId] = (results[4])
             .map(FunctionModel.fromJson)
+            .toList();
+        _upcomingAttendingMap[walletId] = results[5]
+            .map(UpcomingFunction.fromJson)
             .toList();
       });
     } catch (e, stack) {
@@ -987,7 +992,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }).toList();
   }
 
-  List<UpcomingFunction> get _upcomingAttending => const [];
+  List<UpcomingFunction> get _upcomingAttending {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final end = today.add(const Duration(days: 7));
+    return _upcomingAttendingMap.values
+        .expand((l) => l)
+        .where((u) {
+          if (u.date == null) return false;
+          final d = DateTime(u.date!.year, u.date!.month, u.date!.day);
+          return !d.isBefore(today) && !d.isAfter(end);
+        })
+        .toList();
+  }
 
   // Active split transactions
   List<TxModel> _activeSplits(String wid) => mockTransactions
@@ -1175,6 +1192,29 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           nudges: _nudges,
                           isDark: isDark,
                           cardBg: cardBg,
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // ── Upcoming Functions ────────────────────────────────────
+                      if (_upcomingFunctions.isNotEmpty || _upcomingAttending.isNotEmpty) ...[
+                        _SectionHeader(
+                          emoji: '🎊',
+                          title: 'Upcoming Functions',
+                          sub: sub,
+                          action: 'Functions →',
+                          onAction: () { DashNavService.myHub.value = 'functions'; widget.onTabSwitch?.call(3); },
+                        ),
+                        const SizedBox(height: 8),
+                        _UpcomingFunctionsCard(
+                          myFunctions: _upcomingFunctions,
+                          attending: _upcomingAttending,
+                          isDark: isDark,
+                          cardBg: cardBg,
+                          onTap: () {
+                            DashNavService.myHub.value = 'functions';
+                            widget.onTabSwitch?.call(3);
+                          },
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -1592,25 +1632,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         );
                       }),
 
-                      // ⑤  UPCOMING FUNCTIONS ───────────────────────────────────
-                      if (_upcomingFunctions.isNotEmpty ||
-                          _upcomingAttending.isNotEmpty) ...[
-                        _SectionHeader(
-                          emoji: '🎊',
-                          title: 'Upcoming Functions',
-                          sub: sub,
-                          action: 'Functions →',
-                          onAction: () {},
-                        ),
-                        const SizedBox(height: 8),
-                        _UpcomingFunctionsCard(
-                          myFunctions: _upcomingFunctions,
-                          attending: _upcomingAttending,
-                          isDark: isDark,
-                          cardBg: cardBg,
-                        ),
-                        const SizedBox(height: 16),
-                      ],
                     ],
                   ),
                 ),
@@ -4319,11 +4340,13 @@ class _UpcomingFunctionsCard extends StatelessWidget {
   final List<UpcomingFunction> attending;
   final bool isDark;
   final Color cardBg;
+  final VoidCallback? onTap;
   const _UpcomingFunctionsCard({
     required this.myFunctions,
     required this.attending,
     required this.isDark,
     required this.cardBg,
+    this.onTap,
   });
 
   @override
@@ -4378,12 +4401,20 @@ class _UpcomingFunctionsCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: all.map((f) {
-          final daysLeft = f.date?.difference(DateTime.now()).inDays;
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          final daysLeft = f.date != null
+              ? DateTime(f.date!.year, f.date!.month, f.date!.day)
+                  .difference(today)
+                  .inDays
+              : null;
           final isLast = all.indexOf(f) == all.length - 1;
 
           return Column(
             children: [
-              Padding(
+              GestureDetector(
+              onTap: onTap,
+              child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
@@ -4527,6 +4558,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                       ),
                   ],
                 ),
+              ),
               ),
               if (!isLast)
                 Divider(

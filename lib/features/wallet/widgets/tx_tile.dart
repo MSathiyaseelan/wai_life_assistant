@@ -14,6 +14,8 @@ class TxTile extends StatelessWidget {
   /// When non-null a small "by …" chip is shown in the sub-row.
   final String? addedByName;
 
+  final bool hideAmount;
+
   const TxTile({
     super.key,
     required this.tx,
@@ -22,6 +24,7 @@ class TxTile extends StatelessWidget {
     this.onAccept,
     this.onReject,
     this.addedByName,
+    this.hideAmount = false,
   });
 
   String _fmt(double v) {
@@ -155,7 +158,7 @@ class TxTile extends StatelessWidget {
                           ),
                           // Amount
                           Text(
-                            '$prefix₹${_fmt(tx.amount)}',
+                            hideAmount ? '$prefix₹••••' : '$prefix₹${_fmt(tx.amount)}',
                             style: TextStyle(
                               color: amtColor,
                               fontWeight: FontWeight.w800,
