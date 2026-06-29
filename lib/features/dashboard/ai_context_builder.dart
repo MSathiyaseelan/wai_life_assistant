@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 
@@ -109,7 +110,9 @@ class AiContextBuilder {
       if (topCats.isNotEmpty) buf.writeln('Top spend categories: $topCats');
       if (recent.isNotEmpty) buf.writeln('Recent: ${recent.join(' | ')}');
       buf.writeln();
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'context_wallet');
+    }
   }
 
   // ── Pantry context ────────────────────────────────────────────────────────
@@ -151,7 +154,9 @@ class AiContextBuilder {
         buf.writeln('Recent meals: $meals');
       }
       buf.writeln();
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'context_pantry');
+    }
   }
 
   // ── PlanIt context ────────────────────────────────────────────────────────
@@ -209,7 +214,9 @@ class AiContextBuilder {
         buf.writeln('Reminders: $reminders');
       }
       buf.writeln();
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'context_planit');
+    }
   }
 
   String _cap(String s) =>

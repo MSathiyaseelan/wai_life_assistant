@@ -1061,7 +1061,9 @@ class _PantryScreenState extends State<PantryScreen>
       }
       try {
         await PantryService.instance.updateGroceryItem(item.id, updates);
-      } catch (_) {}
+      } catch (e) {
+        ErrorLogger.warning(e, action: 'pantry_basket_update');
+      }
       changed = true;
     }
 

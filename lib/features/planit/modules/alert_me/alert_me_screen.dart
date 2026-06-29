@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/services/reminder_service.dart';
 import 'package:wai_life_assistant/core/services/notification_service.dart';
@@ -167,24 +168,29 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   }
 
   Future<void> _delete(ReminderModel r) async {
+    final idx = _reminders.indexOf(r);
     setState(() => _reminders.remove(r));
     NotificationService.instance.cancel(r);
     try {
       await ReminderService.instance.deleteReminder(r.id);
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'reminder_delete');
+      if (mounted && idx >= 0) setState(() => _reminders.insert(idx, r));
+    }
   }
 
   Future<void> _update(ReminderModel updated) async {
-    setState(() {
-      final i = _reminders.indexWhere((r) => r.id == updated.id);
-      if (i >= 0) _reminders[i] = updated;
-    });
-    // Cancel old, reschedule with new time
+    final idx = _reminders.indexWhere((r) => r.id == updated.id);
+    final original = idx >= 0 ? _reminders[idx] : null;
+    setState(() { if (idx >= 0) _reminders[idx] = updated; });
     await NotificationService.instance.cancel(updated);
     if (!updated.done) NotificationService.instance.schedule(updated);
     try {
       await ReminderService.instance.updateReminder(updated.id, updated.toMap());
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'reminder_update');
+      if (mounted && idx >= 0 && original != null) setState(() => _reminders[idx] = original);
+    }
   }
 
   Future<void> _markDone(ReminderModel r) async {
@@ -192,7 +198,10 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     NotificationService.instance.cancel(r);
     try {
       await ReminderService.instance.updateReminder(r.id, {'done': true});
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'reminder_mark_done');
+      if (mounted) setState(() => r.done = false);
+    }
   }
 
   Future<void> _markActive(ReminderModel r) async {
@@ -200,10 +209,16 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     NotificationService.instance.schedule(r);
     try {
       await ReminderService.instance.updateReminder(r.id, {'done': false});
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'reminder_mark_active');
+      if (mounted) setState(() => r.done = true);
+    }
   }
 
   Future<void> _snooze(ReminderModel r) async {
+    final origDate = r.dueDate;
+    final origTime = r.dueTime;
+    final origSnoozed = r.snoozed;
     final now = DateTime(
       r.dueDate.year, r.dueDate.month, r.dueDate.day,
       r.dueTime.hour, r.dueTime.minute,
@@ -221,7 +236,16 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         'snoozed': true,
       });
       await NotificationService.instance.schedule(r);
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'reminder_snooze');
+      if (mounted) {
+        setState(() {
+          r.dueDate = origDate;
+          r.dueTime = origTime;
+          r.snoozed = origSnoozed;
+        });
+      }
+    }
   }
 
   @override

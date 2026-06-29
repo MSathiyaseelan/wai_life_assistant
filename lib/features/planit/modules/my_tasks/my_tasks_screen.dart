@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
@@ -146,32 +147,41 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   }
 
   Future<void> _delete(TaskModel t) async {
+    final idx = _tasks.indexOf(t);
     setState(() => _tasks.remove(t));
     try {
       await TaskService.instance.deleteTask(t.id);
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'task_delete');
+      if (mounted && idx >= 0) setState(() => _tasks.insert(idx, t));
+    }
   }
 
   Future<void> _update(TaskModel updated) async {
-    setState(() {
-      final i = _tasks.indexWhere((t) => t.id == updated.id);
-      if (i >= 0) _tasks[i] = updated;
-    });
+    final idx = _tasks.indexWhere((t) => t.id == updated.id);
+    final original = idx >= 0 ? _tasks[idx] : null;
+    setState(() { if (idx >= 0) _tasks[idx] = updated; });
     try {
       await TaskService.instance.updateTask(updated.id, updated.toRow());
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'task_update');
+      if (mounted && idx >= 0 && original != null) setState(() => _tasks[idx] = original);
+    }
   }
 
   Future<void> _updateStatus(TaskModel t, TaskStatus s) async {
+    final original = t.status;
     setState(() => t.status = s);
     try {
       await TaskService.instance.updateTask(t.id, {'status': s.name});
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'task_update_status');
+      if (mounted) setState(() => t.status = original);
+    }
   }
 
   Future<void> _toggleSubtask(SubTask st) async {
     setState(() => st.done = !st.done);
-    // Find the parent task to persist the updated subtask list
     final parent = _tasks.firstWhere(
       (t) => t.subtasks.any((s) => s.id == st.id),
       orElse: () => _tasks.first,
@@ -180,7 +190,10 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       await TaskService.instance.updateTask(parent.id, {
         'subtasks': parent.subtasks.map((s) => s.toMap()).toList(),
       });
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'task_toggle_subtask');
+      if (mounted) setState(() => st.done = !st.done);
+    }
   }
 
   @override

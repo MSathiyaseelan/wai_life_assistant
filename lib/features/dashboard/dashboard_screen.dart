@@ -652,8 +652,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _todayMeals[idx] = _todayMeals[idx].copyWith(reactions: list);
             }
           });
-        } catch (_) {
-          // non-critical
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'meal_add_reaction');
         }
       },
       onReactionUpdated: (reactionIndex, updated) async {
@@ -681,7 +681,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             'reaction_emoji': updated.reactionEmoji,
             'comment': updated.comment,
           });
-        } catch (_) {}
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'meal_update_reaction');
+        }
       },
       onReactionDeleted: (reactionIndex) async {
         final mealIdx = _todayMeals.indexWhere((e) => e.id == m.id);
@@ -702,7 +704,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         if (dbId == null) return;
         try {
           await PantryService.instance.deleteReaction(dbId);
-        } catch (_) {}
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'meal_delete_reaction');
+        }
       },
       onStatusChanged: (status, servingsCount) async {
         setState(() {

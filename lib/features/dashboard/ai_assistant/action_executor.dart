@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
@@ -26,7 +27,7 @@ class ActionExecutor {
   /// null for all other action types.
   Future<TxModel?> execute(ActionPayload action, String walletId) async {
     final d = action.data;
-
+    try {
     switch (action.actionType) {
       case ActionType.addGrocery:
         await PantryService.instance.addGroceryItem(
@@ -235,6 +236,13 @@ class ActionExecutor {
 
     debugPrint('[ActionExecutor] ${action.actionType.name} executed for wallet=$walletId');
     return null;
+    } catch (e, stack) {
+      ErrorLogger.log(e,
+          stackTrace: stack,
+          severity: ErrorSeverity.error,
+          action: 'ai_action_${action.actionType.name}');
+      rethrow;
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

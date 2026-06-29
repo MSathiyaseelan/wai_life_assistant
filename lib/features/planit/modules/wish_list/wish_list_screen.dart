@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/services/wish_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
@@ -139,20 +140,26 @@ class _WishListScreenState extends State<WishListScreen>
   }
 
   Future<void> _delete(WishModel w) async {
+    final idx = _wishes.indexOf(w);
     setState(() => _wishes.remove(w));
     try {
       await WishService.instance.deleteWish(w.id);
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'wish_delete');
+      if (mounted && idx >= 0) setState(() => _wishes.insert(idx, w));
+    }
   }
 
   Future<void> _update(WishModel u) async {
-    setState(() {
-      final i = _wishes.indexWhere((w) => w.id == u.id);
-      if (i >= 0) _wishes[i] = u;
-    });
+    final idx = _wishes.indexWhere((w) => w.id == u.id);
+    final original = idx >= 0 ? _wishes[idx] : null;
+    setState(() { if (idx >= 0) _wishes[idx] = u; });
     try {
       await WishService.instance.updateWish(u.id, u.toRow());
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'wish_update');
+      if (mounted && idx >= 0 && original != null) setState(() => _wishes[idx] = original);
+    }
   }
 
   Future<void> _addSaving(WishModel w, double amount, String? note) async {
@@ -163,7 +170,13 @@ class _WishListScreenState extends State<WishListScreen>
     setState(() {});
     try {
       await WishService.instance.updateWish(w.id, w.toRow());
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'wish_add_saving');
+      // revert saving
+      w.savedAmount -= amount;
+      w.savingsHistory.removeLast();
+      if (mounted) setState(() {});
+    }
   }
 
   void _togglePurchased(WishModel w) {

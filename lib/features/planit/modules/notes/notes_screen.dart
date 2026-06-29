@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/note_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
@@ -297,24 +298,29 @@ class _NotesScreenState extends State<NotesScreen> {
   }
 
   Future<void> _deleteNote(NoteModel note) async {
+    final idx = _notes.indexOf(note);
     setState(() => _notes.remove(note));
     try {
       await NoteService.instance.deleteNote(note.id);
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'note_delete');
+      if (mounted && idx >= 0) setState(() => _notes.insert(idx, note));
+    }
   }
 
   Future<void> _togglePin(NoteModel note) async {
     final updated = note.copyWith(isPinned: !note.isPinned);
-    setState(() {
-      final i = _notes.indexWhere((n) => n.id == note.id);
-      if (i >= 0) _notes[i] = updated;
-    });
+    final idx = _notes.indexWhere((n) => n.id == note.id);
+    setState(() { if (idx >= 0) _notes[idx] = updated; });
     try {
       await NoteService.instance.updateNote(
         note.id,
         {'is_pinned': updated.isPinned},
       );
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.log(e, action: 'note_toggle_pin');
+      if (mounted && idx >= 0) setState(() => _notes[idx] = note);
+    }
   }
 
   void _openNoteSheet({NoteModel? existing}) {

@@ -243,7 +243,9 @@ class MyListSection extends StatelessWidget {
       });
       PantryService.listChangeSignal.value++;
       onItemsChanged();
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'list_mark_in_stock');
+    }
   }
 
   Future<void> _deleteItem(GroceryItem item) async {
@@ -251,7 +253,9 @@ class MyListSection extends StatelessWidget {
       await PantryService.instance.deleteGroceryItem(item.id);
       PantryService.listChangeSignal.value++;
       onItemsChanged();
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'list_delete_item');
+    }
   }
 
   Future<void> _moveToGrocery(GroceryItem item) async {
@@ -262,7 +266,9 @@ class MyListSection extends StatelessWidget {
       });
       PantryService.listChangeSignal.value++;
       onItemsChanged();
-    } catch (_) {}
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'list_move_to_grocery');
+    }
   }
 
   void _showAddSheet(BuildContext context) {
