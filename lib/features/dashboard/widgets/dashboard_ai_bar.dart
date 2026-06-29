@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
-import 'package:wai_life_assistant/core/services/gemini_service.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_context_builder.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
@@ -84,14 +84,31 @@ class _DashboardAiBarState extends State<DashboardAiBar>
     _animCtrl.forward(from: 0);
 
     try {
-      final context = await AiContextBuilder.instance.build(
+      final contextBlock = await AiContextBuilder.instance.build(
         question,
         widget.walletId,
       );
-      final raw = await GeminiService.instance.ask(context, question);
       if (!mounted) return;
 
-      final parsed = _parseAnswer(raw);
+      final result = await AIParser.parseText(
+        feature: 'dashboard',
+        subFeature: 'ai_bar',
+        text: question,
+        context: {'household_context': contextBlock},
+      );
+      if (!mounted) return;
+
+      if (!result.success || result.data == null) {
+        setState(() {
+          _answer = result.error ?? 'Sorry, I couldn\'t fetch an answer right now. Try again.';
+          _deepLinks = [];
+          _loading = false;
+        });
+        _animCtrl.forward(from: 0);
+        return;
+      }
+
+      final parsed = _parseAnswer(result.data!);
       setState(() {
         _answer = parsed.text;
         _deepLinks = parsed.links;
@@ -110,23 +127,24 @@ class _DashboardAiBarState extends State<DashboardAiBar>
     }
   }
 
-  // ── Parse Gemini response for [GO:tab] tags ───────────────────────────────
+  // ── Parse structured JSON from Edge Function response ─────────────────────
 
-  _ParsedAnswer _parseAnswer(String raw) {
+  _ParsedAnswer _parseAnswer(Map<String, dynamic> data) {
+    final answer = data['answer'] as String? ?? '';
+    final navigateTo = (data['navigate_to'] as String?)?.toLowerCase().trim();
+
     final links = <_DeepLink>[];
-    final tagPattern = RegExp(r'\[GO:(wallet|pantry|planit)\]', caseSensitive: false);
-
-    for (final m in tagPattern.allMatches(raw)) {
-      final tag = m.group(1)!.toLowerCase();
-      links.add(_DeepLink(
-        label: _tabLabel(tag),
-        tabIndex: _tabIndex(tag),
-        emoji: _tabEmoji(tag),
-      ));
+    if (navigateTo != null && navigateTo != 'null') {
+      if (navigateTo == 'wallet' || navigateTo == 'pantry' || navigateTo == 'planit') {
+        links.add(_DeepLink(
+          label: _tabLabel(navigateTo),
+          tabIndex: _tabIndex(navigateTo),
+          emoji: _tabEmoji(navigateTo),
+        ));
+      }
     }
 
-    final cleanText = raw.replaceAll(tagPattern, '').trim();
-    return _ParsedAnswer(text: cleanText, links: links);
+    return _ParsedAnswer(text: answer, links: links);
   }
 
   String _tabLabel(String tag) => switch (tag) {
