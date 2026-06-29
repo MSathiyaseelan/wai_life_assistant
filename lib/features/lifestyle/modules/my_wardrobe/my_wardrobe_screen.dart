@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
@@ -1145,7 +1146,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                           const SizedBox(height: 8),
                           LifeInput(
                               controller: _sourceCtrl,
-                              hint: 'Source / URL (e.g. Zara, ₹4500)',
+                              hint: 'Source / URL (e.g. Zara, ${AppPrefs.cs}4500)',
                               maxLines: 2),
                         ],
                         const SizedBox(height: 12),

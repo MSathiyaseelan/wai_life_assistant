@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
 class TxTile extends StatelessWidget {
@@ -158,7 +159,7 @@ class TxTile extends StatelessWidget {
                           ),
                           // Amount
                           Text(
-                            hideAmount ? '$prefix₹••••' : '$prefix₹${_fmt(tx.amount)}',
+                            hideAmount ? '$prefix${AppPrefs.cs}••••' : '$prefix${AppPrefs.cs}${_fmt(tx.amount)}',
                             style: TextStyle(
                               color: amtColor,
                               fontWeight: FontWeight.w800,

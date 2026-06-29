@@ -97,6 +97,9 @@ class AppPrefs extends ChangeNotifier {
     }
   }
 
+  /// Shorthand for `AppPrefs.instance.currencySymbol` — use in any file.
+  static String get cs => instance.currencySymbol;
+
   // ── Date & Time ────────────────────────────────────────────────────────────
 
   /// 'dmy' → DD/MM/YYYY  |  'mdy' → MM/DD/YYYY  |  'ymd' → YYYY-MM-DD

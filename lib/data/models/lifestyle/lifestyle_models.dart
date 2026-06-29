@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED
@@ -691,7 +692,7 @@ class GiftEntry {
       case GiftType.silver:
         return silverGrams != null ? '${silverGrams}g Silver' : 'Silver';
       case GiftType.giftCard:
-        return giftCardValue != null ? '₹$giftCardValue Card' : 'Gift Card';
+        return giftCardValue != null ? '${AppPrefs.cs}$giftCardValue Card' : 'Gift Card';
       default:
         return itemDescription ?? giftType.label;
     }

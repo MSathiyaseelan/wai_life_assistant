@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 
@@ -50,7 +51,7 @@ class _AmountStepState extends State<AmountStep> {
     });
   }
 
-  String get _display => _value.isEmpty ? '₹0' : '₹$_value';
+  String get _display => _value.isEmpty ? '${AppPrefs.cs}0' : '${AppPrefs.cs}$_value';
   double get _parsed => double.tryParse(_value) ?? 0;
 
   @override
@@ -1504,7 +1505,7 @@ class _SuccessStepState extends State<SuccessStep>
               ),
               const SizedBox(height: 6),
               Text(
-                '₹$fmtAmt',
+                '${AppPrefs.cs}$fmtAmt',
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,

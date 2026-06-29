@@ -187,9 +187,9 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  static const _tabs = [
+  static List<({String icon, String label})> get _tabs => [
     (icon: '🏠', label: 'Dashboard'),
-    (icon: '₹', label: 'Wallet'),
+    (icon: AppPrefs.cs, label: 'Wallet'),
     (icon: '🥗', label: 'Pantry'),
     (icon: '🎊', label: 'MyHub'),   // dynamic: MyHub / FamilyHub — see _hubLabel()
     (icon: '📅', label: 'PlanIt'),

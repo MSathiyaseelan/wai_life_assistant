@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -812,8 +813,8 @@ class WalletService {
 
       final threshold = shouldAlert100 ? 100 : 80;
       final alertMsg = threshold == 100
-          ? '${budget.category} budget exceeded! Spent ₹${spent.toStringAsFixed(0)} of ₹${budget.limitAmount.toStringAsFixed(0)}'
-          : '${budget.category} budget at ${(pct * 100).toStringAsFixed(0)}%. Spent ₹${spent.toStringAsFixed(0)} of ₹${budget.limitAmount.toStringAsFixed(0)}';
+          ? '${budget.category} budget exceeded! Spent ${AppPrefs.cs}${spent.toStringAsFixed(0)} of ${AppPrefs.cs}${budget.limitAmount.toStringAsFixed(0)}'
+          : '${budget.category} budget at ${(pct * 100).toStringAsFixed(0)}%. Spent ${AppPrefs.cs}${spent.toStringAsFixed(0)} of ${AppPrefs.cs}${budget.limitAmount.toStringAsFixed(0)}';
 
       // Send in-app notifications to family members
       if (familyId != null && memberUserIds.isNotEmpty) {

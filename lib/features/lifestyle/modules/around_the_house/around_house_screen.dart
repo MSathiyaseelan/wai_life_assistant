@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import '../../widgets/life_widgets.dart';
@@ -551,7 +552,7 @@ class _ApplianceCard extends StatelessWidget {
             ),
             if (appliance.purchasePrice != null)
               Text(
-                '₹${(appliance.purchasePrice! / 1000).toStringAsFixed(1)}K',
+                '${AppPrefs.cs}${(appliance.purchasePrice! / 1000).toStringAsFixed(1)}K',
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
@@ -629,7 +630,7 @@ class _ApplianceDetail extends StatelessWidget {
           if (appliance.purchasePrice != null)
             LifeInfoRow(
               icon: Icons.currency_rupee_rounded,
-              label: 'Price: ₹${appliance.purchasePrice!.toStringAsFixed(0)}',
+              label: 'Price: ${AppPrefs.cs}${appliance.purchasePrice!.toStringAsFixed(0)}',
             ),
           if (appliance.warrantyExpiry != null)
             LifeInfoRow(

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GeminiService — calls Gemini 1.5 Flash via REST
@@ -17,10 +18,10 @@ class GeminiService {
   static const _endpoint =
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent';
 
-  static const _systemInstruction =
+  static String get _systemInstruction =>
       'You are WAI, a smart personal life assistant embedded in a mobile app. '
       'Answer the user\'s question in 2–4 sentences using ONLY the data provided. '
-      'Be friendly, direct, and use ₹ for currency. '
+      'Be friendly, direct, and use ${AppPrefs.cs} for currency. '
       'If the answer involves wallet data, end with exactly [GO:wallet]. '
       'If pantry/grocery/food data, end with [GO:pantry]. '
       'If tasks/bills/planning data, end with [GO:planit]. '

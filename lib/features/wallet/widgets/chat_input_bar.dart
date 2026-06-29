@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/services/contact_service.dart';
@@ -380,7 +381,7 @@ class ChatInputBarState extends State<ChatInputBar>
                         decoration: InputDecoration.collapsed(
                           hintText: listening
                               ? 'Listening…'
-                              : (widget.hintText ?? 'e.g. "paid ₹500 for lunch"'),
+                              : (widget.hintText ?? 'e.g. "paid ${AppPrefs.cs}500 for lunch"'),
                           hintStyle: TextStyle(
                             fontSize: 13,
                             fontFamily: 'Nunito',

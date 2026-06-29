@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/notification_service.dart';
 import 'package:wai_life_assistant/data/services/invite_service.dart';
@@ -623,7 +624,7 @@ class _NotifTile extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '$prefix₹${n.txAmount.toStringAsFixed(0)}',
+                        '$prefix${AppPrefs.cs}${n.txAmount.toStringAsFixed(0)}',
                         style: TextStyle(
                           fontSize: 13, fontFamily: 'Nunito',
                           fontWeight: FontWeight.w800, color: color,

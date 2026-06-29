@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -271,8 +272,8 @@ class SMSParserService {
     final parsed = SMSRegexParser.tryParse(body);
     final title  = parsed != null
         ? (parsed.isExpense
-            ? '🏦 ₹${parsed.amount.toStringAsFixed(0)} spent at ${parsed.title}'
-            : '🏦 ₹${parsed.amount.toStringAsFixed(0)} received')
+            ? '🏦 ${AppPrefs.cs}${parsed.amount.toStringAsFixed(0)} spent at ${parsed.title}'
+            : '🏦 ${AppPrefs.cs}${parsed.amount.toStringAsFixed(0)} received')
         : '🏦 Bank transaction detected';
 
     final plugin = FlutterLocalNotificationsPlugin();

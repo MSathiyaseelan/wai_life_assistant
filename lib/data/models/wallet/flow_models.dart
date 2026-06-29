@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import '../../../../../core/theme/app_theme.dart';
 
@@ -318,7 +319,7 @@ class FlowData {
   /// Summary rows for ConfirmStep
   List<MapEntry<String, String>> get summaryRows {
     final rows = <MapEntry<String, String>>[];
-    if (amount != null) rows.add(MapEntry('Amount', '₹${_fmt(amount!)}'));
+    if (amount != null) rows.add(MapEntry('Amount', '${AppPrefs.cs}${_fmt(amount!)}'));
     if (title != null && title!.isNotEmpty) rows.add(MapEntry('Title', title!));
     if (category != null) rows.add(MapEntry('Category', category!));
     if (owner != null) rows.add(MapEntry('Account', owner!));

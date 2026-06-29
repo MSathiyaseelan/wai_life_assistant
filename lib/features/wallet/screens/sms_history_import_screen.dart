@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
@@ -503,7 +504,7 @@ class _ItemTile extends StatelessWidget {
 
             // Amount
             Text(
-              '$amtSign₹${tx.amount.toStringAsFixed(tx.amount.truncateToDouble() == tx.amount ? 0 : 2)}',
+              '$amtSign${AppPrefs.cs}${tx.amount.toStringAsFixed(tx.amount.truncateToDouble() == tx.amount ? 0 : 2)}',
               style: TextStyle(
                 fontSize: 14, fontWeight: FontWeight.w900,
                 fontFamily: 'Nunito', color: amtColor,

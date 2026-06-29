@@ -1,12 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart' show MemberRole;
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
@@ -59,6 +62,16 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       return _group.participants.firstWhere((p) => p.isMe).id;
     } catch (_) {
       return 'me';
+    }
+  }
+
+  bool get _isAdmin {
+    try {
+      final families = AppStateScope.of(context).families;
+      final family = families.firstWhere((f) => f.walletId == _group.walletId);
+      return family.myRole == MemberRole.admin;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -224,7 +237,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _SettledStat(
-                    '₹${_group.totalSpend.toStringAsFixed(0)}',
+                    '${AppPrefs.cs}${_group.totalSpend.toStringAsFixed(0)}',
                     'Total',
                     AppColors.income,
                     tc,
@@ -304,7 +317,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         groupId: _group.id,
         totalAmount: totalAmt,
         pendingLabels: pending
-            .map((e) => '${e.tx.title}  ₹${e.share.amount.toStringAsFixed(0)}')
+            .map((e) => '${e.tx.title}  ${AppPrefs.cs}${e.share.amount.toStringAsFixed(0)}')
             .toList(),
         isDark: isDark,
         surfBg: surfBg,
@@ -325,7 +338,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               senderName: _participantName(_myId),
               senderEmoji: _participantEmoji(_myId),
               text:
-                  'Submitted payment proof for ₹${totalAmt.toStringAsFixed(0)}'
+                  'Submitted payment proof for ${AppPrefs.cs}${totalAmt.toStringAsFixed(0)}'
                   '${note.isNotEmpty ? ': $note' : ''}',
               time: DateTime.now(),
               type: MsgType.settled,
@@ -405,7 +418,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                           fontFamily: 'Nunito', color: tc,
                         )),
                     Text(
-                      'For ₹${totalAmt.toStringAsFixed(0)} across ${pending.length} payment${pending.length > 1 ? 's' : ''}',
+                      'For ${AppPrefs.cs}${totalAmt.toStringAsFixed(0)} across ${pending.length} payment${pending.length > 1 ? 's' : ''}',
                       style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                     ),
                   ]),
@@ -436,7 +449,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                             style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
                                 fontWeight: FontWeight.w700, color: tc)),
                       ),
-                      Text('₹${entry.amount.toStringAsFixed(0)}',
+                      Text('${AppPrefs.cs}${entry.amount.toStringAsFixed(0)}',
                           style: const TextStyle(
                             fontSize: 13, fontFamily: 'DM Mono',
                             fontWeight: FontWeight.w900, color: AppColors.expense,
@@ -709,8 +722,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                             isEven
                                 ? 'All settled up ✓'
                                 : isOwed
-                                    ? 'Gets back ₹${netBal.abs().toStringAsFixed(0)} overall'
-                                    : 'Owes ₹${netBal.abs().toStringAsFixed(0)} overall',
+                                    ? 'Gets back ${AppPrefs.cs}${netBal.abs().toStringAsFixed(0)} overall'
+                                    : 'Owes ${AppPrefs.cs}${netBal.abs().toStringAsFixed(0)} overall',
                             style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
                                 color: balColor, fontWeight: FontWeight.w700),
                           ),
@@ -726,8 +739,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                       ),
                       child: Text(
                         isEven
-                            ? '₹0'
-                            : '${isOwed ? '+' : '-'} ₹${netBal.abs().toStringAsFixed(0)}',
+                            ? '${AppPrefs.cs}0'
+                            : '${isOwed ? '+' : '-'} ${AppPrefs.cs}${netBal.abs().toStringAsFixed(0)}',
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
                             fontFamily: 'DM Mono', color: balColor),
                       ),
@@ -803,8 +816,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                                         children: [
                                           Text(
                                             theyPaid
-                                                ? '${p.isMe ? 'You' : p.name} paid ₹${tx.totalAmount.toStringAsFixed(0)}'
-                                                : '${payer?.name ?? 'Someone'} paid ₹${tx.totalAmount.toStringAsFixed(0)}',
+                                                ? '${p.isMe ? 'You' : p.name} paid ${AppPrefs.cs}${tx.totalAmount.toStringAsFixed(0)}'
+                                                : '${payer?.name ?? 'Someone'} paid ${AppPrefs.cs}${tx.totalAmount.toStringAsFixed(0)}',
                                             style: TextStyle(fontSize: 11,
                                                 fontFamily: 'Nunito', color: sub),
                                           ),
@@ -813,8 +826,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                                             theyPaid
                                                 ? (highlight < 0.01
                                                     ? 'No amount to collect'
-                                                    : 'Collects ₹${highlight.toStringAsFixed(0)} from others')
-                                                : 'Share: ₹${shareAmt.toStringAsFixed(0)}',
+                                                    : 'Collects ${AppPrefs.cs}${highlight.toStringAsFixed(0)} from others')
+                                                : 'Share: ${AppPrefs.cs}${shareAmt.toStringAsFixed(0)}',
                                             style: TextStyle(fontSize: 12,
                                                 fontFamily: 'Nunito',
                                                 fontWeight: FontWeight.w700,
@@ -876,7 +889,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     final firstName = p.name.split(' ')[0];
     final message =
         'Hey $firstName! 👋 Just a gentle reminder to settle your share of '
-        '₹${owedAmount.toStringAsFixed(0)} in "${_group.name}". '
+        '${AppPrefs.cs}${owedAmount.toStringAsFixed(0)} in "${_group.name}". '
         'Thanks! 🙏';
 
     showModalBottomSheet(
@@ -990,7 +1003,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${p.name} owes ₹${owedAmount.toStringAsFixed(0)}',
+                    '${p.name} owes ${AppPrefs.cs}${owedAmount.toStringAsFixed(0)}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontFamily: 'Nunito',
@@ -1141,7 +1154,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             senderName: _participantName(_myId),
             senderEmoji: _participantEmoji(_myId),
             text:
-                'Added expense: ${tx.title} ₹${tx.totalAmount.toStringAsFixed(0)} — ${tx.splitType.label} split',
+                'Added expense: ${tx.title} ${AppPrefs.cs}${tx.totalAmount.toStringAsFixed(0)} — ${tx.splitType.label} split',
             time: DateTime.now(),
             type: MsgType.txAdded,
           ),
@@ -1440,7 +1453,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 ),
                 Text(
                   '${_group.participants.length} members · '
-                  '₹${_group.totalSpend.toStringAsFixed(0)} total',
+                  '${AppPrefs.cs}${_group.totalSpend.toStringAsFixed(0)} total',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
@@ -1560,7 +1573,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               ),
               const SizedBox(height: 4),
               Text(
-                '₹${_group.totalSpend.toStringAsFixed(0)}',
+                '${AppPrefs.cs}${_group.totalSpend.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
@@ -1700,8 +1713,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                                 : isEven
                                 ? 'All settled up ✓'
                                 : isOwed
-                                ? 'Gets back ₹${bal.abs().toStringAsFixed(0)}'
-                                : 'Owes ₹${bal.abs().toStringAsFixed(0)}',
+                                ? 'Gets back ${AppPrefs.cs}${bal.abs().toStringAsFixed(0)}'
+                                : 'Owes ${AppPrefs.cs}${bal.abs().toStringAsFixed(0)}',
                             style: TextStyle(
                               fontSize: 11,
                               fontFamily: 'Nunito',
@@ -1725,8 +1738,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                         ),
                         child: Text(
                           isOwed
-                              ? '+ ₹${bal.abs().toStringAsFixed(0)}'
-                              : '- ₹${bal.abs().toStringAsFixed(0)}',
+                              ? '+ ${AppPrefs.cs}${bal.abs().toStringAsFixed(0)}'
+                              : '- ${AppPrefs.cs}${bal.abs().toStringAsFixed(0)}',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w900,
@@ -1973,7 +1986,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                         ),
                       ),
                       child: Text(
-                        '₹${s.amount.toStringAsFixed(0)}',
+                        '${AppPrefs.cs}${s.amount.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w900,
@@ -2040,6 +2053,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           group: _group,
           myId: _myId,
           isDark: isDark,
+          isAdmin: _isAdmin,
           cardBg: cardBg,
           surfBg: surfBg,
           tc: tc,
@@ -2074,7 +2088,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 senderId: _myId,
                 senderName: _participantName(_myId),
                 senderEmoji: _participantEmoji(_myId),
-                text: 'Sent a payment reminder to ${p.name} for ₹${share.amount.toStringAsFixed(0)} 🔔',
+                text: 'Sent a payment reminder to ${p.name} for ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} 🔔',
                 time: DateTime.now(),
                 type: MsgType.reminder,
               ));
@@ -2235,6 +2249,7 @@ class _ExpenseTile extends StatefulWidget {
   final SplitGroup group;
   final String myId;
   final bool isDark;
+  final bool isAdmin;
   final Color cardBg, surfBg, tc, sub;
   final VoidCallback onShareUpdated;
   final void Function(String) onAddChatMsg;
@@ -2246,6 +2261,7 @@ class _ExpenseTile extends StatefulWidget {
     required this.group,
     required this.myId,
     required this.isDark,
+    required this.isAdmin,
     required this.cardBg,
     required this.surfBg,
     required this.tc,
@@ -2407,7 +2423,7 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            '₹${tx.totalAmount.toStringAsFixed(0)}',
+                            '${AppPrefs.cs}${tx.totalAmount.toStringAsFixed(0)}',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -2506,6 +2522,7 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                 myId: widget.myId,
                 addedById: tx.addedById,
                 isDark: widget.isDark,
+                isAdmin: widget.isAdmin,
                 surfBg: widget.surfBg,
                 tc: tc,
                 sub: sub,
@@ -2533,7 +2550,7 @@ class _ShareRow extends StatelessWidget {
   final SplitShare share;
   final SplitGroupTx tx;
   final String personName, personEmoji, myId, addedById;
-  final bool isMe, isPayer, isDark;
+  final bool isMe, isPayer, isDark, isAdmin;
   final Color surfBg, tc, sub;
   final VoidCallback onUpdate;
   final void Function(String) onAddChatMsg;
@@ -2554,6 +2571,7 @@ class _ShareRow extends StatelessWidget {
     required this.sub,
     required this.onUpdate,
     required this.onAddChatMsg,
+    required this.isAdmin,
     this.onSendReminder,
   });
 
@@ -2608,7 +2626,7 @@ class _ShareRow extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '₹${share.amount.toStringAsFixed(0)}',
+                      '${AppPrefs.cs}${share.amount.toStringAsFixed(0)}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
@@ -2827,7 +2845,7 @@ class _ShareRow extends StatelessWidget {
           _ActionBtn('✅ Mark Received', AppColors.income, () {
             share.status = SettleStatus.settled;
             _persistShare(context, 'settled');
-            onAddChatMsg('Marked ₹${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
+            onAddChatMsg('Marked ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
             onUpdate();
           }),
           _ActionBtn('❌ Dispute', AppColors.expense, () {
@@ -2861,6 +2879,19 @@ class _ShareRow extends StatelessWidget {
       actions.add(
         _ActionBtn('⏰ Request Extension', const Color(0xFF9C27B0), () {
           _showDebtorExtensionSheet(context);
+        }),
+      );
+    }
+
+    // Admin override — can force-settle any pending share (e.g. for removed members)
+    if (isAdmin && !_isMyShare && !_iAmPayer &&
+        (st == SettleStatus.pending || st == SettleStatus.extensionRequested)) {
+      actions.add(
+        _ActionBtn('✅ Mark Settled (Admin)', const Color(0xFF009688), () {
+          share.status = SettleStatus.settled;
+          _persistShare(context, 'settled');
+          onAddChatMsg('Admin marked ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
+          onUpdate();
         }),
       );
     }
@@ -2937,7 +2968,7 @@ class _ShareRow extends StatelessWidget {
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
                             fontFamily: 'Nunito', color: tc)),
                     Text(
-                      'For ₹${share.amount.toStringAsFixed(0)} · ${tx.title}',
+                      'For ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} · ${tx.title}',
                       style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                     ),
                   ]),
@@ -3368,7 +3399,7 @@ class _ProofSheetState extends State<_ProofSheet> {
                       ),
                     ),
                     Text(
-                      '₹${widget.totalAmount.toStringAsFixed(0)} total · ${widget.pendingLabels.length} payment${widget.pendingLabels.length > 1 ? 's' : ''}',
+                      '${AppPrefs.cs}${widget.totalAmount.toStringAsFixed(0)} total · ${widget.pendingLabels.length} payment${widget.pendingLabels.length > 1 ? 's' : ''}',
                       style: TextStyle(
                         fontSize: 12,
                         fontFamily: 'Nunito',
@@ -3473,7 +3504,7 @@ class _ProofSheetState extends State<_ProofSheet> {
               ),
               decoration: InputDecoration(
                 hintText:
-                    'e.g. GPay ref# 48219 sent ₹${widget.totalAmount.toStringAsFixed(0)}',
+                    'e.g. GPay ref# 48219 sent ${AppPrefs.cs}${widget.totalAmount.toStringAsFixed(0)}',
                 hintStyle: TextStyle(
                   fontFamily: 'Nunito',
                   fontSize: 12,
@@ -3927,7 +3958,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
       if ((shareSum - total).abs() > 0.01) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-            'Shares total ₹${shareSum.toStringAsFixed(2)} must equal ₹${total.toStringAsFixed(2)}',
+            'Shares total ${AppPrefs.cs}${shareSum.toStringAsFixed(2)} must equal ${AppPrefs.cs}${total.toStringAsFixed(2)}',
           ),
           backgroundColor: Colors.red.shade700,
         ));
@@ -3952,7 +3983,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
       if (shareSum > total + 0.01) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-            'Shares total ₹${shareSum.toStringAsFixed(2)} exceeds ₹${total.toStringAsFixed(2)}',
+            'Shares total ${AppPrefs.cs}${shareSum.toStringAsFixed(2)} exceeds ${AppPrefs.cs}${total.toStringAsFixed(2)}',
           ),
           backgroundColor: Colors.red.shade700,
         ));
@@ -4191,7 +4222,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                         color: AppColors.split,
                       ),
                       decoration: InputDecoration(
-                        prefixText: '₹ ',
+                        prefixText: '${AppPrefs.cs} ',
                         prefixStyle: TextStyle(
                           fontSize: 18,
                           color: AppColors.split.withValues(alpha: 0.6),
@@ -4380,7 +4411,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                                     prefixText:
                                         _splitType == SplitType.percentage
                                         ? ''
-                                        : '₹',
+                                        : AppPrefs.cs,
                                     suffixText:
                                         _splitType == SplitType.percentage
                                         ? '%'

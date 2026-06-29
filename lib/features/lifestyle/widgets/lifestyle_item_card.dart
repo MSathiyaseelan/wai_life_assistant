@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyleItem.dart';
 import 'package:wai_life_assistant/data/enum/lifestyleCategory.dart';
 import 'package:wai_life_assistant/features/lifestyle/modules/vehicle/vehicle_detail_screen.dart';
@@ -36,7 +37,7 @@ class LifestyleItemCard extends StatelessWidget {
               Row(
                 children: [
                   if (item.price != null)
-                    Text('₹${item.price!.toStringAsFixed(0)}'),
+                    Text('${AppPrefs.cs}${item.price!.toStringAsFixed(0)}'),
 
                   if (item.purchaseDate != null) ...[
                     const SizedBox(width: 12),

@@ -28,7 +28,7 @@ class _CurrencySheetState extends State<CurrencySheet> {
   Widget build(BuildContext context) {
     return PrefsSheetBase(
       isDark: widget.isDark,
-      title: '₹  Currency',
+      title: '${AppPrefs.cs}  Currency',
       loading: _loading,
       child: ListenableBuilder(
         listenable: _p,

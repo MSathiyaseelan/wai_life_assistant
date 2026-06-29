@@ -292,6 +292,17 @@ class ProfileService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  /// Same as [fetchMembers] but includes soft-deleted members — used to keep
+  /// past transaction "added by" labels visible after a member leaves.
+  Future<List<Map<String, dynamic>>> fetchAllMembers(String familyId) async {
+    final rows = await _db
+        .from('family_members')
+        .select()
+        .eq('family_id', familyId)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   // ── Photo Upload ──────────────────────────────────────────────────────────
 
   /// Upload a local image file to Supabase Storage and return its public URL.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/tx_tile.dart';
@@ -158,7 +159,7 @@ class _TxGroupCardState extends State<TxGroupCard>
                               fontFamily: 'Nunito',
                               color: tc)),
                       Text(
-                        '${widget.group.transactions.length} expense${widget.group.transactions.length == 1 ? '' : 's'}  •  ₹${_fmt(widget.group.total)}',
+                        '${widget.group.transactions.length} expense${widget.group.transactions.length == 1 ? '' : 's'}  •  ${AppPrefs.cs}${_fmt(widget.group.total)}',
                         style: TextStyle(
                             fontSize: 12, fontFamily: 'Nunito', color: sub),
                       ),
@@ -337,7 +338,7 @@ class _TxGroupCardState extends State<TxGroupCard>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        widget.hideAmount ? '₹••••' : '₹${_fmt(g.total)}',
+                        widget.hideAmount ? '${AppPrefs.cs}••••' : '${AppPrefs.cs}${_fmt(g.total)}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
@@ -475,7 +476,7 @@ class _TxDragFeedback extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              '₹${tx.amount.toStringAsFixed(0)}',
+              '${AppPrefs.cs}${tx.amount.toStringAsFixed(0)}',
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w900,

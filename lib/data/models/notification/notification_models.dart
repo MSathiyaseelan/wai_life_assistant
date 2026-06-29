@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Notification Models
 // ─────────────────────────────────────────────────────────────────────────────
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 
 class AppNotification {
   final String id;
@@ -80,6 +81,6 @@ class AppNotification {
   String get body {
     final label = txTitle?.isNotEmpty == true ? txTitle! : txCategory;
     final sign   = (txType == 'income' || txType == 'borrow') ? '+' : '-';
-    return '$actorEmoji $actorName added $txType · $label · $sign₹${txAmount.toStringAsFixed(0)}';
+    return '$actorEmoji $actorName added $txType · $label · $sign${AppPrefs.cs}${txAmount.toStringAsFixed(0)}';
   }
 }

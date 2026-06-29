@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../core/theme/app_theme.dart';
 
 // ── Bottom sheet launcher ─────────────────────────────────────────────────────
@@ -280,7 +281,7 @@ class QuoteCard extends StatelessWidget {
             Text(phone, style: const TextStyle(fontSize: 11,
               fontFamily: 'Nunito', color: AppColors.income))]),
         ])),
-        Text('₹${(amount/1000).toStringAsFixed(1)}K',
+        Text('${AppPrefs.cs}${(amount/1000).toStringAsFixed(1)}K',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900,
             fontFamily: 'DM Mono', color: color)),
       ]));

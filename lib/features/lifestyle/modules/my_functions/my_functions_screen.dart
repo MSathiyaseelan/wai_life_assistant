@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -2249,9 +2250,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'COST'),
                 Row(children: [
-                  Expanded(child: PlanInputField(controller: costCtrl, hint: 'Total cost (₹)', inputType: TextInputType.number)),
+                  Expanded(child: PlanInputField(controller: costCtrl, hint: 'Total cost (${AppPrefs.cs})', inputType: TextInputType.number)),
                   const SizedBox(width: 10),
-                  Expanded(child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (₹)', inputType: TextInputType.number)),
+                  Expanded(child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (${AppPrefs.cs})', inputType: TextInputType.number)),
                 ]),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'EVENT LINKED'),
@@ -2350,9 +2351,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'COST'),
                 Row(children: [
-                  Expanded(child: PlanInputField(controller: costCtrl, hint: 'Total cost (₹)', inputType: TextInputType.number)),
+                  Expanded(child: PlanInputField(controller: costCtrl, hint: 'Total cost (${AppPrefs.cs})', inputType: TextInputType.number)),
                   const SizedBox(width: 10),
-                  Expanded(child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (₹)', inputType: TextInputType.number)),
+                  Expanded(child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (${AppPrefs.cs})', inputType: TextInputType.number)),
                 ]),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'EVENT LINKED'),
@@ -3085,7 +3086,7 @@ class _ClothingGiftsTab extends StatelessWidget {
                     Row(children: [
                       Expanded(child: TextField(controller: mBrandCtrl, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: 'Brand preference', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
                       const SizedBox(width: 12),
-                      Expanded(child: TextField(controller: mBudgetCtrl, keyboardType: TextInputType.number, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: '₹ Budget', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
+                      Expanded(child: TextField(controller: mBudgetCtrl, keyboardType: TextInputType.number, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: '${AppPrefs.cs} Budget', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
                     ]),
                     const SizedBox(height: 6),
                     GestureDetector(
@@ -3176,7 +3177,7 @@ class _ClothingGiftsTab extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('$totalMembers members across ${families.length} families', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                            Text('$totalPurchased purchased • ₹${totalBudget.toStringAsFixed(0)} total budget', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                            Text('$totalPurchased purchased • ${AppPrefs.cs}${totalBudget.toStringAsFixed(0)} total budget', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                           ],
                         ),
                       ),
@@ -3205,7 +3206,7 @@ class _ClothingGiftsTab extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(family.familyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc))),
                                 if (family.totalBudget > 0)
-                                  Text('₹${family.totalBudget.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
+                                  Text('${AppPrefs.cs}${family.totalBudget.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
                               ],
                             ),
                             if (family.members.isNotEmpty) ...[
@@ -3234,7 +3235,7 @@ class _ClothingGiftsTab extends StatelessWidget {
                                       ),
                                     ),
                                     if (m.budget != null)
-                                      Text('₹${m.budget!.toStringAsFixed(0)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                                      Text('${AppPrefs.cs}${m.budget!.toStringAsFixed(0)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                                     const SizedBox(width: 6),
                                     Icon(
                                       m.purchased ? Icons.check_circle_rounded : Icons.circle_outlined,
@@ -3327,7 +3328,7 @@ class _BridalEssentialsTab extends StatelessWidget {
             const SheetLabel(text: 'VENDOR / SHOP'),
             PlanInputField(controller: vendorCtrl, hint: 'Vendor or shop name'),
             const SizedBox(height: 8),
-            const SheetLabel(text: 'COST (₹)'),
+            SheetLabel(text: 'COST (${AppPrefs.cs})'),
             PlanInputField(controller: costCtrl, hint: 'Estimated cost', inputType: TextInputType.number),
             const SizedBox(height: 12),
             const SheetLabel(text: 'STATUS'),
@@ -3418,7 +3419,7 @@ class _BridalEssentialsTab extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('${essentials.length} items • $done done', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                      Text('₹${totalCost.toStringAsFixed(0)} estimated', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      Text('${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                     ])),
                   ]),
                 ),
@@ -3468,7 +3469,7 @@ class _BridalEssentialsTab extends StatelessWidget {
                               ]),
                             ),
                             if (e.cost != null)
-                              Text('₹${e.cost!.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
+                              Text('${AppPrefs.cs}${e.cost!.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
                           ],
                         ),
                       ),
@@ -3521,8 +3522,8 @@ class _ReturnGiftsTab extends StatelessWidget {
             const SizedBox(height: 8),
             Row(children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const SheetLabel(text: 'APPROX PRICE (₹)'),
-                PlanInputField(controller: priceCtrl, hint: '₹ per item', inputType: TextInputType.number),
+                SheetLabel(text: 'APPROX PRICE (${AppPrefs.cs})'),
+                PlanInputField(controller: priceCtrl, hint: '${AppPrefs.cs} per item', inputType: TextInputType.number),
               ])),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3608,7 +3609,7 @@ class _ReturnGiftsTab extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('${gifts.length} gift types • $totalQty total items', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                      Text('₹${totalCost.toStringAsFixed(0)} estimated total', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      Text('${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated total', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                     ])),
                   ]),
                 ),
@@ -3646,9 +3647,9 @@ class _ReturnGiftsTab extends StatelessWidget {
                           ])),
                           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                             if (g.approxPrice != null)
-                              Text('₹${g.approxPrice!.toStringAsFixed(0)}/item', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                              Text('${AppPrefs.cs}${g.approxPrice!.toStringAsFixed(0)}/item', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                             if (g.totalCost > 0)
-                              Text('₹${g.totalCost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
+                              Text('${AppPrefs.cs}${g.totalCost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
                           ]),
                         ]),
                       ),
@@ -3878,7 +3879,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   children: [
                     _FuncStat(
                       label: 'Cash',
-                      value: '₹${fn.totalCash.toStringAsFixed(0)}',
+                      value: '${AppPrefs.cs}${fn.totalCash.toStringAsFixed(0)}',
                       emoji: '💵',
                       color: AppColors.income,
                     ),
@@ -4143,7 +4144,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   Expanded(
                     child: PlanInputField(
                       controller: costCtrl,
-                      hint: 'Total cost (₹)',
+                      hint: 'Total cost (${AppPrefs.cs})',
                       inputType: TextInputType.number,
                     ),
                   ),
@@ -4151,7 +4152,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   Expanded(
                     child: PlanInputField(
                       controller: advanceCtrl,
-                      hint: 'Advance paid (₹)',
+                      hint: 'Advance paid (${AppPrefs.cs})',
                       inputType: TextInputType.number,
                     ),
                   ),
@@ -4324,7 +4325,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   Expanded(
                     child: PlanInputField(
                       controller: costCtrl,
-                      hint: 'Total cost (₹)',
+                      hint: 'Total cost (${AppPrefs.cs})',
                       inputType: TextInputType.number,
                     ),
                   ),
@@ -4332,7 +4333,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   Expanded(
                     child: PlanInputField(
                       controller: advanceCtrl,
-                      hint: 'Advance paid (₹)',
+                      hint: 'Advance paid (${AppPrefs.cs})',
                       inputType: TextInputType.number,
                     ),
                   ),
@@ -5404,14 +5405,14 @@ class _AllVendorsTab extends StatelessWidget {
               _VendorStat(
                 label: 'Total Cost',
                 value:
-                    '₹${fn.vendors.fold(0.0, (s, v) => s + (v.totalCost ?? 0)).toStringAsFixed(0)}',
+                    '${AppPrefs.cs}${fn.vendors.fold(0.0, (s, v) => s + (v.totalCost ?? 0)).toStringAsFixed(0)}',
                 color: AppColors.expense,
                 isDark: isDark,
               ),
               _VendorStat(
                 label: 'Balance Due',
                 value:
-                    '₹${fn.vendors.fold(0.0, (s, v) => s + v.balance).toStringAsFixed(0)}',
+                    '${AppPrefs.cs}${fn.vendors.fold(0.0, (s, v) => s + v.balance).toStringAsFixed(0)}',
                 color: AppColors.lend,
                 isDark: isDark,
               ),
@@ -5515,7 +5516,7 @@ class _AllVendorsTab extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    '₹${v.totalCost!.toStringAsFixed(0)}',
+                                    '${AppPrefs.cs}${v.totalCost!.toStringAsFixed(0)}',
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w800,
@@ -5693,7 +5694,7 @@ class _CostChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
     ),
     child: Text(
-      '$label: ₹${value.toStringAsFixed(0)}',
+      '$label: ${AppPrefs.cs}${value.toStringAsFixed(0)}',
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w700,
@@ -6649,7 +6650,7 @@ class _UpcomingPlanningTabState extends State<_UpcomingPlanningTab> {
               minLines: 1,
               style: TextStyle(fontSize: 14, color: tc, fontFamily: 'Nunito'),
               decoration: InputDecoration.collapsed(
-                hintText: 'Amount or notes… (e.g. ₹5000)',
+                hintText: 'Amount or notes… (e.g. ${AppPrefs.cs}5000)',
                 hintStyle: TextStyle(
                   fontSize: 13,
                   color: sub,
@@ -7115,13 +7116,13 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                 children: [
                   _MoiStat(
                     'Received',
-                    '₹${totalReceived.toStringAsFixed(0)}',
+                    '${AppPrefs.cs}${totalReceived.toStringAsFixed(0)}',
                     _moiColor,
                   ),
                   const SizedBox(width: 8),
                   _MoiStat(
                     'Returned',
-                    '₹${totalReturned.toStringAsFixed(0)}',
+                    '${AppPrefs.cs}${totalReturned.toStringAsFixed(0)}',
                     AppColors.income,
                   ),
                   const SizedBox(width: 8),
@@ -7472,7 +7473,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                                       ),
                                     ),
                                     Text(
-                                      '₹${entry.amount.toStringAsFixed(0)}',
+                                      '${AppPrefs.cs}${entry.amount.toStringAsFixed(0)}',
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w900,
@@ -7497,7 +7498,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           const _SheetLabel(text: 'AMOUNT YOU ARE RETURNING'),
                           PlanInputField(
                             controller: amountCtrl,
-                            hint: 'Return amount (₹)',
+                            hint: 'Return amount (${AppPrefs.cs})',
                             inputType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
@@ -7724,7 +7725,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                           const _SheetLabel(text: 'MOI AMOUNT'),
                           PlanInputField(
                             controller: amountCtrl,
-                            hint: 'Amount received (₹) *',
+                            hint: 'Amount received (${AppPrefs.cs}) *',
                             inputType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
@@ -8155,7 +8156,7 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
           const _SheetLabel(text: 'MOI AMOUNT'),
           PlanInputField(
             controller: _amountCtrl,
-            hint: 'Amount received (₹) *',
+            hint: 'Amount received (${AppPrefs.cs}) *',
             inputType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 8),
@@ -8347,7 +8348,7 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
                             decimal: true),
                         style: TextStyle(fontSize: 13, fontFamily: 'Nunito',
                             color: tc),
-                        decoration: inputDec('Amount ₹ *', required: true),
+                        decoration: inputDec('Amount ${AppPrefs.cs} *', required: true),
                         onSubmitted: (_) => _addQuickRow(),
                       ),
                     ),
@@ -8390,7 +8391,7 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
                 ),
                 const Spacer(),
                 Text(
-                  'Total ₹${totalAmt % 1 == 0 ? totalAmt.toInt() : totalAmt.toStringAsFixed(2)}',
+                  'Total ${AppPrefs.cs}${totalAmt % 1 == 0 ? totalAmt.toInt() : totalAmt.toStringAsFixed(2)}',
                   style: const TextStyle(
                     fontSize: 12, fontFamily: 'Nunito',
                     fontWeight: FontWeight.w900, color: _moiColor,
@@ -8470,7 +8471,7 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
                               ),
                             ),
                             Text(
-                              '₹${amt == null ? '-' : amt % 1 == 0 ? amt.toInt() : amt.toStringAsFixed(2)}',
+                              '${AppPrefs.cs}${amt == null ? '-' : amt % 1 == 0 ? amt.toInt() : amt.toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 13, fontFamily: 'Nunito',
                                 fontWeight: FontWeight.w900,
@@ -9079,7 +9080,7 @@ class _MoiCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '₹${entry.amount.toStringAsFixed(0)}',
+                          '${AppPrefs.cs}${entry.amount.toStringAsFixed(0)}',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
@@ -9094,7 +9095,7 @@ class _MoiCard extends StatelessWidget {
                         ),
                         if (entry.returned && entry.returnedAmount != null)
                           Text(
-                            '₹${entry.returnedAmount!.toStringAsFixed(0)} returned',
+                            '${AppPrefs.cs}${entry.returnedAmount!.toStringAsFixed(0)} returned',
                             style: const TextStyle(
                               fontSize: 10,
                               fontFamily: 'DM Mono',

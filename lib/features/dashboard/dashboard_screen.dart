@@ -1824,7 +1824,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   child: Row(
                     children: [
                       Text(
-                        '₹',
+                        AppPrefs.cs,
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
@@ -2951,7 +2951,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         sRow(emoji: '🌐', bg: const Color(0xFFE0EEFF), title: 'Language & Voice',
                           subtitle: 'Input & speech language', value: 'English',
                           onTap: _prefsTap(ctx, isDark, 'Language & Voice')),
-                        sRow(emoji: '₹', bg: const Color(0xFFE0F0FF), title: 'Currency',
+                        sRow(emoji: AppPrefs.cs, bg: const Color(0xFFE0F0FF), title: 'Currency',
                           subtitle: 'Display currency', value: 'INR',
                           onTap: _prefsTap(ctx, isDark, 'Currency')),
                         sRow(emoji: '📅', bg: const Color(0xFFE0F8EC), title: 'Date & Time',
@@ -3185,12 +3185,13 @@ class _SpendingPulseCard extends StatelessWidget {
 
   String _fmt(double v) {
     if (hidden) return '••••';
-    if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
+    final cs = AppPrefs.cs;
+    if (v >= 100000) return '$cs${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 1000) {
       final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
-      return '₹${s}k';
+      return '$cs${s}k';
     }
-    return '₹${v.toStringAsFixed(0)}';
+    return '$cs${v.toStringAsFixed(0)}';
   }
 
   @override
@@ -3358,7 +3359,8 @@ class _TxRow extends StatelessWidget {
 
   String _fmtAmt() {
     if (hidden) return '••••';
-    final prefix = tx.type.isPositive ? '+₹' : '-₹';
+    final cs = AppPrefs.cs;
+    final prefix = tx.type.isPositive ? '+$cs' : '-$cs';
     final v = tx.amount;
     if (v >= 100000) return '$prefix${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 1000) {
@@ -3435,7 +3437,8 @@ class _TodayTxSheet extends StatelessWidget {
 
   String _fmtAmt(TxModel tx) {
     if (hidden) return '••••';
-    final prefix = tx.type.isPositive ? '+₹' : '-₹';
+    final cs = AppPrefs.cs;
+    final prefix = tx.type.isPositive ? '+$cs' : '-$cs';
     final v = tx.amount;
     if (v >= 100000) return '$prefix${(v / 100000).toStringAsFixed(1)}L';
     if (v >= 1000) {
@@ -3709,7 +3712,7 @@ class _SplitNudgeCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '₹${tx.amount.toStringAsFixed(0)}',
+                '${AppPrefs.cs}${tx.amount.toStringAsFixed(0)}',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
@@ -3776,9 +3779,10 @@ class _PinnedSplitCard extends StatelessWidget {
     );
     final myBalance = group.netBalances[me.id] ?? 0.0;
     final balanceColor = myBalance >= 0 ? AppColors.income : AppColors.expense;
+    final cs = AppPrefs.cs;
     final balanceLabel = myBalance >= 0
-        ? '+₹${myBalance.abs().toStringAsFixed(0)} owed to you'
-        : '₹${myBalance.abs().toStringAsFixed(0)} you owe';
+        ? '+$cs${myBalance.abs().toStringAsFixed(0)} owed to you'
+        : '$cs${myBalance.abs().toStringAsFixed(0)} you owe';
 
     return GestureDetector(
       onTap: onTap,

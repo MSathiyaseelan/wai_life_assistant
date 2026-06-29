@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
@@ -400,7 +401,7 @@ class _BillSummary extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '₹${_fmtAmt(total)}',
+                  '${AppPrefs.cs}${_fmtAmt(total)}',
                   style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
@@ -724,7 +725,7 @@ class _BillCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '₹${_fmtAmt(bill.amount)}',
+                          '${AppPrefs.cs}${_fmtAmt(bill.amount)}',
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
@@ -926,7 +927,7 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
                 ),
               ),
               Text(
-                '₹${_fmtAmt(b.amount)}',
+                '${AppPrefs.cs}${_fmtAmt(b.amount)}',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
@@ -1213,7 +1214,7 @@ class _HistoryRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '₹${_fmtAmt(payment.amount)}',
+                  '${AppPrefs.cs}${_fmtAmt(payment.amount)}',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
@@ -1813,9 +1814,9 @@ class _ManualForm extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Text(
-                      '₹',
-                      style: TextStyle(
+                    Text(
+                      AppPrefs.cs,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
                         color: AppColors.borrow,
@@ -2311,7 +2312,7 @@ class _AiPreviewCard extends StatelessWidget {
               ),
               if (preview.amount > 0)
                 _Chip(
-                  label: '₹${_fmtAmt(preview.amount)}',
+                  label: '${AppPrefs.cs}${_fmtAmt(preview.amount)}',
                   color: AppColors.income,
                 ),
               _Chip(

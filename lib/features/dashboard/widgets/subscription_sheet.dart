@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/subscription/subscription_models.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
@@ -527,10 +528,10 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
     final description = 'Up to $memberCount members · $txCount tx/mo · $aiCalls AI calls';
 
     final monthlyPrice = plan.priceMonthly > 0
-        ? '₹${plan.priceMonthly.toStringAsFixed(0)}'
+        ? '${AppPrefs.cs}${plan.priceMonthly.toStringAsFixed(0)}'
         : 'TBD';
     final yearlyPrice = plan.priceYearly > 0
-        ? '₹${plan.priceYearly.toStringAsFixed(0)}'
+        ? '${AppPrefs.cs}${plan.priceYearly.toStringAsFixed(0)}'
         : 'TBD';
 
     return Container(

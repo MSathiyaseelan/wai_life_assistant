@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
@@ -138,7 +139,7 @@ class _BudgetSheetState extends State<BudgetSheet> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Monthly limit (₹)',
+              'Monthly limit (${AppPrefs.cs})',
               style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
                   fontWeight: FontWeight.w600, color: sub),
             ),
@@ -153,7 +154,7 @@ class _BudgetSheetState extends State<BudgetSheet> {
                 fontSize: 22, color: tc,
               ),
               decoration: InputDecoration(
-                prefixText: '₹ ',
+                prefixText: '${AppPrefs.cs} ',
                 prefixStyle: TextStyle(
                   fontFamily: 'Nunito', fontWeight: FontWeight.w700,
                   fontSize: 20, color: sub,
@@ -673,7 +674,7 @@ class _BudgetTile extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  '₹${_fmt(budget.spent)} spent',
+                  '${AppPrefs.cs}${_fmt(budget.spent)} spent',
                   style: TextStyle(
                     fontSize: 12, fontFamily: 'Nunito',
                     fontWeight: FontWeight.w700, color: _barColor,
@@ -681,7 +682,7 @@ class _BudgetTile extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'of ₹${_fmt(budget.limitAmount)}',
+                  'of ${AppPrefs.cs}${_fmt(budget.limitAmount)}',
                   style: TextStyle(
                     fontSize: 12, fontFamily: 'Nunito',
                     fontWeight: FontWeight.w600, color: sub,
@@ -756,7 +757,7 @@ class _CategoryTile extends StatelessWidget {
                 if (hasSpend) ...[
                   const SizedBox(height: 2),
                   Text(
-                    '₹${_fmt(spent)} this month',
+                    '${AppPrefs.cs}${_fmt(spent)} this month',
                     style: TextStyle(
                       fontSize: 11, fontFamily: 'Nunito',
                       fontWeight: FontWeight.w600,
@@ -895,7 +896,7 @@ class _MonthSummaryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '₹${_fmt(totalSpent)}',
+                '${AppPrefs.cs}${_fmt(totalSpent)}',
                 style: TextStyle(
                   fontSize: 30, fontFamily: 'Nunito',
                   fontWeight: FontWeight.w900,
@@ -930,7 +931,7 @@ class _MonthSummaryCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    '₹${_fmt(budgetedSpend)} in budgeted categories',
+                    '${AppPrefs.cs}${_fmt(budgetedSpend)} in budgeted categories',
                     style: TextStyle(
                       fontSize: 11, fontFamily: 'Nunito',
                       fontWeight: FontWeight.w600, color: sub,
@@ -948,7 +949,7 @@ class _MonthSummaryCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    '₹${_fmt(unbudgetedSpend)} unbudgeted',
+                    '${AppPrefs.cs}${_fmt(unbudgetedSpend)} unbudgeted',
                     style: TextStyle(
                       fontSize: 11, fontFamily: 'Nunito',
                       fontWeight: FontWeight.w600, color: sub,
@@ -972,7 +973,7 @@ class _MonthSummaryCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '₹${_fmt(budgetedSpend)} / ₹${_fmt(totalBudgeted)}',
+                  '${AppPrefs.cs}${_fmt(budgetedSpend)} / ${AppPrefs.cs}${_fmt(totalBudgeted)}',
                   style: TextStyle(
                     fontSize: 11, fontFamily: 'Nunito',
                     fontWeight: FontWeight.w700, color: barColor,

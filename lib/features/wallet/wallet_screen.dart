@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
@@ -630,7 +631,7 @@ class _WalletScreenState extends State<WalletScreen>
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '${tx.type.label} of ₹${tx.amount.toStringAsFixed(0)} saved!',
+                '${tx.type.label} of ${AppPrefs.cs}${tx.amount.toStringAsFixed(0)} saved!',
                 style: const TextStyle(
                   fontFamily: 'Nunito',
                   fontWeight: FontWeight.w700,
@@ -748,7 +749,7 @@ class _WalletScreenState extends State<WalletScreen>
             ),
             const SizedBox(height: 4),
             Text(
-              '${tx.type.emoji} ${tx.type.label} · ₹${tx.amount.toStringAsFixed(0)}',
+              '${tx.type.emoji} ${tx.type.label} · ${AppPrefs.cs}${tx.amount.toStringAsFixed(0)}',
               style: TextStyle(
                 fontSize: 12,
                 color: sub,
@@ -1538,7 +1539,7 @@ class _WalletScreenState extends State<WalletScreen>
                         ),
                         Flexible(
                           child: Text(
-                            '₹${toGive.toStringAsFixed(0)}',
+                            '${AppPrefs.cs}${toGive.toStringAsFixed(0)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1573,7 +1574,7 @@ class _WalletScreenState extends State<WalletScreen>
                         ),
                         Flexible(
                           child: Text(
-                            '₹${toReceive.toStringAsFixed(0)}',
+                            '${AppPrefs.cs}${toReceive.toStringAsFixed(0)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1807,7 +1808,7 @@ class _WalletScreenState extends State<WalletScreen>
                               ),
                             ),
                             Text(
-                              '₹${amt.toStringAsFixed(0)}',
+                              '${AppPrefs.cs}${amt.toStringAsFixed(0)}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -2716,6 +2717,10 @@ class _WalletScreenState extends State<WalletScreen>
   /// Builds a userId→displayName map for the current active family wallet.
   Map<String, String> get _activeMemberNames {
     final map = <String, String>{};
+    // Start with all-members map (includes removed members) so past transactions
+    // still show the correct name after a member leaves the group.
+    map.addAll(_appState.allMemberNames);
+    // Override with live active-member data so current names/emojis stay fresh.
     for (final family in _appState.families) {
       if (family.walletId == widget.activeWalletId) {
         for (final m in family.members) {
@@ -2905,11 +2910,11 @@ class _WalletScreenState extends State<WalletScreen>
     final String insightIcon;
 
     if (dailyAvg >= 1000) {
-      insightText = '📊 ₹${_fmtAmt(totalExpense)} spent · avg ₹${_fmtAmt(dailyAvg)}/day · ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} $topPct%';
+      insightText = '📊 ${AppPrefs.cs}${_fmtAmt(totalExpense)} spent · avg ${AppPrefs.cs}${_fmtAmt(dailyAvg)}/day · ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} $topPct%';
       insightColor = const Color(0xFFF87171);
       insightIcon = '📊';
     } else {
-      insightText = '💡 ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} leads at ₹${_fmtAmt(topEntry.value)} ($topPct%) · ₹${_fmtAmt(totalExpense)} total';
+      insightText = '💡 ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} leads at ${AppPrefs.cs}${_fmtAmt(topEntry.value)} ($topPct%) · ${AppPrefs.cs}${_fmtAmt(totalExpense)} total';
       insightColor = const Color(0xFFFBBF24);
       insightIcon = '💡';
     }
@@ -3010,7 +3015,7 @@ class _WalletScreenState extends State<WalletScreen>
                             ),
                           ),
                           Text(
-                            '₹${_fmtAmt(e.value)}',
+                            '${AppPrefs.cs}${_fmtAmt(e.value)}',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
@@ -3214,7 +3219,7 @@ class _TxDragFeedback extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              '₹${tx.amount.toStringAsFixed(0)}',
+              '${AppPrefs.cs}${tx.amount.toStringAsFixed(0)}',
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
@@ -3475,7 +3480,7 @@ class _SplitGroupCard extends StatelessWidget {
             Row(
               children: [
                 _StatPill(
-                  label: '₹${group.totalSpend.toStringAsFixed(0)}',
+                  label: '${AppPrefs.cs}${group.totalSpend.toStringAsFixed(0)}',
                   sublabel: 'Total Spend',
                   color: AppColors.split,
                 ),
@@ -3494,8 +3499,8 @@ class _SplitGroupCard extends StatelessWidget {
                       : isEven
                       ? 'Settled'
                       : isOwed
-                      ? '+₹${myBalance.abs().toStringAsFixed(0)}'
-                      : '-₹${myBalance.abs().toStringAsFixed(0)}',
+                      ? '+${AppPrefs.cs}${myBalance.abs().toStringAsFixed(0)}'
+                      : '-${AppPrefs.cs}${myBalance.abs().toStringAsFixed(0)}',
                   sublabel: group.transactions.isEmpty
                       ? 'Your status'
                       : isEven
@@ -3823,7 +3828,7 @@ class _ContactTxPage extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '₹${_fmt(netAmount.abs())}',
+                  '${AppPrefs.cs}${_fmt(netAmount.abs())}',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
@@ -3905,7 +3910,7 @@ class _ContactTxPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '₹${_fmt(tx.amount)}',
+                            '${AppPrefs.cs}${_fmt(tx.amount)}',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -4047,7 +4052,7 @@ class _RequestResponseSheetState extends State<_RequestResponseSheet> {
             // Request summary
             const SizedBox(height: 6),
             Text(
-              '₹${_fmtAmt(widget.amount)}'
+              '${AppPrefs.cs}${_fmtAmt(widget.amount)}'
               '${widget.personName != null ? ' from ${widget.personName}' : ''}',
               style: TextStyle(
                 fontSize: 14,

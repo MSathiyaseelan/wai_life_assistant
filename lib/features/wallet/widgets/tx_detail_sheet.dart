@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -672,7 +673,7 @@ class _TxEditSheetState extends State<TxEditSheet> {
                   color: _type.color,
                 ),
                 decoration: InputDecoration(
-                  prefixText: '₹ ',
+                  prefixText: '${AppPrefs.cs} ',
                   prefixStyle: TextStyle(
                     fontSize: 18,
                     color: _type.color.withValues(alpha: 0.6),

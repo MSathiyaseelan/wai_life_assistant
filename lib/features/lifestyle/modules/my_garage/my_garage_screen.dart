@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
@@ -1149,7 +1150,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
               const SizedBox(height: 8),
               LifeInput(
                 controller: premCtrl,
-                hint: 'Annual premium (₹)',
+                hint: 'Annual premium (${AppPrefs.cs})',
                 inputType: TextInputType.number,
               ),
               const SizedBox(height: 12),
@@ -1263,7 +1264,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
               const SizedBox(height: 8),
               LifeInput(
                 controller: costCtrl,
-                hint: 'Cost (₹)',
+                hint: 'Cost (${AppPrefs.cs})',
                 inputType: TextInputType.number,
               ),
               const SizedBox(height: 8),
@@ -1386,7 +1387,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
               const SizedBox(height: 8),
               LifeInput(
                 controller: costCtrl,
-                hint: 'Estimated cost (₹)',
+                hint: 'Estimated cost (${AppPrefs.cs})',
                 inputType: TextInputType.number,
               ),
               const SizedBox(height: 12),
@@ -1523,7 +1524,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
               const SizedBox(height: 8),
               LifeInput(
                 controller: premCtrl,
-                hint: 'Annual premium (₹)',
+                hint: 'Annual premium (${AppPrefs.cs})',
                 inputType: TextInputType.number,
               ),
               const SizedBox(height: 12),
@@ -1636,7 +1637,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
               const SizedBox(height: 8),
               LifeInput(
                 controller: costCtrl,
-                hint: 'Cost (₹)',
+                hint: 'Cost (${AppPrefs.cs})',
                 inputType: TextInputType.number,
               ),
               const SizedBox(height: 8),
@@ -1755,7 +1756,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
               const SizedBox(height: 8),
               LifeInput(
                 controller: costCtrl,
-                hint: 'Estimated cost (₹)',
+                hint: 'Estimated cost (${AppPrefs.cs})',
                 inputType: TextInputType.number,
               ),
               const SizedBox(height: 12),
@@ -2238,7 +2239,7 @@ class _InsuranceTabState extends State<_InsuranceTab> {
                           Expanded(
                             child: _InsCell(
                               label: 'Premium',
-                              value: '₹${p.premium.toStringAsFixed(0)}/yr',
+                              value: '${AppPrefs.cs}${p.premium.toStringAsFixed(0)}/yr',
                               color: sub,
                               tc: tc,
                             ),
@@ -2578,7 +2579,7 @@ class _ServiceTabState extends State<_ServiceTab> {
                   children: [
                     if (s.cost != null)
                       Text(
-                        '₹${s.cost!.toStringAsFixed(0)}',
+                        '${AppPrefs.cs}${s.cost!.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w900,
@@ -2798,7 +2799,7 @@ class _RepairTabState extends State<_RepairTab> {
                 children: [
                   if (r.estimatedCost != null)
                     Text(
-                      '~₹${r.estimatedCost!.toStringAsFixed(0)}',
+                      '~${AppPrefs.cs}${r.estimatedCost!.toStringAsFixed(0)}',
                       style: TextStyle(
                         fontSize: 11,
                         fontFamily: 'DM Mono',

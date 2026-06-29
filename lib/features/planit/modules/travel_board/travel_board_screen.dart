@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'dart:convert';
 import 'dart:io';
 import '../../../../../core/theme/app_theme.dart';
@@ -248,7 +249,7 @@ class _TravelBoardScreenState extends State<TravelBoardScreen>
       (emoji: '🏁', value: '$done', label: 'Completed', color: AppColors.split),
       (
         emoji: '💰',
-        value: '₹${_fmtK(total)}',
+        value: '${AppPrefs.cs}${_fmtK(total)}',
         label: 'Spent',
         color: AppColors.expense,
       ),
@@ -592,7 +593,7 @@ class _TripCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '₹${_fmtK(trip.totalSpent)} / ₹${_fmtK(trip.budget!)}',
+                          '${AppPrefs.cs}${_fmtK(trip.totalSpent)} / ${AppPrefs.cs}${_fmtK(trip.budget!)}',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -947,7 +948,7 @@ class _TripDetailSheetState extends State<_TripDetailSheet>
                 if (t.budget != null)
                   _DetailChip(
                     icon: '💰',
-                    label: '₹${_fmtK(t.totalSpent)} / ₹${_fmtK(t.budget!)}',
+                    label: '${AppPrefs.cs}${_fmtK(t.totalSpent)} / ${AppPrefs.cs}${_fmtK(t.budget!)}',
                     color: t.totalSpent > t.budget!
                         ? AppColors.expense
                         : AppColors.income,
@@ -1219,7 +1220,7 @@ class _OverviewTab extends StatelessWidget {
                       // Their expenses total
                       const SizedBox(width: 6),
                       Text(
-                        '₹${_fmtK(trip.expenses.where((e) => e.paidBy == id).fold(0.0, (s, e) => s + e.amount))}',
+                        '${AppPrefs.cs}${_fmtK(trip.expenses.where((e) => e.paidBy == id).fold(0.0, (s, e) => s + e.amount))}',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -1742,7 +1743,7 @@ class _TaskTile extends StatelessWidget {
                     if (task.cost != null) ...[
                       const Spacer(),
                       Text(
-                        '₹${_fmtK(task.cost!)}',
+                        '${AppPrefs.cs}${_fmtK(task.cost!)}',
                         style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -1917,7 +1918,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                       ),
                     ),
                     Text(
-                      '₹${_fmtK(t.budget!)}',
+                      '${AppPrefs.cs}${_fmtK(t.budget!)}',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w900,
@@ -1941,7 +1942,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                       ),
                     ),
                     Text(
-                      '₹${_fmtK(t.totalSpent)}',
+                      '${AppPrefs.cs}${_fmtK(t.totalSpent)}',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
@@ -1967,7 +1968,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                       ),
                     ),
                     Text(
-                      '₹${_fmtK((t.budget! - t.totalSpent).abs())}',
+                      '${AppPrefs.cs}${_fmtK((t.budget! - t.totalSpent).abs())}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w900,
@@ -2034,7 +2035,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                                 ),
                                 const Spacer(),
                                 Text(
-                                  '₹${_fmtK(entry.value)}',
+                                  '${AppPrefs.cs}${_fmtK(entry.value)}',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
@@ -2089,7 +2090,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                   Expanded(
                     child: PlanInputField(
                       controller: _amtCtrl,
-                      hint: 'Amount (₹)',
+                      hint: 'Amount (${AppPrefs.cs})',
                       inputType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
@@ -2213,7 +2214,7 @@ class _ExpensesTabState extends State<_ExpensesTab> {
                     ),
                   ),
                   Text(
-                    '₹${_fmtK(e.amount)}',
+                    '${AppPrefs.cs}${_fmtK(e.amount)}',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
@@ -3394,7 +3395,7 @@ class _AddTripSheetState extends State<_AddTripSheet>
         const SizedBox(height: 6),
         PlanInputField(
           controller: _budgetCtrl,
-          hint: 'Total budget (₹)',
+          hint: 'Total budget (${AppPrefs.cs})',
           inputType: const TextInputType.numberWithOptions(decimal: true),
         ),
         const SizedBox(height: 12),
@@ -3560,7 +3561,7 @@ class _TripPreviewCard extends StatelessWidget {
               if (preview.budget != null) ...[
                 const SizedBox(width: 10),
                 Text(
-                  '💰 ₹${_fmtK(preview.budget!)}',
+                  '💰 ${AppPrefs.cs}${_fmtK(preview.budget!)}',
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Nunito',
@@ -3901,7 +3902,7 @@ class _TripTaskSheetState extends State<_TripTaskSheet> {
                   Expanded(
                     child: PlanInputField(
                       controller: _costCtrl,
-                      hint: 'Est. cost (₹)',
+                      hint: 'Est. cost (${AppPrefs.cs})',
                       inputType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),

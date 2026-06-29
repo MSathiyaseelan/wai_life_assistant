@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
@@ -1418,7 +1419,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
                                   );
                               return Text(
                                 total > 0
-                                    ? '₹${total.toStringAsFixed(2)} logged as grocery expense'
+                                    ? '${AppPrefs.cs}${total.toStringAsFixed(2)} logged as grocery expense'
                                     : 'Enter prices above to track amount',
                                 style: TextStyle(
                                   fontSize: 11,
@@ -1651,7 +1652,7 @@ class _ScannedItemTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '₹',
+                    AppPrefs.cs,
                     style: TextStyle(
                       fontSize: 11,
                       color: sub,

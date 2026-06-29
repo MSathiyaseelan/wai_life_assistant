@@ -19,9 +19,18 @@ class AppStateNotifier extends ChangeNotifier {
   int _maxFamilyGroups = 1; // V1 safe default
   int _maxFamilyMembers = 0; // 0 = personal_free (no family allowed)
 
+  /// userId → "emoji name" for ALL family members, including removed ones.
+  /// Used so past transactions/entries still show the correct name after
+  /// a member leaves the group.
+  Map<String, String> _allMemberNames = {};
+
   List<WalletModel> get wallets => _wallets;
   List<FamilyModel> get families => _families;
   bool get loading => _loading;
+
+  /// Full member name map including removed members — use this for display,
+  /// not [families] members, to handle left members gracefully.
+  Map<String, String> get allMemberNames => _allMemberNames;
 
   /// Server-controlled limit on how many family/group wallets a user can create.
   int get maxFamilyGroups => _maxFamilyGroups;
@@ -94,6 +103,8 @@ class AppStateNotifier extends ChangeNotifier {
             _activeWalletId = parsed.personal.id;
           }
           RealtimeSyncService.instance.subscribeAll(parsed.personal.id);
+          // Load all members (incl. removed) for name display — fire and forget
+          _loadAllMemberNames(parsed.families);
         } else {
           // Profile not set up yet (e.g. bypass login with cache-cleared state).
           // Fall back to a placeholder so screens don't hang on empty walletId.
@@ -115,6 +126,26 @@ class AppStateNotifier extends ChangeNotifier {
     } finally {
       _loading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _loadAllMemberNames(List<FamilyModel> families) async {
+    try {
+      final map = <String, String>{};
+      for (final family in families) {
+        final rows = await ProfileService.instance.fetchAllMembers(family.id);
+        for (final m in rows) {
+          final uid = m['user_id'] as String?;
+          if (uid == null) continue;
+          final emoji = m['emoji'] as String? ?? '👤';
+          final name  = m['name']  as String? ?? '';
+          map[uid] = '$emoji $name';
+        }
+      }
+      _allMemberNames = map;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[AppState] _loadAllMemberNames error: $e');
     }
   }
 

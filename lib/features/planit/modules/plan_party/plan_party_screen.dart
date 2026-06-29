@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
@@ -341,7 +342,7 @@ class _PartyDetailState extends State<_PartyDetail>
                         ),
                       ),
                       Text(
-                        '₹${p.spent.toStringAsFixed(0)} / ₹${p.budget!.toStringAsFixed(0)}',
+                        '${AppPrefs.cs}${p.spent.toStringAsFixed(0)} / ${AppPrefs.cs}${p.budget!.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -557,7 +558,7 @@ class _PartyDetailState extends State<_PartyDetail>
                     ),
                     if (c.quotedAmount != null)
                       Text(
-                        '₹${(c.quotedAmount! / 1000).toStringAsFixed(1)}K',
+                        '${AppPrefs.cs}${(c.quotedAmount! / 1000).toStringAsFixed(1)}K',
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w900,
@@ -769,7 +770,7 @@ class _AddPartySheetState extends State<_AddPartySheet> {
           const SizedBox(height: 8),
           PlanInputField(
             controller: _budgetCtrl,
-            hint: 'Budget (₹)',
+            hint: 'Budget (${AppPrefs.cs})',
             inputType: TextInputType.number,
           ),
           const SizedBox(height: 12),

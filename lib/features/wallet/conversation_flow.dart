@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
@@ -293,7 +294,7 @@ class _ConversationFlowState extends State<ConversationFlow> {
       case FlowStep.amount:
         return AmountStep(
           color: color,
-          onConfirm: (amt) => _answer(step, '₹${amt.toStringAsFixed(0)}', () {
+          onConfirm: (amt) => _answer(step, '${AppPrefs.cs}${amt.toStringAsFixed(0)}', () {
             _data.amount = amt;
           }),
         );

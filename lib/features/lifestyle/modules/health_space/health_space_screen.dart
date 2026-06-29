@@ -1,6 +1,7 @@
 ﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/theme/app_theme.dart';
@@ -2896,7 +2897,7 @@ class _InsuranceTab extends StatelessWidget {
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text('COVERAGE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: sub, letterSpacing: 0.5)),
                                 const SizedBox(height: 3),
-                                Text('₹${p.coverageAmount!.toStringAsFixed(0)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: _healthColor)),
+                                Text('${AppPrefs.cs}${p.coverageAmount!.toStringAsFixed(0)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, fontFamily: 'DM Mono', color: _healthColor)),
                               ])),
                             ],
                             if (p.expiryDate != null) ...[
@@ -2996,7 +2997,7 @@ class _InsuranceTab extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          Expanded(child: LifeInput(controller: covCtrl, hint: 'Coverage amount (₹)', inputType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly])),
+          Expanded(child: LifeInput(controller: covCtrl, hint: 'Coverage amount (${AppPrefs.cs})', inputType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly])),
           const SizedBox(width: 8),
           Expanded(child: LifeDateTile(date: expiryRef[0], hint: 'Expiry Date', color: Colors.orange, onTap: () async { final d = await _pickDate(ctx2); if (d != null) ss(() => expiryRef[0] = d); })),
         ]),

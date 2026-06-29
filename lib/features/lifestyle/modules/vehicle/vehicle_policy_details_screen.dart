@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/vehicle/VehiclePolicy.dart';
 import 'add_policy_bottom_sheet.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/vehicle/Vehicle.dart';
@@ -110,7 +111,7 @@ class _PolicyDetailsView extends StatelessWidget {
         if (policy.idvValue != null)
           _PolicyField(
             label: 'IDV Value',
-            value: '₹${policy.idvValue}',
+            value: '${AppPrefs.cs}${policy.idvValue}',
             editable: editable,
           ),
       ],

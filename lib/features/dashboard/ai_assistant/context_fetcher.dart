@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
@@ -163,7 +164,7 @@ class ContextFetcher {
           case 'returned': returned += amount;
         }
         if (recent.length < 5) {
-          recent.add('${_cap(title)} ₹${amount.toStringAsFixed(0)} ($type)');
+          recent.add('${_cap(title)} ${AppPrefs.cs}${amount.toStringAsFixed(0)} ($type)');
         }
       }
 
@@ -175,19 +176,19 @@ class ContextFetcher {
       final topCats = (catTotals.entries.toList()
             ..sort((a, b) => b.value.compareTo(a.value)))
           .take(3)
-          .map((e) => '${_cap(e.key)} ₹${e.value.toStringAsFixed(0)}')
+          .map((e) => '${_cap(e.key)} ${AppPrefs.cs}${e.value.toStringAsFixed(0)}')
           .join(', ');
 
       return {
-        'expenses': '₹${expense.toStringAsFixed(0)}',
-        'income': '₹${income.toStringAsFixed(0)}',
-        if (lend > 0)     'lent_out': '₹${lend.toStringAsFixed(0)}',
-        if (borrow > 0)   'borrowed': '₹${borrow.toStringAsFixed(0)}',
-        if (split > 0)    'split_expenses': '₹${split.toStringAsFixed(0)}',
-        if (returned > 0) 'returned': '₹${returned.toStringAsFixed(0)}',
-        'total_money_out': '₹${totalOut.toStringAsFixed(0)}',
-        'total_money_in': '₹${totalIn.toStringAsFixed(0)}',
-        'net_flow': '₹${(totalIn - totalOut).toStringAsFixed(0)}',
+        'expenses': '${AppPrefs.cs}${expense.toStringAsFixed(0)}',
+        'income': '${AppPrefs.cs}${income.toStringAsFixed(0)}',
+        if (lend > 0)     'lent_out': '${AppPrefs.cs}${lend.toStringAsFixed(0)}',
+        if (borrow > 0)   'borrowed': '${AppPrefs.cs}${borrow.toStringAsFixed(0)}',
+        if (split > 0)    'split_expenses': '${AppPrefs.cs}${split.toStringAsFixed(0)}',
+        if (returned > 0) 'returned': '${AppPrefs.cs}${returned.toStringAsFixed(0)}',
+        'total_money_out': '${AppPrefs.cs}${totalOut.toStringAsFixed(0)}',
+        'total_money_in': '${AppPrefs.cs}${totalIn.toStringAsFixed(0)}',
+        'net_flow': '${AppPrefs.cs}${(totalIn - totalOut).toStringAsFixed(0)}',
         if (topCats.isNotEmpty) 'top_expense_categories': topCats,
         if (recent.isNotEmpty) 'recent_transactions': recent.join(' | '),
       };
@@ -302,7 +303,7 @@ class ContextFetcher {
 
       final bills = billRows
           .map((r) =>
-              '${r['name']} ₹${(r['amount'] as num?)?.toStringAsFixed(0) ?? '?'} due ${r['due_date']}')
+              '${r['name']} ${AppPrefs.cs}${(r['amount'] as num?)?.toStringAsFixed(0) ?? '?'} due ${r['due_date']}')
           .toList();
 
       final reminders = reminderRows
@@ -496,7 +497,7 @@ class ContextFetcher {
         final coverage = r['coverage_amount'] as num?;
         final expiry   = r['expiry_date']     as String? ?? '';
         return '$policy${provider.isNotEmpty ? ' by $provider' : ''}'
-            '${coverage != null ? ' ₹${coverage.toStringAsFixed(0)} coverage' : ''}'
+            '${coverage != null ? ' ${AppPrefs.cs}${coverage.toStringAsFixed(0)} coverage' : ''}'
             '${expiry.isNotEmpty ? ' (expires $expiry)' : ''}';
       }).where((s) => s.isNotEmpty).toList();
 

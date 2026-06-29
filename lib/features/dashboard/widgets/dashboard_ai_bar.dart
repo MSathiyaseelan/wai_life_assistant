@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/gemini_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_context_builder.dart';
@@ -143,7 +144,7 @@ class _DashboardAiBarState extends State<DashboardAiBar>
       };
 
   String _tabEmoji(String tag) => switch (tag) {
-        'wallet' => '₹',
+        'wallet' => AppPrefs.cs,
         'pantry' => '🥗',
         'planit' => '📅',
         _ => '→',

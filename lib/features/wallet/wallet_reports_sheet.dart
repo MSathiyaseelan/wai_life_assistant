@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
@@ -220,9 +221,10 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   String _fmt(double v) {
-    if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '₹${(v / 1000).toStringAsFixed(1)}K';
-    return '₹${v.toStringAsFixed(0)}';
+    final cs = AppPrefs.cs;
+    if (v >= 100000) return '$cs${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000) return '$cs${(v / 1000).toStringAsFixed(1)}K';
+    return '$cs${v.toStringAsFixed(0)}';
   }
 
   String _dayLabel(DateTime d, bool isToday) {

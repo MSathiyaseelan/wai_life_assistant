@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ActionType — what the AI wants to write into the app
@@ -142,23 +143,23 @@ class ActionPayload {
         ],
       ActionType.addExpense => [
           if (str('title').isNotEmpty)    ('For',      str('title')),
-          if (num_('amount').isNotEmpty)  ('Amount',   '₹${num_('amount')}'),
+          if (num_('amount').isNotEmpty)  ('Amount',   '${AppPrefs.cs}${num_('amount')}'),
           if (str('category').isNotEmpty) ('Category', str('category')),
           if (str('pay_mode').isNotEmpty) ('Via',      str('pay_mode')),
         ],
       ActionType.addIncome => [
           if (str('title').isNotEmpty)    ('Source',   str('title')),
-          if (num_('amount').isNotEmpty)  ('Amount',   '₹${num_('amount')}'),
+          if (num_('amount').isNotEmpty)  ('Amount',   '${AppPrefs.cs}${num_('amount')}'),
           if (str('category').isNotEmpty) ('Category', str('category')),
         ],
       ActionType.addLend => [
           if (str('person').isNotEmpty)   ('Lent to',  str('person')),
-          if (num_('amount').isNotEmpty)  ('Amount',   '₹${num_('amount')}'),
+          if (num_('amount').isNotEmpty)  ('Amount',   '${AppPrefs.cs}${num_('amount')}'),
           if (str('note').isNotEmpty)     ('Note',     str('note')),
         ],
       ActionType.addBorrow => [
           if (str('person').isNotEmpty)   ('Borrowed from', str('person')),
-          if (num_('amount').isNotEmpty)  ('Amount',        '₹${num_('amount')}'),
+          if (num_('amount').isNotEmpty)  ('Amount',        '${AppPrefs.cs}${num_('amount')}'),
           if (str('note').isNotEmpty)     ('Note',          str('note')),
         ],
       ActionType.addFunctionUpcoming => [
@@ -219,7 +220,7 @@ class ActionPayload {
       ActionType.addInsurance => [
           if (str('policy_name').isNotEmpty)  ('Policy',    str('policy_name')),
           if (str('provider').isNotEmpty)     ('Provider',  str('provider')),
-          if (num_('coverage_amount').isNotEmpty) ('Coverage', '₹${num_('coverage_amount')}'),
+          if (num_('coverage_amount').isNotEmpty) ('Coverage', '${AppPrefs.cs}${num_('coverage_amount')}'),
           if (str('expiry_date').isNotEmpty)  ('Expires',   str('expiry_date')),
         ],
     };
@@ -277,7 +278,7 @@ class DeepLink {
       };
 
   String get emoji => switch (tab) {
-        1 => '₹',
+        1 => AppPrefs.cs,
         2 => '🥗',
         3 => '🏥',
         4 => '📅',

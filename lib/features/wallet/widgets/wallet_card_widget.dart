@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
 class WalletCardWidget extends StatefulWidget {
@@ -150,7 +151,7 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '₹${_fmt(_periodBalance)}',
+                        '${AppPrefs.cs}${_fmt(_periodBalance)}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 28,
@@ -374,7 +375,7 @@ class _ModeColumn extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₹${fmtFn(inAmt)}',
+                  '${AppPrefs.cs}${fmtFn(inAmt)}',
                   style: const TextStyle(
                     color: Color(0xFFA7F3D0),
                     fontSize: 13,
@@ -396,7 +397,7 @@ class _ModeColumn extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₹${fmtFn(outAmt)}',
+                  '${AppPrefs.cs}${fmtFn(outAmt)}',
                   style: const TextStyle(
                     color: Color(0xFFFCA5A5),
                     fontSize: 13,
