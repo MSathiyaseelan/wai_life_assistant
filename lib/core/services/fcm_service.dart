@@ -127,7 +127,7 @@ class FcmService {
       return;
     }
 
-    debugPrint('[FCM] saving token userId=$userId ${fcmToken.substring(0, 20)}...');
+    if (kDebugMode) debugPrint('[FCM] saving FCM token for current user');
     try {
       await Supabase.instance.client.from('user_fcm_tokens').upsert(
         {

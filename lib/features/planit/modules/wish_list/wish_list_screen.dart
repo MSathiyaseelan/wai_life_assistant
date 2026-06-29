@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -2716,7 +2717,7 @@ _ParsedWish _parsedWishFromAI(Map<String, dynamic> data) {
   } else if (rawPrice is String && rawPrice.isNotEmpty) {
     targetPrice = double.tryParse(rawPrice.replaceAll(RegExp(r'[^0-9.]'), ''));
   }
-  debugPrint('[WishParse] raw=$rawPrice → targetPrice=$targetPrice data=$data');
+  if (kDebugMode) debugPrint('[WishParse] raw=$rawPrice → targetPrice=$targetPrice');
   return _ParsedWish(
     title: data['title'] as String? ?? '',
     emoji: data['emoji'] as String? ?? '🎁',

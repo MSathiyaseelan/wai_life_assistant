@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthCoordinator {
@@ -86,7 +86,7 @@ class AuthCoordinator {
       }
 
       await _client.auth.setSession(refreshToken);
-      debugPrint('[Auth] Firebase OTP verified, uid=${_client.auth.currentUser?.id}');
+      if (kDebugMode) debugPrint('[Auth] Firebase OTP verified');
     } on fb.FirebaseAuthException catch (e) {
       throw AuthException(_mapFirebaseError(e.code));
     }
@@ -116,7 +116,7 @@ class AuthCoordinator {
     if (res.session == null) {
       throw AuthException('Anonymous sign-in failed — enable it in Supabase dashboard.');
     }
-    debugPrint('[Auth] Bypass login, uid=${_client.auth.currentUser?.id}');
+    if (kDebugMode) debugPrint('[Auth] Bypass login');
   }
 
   /// Signs the user out of Firebase and Supabase.

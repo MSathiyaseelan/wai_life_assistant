@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -894,9 +895,7 @@ class _WalletScreenState extends State<WalletScreen>
     sm.hideCurrentSnackBar();
     if (!mounted) return;
 
-    debugPrint(
-      '🤖 AI parse ($subFeature): success=${result.success} error=${result.error} data=${result.data}',
-    );
+    if (kDebugMode) debugPrint('🤖 AI parse ($subFeature): success=${result.success} error=${result.error}');
 
     ParsedIntent intent;
     if (result.success && result.data != null) {

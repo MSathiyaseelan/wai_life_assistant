@@ -234,7 +234,7 @@ class ActionExecutor {
         });
     }
 
-    debugPrint('[ActionExecutor] ${action.actionType.name} executed for wallet=$walletId');
+    if (kDebugMode) debugPrint('[ActionExecutor] ${action.actionType.name} executed');
     return null;
     } catch (e, stack) {
       ErrorLogger.log(e,

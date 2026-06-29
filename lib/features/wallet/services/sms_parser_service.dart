@@ -124,7 +124,7 @@ class SMSParserService {
     final body   = latest.body ?? '';
     if (body.isEmpty) return;
 
-    debugPrint('[SMS] new bank SMS found from ${latest.sender}');
+    if (kDebugMode) debugPrint('[SMS] new bank SMS detected');
 
     // Show a local notification so the user knows even if the app is in BG
     await _showSmsNotification(body);
@@ -157,7 +157,7 @@ class SMSParserService {
     // Layer 1: regex (free, instant)
     final regexResult = SMSRegexParser.tryParse(text);
     if (regexResult != null && regexResult.isHighConfidence) {
-      debugPrint('[SMS] regex parsed: ${regexResult.merchant} ${regexResult.amount}');
+      if (kDebugMode) debugPrint('[SMS] regex parsed successfully');
       return regexResult;
     }
 

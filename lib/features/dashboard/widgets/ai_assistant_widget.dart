@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -212,7 +213,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
 
     try {
       final intent = IntentClassifier.instance.classify(question);
-      debugPrint('[WAI] walletId=${widget.walletId} sources=${intent.dataSources}');
+      if (kDebugMode) debugPrint('[WAI] AI intent resolved, sources=${intent.dataSources}');
       final ctx = await ContextFetcher.instance.fetch(intent, widget.walletId);
       final contextBlock = ctx.toPromptBlock();
       debugPrint('[WAI] context block:\n$contextBlock');
