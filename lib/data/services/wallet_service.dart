@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -558,7 +559,7 @@ class WalletService {
     required String participantId,
     required String sentBy,
   }) async {
-    await _db.rpc('increment_split_reminder', params: {
+    await _db.rpc(AppRpc.incrementSplitReminder, params: {
       'p_transaction_id': transactionId,
       'p_participant_id': participantId,
       'p_sent_by': sentBy,

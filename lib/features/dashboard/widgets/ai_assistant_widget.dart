@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -110,7 +111,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
           .eq('feature', 'ai_assistant')
           .eq('month', month)
           .maybeSingle();
-      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
+      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
       final limit = (planLimits?['ai_assistant_calls_month'] as int?) ?? 20;
@@ -236,7 +237,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId != null && result.success) {
         final allowed = await Supabase.instance.client.rpc(
-          'check_feature_limit',
+          AppRpc.checkFeatureLimit,
           params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
         ) as bool? ?? true;
         if (mounted) {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/error_logger.dart';
+import '../../core/constants/feature_keys.dart';
+import '../../routes/app_routes.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ERROR TRACKING OBSERVER
@@ -11,16 +13,16 @@ import '../services/error_logger.dart';
 class ErrorTrackingObserver extends NavigatorObserver {
 
   static const _routeFeature = {
-    '/':          'auth',
-    '/login':     'auth',
-    '/otp':       'auth',
-    '/bottomNav': 'home',
-    '/dashboard': 'dashboard',
-    '/wallet':    'wallet',
-    '/pantry':    'pantry',
-    '/planit':    'planit',
-    '/settings':  'settings',
-    '/functions': 'functions',
+    AppRoutes.splash:     FeatureKey.auth,
+    AppRoutes.login:      FeatureKey.auth,
+    AppRoutes.otp:        FeatureKey.auth,
+    AppRoutes.bottomNav:  FeatureKey.home,
+    AppRoutes.dashboard:  FeatureKey.dashboard,
+    AppRoutes.wallet:     FeatureKey.wallet,
+    AppRoutes.pantry:     FeatureKey.pantry,
+    AppRoutes.planit:     FeatureKey.planit,
+    AppRoutes.settings:   FeatureKey.settings,
+    AppRoutes.functions:  FeatureKey.functions,
   };
 
   @override

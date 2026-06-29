@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard;
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
@@ -81,7 +82,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
           .eq('feature', 'ai_parser')
           .eq('month', month)
           .maybeSingle();
-      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
+      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
       final limit = (planLimits?['ai_parser_calls_month'] as int?) ?? 30;
@@ -211,7 +212,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId != null) {
       final allowed = await Supabase.instance.client.rpc(
-        'check_feature_limit',
+        AppRpc.checkFeatureLimit,
         params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
       ) as bool? ?? true;
       if (mounted) {

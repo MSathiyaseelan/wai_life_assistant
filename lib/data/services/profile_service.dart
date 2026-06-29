@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wallet/wallet_models.dart';
 import '../models/subscription/subscription_models.dart';
@@ -23,7 +24,7 @@ class ProfileService {
     String name = '',
     String emoji = '👤',
   }) async {
-    final result = await _db.rpc('bootstrap_new_user', params: {
+    final result = await _db.rpc(AppRpc.bootstrapNewUser, params: {
       'p_name': name,
       'p_emoji': emoji,
     });
@@ -34,7 +35,7 @@ class ProfileService {
   /// its data (wallets, transactions, families, etc.) to the current user.
   /// Returns true if a migration happened, false if no old profile was found.
   Future<bool> linkProfileByPhone(String phone) async {
-    final result = await _db.rpc('dev_link_profile_by_phone', params: {
+    final result = await _db.rpc(AppRpc.devLinkProfileByPhone, params: {
       'p_phone': phone,
     });
     return result as bool? ?? false;
@@ -191,7 +192,7 @@ class ProfileService {
     int colorIndex = 0,
     String? description,
   }) async {
-    final result = await _db.rpc('create_family_with_wallet', params: {
+    final result = await _db.rpc(AppRpc.createFamilyWithWallet, params: {
       'p_name':        name,
       'p_emoji':       emoji,
       'p_color_index': colorIndex,
@@ -208,7 +209,7 @@ class ProfileService {
     int colorIndex = 0,
     String? description,
   }) async {
-    await _db.rpc('update_family', params: {
+    await _db.rpc(AppRpc.updateFamily, params: {
       'p_family_id':   familyId,
       'p_name':        name,
       'p_emoji':       emoji,
@@ -219,7 +220,7 @@ class ProfileService {
 
   /// Delete a family (admin only). Cascades wallets, transactions, splits.
   Future<void> deleteFamily(String familyId) async {
-    await _db.rpc('delete_family', params: {'p_family_id': familyId});
+    await _db.rpc(AppRpc.deleteFamily, params: {'p_family_id': familyId});
   }
 
   // ── Member CRUD ───────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ class ProfileService {
     String? relation,
     String? phone,
   }) async {
-    await _db.rpc('add_family_member', params: {
+    await _db.rpc(AppRpc.addFamilyMember, params: {
       'p_family_id': familyId,
       'p_name':      name,
       'p_emoji':     emoji,
@@ -248,7 +249,7 @@ class ProfileService {
     String memberId,
     Map<String, dynamic> updates,
   ) async {
-    await _db.rpc('update_family_member', params: {
+    await _db.rpc(AppRpc.updateFamilyMember, params: {
       'p_member_id': memberId,
       'p_name':      updates['name'],
       'p_emoji':     updates['emoji'],

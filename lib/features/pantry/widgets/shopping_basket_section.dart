@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -898,7 +899,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           .eq('feature', 'bill_scan')
           .eq('month', month)
           .maybeSingle();
-      final planLimits = await client.rpc('get_plan_limits') as Map<String, dynamic>?;
+      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
 
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
@@ -939,7 +940,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       if (userId != null) {
         final allowed =
             await Supabase.instance.client.rpc(
-                  'check_feature_limit',
+                  AppRpc.checkFeatureLimit,
                   params: {'p_user_id': userId, 'p_feature': 'bill_scan'},
                 )
                 as bool? ??

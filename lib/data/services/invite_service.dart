@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // InviteService — family invite send / accept / decline / join-by-token
@@ -19,7 +20,7 @@ class InviteService {
     required String phone,
     String role = 'member',
   }) async {
-    final result = await _db.rpc('send_family_invite', params: {
+    final result = await _db.rpc(AppRpc.sendFamilyInvite, params: {
       'p_family_id': familyId,
       'p_phone':     phone,
       'p_role':      role,
@@ -34,7 +35,7 @@ class InviteService {
     required String familyId,
     String role = 'member',
   }) async {
-    final result = await _db.rpc('create_invite_link', params: {
+    final result = await _db.rpc(AppRpc.createInviteLink, params: {
       'p_family_id': familyId,
       'p_role':      role,
     });
@@ -43,7 +44,7 @@ class InviteService {
 
   // ── Accept ────────────────────────────────────────────────────────────────
   Future<bool> acceptInvite(String inviteId) async {
-    final result = await _db.rpc('accept_family_invite', params: {
+    final result = await _db.rpc(AppRpc.acceptFamilyInvite, params: {
       'p_invite_id': inviteId,
     });
     return result as bool? ?? false;
@@ -51,14 +52,14 @@ class InviteService {
 
   // ── Decline ───────────────────────────────────────────────────────────────
   Future<void> declineInvite(String inviteId) async {
-    await _db.rpc('decline_family_invite', params: {
+    await _db.rpc(AppRpc.declineFamilyInvite, params: {
       'p_invite_id': inviteId,
     });
   }
 
   // ── Join by token (invite code) ───────────────────────────────────────────
   Future<Map<String, dynamic>> joinByToken(String token) async {
-    final result = await _db.rpc('join_family_by_token', params: {
+    final result = await _db.rpc(AppRpc.joinFamilyByToken, params: {
       'p_token': token.trim().toUpperCase(),
     });
     return Map<String, dynamic>.from(result as Map);
