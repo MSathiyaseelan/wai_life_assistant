@@ -321,7 +321,9 @@ serve(async (req: Request) => {
       .rpc("check_feature_limit", { p_user_id: userId, p_feature: featureKey });
     if (limitErr) {
       console.error("[parse] limit check error:", limitErr.message);
-    } else if (allowed === false) {
+      return errorResponse("Usage limit check failed. Please try again.", 500);
+    }
+    if (allowed === false) {
       return errorResponse(
         "Monthly AI usage limit reached. Upgrade your plan to continue.",
         429
@@ -329,6 +331,7 @@ serve(async (req: Request) => {
     }
   } catch (e) {
     console.error("[parse] limit check threw:", (e as Error).message);
+    return errorResponse("Usage limit check failed. Please try again.", 500);
   }
 
   // ── Fetch prompt from database

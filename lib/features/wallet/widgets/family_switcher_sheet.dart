@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
@@ -1156,6 +1157,26 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           // onSelect expects a wallet ID, not a family ID
           Navigator.pop(context, result['wallet_id'] as String?);
         }
+      }
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      // P0001 = plan gate raised by create_family_with_wallet or add_family_member
+      if (e.code == 'P0001' &&
+          (e.message.contains('Family plan') || e.message.contains('Upgrade'))) {
+        await showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => SubscriptionSheet(
+            isDark: Theme.of(context).brightness == Brightness.dark,
+            currentPlan: 'personal_free',
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
       }
     } catch (e) {
       if (mounted) {
