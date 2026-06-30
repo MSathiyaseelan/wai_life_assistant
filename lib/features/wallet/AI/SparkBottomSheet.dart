@@ -47,6 +47,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
   bool _isSmsLoading = false;
   String _spokenText = '';
   String? _errorMsg;
+  bool _multiItemHint = false;
 
   // Usage limit
   bool _limitChecking = true;
@@ -98,6 +99,15 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       if (!mounted) return;
       setState(() => _limitChecking = false);
     }
+  }
+
+  // Returns true when the input clearly contains two or more separate expense
+  // amounts (e.g. "vegetables 1500 and auto 200"). Used to show a split hint.
+  static bool _hasMultipleExpenses(String text) {
+    final amounts = RegExp(r'\b\d{2,}(?:[,\d]*)?\b').allMatches(text).length;
+    if (amounts < 2) return false;
+    return RegExp(r'\b(?:and|also|plus)\b', caseSensitive: false).hasMatch(text)
+        || text.contains('+');
   }
 
   // ── Speech ──────────────────────────────────────────────────────────────────
@@ -192,6 +202,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
     setState(() {
       _isLoading = true;
       _errorMsg = null;
+      _multiItemHint = _hasMultipleExpenses(text);
     });
 
     final result = await AIParser.parseText(
@@ -422,6 +433,32 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
           ],
         ),
         const SizedBox(height: 10),
+
+        // Multi-item hint
+        if (_multiItemHint) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Multiple amounts detected — AI will combine them. '
+                    'For separate entries, submit each one individually.',
+                    style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.amber),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
 
         // Paste bank SMS button (Approach 2)
         _isSmsLoading

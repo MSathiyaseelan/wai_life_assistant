@@ -62,6 +62,7 @@ class IntentConfirmSheet extends StatefulWidget {
 
 class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   late FlowType _flowType;
+  final FocusNode _amountFocus = FocusNode();
   late TextEditingController _amountCtrl;
   late TextEditingController _titleCtrl;
   late TextEditingController _noteCtrl;
@@ -70,6 +71,19 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   PayMode? _payMode;
   late DateTime _date;
 
+
+  // Family-role keywords that suggest a lend to Amma/Appa may actually be
+  // a household expense — shown as a soft clarification hint.
+  static const _familyRoleKeywords = {
+    'amma', 'appa', 'akka', 'anna', 'thatha', 'paati',
+    'mama', 'maami', 'atthai', 'chithi', 'periamma', 'periappa',
+  };
+
+  bool get _isLendToFamilyMember {
+    if (_flowType != FlowType.lend) return false;
+    final person = _personCtrl.text.trim().toLowerCase();
+    return _familyRoleKeywords.any((role) => person.contains(role));
+  }
 
   @override
   void initState() {
@@ -87,10 +101,18 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
     _category = i.category;
     _payMode = i.payMode ?? PayMode.online;
     _date = i.date ?? DateTime.now();
+
+    // Auto-focus amount field when AI couldn't extract a value
+    if (i.amount == null || i.amount! <= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _amountFocus.requestFocus();
+      });
+    }
   }
 
   @override
   void dispose() {
+    _amountFocus.dispose();
     _amountCtrl.dispose();
     _titleCtrl.dispose();
     _noteCtrl.dispose();
@@ -303,10 +325,40 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                 ),
                 const SizedBox(height: 18),
 
+                // Lend-to-family-member ambiguity hint
+                if (_isLendToFamilyMember) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(Icons.info_outline_rounded, color: Colors.amber, size: 14),
+                        ),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Giving money to a family member? If it was for household expenses, tap "Change" and switch type to Expense.',
+                            style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: Colors.amber),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
                 // ── Amount ─────────────────────────────────────────────────
                 _Label('AMOUNT', sub),
                 _AmountField(
                   controller: _amountCtrl,
+                  focusNode: _amountFocus,
                   color: color,
                   surfBg: surfBg,
                   tc: tc,
@@ -729,9 +781,11 @@ class _InputField extends StatelessWidget {
 // Large amount input with rupee prefix
 class _AmountField extends StatelessWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final Color color, surfBg, tc;
   const _AmountField({
     required this.controller,
+    this.focusNode,
     required this.color,
     required this.surfBg,
     required this.tc,
@@ -759,6 +813,7 @@ class _AmountField extends StatelessWidget {
         Expanded(
           child: TextField(
             controller: controller,
+            focusNode: focusNode,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             style: TextStyle(
               fontSize: 28,
