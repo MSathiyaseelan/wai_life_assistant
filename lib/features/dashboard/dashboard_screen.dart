@@ -1175,7 +1175,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     children: [
                       // ── AI Assistant ──────────────────────────────────────────
                       AIAssistantWidget(
-                        walletId: appState.activeWalletId,
+                        wallets: appState.wallets,
                         onNavigate: widget.onTabSwitch,
                         onTransactionSaved: (tx) {
                           setState(() => _transactions.insert(0, tx));

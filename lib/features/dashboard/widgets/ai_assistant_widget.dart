@@ -25,13 +25,13 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AIAssistantWidget extends StatefulWidget {
-  final String walletId;
+  final List<WalletModel> wallets;
   final void Function(int tabIndex)? onNavigate;
   final void Function(TxModel tx)? onTransactionSaved;
 
   const AIAssistantWidget({
     super.key,
-    required this.walletId,
+    required this.wallets,
     this.onNavigate,
     this.onTransactionSaved,
   });
@@ -62,6 +62,10 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   final SpeechToText _speech = SpeechToText();
   bool _isListening = false;
 
+  // Active wallet for saving actions — may differ from appState.activeWalletId
+  // when the user picks a different wallet in the confirmation card.
+  String _selectedWalletId = '';
+
   // Paste SMS loading
   bool _smsLoading = false;
 
@@ -86,6 +90,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   @override
   void initState() {
     super.initState();
+    _selectedWalletId = widget.wallets.isNotEmpty ? widget.wallets.first.id : '';
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -95,6 +100,15 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     _ctrl.addListener(_onMentionChanged);
     ContactService.instance.preload();
     _checkLimitOnOpen();
+  }
+
+  @override
+  void didUpdateWidget(AIAssistantWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.wallets != widget.wallets && widget.wallets.isNotEmpty) {
+      final stillValid = widget.wallets.any((w) => w.id == _selectedWalletId);
+      if (!stillValid) _selectedWalletId = widget.wallets.first.id;
+    }
   }
 
   Future<void> _checkLimitOnOpen() async {
@@ -216,7 +230,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     try {
       final intent = IntentClassifier.instance.classify(question);
       if (kDebugMode) debugPrint('[WAI] AI intent resolved, sources=${intent.dataSources}');
-      final ctx = await ContextFetcher.instance.fetch(intent, widget.walletId);
+      final ctx = await ContextFetcher.instance.fetch(intent, _selectedWalletId);
       final contextBlock = ctx.toPromptBlock();
       if (kDebugMode) debugPrint('[WAI] context fetched');
       final familyMembers = ctx.family.isNotEmpty
@@ -254,6 +268,17 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       setState(() {
         _response = response;
         _loading = false;
+        // Auto-select wallet based on AI's scope hint (family/personal)
+        if (response.action != null && widget.wallets.length > 1) {
+          final scope = response.action!.data['scope'] as String?;
+          if (scope == 'family') {
+            final family = widget.wallets.where((w) => !w.isPersonal).firstOrNull;
+            if (family != null) _selectedWalletId = family.id;
+          } else {
+            final personal = widget.wallets.where((w) => w.isPersonal).firstOrNull;
+            if (personal != null) _selectedWalletId = personal.id;
+          }
+        }
       });
       _animCtrl.forward(from: 0);
     } catch (e, stack) {
@@ -279,7 +304,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     HapticFeedback.mediumImpact();
 
     try {
-      final savedTx = await ActionExecutor.instance.execute(action, widget.walletId);
+      final savedTx = await ActionExecutor.instance.execute(action, _selectedWalletId);
       if (!mounted) return;
       if (savedTx != null) widget.onTransactionSaved?.call(savedTx);
       setState(() {
@@ -385,7 +410,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     await IntentConfirmSheet.show(
       context,
       intent:     parsed.toParsedIntent(),
-      walletId:   widget.walletId,
+      walletId:   _selectedWalletId,
       onSave:     (tx) => widget.onTransactionSaved?.call(tx),
       onOpenFlow: () {},
     );
@@ -394,7 +419,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   // ── Import past transactions ───────────────────────────────────────────────
 
   void _openImport() {
-    SmsHistoryImportScreen.show(context, walletId: widget.walletId);
+    SmsHistoryImportScreen.show(context, walletId: _selectedWalletId);
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -713,6 +738,9 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                         onConfirm: _confirmAction,
                         onCancel: _clear,
                         onClear: _clear,
+                        wallets: widget.wallets,
+                        selectedWalletId: _selectedWalletId,
+                        onWalletSelected: (id) => setState(() => _selectedWalletId = id),
                       )
                     : _ResponseCard(
                         response: _response!,
@@ -743,6 +771,9 @@ class _ActionCard extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
   final VoidCallback onClear;
+  final List<WalletModel> wallets;
+  final String selectedWalletId;
+  final ValueChanged<String> onWalletSelected;
 
   const _ActionCard({
     required this.response,
@@ -752,6 +783,9 @@ class _ActionCard extends StatelessWidget {
     required this.onConfirm,
     required this.onCancel,
     required this.onClear,
+    required this.wallets,
+    required this.selectedWalletId,
+    required this.onWalletSelected,
   });
 
   @override
@@ -806,6 +840,9 @@ class _ActionCard extends StatelessWidget {
                     confirming: confirming,
                     onConfirm: onConfirm,
                     onCancel: onCancel,
+                    wallets: wallets,
+                    selectedWalletId: selectedWalletId,
+                    onWalletSelected: onWalletSelected,
                   ),
           ),
         ],
@@ -819,12 +856,18 @@ class _ConfirmContent extends StatelessWidget {
   final bool confirming;
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
+  final List<WalletModel> wallets;
+  final String selectedWalletId;
+  final ValueChanged<String> onWalletSelected;
 
   const _ConfirmContent({
     required this.action,
     required this.confirming,
     required this.onConfirm,
     required this.onCancel,
+    required this.wallets,
+    required this.selectedWalletId,
+    required this.onWalletSelected,
   });
 
   @override
@@ -858,6 +901,56 @@ class _ConfirmContent extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: fields.map((f) => _FieldChip(label: f.$1, value: f.$2)).toList(),
+          ),
+        ],
+
+        // Wallet picker — only shown when the user has more than one wallet
+        if (wallets.length > 1) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Save to',
+            style: TextStyle(
+              fontSize: 9,
+              fontFamily: 'Nunito',
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withAlpha(120),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: wallets.map((w) {
+              final selected = w.id == selectedWalletId;
+              return GestureDetector(
+                onTap: () => onWalletSelected(w.id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withAlpha(40)
+                        : Colors.white.withAlpha(10),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF818CF8)
+                          : Colors.white.withAlpha(30),
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    '${w.emoji}  ${w.name}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white : Colors.white.withAlpha(160),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
 
