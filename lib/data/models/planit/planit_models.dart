@@ -464,6 +464,7 @@ class ReminderModel {
   bool done;
   String? note;
   String walletId;
+  DateTime? repeatEndDate;
 
   ReminderModel({
     required this.id,
@@ -478,6 +479,7 @@ class ReminderModel {
     this.snoozed = false,
     this.done = false,
     this.note,
+    this.repeatEndDate,
   });
 
   factory ReminderModel.fromRow(Map<String, dynamic> row) {
@@ -504,6 +506,9 @@ class ReminderModel {
       snoozed: row['snoozed'] as bool? ?? false,
       done: row['done'] as bool? ?? false,
       note: row['note'] as String?,
+      repeatEndDate: row['repeat_end_date'] != null
+          ? DateTime.tryParse(row['repeat_end_date'] as String)
+          : null,
     );
   }
 
@@ -518,6 +523,7 @@ class ReminderModel {
     'snoozed':     snoozed,
     'done':        done,
     if (note != null) 'note': note,
+    'repeat_end_date': repeatEndDate?.toIso8601String().split('T').first,
   };
 }
 

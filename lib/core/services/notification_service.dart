@@ -253,28 +253,60 @@ class NotificationService {
       return;
     }
 
-    DateTimeComponents? repeat;
-    if (r.repeat == RepeatMode.daily)        repeat = DateTimeComponents.time;
-    else if (r.repeat == RepeatMode.weekly)  repeat = DateTimeComponents.dayOfWeekAndTime;
-    else if (r.repeat == RepeatMode.monthly) repeat = DateTimeComponents.dayOfMonthAndTime;
-    else if (r.repeat == RepeatMode.yearly)  repeat = DateTimeComponents.dateAndTime;
-
-    // Encode reminder data so the background handler can reconstruct the
-    // snooze notification without needing a DB call.
     final payload = jsonEncode({
       'id':    r.id,
       'emoji': r.emoji,
       'title': r.title,
       'note':  r.note,
     });
+    final body = r.note ?? _priorityLabel(r.priority);
+    final title = '${r.emoji} ${r.title}';
+
+    // Bounded repeat: schedule each occurrence individually so alerts stop
+    // automatically at repeatEndDate without needing the app to be open.
+    if (r.repeat != RepeatMode.none && r.repeatEndDate != null) {
+      var current = scheduledDate;
+      int idx = 0;
+      const maxOccurrences = 500; // safety cap (~40 years of monthly)
+      while (!current.isAfter(tz.TZDateTime.from(
+        r.repeatEndDate!.add(const Duration(days: 1)), location,
+      )) && idx < maxOccurrences) {
+        if (!current.isBefore(now)) {
+          await _plugin.zonedSchedule(
+            _id(r) + idx,
+            title,
+            body,
+            current,
+            NotificationDetails(
+              android: _alarmAndroidDetails(body: body),
+              iOS: _alarmIosDetails,
+            ),
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            payload: payload,
+          );
+        }
+        current = _nextOccurrence(current, r.repeat);
+        idx++;
+      }
+      return;
+    }
+
+    // Unbounded repeat: use matchDateTimeComponents (fires indefinitely).
+    DateTimeComponents? repeat;
+    if (r.repeat == RepeatMode.daily)        repeat = DateTimeComponents.time;
+    else if (r.repeat == RepeatMode.weekly)  repeat = DateTimeComponents.dayOfWeekAndTime;
+    else if (r.repeat == RepeatMode.monthly) repeat = DateTimeComponents.dayOfMonthAndTime;
+    else if (r.repeat == RepeatMode.yearly)  repeat = DateTimeComponents.dateAndTime;
 
     await _plugin.zonedSchedule(
       _id(r),
-      '${r.emoji} ${r.title}',
-      r.note ?? _priorityLabel(r.priority),
+      title,
+      body,
       scheduledDate,
       NotificationDetails(
-        android: _alarmAndroidDetails(body: r.note ?? _priorityLabel(r.priority)),
+        android: _alarmAndroidDetails(body: body),
         iOS: _alarmIosDetails,
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -288,7 +320,44 @@ class NotificationService {
   // ── Cancel ─────────────────────────────────────────────────────────────────
   Future<void> cancel(ReminderModel r) async {
     await init();
-    await _plugin.cancel(_id(r));
+    if (r.repeat != RepeatMode.none && r.repeatEndDate != null) {
+      // Cancel all individually-scheduled occurrence notifications.
+      final count = _boundedOccurrenceCount(r);
+      for (int i = 0; i < count; i++) {
+        await _plugin.cancel(_id(r) + i);
+      }
+    } else {
+      await _plugin.cancel(_id(r));
+    }
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  tz.TZDateTime _nextOccurrence(tz.TZDateTime d, RepeatMode repeat) {
+    switch (repeat) {
+      case RepeatMode.daily:   return d.add(const Duration(days: 1));
+      case RepeatMode.weekly:  return d.add(const Duration(days: 7));
+      case RepeatMode.monthly: return tz.TZDateTime(d.location, d.year, d.month + 1, d.day, d.hour, d.minute);
+      case RepeatMode.yearly:  return tz.TZDateTime(d.location, d.year + 1, d.month, d.day, d.hour, d.minute);
+      case RepeatMode.none:    return d;
+    }
+  }
+
+  int _boundedOccurrenceCount(ReminderModel r) {
+    if (r.repeatEndDate == null || r.repeat == RepeatMode.none) return 1;
+    int count = 0;
+    var current = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
+    final end = r.repeatEndDate!;
+    while (!current.isAfter(end) && count < 500) {
+      count++;
+      switch (r.repeat) {
+        case RepeatMode.daily:   current = current.add(const Duration(days: 1));
+        case RepeatMode.weekly:  current = current.add(const Duration(days: 7));
+        case RepeatMode.monthly: current = DateTime(current.year, current.month + 1, current.day);
+        case RepeatMode.yearly:  current = DateTime(current.year + 1, current.month, current.day);
+        case RepeatMode.none:    break;
+      }
+    }
+    return count;
   }
 
   // ── Reschedule all on app start ────────────────────────────────────────────

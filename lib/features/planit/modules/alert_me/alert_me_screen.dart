@@ -157,6 +157,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         priority: r.priority.name,
         assignedTo: r.assignedTo,
         note: r.note,
+        repeatEndDate: r.repeatEndDate,
       );
       final saved = ReminderModel.fromRow(row);
       if (mounted) setState(() => _reminders.add(saved));
@@ -685,6 +686,8 @@ class _ReminderCard extends StatelessWidget {
                           ),
                           PriorityBadge(priority: p),
                           RepeatBadge(repeat: reminder.repeat),
+                          if (reminder.repeat != RepeatMode.none && reminder.repeatEndDate != null)
+                            _EndDateBadge(endDate: reminder.repeatEndDate!),
                           if (familyLabel != null) FamilyBadge(label: familyLabel!),
                           if (reminder.snoozed)
                             Container(
@@ -874,6 +877,16 @@ class _ReminderDetailSheet extends StatelessWidget {
                 '${fmtDate(reminder.dueDate)} at ${fmtTime(reminder.dueTime)} • ${daysUntil(reminder.dueDate)}',
             iconColor: daysUntilColor(reminder.dueDate),
           ),
+          if (reminder.repeat != RepeatMode.none)
+            InfoRow(
+              icon: Icons.event_busy_rounded,
+              label: reminder.repeatEndDate != null
+                  ? 'Repeats until ${fmtDate(reminder.repeatEndDate!)}'
+                  : 'Repeats forever',
+              iconColor: reminder.repeatEndDate != null
+                  ? AppColors.expense
+                  : AppColors.primary,
+            ),
           InfoRow(
             icon: Icons.person_rounded,
             label: 'Assigned to ${member.emoji} ${member.name}',
@@ -1137,6 +1150,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
   RepeatMode _repeat = RepeatMode.none;
   Priority _priority = Priority.medium;
   String _assignedTo = 'me';
+  DateTime? _repeatEndDate;
 
   // validation
   bool _titleError = false;
@@ -1190,6 +1204,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
       _repeat = e.repeat;
       _priority = e.priority;
       _assignedTo = e.assignedTo;
+      _repeatEndDate = e.repeatEndDate;
     }
   }
 
@@ -1270,6 +1285,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
         done: existing?.done ?? false,
         snoozed: existing?.snoozed ?? false,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        repeatEndDate: _repeat != RepeatMode.none ? _repeatEndDate : null,
       ),
     );
   }
@@ -1411,12 +1427,17 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
             assignedTo: _assignedTo,
             emojis: _emojis,
             titleError: _titleError,
+            repeatEndDate: _repeatEndDate,
             onEmojiChanged: (v) => setState(() => _emoji = v),
             onDateChanged: (v) => setState(() => _date = v),
             onTimeChanged: (v) => setState(() => _time = v),
-            onRepeatChanged: (v) => setState(() => _repeat = v),
+            onRepeatChanged: (v) => setState(() {
+              _repeat = v;
+              if (v == RepeatMode.none) _repeatEndDate = null;
+            }),
             onPriorityChanged: (v) => setState(() => _priority = v),
             onAssignedToChanged: (v) => setState(() => _assignedTo = v),
+            onRepeatEndDateChanged: (v) => setState(() => _repeatEndDate = v),
           ),
           const SizedBox(height: 16),
           SaveButton(
@@ -1889,12 +1910,14 @@ class _ManualForm extends StatelessWidget {
   final Priority priority;
   final List<String> emojis;
   final bool titleError;
+  final DateTime? repeatEndDate;
   final void Function(String) onEmojiChanged;
   final void Function(DateTime) onDateChanged;
   final void Function(TimeOfDay) onTimeChanged;
   final void Function(RepeatMode) onRepeatChanged;
   final void Function(Priority) onPriorityChanged;
   final void Function(String) onAssignedToChanged;
+  final void Function(DateTime?) onRepeatEndDateChanged;
 
   const _ManualForm({
     required this.isDark,
@@ -1911,12 +1934,14 @@ class _ManualForm extends StatelessWidget {
     required this.assignedTo,
     required this.emojis,
     required this.titleError,
+    this.repeatEndDate,
     required this.onEmojiChanged,
     required this.onDateChanged,
     required this.onTimeChanged,
     required this.onRepeatChanged,
     required this.onPriorityChanged,
     required this.onAssignedToChanged,
+    required this.onRepeatEndDateChanged,
   });
 
   @override
@@ -2145,6 +2170,73 @@ class _ManualForm extends StatelessWidget {
                 .toList(),
           ),
         ),
+        // End date — only shown when a repeat is selected
+        if (repeat != RepeatMode.none) ...[
+          const SizedBox(height: 16),
+          const SheetLabel(text: 'STOP REPEATING'),
+          GestureDetector(
+            onTap: () async {
+              final firstDate = date.isAfter(DateTime.now()) ? date : DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: repeatEndDate ?? firstDate.add(const Duration(days: 30)),
+                firstDate: firstDate,
+                lastDate: DateTime.now().add(const Duration(days: 3650)),
+              );
+              if (picked != null) onRepeatEndDateChanged(picked);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: repeatEndDate != null
+                    ? AppColors.expense.withValues(alpha: 0.08)
+                    : surfBg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: repeatEndDate != null
+                      ? AppColors.expense.withValues(alpha: 0.4)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.event_busy_rounded,
+                    size: 16,
+                    color: repeatEndDate != null
+                        ? AppColors.expense
+                        : (isDark ? AppColors.subDark : AppColors.subLight),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      repeatEndDate != null
+                          ? 'Ends on ${fmtDateShort(repeatEndDate!)}'
+                          : 'No end date (repeats forever)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: repeatEndDate != null
+                            ? AppColors.expense
+                            : (isDark ? AppColors.subDark : AppColors.subLight),
+                      ),
+                    ),
+                  ),
+                  if (repeatEndDate != null)
+                    GestureDetector(
+                      onTap: () => onRepeatEndDateChanged(null),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: AppColors.expense.withValues(alpha: 0.7),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         // Assign to
         const SheetLabel(text: 'ASSIGN TO'),
@@ -2258,6 +2350,41 @@ class _PickerTile extends StatelessWidget {
             fontWeight: FontWeight.w700,
             fontFamily: 'Nunito',
             color: AppColors.primary,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// END DATE BADGE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EndDateBadge extends StatelessWidget {
+  final DateTime endDate;
+  const _EndDateBadge({required this.endDate});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: AppColors.expense.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: AppColors.expense.withValues(alpha: 0.2)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.event_busy_rounded, size: 10, color: AppColors.expense),
+        const SizedBox(width: 3),
+        Text(
+          'Until ${fmtDateShort(endDate)}',
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Nunito',
+            color: AppColors.expense,
           ),
         ),
       ],

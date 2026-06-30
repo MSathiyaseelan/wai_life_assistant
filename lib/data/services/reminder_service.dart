@@ -26,6 +26,7 @@ class ReminderService {
     required String priority,
     required String assignedTo,
     String? note,
+    DateTime? repeatEndDate,
   }) async {
     final row = await _db.from('reminders').insert({
       'wallet_id':   walletId,
@@ -37,6 +38,8 @@ class ReminderService {
       'priority':    priority,
       'assigned_to': assignedTo,
       if (note != null) 'note': note,
+      if (repeatEndDate != null)
+        'repeat_end_date': repeatEndDate.toIso8601String().split('T').first,
     }).select().single();
     return row;
   }
