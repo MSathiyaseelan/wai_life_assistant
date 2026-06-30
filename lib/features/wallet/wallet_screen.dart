@@ -2915,11 +2915,11 @@ class _WalletScreenState extends State<WalletScreen>
     final String insightIcon;
 
     if (dailyAvg >= 1000) {
-      insightText = '📊 ${AppPrefs.cs}${_fmtAmt(totalExpense)} spent · avg ${AppPrefs.cs}${_fmtAmt(dailyAvg)}/day · ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} $topPct%';
+      insightText = '${AppPrefs.cs}${_fmtAmt(totalExpense)} spent · avg ${AppPrefs.cs}${_fmtAmt(dailyAvg)}/day · ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} $topPct%';
       insightColor = const Color(0xFFF87171);
       insightIcon = '📊';
     } else {
-      insightText = '💡 ${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} leads at ${AppPrefs.cs}${_fmtAmt(topEntry.value)} ($topPct%) · ${AppPrefs.cs}${_fmtAmt(totalExpense)} total';
+      insightText = '${_categoryEmoji(topEntry.key)} ${_capWord(topEntry.key)} leads at ${AppPrefs.cs}${_fmtAmt(topEntry.value)} ($topPct%) · ${AppPrefs.cs}${_fmtAmt(totalExpense)} total';
       insightColor = const Color(0xFFFBBF24);
       insightIcon = '💡';
     }

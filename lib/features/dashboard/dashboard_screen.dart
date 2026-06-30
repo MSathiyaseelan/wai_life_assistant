@@ -1183,6 +1183,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           WalletService.instance.ensureCategory(tx.category, tx.type.name)
                               .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
                         },
+                        onUpgrade: _prefsTap(context, Theme.of(context).brightness == Brightness.dark, 'Subscription'),
                       ),
                       const SizedBox(height: 16),
 

@@ -28,12 +28,14 @@ class AIAssistantWidget extends StatefulWidget {
   final List<WalletModel> wallets;
   final void Function(int tabIndex)? onNavigate;
   final void Function(TxModel tx)? onTransactionSaved;
+  final VoidCallback? onUpgrade;
 
   const AIAssistantWidget({
     super.key,
     required this.wallets,
     this.onNavigate,
     this.onTransactionSaved,
+    this.onUpgrade,
   });
 
   @override
@@ -507,31 +509,42 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
             // ── Limit reached banner ────────────────────────────────────────
             if (_limitReached) ...[
               const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withAlpha(28),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent.withAlpha(80)),
-                ),
-                child: Row(
-                  children: [
-                    const Text('🚫', style: TextStyle(fontSize: 16)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Monthly limit of $_monthlyLimit calls reached.\nUpgrade your plan to continue.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withAlpha(200),
-                          height: 1.4,
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  widget.onUpgrade?.call();
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withAlpha(28),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.redAccent.withAlpha(80)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('🚫', style: TextStyle(fontSize: 16)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Monthly limit of $_monthlyLimit calls reached.\nUpgrade your plan to continue.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withAlpha(200),
+                            height: 1.4,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 12,
+                        color: Colors.white.withAlpha(120),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
