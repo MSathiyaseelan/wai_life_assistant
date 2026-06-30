@@ -1524,57 +1524,55 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   }
 
   void _confirmLeaveFamily(BuildContext context, FamilyModel family) {
-    // Check if user is the only admin
-    final adminCount = family.members
-        .where((m) => m.role == MemberRole.admin)
-        .length;
-    final isLastAdmin = adminCount == 1 &&
-        family.members.isNotEmpty &&
-        family.members.first.role == MemberRole.admin;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final myMember = family.members.firstWhere(
+      (m) => m.userId == uid,
+      orElse: () => family.members.first,
+    );
+    final amAdmin = myMember.role == MemberRole.admin;
+    final adminCount = family.members.where((m) => m.role == MemberRole.admin).length;
+    final otherMembers = family.members.where((m) => m.id != myMember.id).toList();
+    // Last admin with other members still present — must transfer first
+    final mustTransfer = amAdmin && adminCount == 1 && otherMembers.isNotEmpty;
+    // Last member overall — leaving means deleting the family
+    final isLastMember = family.members.length == 1;
+
+    if (isLastMember) {
+      // No one left — offer to delete the family entirely instead of leaving
+      _confirmDeleteFamily(context, family);
+      return;
+    }
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text(
           'Leave Family',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Nunito',
-          ),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
         ),
         content: Text(
-          isLastAdmin
-              ? 'You are the only admin. Please transfer admin to another member before leaving.'
+          mustTransfer
+              ? 'You are the only admin. Transfer admin to another member before leaving.'
               : 'Are you sure you want to leave "${family.name}"?',
-          style: const TextStyle(
-            fontSize: 13,
-            fontFamily: 'Nunito',
-          ),
+          style: const TextStyle(fontSize: 13, fontFamily: 'Nunito'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(fontFamily: 'Nunito')),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
           ),
-          if (!isLastAdmin)
+          if (!mustTransfer)
             TextButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
-                final uid = Supabase.instance.client.auth.currentUser?.id;
-                final myMember = family.members.firstWhere(
-                  (m) => m.userId == uid,
-                  orElse: () => family.members.first,
-                );
                 widget.appState.switchWallet(
-                    widget.appState.wallets
-                        .firstWhere((w) => w.isPersonal,
-                            orElse: () => personalWallet)
-                        .id);
+                  widget.appState.wallets
+                      .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                      .id,
+                );
                 try {
-                  await ProfileService.instance.removeMember(myMember.id);
+                  await ProfileService.instance.leaveFamily(myMember.id);
                   if (mounted) await widget.appState.reload();
                 } catch (e, stack) {
                   ErrorLogger.log(e, stackTrace: stack, action: 'leave_family');
@@ -1585,30 +1583,18 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
               },
               child: const Text(
                 'Leave',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(color: Colors.red, fontFamily: 'Nunito', fontWeight: FontWeight.w800),
               ),
             ),
-          if (isLastAdmin)
+          if (mustTransfer)
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
-                // Show role assignment dialog first
-                if (family.members.length > 1) {
-                  _showTransferAdminDialog(
-                      context, family);
-                }
+                _showTransferAdminDialog(context, family, myMember, otherMembers);
               },
               child: const Text(
                 'Transfer Admin',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(color: AppColors.primary, fontFamily: 'Nunito', fontWeight: FontWeight.w800),
               ),
             ),
         ],
@@ -1680,18 +1666,17 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   }
 
   void _showTransferAdminDialog(
-      BuildContext context, FamilyModel family) {
-    final others = family.members.skip(1).toList();
+    BuildContext context,
+    FamilyModel family,
+    FamilyMember myMember,
+    List<FamilyMember> otherMembers,
+  ) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text(
           'Transfer Admin',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Nunito',
-          ),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1701,19 +1686,29 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
               style: TextStyle(fontSize: 12, fontFamily: 'Nunito'),
             ),
             const SizedBox(height: 8),
-            ...others.map((m) => ListTile(
-                  leading: Text(m.emoji,
-                      style: const TextStyle(fontSize: 18)),
-                  title: Text(m.name,
-                      style: const TextStyle(
-                          fontSize: 13, fontFamily: 'Nunito')),
-                  onTap: () {
+            ...otherMembers.map((m) => ListTile(
+                  leading: Text(m.emoji, style: const TextStyle(fontSize: 18)),
+                  title: Text(m.name, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito')),
+                  onTap: () async {
                     Navigator.pop(context);
-                    setState(() {
-                      family.members.first.role = MemberRole.member;
-                      m.role = MemberRole.admin;
-                    });
-                    // TODO: persist transfer + leave to backend
+                    final messenger = ScaffoldMessenger.of(context);
+                    widget.appState.switchWallet(
+                      widget.appState.wallets
+                          .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                          .id,
+                    );
+                    try {
+                      await ProfileService.instance.transferAdminAndLeave(
+                        newAdminMemberId: m.id,
+                        myMemberId: myMember.id,
+                      );
+                      if (mounted) await widget.appState.reload();
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_and_leave');
+                      messenger.showSnackBar(const SnackBar(
+                        content: Text('Failed to transfer admin. Please try again.'),
+                      ));
+                    }
                   },
                 )),
           ],

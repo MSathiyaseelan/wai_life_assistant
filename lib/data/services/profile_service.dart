@@ -264,8 +264,31 @@ class ProfileService {
   }
 
   /// Remove a member from a family (soft delete).
+  /// For the current user leaving their own family use [leaveFamily] instead —
+  /// it enforces the last-admin guard on the server side.
   Future<void> removeMember(String memberId) async {
     await _db.from('family_members').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', memberId);
+  }
+
+  /// Leave a family as the current user. Throws [PostgrestException] with
+  /// message 'last_admin_cannot_leave' if the caller is the sole admin and
+  /// other members remain — the UI must handle this case by showing the
+  /// transfer-admin flow.
+  Future<void> leaveFamily(String memberId) async {
+    await _db.rpc(AppRpc.leaveFamilyMember, params: {'p_member_id': memberId});
+  }
+
+  /// Atomically promote [newAdminMemberId] to admin, demote the caller, then
+  /// soft-delete the caller's member row. All three steps run in one
+  /// transaction on the server — no partial state possible.
+  Future<void> transferAdminAndLeave({
+    required String newAdminMemberId,
+    required String myMemberId,
+  }) async {
+    await _db.rpc(AppRpc.transferAdminAndLeave, params: {
+      'p_new_admin_member_id': newAdminMemberId,
+      'p_my_member_id':        myMemberId,
+    });
   }
 
   Future<void> restore(String table, String id) async {

@@ -12,8 +12,10 @@ abstract final class AppRpc {
   static const String createFamilyWithWallet = 'create_family_with_wallet';
   static const String updateFamily           = 'update_family';
   static const String deleteFamily           = 'delete_family';
-  static const String addFamilyMember        = 'add_family_member';
-  static const String updateFamilyMember     = 'update_family_member';
+  static const String addFamilyMember          = 'add_family_member';
+  static const String updateFamilyMember       = 'update_family_member';
+  static const String leaveFamilyMember        = 'leave_family';
+  static const String transferAdminAndLeave    = 'transfer_admin_and_leave';
 
   // ── Invites ────────────────────────────────────────────────────────────────
   static const String sendFamilyInvite    = 'send_family_invite';
