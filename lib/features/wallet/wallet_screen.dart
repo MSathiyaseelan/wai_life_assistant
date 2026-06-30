@@ -563,6 +563,19 @@ class _WalletScreenState extends State<WalletScreen>
     if (!AuthCoordinator.instance.isLoggedIn) {
       return;
     }
+    if (!NetworkService.instance.isOnline.value) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No internet connection. Transaction not saved.'),
+            backgroundColor: Color(0xFFE65100),
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(16),
+          ),
+        );
+      }
+      return;
+    }
     // Always save the category — runs regardless of whether addTransaction succeeds
     WalletService.instance.ensureCategory(tx.category, tx.type.name)
         .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
@@ -610,15 +623,18 @@ class _WalletScreenState extends State<WalletScreen>
           .where((w) => w.id != saved.walletId)
           .toList();
       _showTxSnackBar(saved, otherWallets);
-    } catch (e) {
-      debugPrint('[WalletScreen] addTransaction failed: $e');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'add_transaction');
       if (mounted) {
+        final isOffline = !NetworkService.instance.isOnline.value;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save transaction. Please try again.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: Text(isOffline
+                ? 'No internet connection. Transaction not saved.'
+                : 'Failed to save transaction. Please try again.'),
+            backgroundColor: isOffline ? const Color(0xFFE65100) : Colors.red,
             behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(16),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }

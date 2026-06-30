@@ -10,6 +10,7 @@ import 'core/supabase/supabase_config.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/network_service.dart';
+import 'core/services/realtime_sync_service.dart';
 // import 'features/wallet/services/sms_parser_service.dart'; // re-enable with auto-scan
 import 'firebase_options.dart';
 import 'main.dart';
@@ -50,6 +51,8 @@ Future<void> bootstrapApp(String env) async {
     NetworkService.instance.init(),
     SharedPreferences.getInstance(),
   ]);
+  // Must run after NetworkService.init() so the isOnline listener is ready.
+  RealtimeSyncService.instance.init();
 
   // FCM + Crashlytics require Firebase to be ready — run after Phase 1.
   if (firebaseReady) {

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'network_service.dart';
 
 class RealtimeSyncService {
   RealtimeSyncService._();
@@ -8,11 +9,24 @@ class RealtimeSyncService {
   final revision = ValueNotifier<int>(0);
 
   final List<RealtimeChannel> _channels = [];
+  String? _lastUserId;
 
   SupabaseClient get _db => Supabase.instance.client;
 
+  void init() {
+    NetworkService.instance.isOnline.addListener(_onNetworkChange);
+  }
+
+  void _onNetworkChange() {
+    if (NetworkService.instance.isOnline.value && _lastUserId != null) {
+      debugPrint('[Realtime] reconnected — resubscribing for $_lastUserId');
+      subscribeAll(_lastUserId!);
+    }
+  }
+
   void subscribeAll(String userId) {
     unsubscribeAll();
+    _lastUserId = userId;
 
     const tables = [
       'notes',
@@ -49,5 +63,10 @@ class RealtimeSyncService {
       _db.removeChannel(channel);
     }
     _channels.clear();
+  }
+
+  void dispose() {
+    NetworkService.instance.isOnline.removeListener(_onNetworkChange);
+    unsubscribeAll();
   }
 }
