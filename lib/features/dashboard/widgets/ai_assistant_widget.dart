@@ -214,6 +214,14 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   Future<void> _submit(String q) async {
     final question = q.trim();
     if (question.isEmpty || _loading || _limitReached) return;
+
+    // Local pre-flight guard: if we already know the count is at/over the limit
+    // (e.g. another device used up the remaining calls since app open), block here
+    // before wasting an AI request.
+    if (!_limitChecking && _monthlyUsed >= _monthlyLimit) {
+      setState(() => _limitReached = true);
+      return;
+    }
     _hideSuggestions();
     _focus.unfocus();
     HapticFeedback.lightImpact();
@@ -258,7 +266,11 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         if (mounted) {
           setState(() {
             _monthlyUsed = _monthlyUsed + 1;
-            if (!allowed) _limitReached = true;
+            // Set limit when server says no OR when local count catches up to limit.
+            // The second condition prevents 21/20 display: when the 20th call is
+            // allowed by the server (count just hit 20), the next submit is still
+            // blocked locally without needing a 21st AI request.
+            if (!allowed || _monthlyUsed >= _monthlyLimit) _limitReached = true;
           });
         }
       }
