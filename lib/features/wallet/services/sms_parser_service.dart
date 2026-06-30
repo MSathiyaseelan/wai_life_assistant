@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wai_life_assistant/features/wallet/models/sms_transaction.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_regex_parser.dart';
@@ -136,10 +137,10 @@ class SMSParserService {
   // ── Check for SMS pending from a cold-start notification tap ─────────────
 
   static Future<void> checkPending() async {
-    final prefs   = await SharedPreferences.getInstance();
-    final pending = prefs.getString(kPendingKey);
+    const ss = FlutterSecureStorage();
+    final pending = await ss.read(key: kPendingKey);
     if (pending != null) {
-      await prefs.remove(kPendingKey);
+      await ss.delete(key: kPendingKey);
       pendingSmsBody.value = pending;
       debugPrint('[SMS] loaded pending SMS from cold-start tap');
     }

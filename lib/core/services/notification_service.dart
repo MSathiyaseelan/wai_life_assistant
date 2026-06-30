@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
@@ -88,8 +88,7 @@ Future<void> _handleAction(NotificationResponse response) async {
   if (response.actionId == null &&
       (response.payload?.startsWith(smsPrefix) ?? false)) {
     final body = response.payload!.substring(smsPrefix.length);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('pending_sms_body', body);
+    await const FlutterSecureStorage().write(key: 'pending_sms_body', value: body);
     return;
   }
 
