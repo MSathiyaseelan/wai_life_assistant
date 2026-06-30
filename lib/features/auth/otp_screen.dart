@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,8 +7,6 @@ import '../../core/theme/app_colors.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'auth_coordinator.dart';
-
-const bool kBypassOtp = false;
 
 class OtpScreen extends StatefulWidget {
   final String phone;
@@ -26,6 +25,8 @@ class _OtpScreenState extends State<OtpScreen> {
   String? _error;
   int _resendSeconds = 30;
   bool _canResend = false;
+  int _resendCount = 0;
+  static const int _maxResends = 3;
 
   @override
   void initState() {
@@ -117,7 +118,7 @@ class _OtpScreenState extends State<OtpScreen> {
       setState(() => _error = e.message);
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'otp_verify', severity: ErrorSeverity.critical);
-      debugPrint('[OTP] verification error: $e');
+      if (kDebugMode) debugPrint('[OTP] verification error: $e');
       if (!mounted) return;
       setState(() => _error = 'Verification failed. Please try again.');
     } finally {
@@ -126,9 +127,13 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _resend() async {
+    if (_resendCount >= _maxResends) {
+      setState(() => _error = 'Too many resend attempts. Please go back and try again.');
+      return;
+    }
     for (final c in _ctrls) { c.clear(); }
     _nodes[0].requestFocus();
-    setState(() => _error = null);
+    setState(() { _error = null; _resendCount++; });
     _startResendTimer();
     try {
       await AuthCoordinator.instance.resendOtp(widget.phone);

@@ -20,7 +20,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const FIREBASE_PROJECT_ID  = Deno.env.get("FIREBASE_PROJECT_ID") ?? "waiapp-4edaf";
 const SUPABASE_URL         = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const INTERNAL_PASS        = Deno.env.get("WAI_INTERNAL_AUTH_PASS") ?? "wai_dev_bypass_2024";
+const INTERNAL_PASS = (() => {
+  const v = Deno.env.get("WAI_INTERNAL_AUTH_PASS");
+  if (!v) throw new Error("WAI_INTERNAL_AUTH_PASS env var is not set — refusing to start");
+  return v;
+})();
 
 const FIREBASE_JWKS_URL =
   "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
@@ -169,11 +173,38 @@ function errorResponse(status: number, message: string): Response {
   );
 }
 
+// ── In-memory rate limiter ────────────────────────────────────────────────────
+// Keyed by client IP. Resets on cold start but blocks rapid burst abuse.
+
+const _rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_CALLS = 10;     // max 10 verify attempts per IP per minute
+
+function isRateLimited(req: Request): boolean {
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("cf-connecting-ip") ??
+    "unknown";
+  const now = Date.now();
+  const entry = _rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    _rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT_MAX_CALLS) return true;
+  entry.count++;
+  return false;
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (isRateLimited(req)) {
+    return errorResponse(429, "Too many requests. Please try again later.");
   }
 
   try {
@@ -182,15 +213,13 @@ serve(async (req) => {
     if (!idToken) return errorResponse(400, "id_token is required");
 
     const claims = await verifyFirebaseIdToken(idToken);
-    console.log("[firebase-verify] token verified, sub=", claims.sub);
-
     // Firebase Phone Auth stores the number in phone_number.
     const phone =
       claims.phone_number ??
       claims.firebase?.identities?.phone?.[0];
 
     if (!phone) {
-      console.error("[firebase-verify] no phone in claims:", JSON.stringify(claims));
+      console.error("[firebase-verify] phone claim missing from verified token");
       return errorResponse(400, "Phone number not found in Firebase token");
     }
 

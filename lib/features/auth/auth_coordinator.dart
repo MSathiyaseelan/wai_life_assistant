@@ -121,7 +121,7 @@ class AuthCoordinator {
 
   /// Signs the user out of Firebase and Supabase.
   /// Pass [allDevices: true] to revoke all refresh tokens (logout everywhere).
-  Future<void> signOut({bool allDevices = false}) async {
+  Future<void> signOut({bool allDevices = true}) async {
     // Run both sign-outs independently — Firebase may have no active user
     // (anonymous / bypass sessions never sign into Firebase).
     await _client.auth.signOut(
