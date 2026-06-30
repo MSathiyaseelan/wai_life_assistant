@@ -27,6 +27,7 @@ import 'package:wai_life_assistant/core/services/family_notification_trigger.dar
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/create_list_sheet.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 
 class PantryScreen extends StatefulWidget {
   final String activeWalletId;
@@ -58,6 +59,9 @@ class _PantryScreenState extends State<PantryScreen>
   final _chatBarKey = GlobalKey<ChatInputBarState>();
   final SpeechToText _speech = SpeechToText();
   String _speechLocale = 'en-IN';
+
+  // Plan limit — how many weeks ahead the user can pre-plan meals (1 = free plan default)
+  int _mealWeeksAhead = 1;
 
   // Meal Map — loaded from DB
   List<MealEntry> _meals = [];
@@ -320,6 +324,7 @@ class _PantryScreenState extends State<PantryScreen>
     _sectionTab = TabController(length: 3, vsync: this);
     _sectionTab.addListener(() => setState(() {}));
     _fetchUserName();
+    _loadPlanLimits();
     _loadMeals();
     _loadRecipes();
     _loadGroceries();
@@ -384,6 +389,18 @@ class _PantryScreenState extends State<PantryScreen>
       setState(() => _recipesLoading = false);
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_load_recipes');
       _showLoadError();
+    }
+  }
+
+  Future<void> _loadPlanLimits() async {
+    try {
+      final client = Supabase.instance.client;
+      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
+      if (!mounted) return;
+      final weeks = (planLimits?['pantry_meal_weeks_ahead'] as int?) ?? 1;
+      setState(() => _mealWeeksAhead = weeks);
+    } catch (_) {
+      // fallback already set to 1
     }
   }
 
@@ -1821,6 +1838,7 @@ class _PantryScreenState extends State<PantryScreen>
             _SectionDivider(isDark: isDark),
             WeekCalendarStrip(
             selectedDate: _selectedDate,
+            maxWeeksAhead: _mealWeeksAhead,
             onDateSelected: (d) => setState(() => _selectedDate = d),
           ),
           MealMapSection(
@@ -1828,6 +1846,7 @@ class _PantryScreenState extends State<PantryScreen>
             recipes: _recipes,
             selectedDate: _selectedDate,
             walletId: widget.activeWalletId,
+            mealWeeksAhead: _mealWeeksAhead,
             onMealAdded: _addMeal,
             onMealUpdated: _updateMeal,
             onMealTapped: _showMealDetail,

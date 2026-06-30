@@ -6,11 +6,15 @@ import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dar
 class WeekCalendarStrip extends StatefulWidget {
   final DateTime selectedDate;
   final void Function(DateTime date) onDateSelected;
+  /// How many weeks ahead of the current week the user may navigate.
+  /// 1 = next week only (free plan). -1 = unlimited.
+  final int maxWeeksAhead;
 
   const WeekCalendarStrip({
     super.key,
     required this.selectedDate,
     required this.onDateSelected,
+    this.maxWeeksAhead = 1,
   });
 
   @override
@@ -55,11 +59,29 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
     widget.onDateSelected(newStart);
   }
 
+  bool get _canGoNextWeek {
+    if (widget.maxWeeksAhead < 0) return true; // unlimited
+    final now = DateTime.now();
+    final currentMonday = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final nextStart = _weekStart.add(const Duration(days: 7));
+    final weeksAhead = nextStart.difference(currentMonday).inDays ~/ 7;
+    return weeksAhead <= widget.maxWeeksAhead;
+  }
+
   void _nextWeek() {
+    if (!_canGoNextWeek) {
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Upgrade your plan to plan meals further ahead.'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ));
+      return;
+    }
     HapticFeedback.lightImpact();
     final newStart = _weekStart.add(const Duration(days: 7));
     setState(() => _weekStart = newStart);
-    // Notify parent so selectedDate (and MealMapSection) update for the new week
     widget.onDateSelected(newStart);
   }
 
@@ -133,8 +155,12 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
                   ),
                 ),
 
-                // Next week
-                _NavBtn(icon: Icons.chevron_right_rounded, onTap: _nextWeek),
+                // Next week — dimmed when plan limit reached
+                _NavBtn(
+                  icon: Icons.chevron_right_rounded,
+                  onTap: _nextWeek,
+                  locked: !_canGoNextWeek,
+                ),
               ],
             ),
           ),
@@ -148,24 +174,32 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
 class _NavBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _NavBtn({required this.icon, required this.onTap});
+  final bool locked;
+  const _NavBtn({required this.icon, required this.onTap, this.locked = false});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: isDark
-              ? AppColors.surfDark
-              : AppColors.primary.withOpacity(0.08),
-          shape: BoxShape.circle,
+    return Opacity(
+      opacity: locked ? 0.35 : 1.0,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.surfDark
+                : AppColors.primary.withValues(alpha: 0.08),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            locked ? Icons.lock_rounded : icon,
+            color: AppColors.primary,
+            size: locked ? 16 : 22,
+          ),
         ),
-        alignment: Alignment.center,
-        child: Icon(icon, color: AppColors.primary, size: 22),
       ),
     );
   }

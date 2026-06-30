@@ -9,6 +9,9 @@ class MealMapSection extends StatefulWidget {
   final List<RecipeModel> recipes;
   final DateTime selectedDate;
   final String walletId;
+  /// How many weeks ahead of the current week the user may add meals.
+  /// 1 = next week (free plan default). -1 = unlimited.
+  final int mealWeeksAhead;
   final void Function(MealEntry meal) onMealAdded;
   final void Function(MealEntry meal)? onMealUpdated;
   final void Function(MealEntry meal) onMealTapped;
@@ -30,6 +33,7 @@ class MealMapSection extends StatefulWidget {
     required this.recipes,
     required this.selectedDate,
     required this.walletId,
+    this.mealWeeksAhead = 1,
     required this.onMealAdded,
     required this.onMealTapped,
     this.onMealUpdated,
@@ -102,6 +106,21 @@ class _MealMapSectionState extends State<MealMapSection> {
   bool _isToday(DateTime d) {
     final n = DateTime.now();
     return d.year == n.year && d.month == n.month && d.day == n.day;
+  }
+
+  /// True when [day] is beyond the plan's weeks-ahead limit.
+  /// Only future days are locked — past days are always editable.
+  bool _isDayLocked(DateTime day) {
+    if (widget.mealWeeksAhead < 0) return false; // unlimited plan
+    final now = DateTime.now();
+    final todayDate = DateTime(now.year, now.month, now.day);
+    if (!day.isAfter(todayDate)) return false; // today & past always allowed
+    final currentMonday =
+        todayDate.subtract(Duration(days: todayDate.weekday - 1));
+    final dayMonday = DateTime(day.year, day.month, day.day)
+        .subtract(Duration(days: day.weekday - 1));
+    final weeksAhead = dayMonday.difference(currentMonday).inDays ~/ 7;
+    return weeksAhead > widget.mealWeeksAhead;
   }
 
   static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -243,6 +262,7 @@ class _MealMapSectionState extends State<MealMapSection> {
                 meals: dayMeals,
                 isToday: isToday,
                 isSelected: isSel,
+                isLocked: _isDayLocked(day),
                 walletId: widget.walletId,
                 isDark: isDark,
                 hasClipboard: _hasClipboard,
@@ -279,6 +299,8 @@ class _DayColumn extends StatelessWidget {
   final String dayName;
   final List<MealEntry> meals;
   final bool isToday, isSelected, isDark;
+  /// True when this day is beyond the user's plan weeks-ahead limit.
+  final bool isLocked;
   final String walletId;
   final bool hasClipboard;
   final String clipboardLabel;
@@ -299,6 +321,7 @@ class _DayColumn extends StatelessWidget {
     required this.walletId,
     required this.onAddMeal,
     required this.onMealTapped,
+    this.isLocked = false,
     this.hasClipboard = false,
     this.clipboardLabel = '',
     this.width = 130,
@@ -435,46 +458,71 @@ class _DayColumn extends StatelessWidget {
                     ),
                   ),
 
-                  // Add button
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      onAddMeal(day);
-                    },
-                    child: Container(
+                  // Add button — locked for days beyond plan weeks-ahead limit
+                  if (isLocked)
+                    Container(
                       margin: EdgeInsets.only(top: meals.isNotEmpty ? 4 : 0),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.08),
+                        color: Colors.grey.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: AppColors.primary.withOpacity(0.25),
+                          color: Colors.grey.withValues(alpha: 0.2),
                           width: 1,
-                          style: BorderStyle.solid,
                         ),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.add_rounded,
-                            size: 14,
-                            color: AppColors.primary,
-                          ),
+                          Icon(Icons.lock_rounded, size: 12, color: Colors.grey),
                           SizedBox(width: 3),
                           Text(
-                            'Add',
+                            'Upgrade',
                             style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey,
                               fontFamily: 'Nunito',
                             ),
                           ),
                         ],
                       ),
+                    )
+                  else
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        onAddMeal(day);
+                      },
+                      child: Container(
+                        margin: EdgeInsets.only(top: meals.isNotEmpty ? 4 : 0),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_rounded, size: 14, color: AppColors.primary),
+                            SizedBox(width: 3),
+                            Text(
+                              'Add',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.primary,
+                                fontFamily: 'Nunito',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -531,7 +579,7 @@ class _DayColumn extends StatelessWidget {
                 onCopyDay?.call(day);
               },
             ),
-            if (hasClipboard) ...[
+            if (hasClipboard && !isLocked) ...[
               const SizedBox(height: 10),
               _SheetOption(
                 icon: Icons.content_paste_rounded,
@@ -542,6 +590,17 @@ class _DayColumn extends StatelessWidget {
                   Navigator.pop(context);
                   onPasteToDay?.call(day);
                 },
+              ),
+            ],
+            if (hasClipboard && isLocked) ...[
+              const SizedBox(height: 10),
+              _SheetOption(
+                icon: Icons.lock_rounded,
+                color: Colors.grey,
+                title: 'Paste unavailable',
+                subtitle: 'Upgrade your plan to plan meals this far ahead',
+                enabled: false,
+                onTap: () => Navigator.pop(context),
               ),
             ],
           ],
