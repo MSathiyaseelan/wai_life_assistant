@@ -1142,7 +1142,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Pick a screenshot or photo of a bill/receipt.\nClaude AI will extract the items for you.',
+            'Pick a screenshot or photo of a bill/receipt.\nAI will extract the items for you.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
           ),
@@ -1261,7 +1261,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           const CircularProgressIndicator(color: AppColors.income),
           const SizedBox(height: 16),
           Text(
-            'Reading bill with Claude AI…',
+            'Reading bill with AI…',
             style: TextStyle(
               fontSize: 14,
               fontFamily: 'Nunito',
