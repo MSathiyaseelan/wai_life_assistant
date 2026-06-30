@@ -126,7 +126,6 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
           ));
         }
       } catch (e, stack) {
-        debugPrint('[RecycleBin] $table error: $e');
         ErrorLogger.log(e, stackTrace: stack, action: 'recycle_bin_fetch_$table');
       }
     }));
@@ -143,9 +142,12 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
       await _db.from(item.table).update({'deleted_at': null}).eq('id', item.id);
       if (mounted) setState(() { _items.removeWhere((i) => i.table == item.table && i.id == item.id); _restoring.remove(key); });
     } catch (e, stack) {
-      debugPrint('[RecycleBin] restore error: $e');
       ErrorLogger.log(e, stackTrace: stack, action: 'recycle_bin_restore');
-      if (mounted) setState(() => _restoring.remove(key));
+      if (!mounted) return;
+      setState(() => _restoring.remove(key));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Restore failed. Please try again.')),
+      );
     }
   }
 
