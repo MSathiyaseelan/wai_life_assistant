@@ -177,6 +177,7 @@ async function callGemini(
 
   const response = await fetch(`${geminiUrl(model)}?key=${GEMINI_API_KEY}`, {
     method: "POST",
+    signal: AbortSignal.timeout(25000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ parts }],
@@ -418,7 +419,7 @@ serve(async (req: Request) => {
     input_type,
     data:        parsed,
     confidence:  parsed.confidence || null,
-    needs_review: (parsed.confidence as number) < 0.7,
+    needs_review: typeof parsed.confidence === 'number' ? parsed.confidence < 0.7 : true,
     meta: {
       tokens_used: geminiResult.tokens,
       latency_ms:  geminiResult.latencyMs,

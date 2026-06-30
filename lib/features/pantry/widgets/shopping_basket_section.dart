@@ -897,7 +897,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           .from('feature_usage')
           .select('count')
           .eq('user_id', userId)
-          .eq('feature', 'bill_scan')
+          .eq('feature', 'ai_parser')
           .eq('month', month)
           .maybeSingle();
       final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
@@ -943,7 +943,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
         final allowed =
             await Supabase.instance.client.rpc(
                   AppRpc.checkFeatureLimit,
-                  params: {'p_user_id': userId, 'p_feature': 'bill_scan'},
+                  params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
                 )
                 as bool? ??
             true;
@@ -997,6 +997,13 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
         );
       }).toList();
 
+      if (items.isEmpty) {
+        setState(() {
+          _error = 'No items found in the bill. Try a clearer photo.';
+          _phase = 'pick';
+        });
+        return;
+      }
       setState(() {
         _scannedItems = items;
         _phase = 'confirm';

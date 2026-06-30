@@ -286,9 +286,9 @@ class NotificationService {
                 UILocalNotificationDateInterpretation.absoluteTime,
             payload: payload,
           );
+          idx++;
         }
         current = _nextOccurrence(current, r.repeat);
-        idx++;
       }
       return;
     }
@@ -336,7 +336,11 @@ class NotificationService {
     switch (repeat) {
       case RepeatMode.daily:   return d.add(const Duration(days: 1));
       case RepeatMode.weekly:  return d.add(const Duration(days: 7));
-      case RepeatMode.monthly: return tz.TZDateTime(d.location, d.year, d.month + 1, d.day, d.hour, d.minute);
+      case RepeatMode.monthly:
+        final nextMonth = d.month == 12 ? 1 : d.month + 1;
+        final nextYear  = d.month == 12 ? d.year + 1 : d.year;
+        final lastDay   = DateTime(nextYear, nextMonth + 1, 0).day;
+        return tz.TZDateTime(d.location, nextYear, nextMonth, d.day.clamp(1, lastDay), d.hour, d.minute);
       case RepeatMode.yearly:  return tz.TZDateTime(d.location, d.year + 1, d.month, d.day, d.hour, d.minute);
       case RepeatMode.none:    return d;
     }
@@ -346,13 +350,17 @@ class NotificationService {
     if (r.repeatEndDate == null || r.repeat == RepeatMode.none) return 1;
     int count = 0;
     var current = DateTime(r.dueDate.year, r.dueDate.month, r.dueDate.day);
-    final end = r.repeatEndDate!;
-    while (!current.isAfter(end) && count < 500) {
+    final end = r.repeatEndDate!.add(const Duration(days: 1));
+    while (current.isBefore(end) && count < 500) {
       count++;
       switch (r.repeat) {
         case RepeatMode.daily:   current = current.add(const Duration(days: 1));
         case RepeatMode.weekly:  current = current.add(const Duration(days: 7));
-        case RepeatMode.monthly: current = DateTime(current.year, current.month + 1, current.day);
+        case RepeatMode.monthly:
+          final nm = current.month == 12 ? 1 : current.month + 1;
+          final ny = current.month == 12 ? current.year + 1 : current.year;
+          final ld = DateTime(ny, nm + 1, 0).day;
+          current = DateTime(ny, nm, current.day.clamp(1, ld));
         case RepeatMode.yearly:  current = DateTime(current.year + 1, current.month, current.day);
         case RepeatMode.none:    break;
       }

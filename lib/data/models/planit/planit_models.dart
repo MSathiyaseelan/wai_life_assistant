@@ -523,7 +523,7 @@ class ReminderModel {
     'snoozed':     snoozed,
     'done':        done,
     if (note != null) 'note': note,
-    'repeat_end_date': repeatEndDate?.toIso8601String().split('T').first,
+    if (repeatEndDate != null) 'repeat_end_date': repeatEndDate!.toIso8601String().split('T').first,
   };
 }
 
