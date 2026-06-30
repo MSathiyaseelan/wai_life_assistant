@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 class ShoppingBasketSection extends StatefulWidget {
   final List<GroceryItem> items;
@@ -910,9 +911,10 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
         _limitReached = count >= limit;
         _limitChecking = false;
       });
-    } catch (_) {
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'basket_check_limit');
       if (!mounted) return;
-      setState(() => _limitChecking = false); // fail open
+      setState(() => _limitChecking = false);
     }
   }
 
@@ -1051,8 +1053,8 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
             note:
                 'Bill scan — ${selected.length} item${selected.length == 1 ? '' : 's'}',
           );
-        } catch (_) {
-          // Non-critical — basket save already succeeded
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'basket_push_to_wallet');
         }
       }
     }

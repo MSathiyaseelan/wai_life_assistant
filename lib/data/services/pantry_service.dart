@@ -21,7 +21,11 @@ class PantryService {
   static final listChangeSignal = ValueNotifier<int>(0);
 
   SupabaseClient get _db => Supabase.instance.client;
-  String get _uid => _db.auth.currentUser!.id;
+  String get _uid {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not authenticated');
+    return uid;
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MASTER RECIPES  (shared catalogue)

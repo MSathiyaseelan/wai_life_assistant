@@ -567,7 +567,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                   }
                                 }
                               } catch (e) {
-                                debugPrint('[Wardrobe] logOutfit error: $e');
+                                ErrorLogger.warning(e, action: 'wardrobe_log_outfit');
                               }
                             }();
                           },
@@ -782,8 +782,8 @@ class _AddClothingSheetState extends State<AddClothingSheet>
         });
         _tab.animateTo(1);
       }
-    } catch (_) {
-      // silently fall through
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'wardrobe_ai_parse');
     } finally {
       if (mounted) setState(() => _parsing = false);
     }
@@ -822,7 +822,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
         final saved = ClothingItem.fromJson(row);
         widget.onItemAdded?.call(saved);
       } catch (e) {
-        debugPrint('[Wardrobe] addItem error: $e');
+        ErrorLogger.warning(e, action: 'wardrobe_add_item');
       }
     }();
   }
@@ -1709,7 +1709,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
       }
       await svc.deletePhoto(oldUrl); // clean up old file
     } catch (e) {
-      debugPrint('[Wardrobe] updatePhoto error: $e');
+      ErrorLogger.warning(e, action: 'wardrobe_update_photo');
     }
   }
 
@@ -1903,7 +1903,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                         }
                       }
                     } catch (e) {
-                      debugPrint('[Wardrobe] savePairs error: $e');
+                      ErrorLogger.warning(e, action: 'wardrobe_save_pairs');
                     }
                   }();
                 },

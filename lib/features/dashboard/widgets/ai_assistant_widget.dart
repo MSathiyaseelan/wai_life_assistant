@@ -121,7 +121,8 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         _limitReached = count >= limit;
         _limitChecking = false;
       });
-    } catch (_) {
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'check_ai_limit');
       if (!mounted) return;
       setState(() => _limitChecking = false);
     }
@@ -217,7 +218,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       if (kDebugMode) debugPrint('[WAI] AI intent resolved, sources=${intent.dataSources}');
       final ctx = await ContextFetcher.instance.fetch(intent, widget.walletId);
       final contextBlock = ctx.toPromptBlock();
-      debugPrint('[WAI] context block:\n$contextBlock');
+      if (kDebugMode) debugPrint('[WAI] context fetched');
       final familyMembers = ctx.family.isNotEmpty
           ? (ctx.family['members'] as String? ?? 'not specified')
           : 'not specified';

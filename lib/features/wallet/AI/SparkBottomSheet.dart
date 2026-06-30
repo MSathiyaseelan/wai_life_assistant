@@ -9,6 +9,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 
@@ -92,7 +93,8 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
         _limitReached = count >= limit;
         _limitChecking = false;
       });
-    } catch (_) {
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'spark_check_limit');
       if (!mounted) return;
       setState(() => _limitChecking = false);
     }
@@ -211,15 +213,19 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
     // Increment usage only on a successful AI response
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId != null) {
-      final allowed = await Supabase.instance.client.rpc(
-        AppRpc.checkFeatureLimit,
-        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-      ) as bool? ?? true;
-      if (mounted) {
-        setState(() {
-          _monthlyUsed = _monthlyUsed + 1;
-          if (!allowed) _limitReached = true;
-        });
+      try {
+        final allowed = await Supabase.instance.client.rpc(
+          AppRpc.checkFeatureLimit,
+          params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+        ) as bool? ?? true;
+        if (mounted) {
+          setState(() {
+            _monthlyUsed = _monthlyUsed + 1;
+            if (!allowed) _limitReached = true;
+          });
+        }
+      } catch (e) {
+        ErrorLogger.warning(e, action: 'spark_increment_limit');
       }
     }
 
