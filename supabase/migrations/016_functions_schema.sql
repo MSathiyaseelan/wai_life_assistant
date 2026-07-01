@@ -22,9 +22,11 @@ CREATE TABLE IF NOT EXISTS functions_my (
 
 ALTER TABLE functions_my ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "functions_my_user_policy" ON functions_my;
 CREATE POLICY "functions_my_user_policy" ON functions_my
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_functions_my_updated_at ON functions_my;
 CREATE TRIGGER trg_functions_my_updated_at
   BEFORE UPDATE ON functions_my
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -47,9 +49,11 @@ CREATE TABLE IF NOT EXISTS functions_upcoming (
 
 ALTER TABLE functions_upcoming ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "functions_upcoming_user_policy" ON functions_upcoming;
 CREATE POLICY "functions_upcoming_user_policy" ON functions_upcoming
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_functions_upcoming_updated_at ON functions_upcoming;
 CREATE TRIGGER trg_functions_upcoming_updated_at
   BEFORE UPDATE ON functions_upcoming
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -71,9 +75,11 @@ CREATE TABLE IF NOT EXISTS functions_attended (
 
 ALTER TABLE functions_attended ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "functions_attended_user_policy" ON functions_attended;
 CREATE POLICY "functions_attended_user_policy" ON functions_attended
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_functions_attended_updated_at ON functions_attended;
 CREATE TRIGGER trg_functions_attended_updated_at
   BEFORE UPDATE ON functions_attended
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS reminders (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS reminders_updated_at ON reminders;
 CREATE TRIGGER reminders_updated_at
   BEFORE UPDATE ON reminders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

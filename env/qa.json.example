@@ -1,0 +1,5 @@
+{
+  "ENV": "qa",
+  "SUPABASE_URL": "https://<qa-project-ref>.supabase.co",
+  "SUPABASE_ANON_KEY": "<qa-anon-key>"
+}

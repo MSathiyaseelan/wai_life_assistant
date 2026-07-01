@@ -29,6 +29,7 @@ DROP POLICY IF EXISTS "notes_delete" ON public.notes;
 --   Family wallet member   → family_members.family_id = wallets.family_id
 --                            where the member's user_id = auth.uid()
 
+DROP POLICY IF EXISTS "notes_select" ON public.notes;
 CREATE POLICY "notes_select" ON public.notes
   FOR SELECT USING (
     wallet_id IN (
@@ -41,6 +42,7 @@ CREATE POLICY "notes_select" ON public.notes
     )
   );
 
+DROP POLICY IF EXISTS "notes_insert" ON public.notes;
 CREATE POLICY "notes_insert" ON public.notes
   FOR INSERT WITH CHECK (
     wallet_id IN (
@@ -53,6 +55,7 @@ CREATE POLICY "notes_insert" ON public.notes
     )
   );
 
+DROP POLICY IF EXISTS "notes_update" ON public.notes;
 CREATE POLICY "notes_update" ON public.notes
   FOR UPDATE USING (
     wallet_id IN (
@@ -65,6 +68,7 @@ CREATE POLICY "notes_update" ON public.notes
     )
   );
 
+DROP POLICY IF EXISTS "notes_delete" ON public.notes;
 CREATE POLICY "notes_delete" ON public.notes
   FOR DELETE USING (
     wallet_id IN (
@@ -82,6 +86,7 @@ CREATE POLICY "notes_delete" ON public.notes
 
 DROP POLICY IF EXISTS "families: admin can delete" ON public.families;
 
+DROP POLICY IF EXISTS "families: admin can delete" ON public.families;
 CREATE POLICY "families: admin can delete" ON public.families
   FOR DELETE USING (
     EXISTS (

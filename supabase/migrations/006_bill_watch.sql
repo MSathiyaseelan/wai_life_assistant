@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS bills (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS bills_updated_at ON bills;
 CREATE TRIGGER bills_updated_at
   BEFORE UPDATE ON bills
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

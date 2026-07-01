@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON profiles;
 CREATE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -45,6 +46,7 @@ CREATE OR REPLACE TRIGGER trg_on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "profiles: own row" ON profiles;
 CREATE POLICY "profiles: own row" ON profiles
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
@@ -61,27 +63,6 @@ CREATE TABLE IF NOT EXISTS families (
   created_by  UUID        REFERENCES profiles(id) ON DELETE SET NULL,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-ALTER TABLE families ENABLE ROW LEVEL SECURITY;
--- Visible to members (joined via family_members)
-CREATE POLICY "families: members can view" ON families
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM family_members fm
-      WHERE fm.family_id = families.id AND fm.user_id = auth.uid()
-    )
-  );
-CREATE POLICY "families: admin can insert" ON families
-  FOR INSERT WITH CHECK (created_by = auth.uid());
-CREATE POLICY "families: admin can update" ON families
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM family_members fm
-      WHERE fm.family_id = families.id
-        AND fm.user_id = auth.uid()
-        AND fm.role = 'admin'
-    )
-  );
 
 
 -- ══════════════════════════════════════════════════════════════
@@ -104,6 +85,7 @@ CREATE INDEX idx_family_members_family ON family_members(family_id);
 CREATE INDEX idx_family_members_user   ON family_members(user_id);
 
 ALTER TABLE family_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "family_members: members can view" ON family_members;
 CREATE POLICY "family_members: members can view" ON family_members
   FOR SELECT USING (
     EXISTS (
@@ -112,6 +94,7 @@ CREATE POLICY "family_members: members can view" ON family_members
         AND fm2.user_id = auth.uid()
     )
   );
+DROP POLICY IF EXISTS "family_members: admin can manage" ON family_members;
 CREATE POLICY "family_members: admin can manage" ON family_members
   FOR ALL USING (
     EXISTS (
@@ -119,6 +102,30 @@ CREATE POLICY "family_members: admin can manage" ON family_members
       WHERE fm2.family_id = family_members.family_id
         AND fm2.user_id = auth.uid()
         AND fm2.role = 'admin'
+    )
+  );
+
+ALTER TABLE families ENABLE ROW LEVEL SECURITY;
+-- Visible to members (joined via family_members)
+DROP POLICY IF EXISTS "families: members can view" ON families;
+CREATE POLICY "families: members can view" ON families
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM family_members fm
+      WHERE fm.family_id = families.id AND fm.user_id = auth.uid()
+    )
+  );
+DROP POLICY IF EXISTS "families: admin can insert" ON families;
+CREATE POLICY "families: admin can insert" ON families
+  FOR INSERT WITH CHECK (created_by = auth.uid());
+DROP POLICY IF EXISTS "families: admin can update" ON families;
+CREATE POLICY "families: admin can update" ON families
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM family_members fm
+      WHERE fm.family_id = families.id
+        AND fm.user_id = auth.uid()
+        AND fm.role = 'admin'
     )
   );
 
@@ -147,13 +154,16 @@ CREATE TABLE IF NOT EXISTS wallets (
   )
 );
 
+DROP TRIGGER IF EXISTS trg_wallets_updated_at ON wallets;
 CREATE TRIGGER trg_wallets_updated_at
   BEFORE UPDATE ON wallets
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "wallets: personal owner" ON wallets;
 CREATE POLICY "wallets: personal owner" ON wallets
   FOR ALL USING (owner_id = auth.uid());
+DROP POLICY IF EXISTS "wallets: family members" ON wallets;
 CREATE POLICY "wallets: family members" ON wallets
   FOR SELECT USING (
     family_id IS NOT NULL AND EXISTS (
@@ -161,6 +171,7 @@ CREATE POLICY "wallets: family members" ON wallets
       WHERE fm.family_id = wallets.family_id AND fm.user_id = auth.uid()
     )
   );
+DROP POLICY IF EXISTS "wallets: family admin manage" ON wallets;
 CREATE POLICY "wallets: family admin manage" ON wallets
   FOR ALL USING (
     family_id IS NOT NULL AND EXISTS (
@@ -235,12 +246,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS trg_sync_wallet_balance ON transactions;
 CREATE TRIGGER trg_sync_wallet_balance
   AFTER INSERT OR DELETE ON transactions
   FOR EACH ROW EXECUTE FUNCTION sync_wallet_balance();
 
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 -- User can see transactions in wallets they own or are members of
+DROP POLICY IF EXISTS "transactions: wallet access" ON transactions;
 CREATE POLICY "transactions: wallet access" ON transactions
   FOR ALL USING (
     EXISTS (
@@ -269,16 +282,6 @@ CREATE TABLE IF NOT EXISTS split_groups (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE split_groups ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "split_groups: participant access" ON split_groups
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM split_participants sp
-      WHERE sp.group_id = split_groups.id AND sp.user_id = auth.uid()
-    )
-    OR created_by = auth.uid()
-  );
-
 
 -- ══════════════════════════════════════════════════════════════
 --  7. SPLIT_PARTICIPANTS
@@ -297,6 +300,7 @@ CREATE TABLE IF NOT EXISTS split_participants (
 CREATE INDEX idx_split_participants_group ON split_participants(group_id);
 
 ALTER TABLE split_participants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "split_participants: group members" ON split_participants;
 CREATE POLICY "split_participants: group members" ON split_participants
   FOR ALL USING (
     EXISTS (
@@ -307,6 +311,17 @@ CREATE POLICY "split_participants: group members" ON split_participants
       SELECT 1 FROM split_groups sg
       WHERE sg.id = split_participants.group_id AND sg.created_by = auth.uid()
     )
+  );
+
+ALTER TABLE split_groups ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "split_groups: participant access" ON split_groups;
+CREATE POLICY "split_groups: participant access" ON split_groups
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM split_participants sp
+      WHERE sp.group_id = split_groups.id AND sp.user_id = auth.uid()
+    )
+    OR created_by = auth.uid()
   );
 
 
@@ -329,6 +344,7 @@ CREATE TABLE IF NOT EXISTS split_group_transactions (
 CREATE INDEX idx_sgt_group ON split_group_transactions(group_id);
 
 ALTER TABLE split_group_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "split_group_tx: group members" ON split_group_transactions;
 CREATE POLICY "split_group_tx: group members" ON split_group_transactions
   FOR ALL USING (
     EXISTS (
@@ -361,6 +377,7 @@ CREATE TABLE IF NOT EXISTS split_shares (
   updated_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS trg_split_shares_updated_at ON split_shares;
 CREATE TRIGGER trg_split_shares_updated_at
   BEFORE UPDATE ON split_shares
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -368,6 +385,7 @@ CREATE TRIGGER trg_split_shares_updated_at
 CREATE INDEX idx_split_shares_tx ON split_shares(transaction_id);
 
 ALTER TABLE split_shares ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "split_shares: group members" ON split_shares;
 CREATE POLICY "split_shares: group members" ON split_shares
   FOR ALL USING (
     EXISTS (
@@ -399,6 +417,7 @@ CREATE TABLE IF NOT EXISTS split_group_messages (
 CREATE INDEX idx_sgm_group ON split_group_messages(group_id);
 
 ALTER TABLE split_group_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "split_group_messages: group members" ON split_group_messages;
 CREATE POLICY "split_group_messages: group members" ON split_group_messages
   FOR ALL USING (
     EXISTS (

@@ -53,3 +53,8 @@ android/hs_err_pid*.log
 
 # Gradle build cache (should not be committed)
 android/.gradle/
+
+# Per-environment Supabase credentials (--dart-define-from-file).
+# Only the *.json.example templates are tracked.
+env/*.json
+!env/*.json.example

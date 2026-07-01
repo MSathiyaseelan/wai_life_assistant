@@ -23,6 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_wallet_budgets_wallet ON wallet_budgets(wallet_id
 ALTER TABLE wallet_budgets ENABLE ROW LEVEL SECURITY;
 
 -- Personal wallet owners and family wallet members can read/write budgets
+DROP POLICY IF EXISTS "wallet_budget_access" ON wallet_budgets;
 CREATE POLICY "wallet_budget_access" ON wallet_budgets
   FOR ALL USING (
     wallet_id IN (
@@ -46,6 +47,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS wallet_budgets_updated_at ON wallet_budgets;
 CREATE TRIGGER wallet_budgets_updated_at
   BEFORE UPDATE ON wallet_budgets
   FOR EACH ROW EXECUTE FUNCTION update_wallet_budget_updated_at();

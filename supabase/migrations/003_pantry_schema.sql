@@ -78,6 +78,7 @@ CREATE INDEX idx_recipes_wallet     ON recipes(wallet_id);
 CREATE INDEX idx_recipes_cuisine    ON recipes(cuisine);
 CREATE INDEX idx_recipes_favourite  ON recipes(wallet_id, is_favourite);
 
+DROP TRIGGER IF EXISTS trg_recipes_updated_at ON recipes;
 CREATE TRIGGER trg_recipes_updated_at
   BEFORE UPDATE ON recipes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -85,22 +86,26 @@ CREATE TRIGGER trg_recipes_updated_at
 ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
 
 -- Any wallet member can read recipes
+DROP POLICY IF EXISTS "recipes: wallet members read" ON recipes;
 CREATE POLICY "recipes: wallet members read" ON recipes
   FOR SELECT USING (wallet_accessible(wallet_id));
 
 -- Any wallet member can add a recipe
+DROP POLICY IF EXISTS "recipes: wallet members insert" ON recipes;
 CREATE POLICY "recipes: wallet members insert" ON recipes
   FOR INSERT WITH CHECK (
     wallet_accessible(wallet_id) AND created_by = auth.uid()
   );
 
 -- Creator or wallet admin can update
+DROP POLICY IF EXISTS "recipes: creator or admin update" ON recipes;
 CREATE POLICY "recipes: creator or admin update" ON recipes
   FOR UPDATE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)
   );
 
 -- Creator or wallet admin can delete
+DROP POLICY IF EXISTS "recipes: creator or admin delete" ON recipes;
 CREATE POLICY "recipes: creator or admin delete" ON recipes
   FOR DELETE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)
@@ -129,25 +134,30 @@ CREATE INDEX idx_meal_entries_wallet ON meal_entries(wallet_id);
 CREATE INDEX idx_meal_entries_date   ON meal_entries(wallet_id, date DESC);
 CREATE INDEX idx_meal_entries_recipe ON meal_entries(recipe_id);
 
+DROP TRIGGER IF EXISTS trg_meal_entries_updated_at ON meal_entries;
 CREATE TRIGGER trg_meal_entries_updated_at
   BEFORE UPDATE ON meal_entries
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE meal_entries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "meal_entries: wallet members read" ON meal_entries;
 CREATE POLICY "meal_entries: wallet members read" ON meal_entries
   FOR SELECT USING (wallet_accessible(wallet_id));
 
+DROP POLICY IF EXISTS "meal_entries: wallet members insert" ON meal_entries;
 CREATE POLICY "meal_entries: wallet members insert" ON meal_entries
   FOR INSERT WITH CHECK (
     wallet_accessible(wallet_id) AND created_by = auth.uid()
   );
 
+DROP POLICY IF EXISTS "meal_entries: creator or admin update" ON meal_entries;
 CREATE POLICY "meal_entries: creator or admin update" ON meal_entries
   FOR UPDATE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)
   );
 
+DROP POLICY IF EXISTS "meal_entries: creator or admin delete" ON meal_entries;
 CREATE POLICY "meal_entries: creator or admin delete" ON meal_entries
   FOR DELETE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)
@@ -172,6 +182,7 @@ CREATE TABLE IF NOT EXISTS meal_reactions (
 CREATE INDEX idx_meal_reactions_meal ON meal_reactions(meal_id);
 CREATE INDEX idx_meal_reactions_user ON meal_reactions(user_id);
 
+DROP TRIGGER IF EXISTS trg_meal_reactions_updated_at ON meal_reactions;
 CREATE TRIGGER trg_meal_reactions_updated_at
   BEFORE UPDATE ON meal_reactions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -179,6 +190,7 @@ CREATE TRIGGER trg_meal_reactions_updated_at
 ALTER TABLE meal_reactions ENABLE ROW LEVEL SECURITY;
 
 -- Any wallet member can read reactions on meals they can see
+DROP POLICY IF EXISTS "meal_reactions: wallet members read" ON meal_reactions;
 CREATE POLICY "meal_reactions: wallet members read" ON meal_reactions
   FOR SELECT USING (
     EXISTS (
@@ -189,6 +201,7 @@ CREATE POLICY "meal_reactions: wallet members read" ON meal_reactions
   );
 
 -- Any wallet member can add a reaction
+DROP POLICY IF EXISTS "meal_reactions: wallet members insert" ON meal_reactions;
 CREATE POLICY "meal_reactions: wallet members insert" ON meal_reactions
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -200,6 +213,7 @@ CREATE POLICY "meal_reactions: wallet members insert" ON meal_reactions
   );
 
 -- Own reaction or wallet admin can update/delete
+DROP POLICY IF EXISTS "meal_reactions: own or admin update" ON meal_reactions;
 CREATE POLICY "meal_reactions: own or admin update" ON meal_reactions
   FOR UPDATE USING (
     user_id = auth.uid()
@@ -210,6 +224,7 @@ CREATE POLICY "meal_reactions: own or admin update" ON meal_reactions
     )
   );
 
+DROP POLICY IF EXISTS "meal_reactions: own or admin delete" ON meal_reactions;
 CREATE POLICY "meal_reactions: own or admin delete" ON meal_reactions
   FOR DELETE USING (
     user_id = auth.uid()
@@ -250,18 +265,22 @@ CREATE INDEX idx_grocery_expiry   ON grocery_items(expiry_date) WHERE expiry_dat
 
 ALTER TABLE grocery_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "grocery_items: wallet members read" ON grocery_items;
 CREATE POLICY "grocery_items: wallet members read" ON grocery_items
   FOR SELECT USING (wallet_accessible(wallet_id));
 
+DROP POLICY IF EXISTS "grocery_items: wallet members insert" ON grocery_items;
 CREATE POLICY "grocery_items: wallet members insert" ON grocery_items
   FOR INSERT WITH CHECK (
     wallet_accessible(wallet_id) AND created_by = auth.uid()
   );
 
 -- Any wallet member can update (e.g. mark in-stock, tick off shopping list)
+DROP POLICY IF EXISTS "grocery_items: wallet members update" ON grocery_items;
 CREATE POLICY "grocery_items: wallet members update" ON grocery_items
   FOR UPDATE USING (wallet_accessible(wallet_id));
 
+DROP POLICY IF EXISTS "grocery_items: creator or admin delete" ON grocery_items;
 CREATE POLICY "grocery_items: creator or admin delete" ON grocery_items
   FOR DELETE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)
@@ -291,6 +310,7 @@ CREATE TABLE IF NOT EXISTS member_food_prefs (
 
 CREATE INDEX idx_food_prefs_wallet ON member_food_prefs(wallet_id);
 
+DROP TRIGGER IF EXISTS trg_member_food_prefs_updated_at ON member_food_prefs;
 CREATE TRIGGER trg_member_food_prefs_updated_at
   BEFORE UPDATE ON member_food_prefs
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -298,22 +318,26 @@ CREATE TRIGGER trg_member_food_prefs_updated_at
 ALTER TABLE member_food_prefs ENABLE ROW LEVEL SECURITY;
 
 -- All wallet members can read prefs
+DROP POLICY IF EXISTS "food_prefs: wallet members read" ON member_food_prefs;
 CREATE POLICY "food_prefs: wallet members read" ON member_food_prefs
   FOR SELECT USING (wallet_accessible(wallet_id));
 
 -- Any wallet member can create their own prefs entry
+DROP POLICY IF EXISTS "food_prefs: wallet members insert" ON member_food_prefs;
 CREATE POLICY "food_prefs: wallet members insert" ON member_food_prefs
   FOR INSERT WITH CHECK (
     wallet_accessible(wallet_id) AND created_by = auth.uid()
   );
 
 -- Own prefs or wallet admin can update
+DROP POLICY IF EXISTS "food_prefs: own or admin update" ON member_food_prefs;
 CREATE POLICY "food_prefs: own or admin update" ON member_food_prefs
   FOR UPDATE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)
   );
 
 -- Own prefs or wallet admin can delete
+DROP POLICY IF EXISTS "food_prefs: own or admin delete" ON member_food_prefs;
 CREATE POLICY "food_prefs: own or admin delete" ON member_food_prefs
   FOR DELETE USING (
     created_by = auth.uid() OR wallet_admin(wallet_id)

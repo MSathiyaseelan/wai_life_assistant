@@ -18,6 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_tx_groups_wallet ON tx_groups(wallet_id);
 ALTER TABLE tx_groups ENABLE ROW LEVEL SECURITY;
 
 -- Same access pattern as wallets: personal owner or family member
+DROP POLICY IF EXISTS "tx_groups: wallet access" ON tx_groups;
 CREATE POLICY "tx_groups: wallet access" ON tx_groups
   FOR ALL USING (
     EXISTS (

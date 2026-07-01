@@ -22,12 +22,14 @@ CREATE TABLE IF NOT EXISTS special_days (
 CREATE INDEX idx_special_days_wallet ON special_days(wallet_id);
 CREATE INDEX idx_special_days_date   ON special_days(date);
 
+DROP TRIGGER IF EXISTS trg_special_days_updated_at ON special_days;
 CREATE TRIGGER trg_special_days_updated_at
   BEFORE UPDATE ON special_days
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE special_days ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "special_days: wallet members can view" ON special_days;
 CREATE POLICY "special_days: wallet members can view" ON special_days
   FOR SELECT USING (
     EXISTS (
@@ -43,6 +45,7 @@ CREATE POLICY "special_days: wallet members can view" ON special_days
     )
   );
 
+DROP POLICY IF EXISTS "special_days: wallet members can insert" ON special_days;
 CREATE POLICY "special_days: wallet members can insert" ON special_days
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -58,6 +61,7 @@ CREATE POLICY "special_days: wallet members can insert" ON special_days
     )
   );
 
+DROP POLICY IF EXISTS "special_days: wallet members can update" ON special_days;
 CREATE POLICY "special_days: wallet members can update" ON special_days
   FOR UPDATE USING (
     EXISTS (
@@ -73,6 +77,7 @@ CREATE POLICY "special_days: wallet members can update" ON special_days
     )
   );
 
+DROP POLICY IF EXISTS "special_days: wallet members can delete" ON special_days;
 CREATE POLICY "special_days: wallet members can delete" ON special_days
   FOR DELETE USING (
     EXISTS (

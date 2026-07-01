@@ -21,17 +21,21 @@ DROP POLICY IF EXISTS "notifications: service insert" ON notifications;
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE user_fcm_tokens ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "fcm_own_select" ON user_fcm_tokens;
 CREATE POLICY "fcm_own_select" ON user_fcm_tokens
   FOR SELECT TO authenticated USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "fcm_own_insert" ON user_fcm_tokens;
 CREATE POLICY "fcm_own_insert" ON user_fcm_tokens
   FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "fcm_own_update" ON user_fcm_tokens;
 CREATE POLICY "fcm_own_update" ON user_fcm_tokens
   FOR UPDATE TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "fcm_own_delete" ON user_fcm_tokens;
 CREATE POLICY "fcm_own_delete" ON user_fcm_tokens
   FOR DELETE TO authenticated USING (user_id = auth.uid());
 

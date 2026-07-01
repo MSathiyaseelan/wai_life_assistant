@@ -19,9 +19,11 @@ CREATE TABLE IF NOT EXISTS item_locator_containers (
 
 ALTER TABLE item_locator_containers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "item_locator_containers_user_policy" ON item_locator_containers;
 CREATE POLICY "item_locator_containers_user_policy" ON item_locator_containers
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_item_locator_containers_updated_at ON item_locator_containers;
 CREATE TRIGGER trg_item_locator_containers_updated_at
   BEFORE UPDATE ON item_locator_containers
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -47,9 +49,11 @@ CREATE TABLE IF NOT EXISTS item_locator_items (
 
 ALTER TABLE item_locator_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "item_locator_items_user_policy" ON item_locator_items;
 CREATE POLICY "item_locator_items_user_policy" ON item_locator_items
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_item_locator_items_updated_at ON item_locator_items;
 CREATE TRIGGER trg_item_locator_items_updated_at
   BEFORE UPDATE ON item_locator_items
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

@@ -25,12 +25,14 @@ CREATE TABLE IF NOT EXISTS wishes (
 
 CREATE INDEX idx_wishes_wallet ON wishes(wallet_id);
 
+DROP TRIGGER IF EXISTS trg_wishes_updated_at ON wishes;
 CREATE TRIGGER trg_wishes_updated_at
   BEFORE UPDATE ON wishes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE wishes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "wishes: wallet members can view" ON wishes;
 CREATE POLICY "wishes: wallet members can view" ON wishes
   FOR SELECT USING (
     EXISTS (
@@ -46,6 +48,7 @@ CREATE POLICY "wishes: wallet members can view" ON wishes
     )
   );
 
+DROP POLICY IF EXISTS "wishes: wallet members can insert" ON wishes;
 CREATE POLICY "wishes: wallet members can insert" ON wishes
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -61,6 +64,7 @@ CREATE POLICY "wishes: wallet members can insert" ON wishes
     )
   );
 
+DROP POLICY IF EXISTS "wishes: wallet members can update" ON wishes;
 CREATE POLICY "wishes: wallet members can update" ON wishes
   FOR UPDATE USING (
     EXISTS (
@@ -76,6 +80,7 @@ CREATE POLICY "wishes: wallet members can update" ON wishes
     )
   );
 
+DROP POLICY IF EXISTS "wishes: wallet members can delete" ON wishes;
 CREATE POLICY "wishes: wallet members can delete" ON wishes
   FOR DELETE USING (
     EXISTS (

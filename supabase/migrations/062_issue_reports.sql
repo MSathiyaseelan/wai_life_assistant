@@ -32,6 +32,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS issue_reports_updated_at ON issue_reports;
 CREATE TRIGGER issue_reports_updated_at
   BEFORE UPDATE ON issue_reports
   FOR EACH ROW EXECUTE FUNCTION set_issue_report_updated_at();

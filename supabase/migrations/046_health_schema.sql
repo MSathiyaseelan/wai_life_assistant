@@ -21,8 +21,10 @@ CREATE TABLE IF NOT EXISTS health_profiles (
   UNIQUE (wallet_id, member_id)
 );
 ALTER TABLE health_profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_profiles_user_policy" ON health_profiles;
 CREATE POLICY "health_profiles_user_policy" ON health_profiles
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_profiles_updated_at ON health_profiles;
 CREATE TRIGGER trg_health_profiles_updated_at
   BEFORE UPDATE ON health_profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -46,8 +48,10 @@ CREATE TABLE IF NOT EXISTS health_medications (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_medications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_medications_user_policy" ON health_medications;
 CREATE POLICY "health_medications_user_policy" ON health_medications
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_medications_updated_at ON health_medications;
 CREATE TRIGGER trg_health_medications_updated_at
   BEFORE UPDATE ON health_medications
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -67,8 +71,10 @@ CREATE TABLE IF NOT EXISTS health_doctors (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_doctors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_doctors_user_policy" ON health_doctors;
 CREATE POLICY "health_doctors_user_policy" ON health_doctors
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_doctors_updated_at ON health_doctors;
 CREATE TRIGGER trg_health_doctors_updated_at
   BEFORE UPDATE ON health_doctors
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -88,8 +94,10 @@ CREATE TABLE IF NOT EXISTS health_documents (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_documents_user_policy" ON health_documents;
 CREATE POLICY "health_documents_user_policy" ON health_documents
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_documents_updated_at ON health_documents;
 CREATE TRIGGER trg_health_documents_updated_at
   BEFORE UPDATE ON health_documents
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -109,8 +117,10 @@ CREATE TABLE IF NOT EXISTS health_appointments (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_appointments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_appointments_user_policy" ON health_appointments;
 CREATE POLICY "health_appointments_user_policy" ON health_appointments
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_appointments_updated_at ON health_appointments;
 CREATE TRIGGER trg_health_appointments_updated_at
   BEFORE UPDATE ON health_appointments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -130,6 +140,7 @@ CREATE TABLE IF NOT EXISTS health_vitals (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_vitals ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_vitals_user_policy" ON health_vitals;
 CREATE POLICY "health_vitals_user_policy" ON health_vitals
   FOR ALL USING (user_id = auth.uid());
 
@@ -148,8 +159,10 @@ CREATE TABLE IF NOT EXISTS health_vaccinations (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_vaccinations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_vaccinations_user_policy" ON health_vaccinations;
 CREATE POLICY "health_vaccinations_user_policy" ON health_vaccinations
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_vaccinations_updated_at ON health_vaccinations;
 CREATE TRIGGER trg_health_vaccinations_updated_at
   BEFORE UPDATE ON health_vaccinations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -170,8 +183,10 @@ CREATE TABLE IF NOT EXISTS health_insurance (
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE health_insurance ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "health_insurance_user_policy" ON health_insurance;
 CREATE POLICY "health_insurance_user_policy" ON health_insurance
   FOR ALL USING (user_id = auth.uid());
+DROP TRIGGER IF EXISTS trg_health_insurance_updated_at ON health_insurance;
 CREATE TRIGGER trg_health_insurance_updated_at
   BEFORE UPDATE ON health_insurance
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

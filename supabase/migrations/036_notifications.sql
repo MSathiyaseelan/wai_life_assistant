@@ -31,15 +31,18 @@ CREATE INDEX idx_notif_unread     ON notifications(user_id, is_read) WHERE is_re
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own notifications
+DROP POLICY IF EXISTS "notifications: own rows" ON notifications;
 CREATE POLICY "notifications: own rows" ON notifications
   FOR SELECT USING (auth.uid() = user_id);
 
 -- Users can mark their own notifications as read
+DROP POLICY IF EXISTS "notifications: mark read" ON notifications;
 CREATE POLICY "notifications: mark read" ON notifications
   FOR UPDATE USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
 -- Trigger function inserts notifications (runs as SECURITY DEFINER to bypass RLS)
+DROP POLICY IF EXISTS "notifications: service insert" ON notifications;
 CREATE POLICY "notifications: service insert" ON notifications
   FOR INSERT WITH CHECK (TRUE);
 
@@ -111,6 +114,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_notify_family_on_tx ON transactions;
 CREATE TRIGGER trg_notify_family_on_tx
   AFTER INSERT ON transactions
   FOR EACH ROW

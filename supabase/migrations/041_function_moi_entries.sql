@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS function_moi_entries (
 
 ALTER TABLE function_moi_entries ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "function_moi_entries_own" ON function_moi_entries;
 CREATE POLICY "function_moi_entries_own" ON function_moi_entries
   FOR ALL USING (auth.uid() = user_id);
 

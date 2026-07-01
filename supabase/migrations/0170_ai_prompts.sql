@@ -32,6 +32,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS ai_prompts_updated_at ON ai_prompts;
 CREATE TRIGGER ai_prompts_updated_at
   BEFORE UPDATE ON ai_prompts
   FOR EACH ROW EXECUTE FUNCTION update_prompt_timestamp();
@@ -65,10 +66,12 @@ ALTER TABLE ai_prompts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_parse_logs ENABLE ROW LEVEL SECURITY;
 
 -- Prompts: anyone authenticated can read, only service role can write
+DROP POLICY IF EXISTS "prompts_read" ON ai_prompts;
 CREATE POLICY "prompts_read" ON ai_prompts
   FOR SELECT TO authenticated USING (true);
 
 -- Logs: users see only their own logs
+DROP POLICY IF EXISTS "logs_own" ON ai_parse_logs;
 CREATE POLICY "logs_own" ON ai_parse_logs
   FOR ALL TO authenticated
   USING (user_id = auth.uid());

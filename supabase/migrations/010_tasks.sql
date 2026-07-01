@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX idx_tasks_wallet ON tasks(wallet_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 
+DROP TRIGGER IF EXISTS trg_tasks_updated_at ON tasks;
 CREATE TRIGGER trg_tasks_updated_at
   BEFORE UPDATE ON tasks
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -32,6 +33,7 @@ CREATE TRIGGER trg_tasks_updated_at
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
 -- Members of a wallet's family (or personal wallet owner) can read tasks
+DROP POLICY IF EXISTS "tasks: wallet members can view" ON tasks;
 CREATE POLICY "tasks: wallet members can view" ON tasks
   FOR SELECT USING (
     EXISTS (
@@ -47,6 +49,7 @@ CREATE POLICY "tasks: wallet members can view" ON tasks
     )
   );
 
+DROP POLICY IF EXISTS "tasks: wallet members can insert" ON tasks;
 CREATE POLICY "tasks: wallet members can insert" ON tasks
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -62,6 +65,7 @@ CREATE POLICY "tasks: wallet members can insert" ON tasks
     )
   );
 
+DROP POLICY IF EXISTS "tasks: wallet members can update" ON tasks;
 CREATE POLICY "tasks: wallet members can update" ON tasks
   FOR UPDATE USING (
     EXISTS (
@@ -77,6 +81,7 @@ CREATE POLICY "tasks: wallet members can update" ON tasks
     )
   );
 
+DROP POLICY IF EXISTS "tasks: wallet members can delete" ON tasks;
 CREATE POLICY "tasks: wallet members can delete" ON tasks
   FOR DELETE USING (
     EXISTS (

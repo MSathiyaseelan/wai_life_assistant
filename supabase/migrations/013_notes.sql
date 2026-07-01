@@ -36,6 +36,7 @@ create index if not exists notes_is_pinned_idx  on public.notes(wallet_id, is_pi
 alter table public.notes enable row level security;
 
 -- Members of the wallet (personal owner or family member) can read
+drop policy if exists "notes_select" on public.notes;
 create policy "notes_select" on public.notes
   for select using (
     wallet_id in (
@@ -46,6 +47,7 @@ create policy "notes_select" on public.notes
   );
 
 -- Same users can insert
+drop policy if exists "notes_insert" on public.notes;
 create policy "notes_insert" on public.notes
   for insert with check (
     wallet_id in (
@@ -56,6 +58,7 @@ create policy "notes_insert" on public.notes
   );
 
 -- Same users can update
+drop policy if exists "notes_update" on public.notes;
 create policy "notes_update" on public.notes
   for update using (
     wallet_id in (
@@ -66,6 +69,7 @@ create policy "notes_update" on public.notes
   );
 
 -- Same users can delete
+drop policy if exists "notes_delete" on public.notes;
 create policy "notes_delete" on public.notes
   for delete using (
     wallet_id in (

@@ -27,9 +27,11 @@ CREATE TABLE IF NOT EXISTS wardrobe_items (
 
 ALTER TABLE wardrobe_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "wardrobe_items_user_policy" ON wardrobe_items;
 CREATE POLICY "wardrobe_items_user_policy" ON wardrobe_items
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_wardrobe_items_updated_at ON wardrobe_items;
 CREATE TRIGGER trg_wardrobe_items_updated_at
   BEFORE UPDATE ON wardrobe_items
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -49,9 +51,11 @@ CREATE TABLE IF NOT EXISTS wardrobe_outfit_logs (
 
 ALTER TABLE wardrobe_outfit_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "wardrobe_outfit_logs_user_policy" ON wardrobe_outfit_logs;
 CREATE POLICY "wardrobe_outfit_logs_user_policy" ON wardrobe_outfit_logs
   FOR ALL USING (user_id = auth.uid());
 
+DROP TRIGGER IF EXISTS trg_wardrobe_outfit_logs_updated_at ON wardrobe_outfit_logs;
 CREATE TRIGGER trg_wardrobe_outfit_logs_updated_at
   BEFORE UPDATE ON wardrobe_outfit_logs
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
