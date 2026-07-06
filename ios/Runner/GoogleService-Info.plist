@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.wai.lifeassistant.qa</string>
+	<string>com.wai.lifeassistant.uat</string>
 	<key>PROJECT_ID</key>
 	<string>waiapp-4edaf</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:471788972864:ios:c4840452940bbc501568a5</string>
+	<string>1:471788972864:ios:a03ff9db5fd9d6421568a5</string>
 </dict>
 </plist>

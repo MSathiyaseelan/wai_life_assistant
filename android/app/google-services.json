@@ -99,6 +99,25 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:471788972864:android:4b940cb2478a9e6c1568a5",
+        "android_client_info": {
+          "package_name": "com.wai.lifeassistant.uat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"
