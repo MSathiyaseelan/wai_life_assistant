@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
@@ -58,7 +59,6 @@ class _PantryScreenState extends State<PantryScreen>
   bool _isParsingAI = false;
   final _chatBarKey = GlobalKey<ChatInputBarState>();
   final SpeechToText _speech = SpeechToText();
-  String _speechLocale = 'en-IN';
 
   // Plan limit — how many weeks ahead the user can pre-plan meals (1 = free plan default)
   int _mealWeeksAhead = 1;
@@ -530,7 +530,7 @@ class _PantryScreenState extends State<PantryScreen>
     if (!available || !mounted) return;
     setState(() => _isListening = true);
     await _speech.listen(
-      localeId: _speechLocale,
+      localeId: AppPrefs.instance.voiceLocaleId,
       pauseFor: const Duration(seconds: 3),
       listenFor: const Duration(seconds: 30),
       listenOptions: SpeechListenOptions(
@@ -1607,6 +1607,7 @@ class _PantryScreenState extends State<PantryScreen>
         onMicTap: _onMicTap,
         onAddTap: _openFlowSelector,
         isListening: _isListening,
+        speechLocale: AppPrefs.instance.voiceLocaleId,
         hintText: _sectionTab.index == 0
             ? 'e.g. "had idli sambar for breakfast today"'
             : 'e.g. "add 2kg tomatoes to basket"',

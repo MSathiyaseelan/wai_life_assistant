@@ -6,6 +6,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
@@ -369,7 +370,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     if (!available || !mounted) return;
     setState(() { _isListening = true; _ctrl.clear(); });
     await _speech.listen(
-      localeId: 'en_IN',
+      localeId: AppPrefs.instance.voiceLocaleId,
       listenOptions: SpeechListenOptions(
         listenMode: ListenMode.dictation,
         partialResults: true,

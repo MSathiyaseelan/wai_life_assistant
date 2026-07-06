@@ -62,7 +62,6 @@ class _WalletScreenState extends State<WalletScreen>
 
   // Voice / speech-to-text
   bool _isListening = false;
-  String _speechLocale = 'en-IN';
   final _chatBarKey = GlobalKey<ChatInputBarState>();
   final SpeechToText _speech = SpeechToText();
 
@@ -1028,7 +1027,7 @@ class _WalletScreenState extends State<WalletScreen>
     if (!available || !mounted) return;
     setState(() => _isListening = true);
     await _speech.listen(
-      localeId: _speechLocale,
+      localeId: AppPrefs.instance.voiceLocaleId,
       pauseFor: const Duration(seconds: 3),
       listenFor: const Duration(seconds: 30),
       listenOptions: SpeechListenOptions(
@@ -1120,7 +1119,7 @@ class _WalletScreenState extends State<WalletScreen>
                 children: _indianLanguages.map((lang) {
                   final localeId = lang.$1;
                   final name = lang.$2;
-                  final isSelected = _speechLocale == localeId;
+                  final isSelected = AppPrefs.instance.voiceLocaleId == localeId;
                   // Locale is either confirmed supported, or STT wasn't available to check.
                   // Match by language prefix (e.g. en-US counts as en-IN being available).
                   final langPrefix = localeId.split(RegExp(r'[-_]')).first.toLowerCase();
@@ -1131,7 +1130,9 @@ class _WalletScreenState extends State<WalletScreen>
                   return GestureDetector(
                     onTap: isSupported
                         ? () {
-                            setState(() => _speechLocale = localeId);
+                            AppPrefs.instance.voiceLanguage =
+                                localeId.split(RegExp(r'[-_]')).first;
+                            setState(() {});
                             Navigator.pop(ctx);
                           }
                         : null,
@@ -1406,7 +1407,7 @@ class _WalletScreenState extends State<WalletScreen>
                     }
                   : _openFlowSelector,
               isListening: _isListening,
-              speechLocale: _speechLocale,
+              speechLocale: AppPrefs.instance.voiceLocaleId,
               onMicLongPress: _onMicLongPress,
             ),
           ],

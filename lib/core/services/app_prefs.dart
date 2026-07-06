@@ -59,6 +59,10 @@ class AppPrefs extends ChangeNotifier {
   String get voiceLanguage    => _s('voice_language',  def: 'en');
   set voiceLanguage(String v) => _setS('voice_language', v);
 
+  /// Speech-to-text locale id (e.g. 'ta-IN') derived from [voiceLanguage].
+  /// All 10 supported languages use Indian-region STT locales.
+  String get voiceLocaleId => '$voiceLanguage-IN';
+
   String get appLanguageLabel =>
       languages.firstWhere((l) => l.code == appLanguage,
           orElse: () => languages.first).label;
