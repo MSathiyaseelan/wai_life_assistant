@@ -110,7 +110,7 @@ serve(async (req) => {
       user_metadata: { phone },
     });
 
-    if (signUpError && !signUpError.message.includes("already registered")) {
+    if (signUpError && signUpError.code !== "email_exists") {
       console.error("[verify-otp] createUser error:", signUpError);
       return new Response(
         JSON.stringify({ error: "Failed to create user account" }),

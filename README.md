@@ -212,32 +212,31 @@ flutter pub get
 
 **3. Configure Supabase credentials**
 
-The project connects to a single Supabase project. The credentials are hardcoded in `lib/core/supabase/supabase_config.dart` — no `.env` file is needed for the Flutter client.
+Each environment (dev/qa/uat/prod) is a **separate Supabase project**, selected at build time via `--dart-define-from-file`. Copy the template and fill in real values:
 
-```dart
-// lib/core/supabase/supabase_config.dart  (already populated)
-class SupabaseConfig {
-  static const String url     = 'https://oeclczbamrnouuzooitx.supabase.co';
-  static const String anonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
-}
+```bash
+cp env/dev.json.example env/dev.json
+# edit env/dev.json with the real SUPABASE_URL / SUPABASE_ANON_KEY
 ```
 
-> The `anonKey` is safe to commit — it is a public key. Row Level Security (RLS) enforces per-user data isolation in Postgres.
+`env/*.json` (the real files) are gitignored — only the `.example` templates are committed. `lib/core/supabase/supabase_config.dart` reads these via `String.fromEnvironment`, falling back to a default dev project if no define file is passed.
 
 **4. Link Supabase CLI to the project**
 ```bash
 supabase login
-supabase link --project-ref oeclczbamrnouuzooitx
+supabase link --project-ref <your-project-ref>
 ```
 
-**5. Set edge function secrets** (see [Environment Variables](#environment-variables) for values)
+**5. Set edge function secrets** (see [Environment Variables](#environment-variables) for the full list — some functions require secrets not shown here)
 ```bash
-supabase secrets set GEMINI_API_KEY=<your-key>
-supabase secrets set MSG91_AUTH_KEY=<your-key>
-supabase secrets set MSG91_TEMPLATE_ID=<your-flow-id>
-supabase secrets set WAI_INTERNAL_AUTH_PASS=<strong-random-password>
-supabase secrets set FCM_SERVICE_ACCOUNT='<firebase-service-account-json>'
+supabase secrets set GEMINI_API_KEY=<your-key> --project-ref <your-project-ref>
+supabase secrets set MSG91_AUTH_KEY=<your-key> --project-ref <your-project-ref>
+supabase secrets set MSG91_TEMPLATE_ID=<your-flow-id> --project-ref <your-project-ref>
+supabase secrets set WAI_INTERNAL_AUTH_PASS=<strong-random-password> --project-ref <your-project-ref>
+supabase secrets set FCM_SERVICE_ACCOUNT='<firebase-service-account-json>' --project-ref <your-project-ref>
 ```
+
+> Setting up a whole new environment (not just your own local dev)? Use the full [New Environment Setup Checklist](docs/operations/deployment.md#new-environment-setup-checklist) instead — it covers migrations, all 7 edge functions, and Firebase app registration too.
 
 **6. Set up Firebase** (for push notifications)
 ```bash
@@ -250,7 +249,7 @@ This generates `lib/firebase_options.dart` and places `google-services.json` in 
 ### Running Dev Build
 
 ```bash
-flutter run --dart-define=ENV=dev
+flutter run --flavor dev --dart-define-from-file=env/dev.json
 ```
 
 Dev build shows the debug banner and enables verbose logging (`enableLogs: true` in `EnvironmentConfig`).
@@ -258,21 +257,23 @@ Dev build shows the debug banner and enables verbose logging (`enableLogs: true`
 ### Running QA Build
 
 ```bash
-flutter run --dart-define=ENV=qa
+flutter run --flavor qa --dart-define-from-file=env/qa.json
 # or build an APK:
-flutter build apk --dart-define=ENV=qa
+flutter build apk --flavor qa --dart-define-from-file=env/qa.json
 ```
 
 ### Running Production Build
 
 ```bash
 # Android
-flutter build apk --dart-define=ENV=prod --release
-flutter build appbundle --dart-define=ENV=prod --release
+flutter build apk --flavor prod --dart-define-from-file=env/prod.json --release
+flutter build appbundle --flavor prod --dart-define-from-file=env/prod.json --release
 
 # iOS
-flutter build ipa --dart-define=ENV=prod --release
+flutter build ipa --flavor prod --dart-define-from-file=env/prod.json --release
 ```
+
+> `--flavor` picks the Android app variant (`dev`/`qa`/`uat` install as separate apps alongside `prod` thanks to per-flavor `applicationIdSuffix`); `--dart-define-from-file` picks the Supabase backend. iOS flavor schemes aren't set up yet (needs Xcode/macOS), so iOS currently only builds the default configuration regardless of `--flavor`.
 
 Production builds: no debug banner, `enableLogs: false`, title shows "Life Assistant" (not "DEV" or "QA").
 
@@ -282,16 +283,16 @@ Production builds: no debug banner, `enableLogs: false`, title shows "Life Assis
 
 ### Running Migrations
 
-All schema lives in `supabase/migrations/` as numbered SQL files. Run them in order against the Supabase project:
+All schema lives in `supabase/migrations/` as numbered SQL files. Run them in order against a specific project (always pass `--project-ref` — see the [New Environment Setup Checklist](docs/operations/deployment.md#new-environment-setup-checklist) for standing up a brand-new project):
 
 ```bash
 # Push all pending migrations
-supabase db push
+supabase db push --project-ref <your-project-ref>
 
 # Or run a specific file manually in Supabase Dashboard → SQL Editor
 ```
 
-**Migration order matters.** Files are numbered `001` → `041`. Always run them sequentially — later migrations reference tables created in earlier ones.
+**Migration order matters.** Always run them sequentially — later migrations reference tables created in earlier ones. This table covers roughly the first `041` (partial — the migrations folder has grown well past this since):
 
 | Range | What it sets up |
 |---|---|
@@ -303,7 +304,9 @@ supabase db push
 | `008–013` | PlanIt: reminders, tasks, special days, wishes, notes |
 | `014` | App config table |
 | `015` | Notes: add type column |
-| `016–017` | Functions/events schema, family name field |
+| `016` | Functions/events schema |
+| `0170`, `0171` | Seeds AI prompts (renamed from `ai_prompts.sql` / `functions_ai_prompts.sql` — see gotchas below) |
+| `017` | Functions: family name field |
 | `018` | AI prompt: split expense |
 | `019–020` | Split proof images, public storage policy |
 | `021` | `returned` transaction type |
@@ -313,12 +316,14 @@ supabase db push
 | `031–034` | Family member linking, permissions, soft delete |
 | `035` | AI prompt: pantry basket v2 |
 | `036` | Notifications table |
-| `037` (×2) | Profile default scopes; SMS parse AI prompt |
+| `037`, `0371` | Profile default scopes; SMS parse AI prompt (renamed from a duplicate `037_` prefix) |
 | `038–039` | Split extension response, meal recipe IDs |
 | `040` | Error logs table + indexes |
+| `0410` | Functions-related tables (`function_participants` etc. — backfilled, see gotchas below) |
 | `041` | Functions MOI entries |
-| `ai_prompts.sql` | Seeds all 21+ base AI prompts (wallet, pantry, planit, mylife, dashboard) |
-| `functions_ai_prompts.sql` | Seeds 7 Functions feature AI prompts |
+| `042`+ | Continues past this table — see `supabase/migrations/` directly |
+
+> **Migration gotchas learned from pushing to a fresh (QA) project** — purely-numeric version prefixes only, no duplicate prefixes, guard every `CREATE POLICY`/`CREATE TRIGGER` with `DROP ... IF EXISTS`, and make sure every table referenced actually has a `CREATE TABLE` in migration history (not just created ad-hoc via the Dashboard). Full detail in [Database Migrations](docs/operations/deployment.md#database-migrations).
 
 ### Seeding Test Data
 
@@ -345,14 +350,17 @@ Dear Customer, INR 500.00 debited from A/c XX1234 on 17-04-26. Info: SWIGGY. Avl
 Four edge functions live in `supabase/functions/`. Deploy all at once or individually:
 
 ```bash
-# Deploy all
-supabase functions deploy
+# Deploy all (always pass --project-ref)
+supabase functions deploy --project-ref <your-project-ref>
 
 # Deploy individually
-supabase functions deploy parse
-supabase functions deploy send-otp
-supabase functions deploy verify-otp
-supabase functions deploy send-notification
+supabase functions deploy parse               --project-ref <your-project-ref>
+supabase functions deploy send-otp            --project-ref <your-project-ref>
+supabase functions deploy verify-otp          --project-ref <your-project-ref>
+supabase functions deploy firebase-verify     --project-ref <your-project-ref>
+supabase functions deploy send-notification   --project-ref <your-project-ref>
+supabase functions deploy delete-account      --project-ref <your-project-ref>
+supabase functions deploy notify-trial-expiry --project-ref <your-project-ref>
 ```
 
 **Function summary:**
@@ -362,11 +370,16 @@ supabase functions deploy send-notification
 | `parse` | `AIParser.parseText()` / `parseImage()` from Flutter | Google Gemini REST API |
 | `send-otp` | Login screen — user enters phone number | MSG91 `/api/v5/otp` |
 | `verify-otp` | Login screen — user enters OTP | MSG91 `/api/v5/otp/verify` + Supabase Admin Auth |
+| `firebase-verify` | Login screen — Firebase Phone Auth flow | Google JWKS verification + Supabase Admin Auth |
 | `send-notification` | Called by Flutter after family events | Firebase FCM v1 HTTP API |
+| `delete-account` | Account deletion flow | Supabase Admin Auth |
+| `notify-trial-expiry` | Scheduled job | Firebase FCM v1 HTTP API |
 
-After deploying, verify with a quick smoke test:
+> `verify-otp` and `firebase-verify` both depend on `WAI_INTERNAL_AUTH_PASS` being set for the target project (see [Supabase Secrets](#supabase-secrets) below) — `firebase-verify` will refuse to start without it.
+
+After deploying, verify with a quick smoke test (replace `<project-url>` with the environment's Supabase URL):
 ```bash
-curl -X POST https://oeclczbamrnouuzooitx.supabase.co/functions/v1/parse \
+curl -X POST https://<project-url>.supabase.co/functions/v1/parse \
   -H "Authorization: Bearer <anon-key>" \
   -H "Content-Type: application/json" \
   -d '{"feature":"wallet","sub_feature":"expense","input_type":"text","text":"250 biryani"}'
@@ -379,13 +392,13 @@ curl -X POST https://oeclczbamrnouuzooitx.supabase.co/functions/v1/parse \
 
 ### Flutter (`EnvironmentConfig`)
 
-Set at **build time** via `--dart-define=ENV=<value>`. No `.env` file required.
+Set at **build time** via `--dart-define-from-file=env/<name>.json` (plus `--flavor <name>` on Android). No `.env` file required at runtime — see [Environment Setup](#environment-setup) above for creating the `env/*.json` files.
 
 ```bash
-flutter run --dart-define=ENV=dev    # default
-flutter run --dart-define=ENV=qa
-flutter run --dart-define=ENV=uat
-flutter run --dart-define=ENV=prod
+flutter run --flavor dev --dart-define-from-file=env/dev.json    # default
+flutter run --flavor qa  --dart-define-from-file=env/qa.json
+flutter run --flavor uat --dart-define-from-file=env/uat.json
+flutter run --flavor prod --dart-define-from-file=env/prod.json
 ```
 
 What changes per environment (`lib/core/env/environment_config.dart`):
@@ -397,25 +410,27 @@ What changes per environment (`lib/core/env/environment_config.dart`):
 | `uat` | Life Assistant UAT | on | yes |
 | `prod` | Life Assistant | off | no |
 
-> `baseUrl` in `EnvironmentConfig` currently uses placeholder domains (`yourdomain.com`). Update these when a REST API layer is added. The Supabase connection uses `SupabaseConfig` directly and is not affected by `baseUrl`.
+> `baseUrl` in `EnvironmentConfig` currently uses placeholder domains (`yourdomain.com`). Update these when a REST API layer is added. The Supabase connection uses `SupabaseConfig` directly (driven by `SUPABASE_URL`/`SUPABASE_ANON_KEY` from the same `env/*.json` file) and is not affected by `baseUrl`.
 
 ### Supabase Secrets
 
-Set once via `supabase secrets set`. Available inside edge functions as `Deno.env.get("KEY")`.
+Set per-project via `supabase secrets set <KEY>=<value> --project-ref <project-ref>`. Available inside edge functions as `Deno.env.get("KEY")`. **Every environment needs these set independently** — nothing carries over automatically between projects.
 
 | Secret | Used by | Where to get it |
 |---|---|---|
-| `GEMINI_API_KEY` | `parse` function | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
+| `GEMINI_API_KEY` | `parse` | [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) |
 | `MSG91_AUTH_KEY` | `send-otp`, `verify-otp` | MSG91 Dashboard → API → Auth Key |
 | `MSG91_TEMPLATE_ID` | `send-otp` | MSG91 Dashboard → SMS → OTP → Flow ID |
-| `WAI_INTERNAL_AUTH_PASS` | `verify-otp` | Generate any strong random string (never shown to users) |
-| `FCM_SERVICE_ACCOUNT` | `send-notification` | Firebase Console → Project Settings → Service Accounts → Generate key (paste full JSON) |
+| `WAI_INTERNAL_AUTH_PASS` | `verify-otp`, **`firebase-verify` (required — hard-fails at startup without it)** | Generate any strong random string (never shown to users); does not need to match other environments |
+| `FIREBASE_PROJECT_ID` | `firebase-verify` (has a fallback default) | Firebase Console → Project Settings |
+| `FCM_SERVICE_ACCOUNT` | `send-notification`, `notify-trial-expiry` | Firebase Console → Project Settings → Service Accounts → Generate key (paste full JSON) |
+| `CRON_SECRET` | `notify-trial-expiry` (has a fallback default) | Generate any strong random string |
 | `SUPABASE_URL` | all functions | **Auto-injected** by Supabase — do not set manually |
 | `SUPABASE_SERVICE_ROLE_KEY` | all functions | **Auto-injected** by Supabase — do not set manually |
 
-Check current secrets:
+Check current secrets for a project:
 ```bash
-supabase secrets list
+supabase secrets list --project-ref <project-ref>
 ```
 
 ---

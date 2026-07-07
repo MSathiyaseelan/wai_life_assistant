@@ -134,7 +134,7 @@ async function getOrCreateSession(phone: string): Promise<Response> {
     user_metadata: { phone },
   });
 
-  if (createErr && !createErr.message.includes("already registered")) {
+  if (createErr && createErr.code !== "email_exists") {
     console.error("[firebase-verify] createUser error:", createErr);
     return errorResponse(500, "Failed to create user account");
   }
