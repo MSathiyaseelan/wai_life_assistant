@@ -99,6 +99,54 @@ class FunctionsService {
     await _db.from('functions_attended').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
+  // ── Attended Function Groups ─────────────────────────────────────────────
+
+  /// Fetch all attended_function_groups for a wallet.
+  Future<List<Map<String, dynamic>>> fetchAttendedGroups(String walletId) async {
+    final rows = await _db
+        .from('attended_function_groups')
+        .select()
+        .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Create a new attended-function group.
+  Future<Map<String, dynamic>> createAttendedGroup({
+    required String walletId,
+    required String name,
+    String emoji = '👨‍👩‍👧',
+  }) async {
+    final row = await _db.from('attended_function_groups').insert({
+      'wallet_id': walletId,
+      'user_id': _uid,
+      'name': name,
+      'emoji': emoji,
+    }).select().single();
+    return row;
+  }
+
+  /// Rename / re-emoji a group.
+  Future<void> updateAttendedGroup(String groupId, {String? name, String? emoji}) async {
+    final fields = <String, dynamic>{};
+    if (name != null) fields['name'] = name;
+    if (emoji != null) fields['emoji'] = emoji;
+    if (fields.isNotEmpty) {
+      await _db.from('attended_function_groups').update(fields).eq('id', groupId);
+    }
+  }
+
+  /// Delete a group (soft). Member functions stay but their group_id is set to NULL.
+  Future<void> deleteAttendedGroup(String groupId) async {
+    await _db.from('attended_function_groups').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', groupId);
+  }
+
+  /// Assign or remove an attended function from a group (groupId = null to ungroup).
+  Future<void> setAttendedGroup(String functionId, String? groupId) async {
+    await _db.from('functions_attended').update({'group_id': groupId}).eq('id', functionId);
+  }
+
   // ── Participants ─────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchParticipants(String functionId) async {

@@ -978,12 +978,20 @@ class GiftedItem {
 class PlannedGiftItem {
   String category; // e.g. 'Cash', 'Gold'
   String? notes;
-  PlannedGiftItem({required this.category, this.notes});
+  double? amount; // cash amount, or approx value for gold/silver/other gifts
+  PlannedGiftItem({required this.category, this.notes, this.amount});
 
-  factory PlannedGiftItem.fromJson(Map<String, dynamic> json) =>
-      PlannedGiftItem(category: json['category'] ?? '', notes: json['notes'] as String?);
+  factory PlannedGiftItem.fromJson(Map<String, dynamic> json) => PlannedGiftItem(
+    category: json['category'] ?? '',
+    notes: json['notes'] as String?,
+    amount: (json['amount'] as num?)?.toDouble(),
+  );
 
-  Map<String, dynamic> toJson() => {'category': category, if (notes != null) 'notes': notes};
+  Map<String, dynamic> toJson() => {
+    'category': category,
+    if (notes != null) 'notes': notes,
+    if (amount != null) 'amount': amount,
+  };
 }
 
 class UpcomingFunction {
@@ -1050,7 +1058,7 @@ class UpcomingFunction {
 
 class AttendedFunction {
   String id, walletId, functionName;
-  String? personName, familyName;
+  String? personName, familyName, groupId;
   FunctionType type;
   DateTime? date;
   String? venue, notes;
@@ -1062,11 +1070,16 @@ class AttendedFunction {
     required this.type,
     this.personName,
     this.familyName,
+    this.groupId,
     this.date,
     this.venue,
     this.notes,
     List<PlannedGiftItem>? gifts,
   }) : gifts = gifts ?? [];
+
+  /// Total value of all gifts given at this function (gifts without a
+  /// recorded amount don't contribute — the total is a lower bound).
+  double get giftsTotal => gifts.fold(0.0, (sum, g) => sum + (g.amount ?? 0));
 
   factory AttendedFunction.fromJson(Map<String, dynamic> json) => AttendedFunction(
     id: json['id'] as String,
@@ -1074,6 +1087,7 @@ class AttendedFunction {
     functionName: json['function_name'] as String? ?? '',
     personName: json['person_name'] as String?,
     familyName: json['family_name'] as String?,
+    groupId: json['group_id'] as String?,
     type: FunctionType.values.firstWhere(
       (e) => e.name == json['type'],
       orElse: () => FunctionType.other,
@@ -1092,11 +1106,42 @@ class AttendedFunction {
     'function_name': functionName,
     if (personName != null) 'person_name': personName,
     if (familyName != null) 'family_name': familyName,
+    if (groupId != null) 'group_id': groupId,
     if (date != null) 'date': date!.toIso8601String().split('T')[0],
     if (venue != null) 'venue': venue,
     if (notes != null) 'notes': notes,
     'gifts': gifts.map((g) => g.toJson()).toList(),
   };
+}
+
+class AttendedFunctionGroup {
+  final String id, walletId, name, emoji;
+  final List<AttendedFunction> functions;
+
+  AttendedFunctionGroup({
+    required this.id,
+    required this.walletId,
+    required this.name,
+    required this.emoji,
+    List<AttendedFunction>? functions,
+  }) : functions = functions ?? const [];
+
+  factory AttendedFunctionGroup.fromRow(Map<String, dynamic> row) => AttendedFunctionGroup(
+    id: row['id'] as String,
+    walletId: row['wallet_id'] as String,
+    name: row['name'] as String? ?? '',
+    emoji: row['emoji'] as String? ?? '👨‍👩‍👧',
+  );
+
+  AttendedFunctionGroup withFunctions(List<AttendedFunction> fns) => AttendedFunctionGroup(
+    id: id,
+    walletId: walletId,
+    name: name,
+    emoji: emoji,
+    functions: fns,
+  );
+
+  double get total => functions.fold(0.0, (sum, f) => sum + f.giftsTotal);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
