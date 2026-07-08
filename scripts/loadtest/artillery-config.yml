@@ -1,0 +1,110 @@
+config:
+  target: "{{ $processEnvironment.SUPABASE_URL }}"
+  processor: "./processor.js"
+  variables:
+    apikey: "{{ $processEnvironment.SUPABASE_ANON_KEY }}"
+  http:
+    timeout: 15
+  ensure:
+    # Fail the run loudly if the API falls over — these are the numbers that
+    # actually answer "can Supabase handle this load". Based on http.codes.*
+    # in the summary report, not `expect:` assertions (see note below).
+    p99: 2000        # 99th percentile response time under 2s
+    maxErrorRate: 1  # less than 1% of requests may error
+  phases:
+    - name: "Warm-up"
+      duration: 30
+      arrivalRate: 2
+      rampTo: 10
+    - name: "Ramp to peak"
+      duration: 60
+      arrivalRate: 10
+      rampTo: 50
+    - name: "Sustained peak"
+      duration: 120
+      arrivalRate: 50
+    - name: "Cool-down"
+      duration: 20
+      arrivalRate: 50
+      rampTo: 2
+
+# NOTE: three things worked around here, all confirmed via manual repro
+# against real requests to QA — not guesses:
+#   1. No `expect:` blocks — this Artillery version crashes the worker
+#      (`processFunc is not a function`) whenever an expect assertion fails.
+#   2. Every scenario below has exactly ONE request per flow — the same crash
+#      also happens on ANY non-2xx response inside a MULTI-step flow (a bug in
+#      Artillery's default metrics-by-endpoint plugin's error-hook handling,
+#      present across multiple Artillery versions, not fixable from our
+#      config). Single-request flows are unaffected regardless of status code.
+#      "Dashboard load" is therefore split into two independent scenarios
+#      instead of one 2-step flow — same endpoints get load-tested either way.
+#   3. `apikey`/`Authorization` are set per-request below, NOT under
+#      `config.defaults.headers` — confirmed via `DEBUG=http` that defaults
+#      headers do not reliably pick up variables set by a `beforeScenario`
+#      processor hook (every request came back "Bearer undefined" until this
+#      was moved to per-request headers).
+# Every request's actual status code is still captured in the summary report
+# under http.codes.* (e.g. http.codes.200, http.codes.401) — read that for
+# pass/fail instead of per-request assertions.
+
+scenarios:
+  - name: "Dashboard load — wallet read"
+    weight: 25
+    beforeScenario: "pickTestUser"
+    flow:
+      - get:
+          url: "/rest/v1/wallets?select=*&owner_id=eq.{{ userId }}"
+          headers:
+            apikey: "{{ apikey }}"
+            Authorization: "Bearer {{ token }}"
+
+  - name: "Dashboard load — recent transactions"
+    weight: 25
+    beforeScenario: "pickTestUser"
+    flow:
+      - get:
+          url: "/rest/v1/transactions?select=*&wallet_id=eq.{{ walletId }}&order=date.desc&limit=20"
+          headers:
+            apikey: "{{ apikey }}"
+            Authorization: "Bearer {{ token }}"
+
+  - name: "Pantry — grocery list read"
+    weight: 20
+    beforeScenario: "pickTestUser"
+    flow:
+      - get:
+          url: "/rest/v1/grocery_items?select=*&wallet_id=eq.{{ walletId }}&limit=20"
+          headers:
+            apikey: "{{ apikey }}"
+            Authorization: "Bearer {{ token }}"
+
+  - name: "Functions — attended list read"
+    weight: 10
+    beforeScenario: "pickTestUser"
+    flow:
+      - get:
+          url: "/rest/v1/functions_attended?select=*&wallet_id=eq.{{ walletId }}&limit=20"
+          headers:
+            apikey: "{{ apikey }}"
+            Authorization: "Bearer {{ token }}"
+
+  - name: "Write path — add a transaction"
+    weight: 25
+    beforeScenario: "pickTestUser"
+    flow:
+      - post:
+          url: "/rest/v1/transactions"
+          headers:
+            apikey: "{{ apikey }}"
+            Authorization: "Bearer {{ token }}"
+            Content-Type: "application/json"
+            Prefer: "return=representation"
+          json:
+            wallet_id: "{{ walletId }}"
+            user_id: "{{ userId }}"
+            type: "expense"
+            pay_mode: "cash"
+            amount: 100
+            category: "Load Test"
+            note: "artillery load test — safe to ignore/delete"

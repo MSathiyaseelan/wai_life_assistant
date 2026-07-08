@@ -1,0 +1,42 @@
+# Separate, deliberately-capped test for the `parse` edge function, which
+# calls the paid Gemini API on every request. This does NOT scale with
+# artillery-config.yml's phases — it's a fixed small number of calls
+# (arrivalCount, not arrivalRate) so the cost/quota impact is known up front.
+#
+# `send-otp` / `verify-otp` are intentionally NOT included here: they send a
+# real SMS via MSG91 per call, and there's no safe synthetic phone number to
+# target. If you want those load tested too, provide a real test phone
+# number you control and we'll add a similarly capped scenario for it.
+#
+# Usage:
+#   SUPABASE_URL=https://<qa-ref>.supabase.co \
+#   SUPABASE_ANON_KEY=<qa-anon-key> \
+#   npx artillery run parse-loadtest.yml
+
+config:
+  target: "{{ $processEnvironment.SUPABASE_URL }}"
+  variables:
+    apikey: "{{ $processEnvironment.SUPABASE_ANON_KEY }}"
+  http:
+    timeout: 30 # Gemini calls are slower than plain DB reads
+  phases:
+    - name: "Capped parse() burst"
+      duration: 30
+      arrivalCount: 10 # exactly 10 Gemini calls total, not scaled by rate
+  defaults:
+    headers:
+      Authorization: "Bearer {{ apikey }}"
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "parse — wallet expense text"
+    flow:
+      - post:
+          url: "/functions/v1/parse"
+          json:
+            feature: "wallet"
+            sub_feature: "expense"
+            input_type: "text"
+            text: "250 biryani"
+          expect:
+            - statusCode: 200

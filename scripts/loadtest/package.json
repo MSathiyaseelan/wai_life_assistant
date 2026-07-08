@@ -1,0 +1,15 @@
+{
+  "name": "wai-loadtest",
+  "private": true,
+  "type": "module",
+  "description": "Load testing toolkit for the WAI Supabase backend. Not part of the Flutter app.",
+  "scripts": {
+    "provision": "node provision_test_users.mjs",
+    "cleanup": "node cleanup_test_data.mjs",
+    "test:api": "npx artillery run artillery-config.yml",
+    "test:parse": "npx artillery run parse-loadtest.yml"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}
