@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="1024" height="1024">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4CC272"/><stop offset="1" stop-color="#2E8B4E"/>
+    </linearGradient>
+    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B9CF0"/><stop offset="1" stop-color="#1E63C4"/>
+    </linearGradient>
+    <linearGradient id="o" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFA94D"/><stop offset="1" stop-color="#E07B12"/>
+    </linearGradient>
+    <linearGradient id="p" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9B7CE8"/><stop offset="1" stop-color="#6642C4"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M27,102 L96,33 Q100,29 104,33 L173,102" fill="none" stroke="#17244A" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <clipPath id="bodyClip"><rect x="45" y="95" width="110" height="90" rx="16"/></clipPath>
+  <g clip-path="url(#bodyClip)">
+    <path d="M61,95 H97 V137 H45 V111 A16,16 0 0 1 61,95 Z" fill="url(#g)"/>
+    <path d="M103,95 H139 A16,16 0 0 1 155,111 V137 H103 Z" fill="url(#b)"/>
+    <path d="M45,143 H97 V185 H61 A16,16 0 0 1 45,169 Z" fill="url(#o)"/>
+    <path d="M103,143 H155 V169 A16,16 0 0 1 139,185 H103 Z" fill="url(#p)"/>
+  </g>
+
+  <!-- basket -->
+  <path d="M49,113 L67,113 L64,127 L52,127 Z" fill="#ffffff"/>
+  <path d="M51,111 A7,7 0 0 1 65,111" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+  <line x1="55" y1="115" x2="53" y2="125" stroke="url(#g)" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="58" y1="115" x2="57" y2="125" stroke="url(#g)" stroke-width="1.4" stroke-linecap="round"/>
+  <line x1="61" y1="115" x2="61" y2="125" stroke="url(#g)" stroke-width="1.4" stroke-linecap="round"/>
+
+  <!-- wallet -->
+  <rect x="133" y="111" width="22" height="15" rx="3" fill="#ffffff"/>
+  <path d="M137,111 L144,105 L151,111 Z" fill="#ffffff"/>
+  <circle cx="148" cy="118.5" r="2" fill="url(#b)"/>
+
+  <!-- calendar -->
+  <rect x="49" y="159" width="20" height="17" rx="3" fill="#ffffff"/>
+  <line x1="54" y1="156" x2="54" y2="161" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="64" y1="156" x2="64" y2="161" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+  <polyline points="53,167 58,171 65,162" fill="none" stroke="url(#o)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- notes -->
+  <rect x="133" y="158" width="17" height="18" rx="2" fill="#ffffff"/>
+  <line x1="136" y1="163" x2="146" y2="163" stroke="url(#p)" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="136" y1="167" x2="146" y2="167" stroke="url(#p)" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="136" y1="171" x2="142" y2="171" stroke="url(#p)" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M148,168 L156,176 L150,178 L148,172 Z" fill="#ffffff" stroke="url(#p)" stroke-width="1"/>
+
+  <!-- family badge -->
+  <circle cx="100" cy="100" r="28" fill="#ffffff"/>
+  <circle cx="88" cy="93" r="7.5" fill="url(#g)"/>
+  <path d="M77,113 A11,13 0 0 1 99,113 Z" fill="url(#g)"/>
+  <circle cx="113" cy="93" r="6.5" fill="url(#o)"/>
+  <path d="M103,111 A10,11 0 0 1 123,111 Z" fill="url(#o)"/>
+  <circle cx="100" cy="103" r="6" fill="url(#b)"/>
+  <path d="M91,120 A9,10 0 0 1 109,120 Z" fill="url(#b)"/>
+</svg>

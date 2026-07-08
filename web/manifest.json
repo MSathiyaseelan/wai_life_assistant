@@ -1,6 +1,6 @@
 {
-    "name": "wai_life_assistant",
-    "short_name": "wai_life_assistant",
+    "name": "RiyasHome",
+    "short_name": "RiyasHome",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

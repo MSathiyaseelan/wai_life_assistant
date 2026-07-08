@@ -18,21 +18,21 @@ class EnvironmentConfig {
       case 'qa':
         return EnvironmentConfig(
           environment: AppEnvironment.qa,
-          appName: 'Life Assistant QA',
+          appName: 'RiyasHome QA',
           baseUrl: 'https://qa.api.yourdomain.com',
           enableLogs: true,
         );
       case 'uat':
         return EnvironmentConfig(
           environment: AppEnvironment.uat,
-          appName: 'Life Assistant UAT',
+          appName: 'RiyasHome UAT',
           baseUrl: 'https://uat.api.yourdomain.com',
           enableLogs: true,
         );
       case 'prod':
         return EnvironmentConfig(
           environment: AppEnvironment.prod,
-          appName: 'Life Assistant',
+          appName: 'RiyasHome',
           baseUrl: 'https://api.yourdomain.com',
           enableLogs: false,
         );
@@ -40,7 +40,7 @@ class EnvironmentConfig {
       default:
         return EnvironmentConfig(
           environment: AppEnvironment.dev,
-          appName: 'Life Assistant DEV',
+          appName: 'RiyasHome DEV',
           baseUrl: 'https://dev.api.yourdomain.com',
           enableLogs: true,
         );
