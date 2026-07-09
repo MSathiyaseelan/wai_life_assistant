@@ -114,6 +114,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       .where((t) => t.walletId == wid && _isToday(t.date))
       .toList();
 
+  // Mirrors _SpendingPulseCard's actual layout (stat row + divider, then up
+  // to 3 _TxRow entries, then a "+N more" row) so the card's height tracks
+  // how much content it's really showing instead of jumping to a fixed size.
+  double _pulseCardHeight(int txCount) {
+    if (txCount == 0) return 118.0;
+    const headerH = 88.0; // stat row + divider
+    const rowH = 58.0; // each _TxRow
+    const extraRowH = 38.0; // "+N more" row
+    final shown = txCount > 3 ? 3 : txCount;
+    final hasExtra = txCount > 3;
+    return headerH + shown * rowH + (hasExtra ? extraRowH : 0);
+  }
+
   bool _wasOnline = true;
   int _unreadNotifCount = 0;
 
@@ -1256,13 +1269,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                         ?.name ??
                                     w.name);
 
-                          // Compact height when all wallets have no transactions today
-                          final hasAnyTx = allWallets.any((w) => _todayTx(w.id).isNotEmpty);
-                          final cardH = hasAnyTx ? 290.0 : 118.0;
+                          // Height scales with how many transactions are actually
+                          // shown today, instead of jumping straight to the
+                          // "3 rows + more" size the moment there's just one.
+                          final maxTxToday = allWallets
+                              .map((w) => _todayTx(w.id).length)
+                              .fold(0, (a, b) => b > a ? b : a);
+                          final cardH = _pulseCardHeight(maxTxToday);
 
                           return Column(
                             children: [
-                              SizedBox(
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
                                 height: cardH,
                                 child: PageView.builder(
                                 controller: _pulsePageController,

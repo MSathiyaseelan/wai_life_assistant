@@ -557,7 +557,9 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                 color: Colors.white.withAlpha(18),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _focus.hasFocus
+                  color: _isListening
+                      ? Colors.redAccent.withAlpha(140)
+                      : _focus.hasFocus
                       ? const Color(0xFFA5B4FC).withAlpha(160)
                       : Colors.white.withAlpha(30),
                   width: 1.5,
@@ -566,6 +568,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
               child: Row(
                 children: [
                   const SizedBox(width: 12),
+                  if (_isListening) ...[const _PulsingDot(), const SizedBox(width: 8)],
                   Expanded(
                     child: TextField(
                       controller: _ctrl,
@@ -579,11 +582,15 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                         color: Colors.white,
                       ),
                       decoration: InputDecoration.collapsed(
-                        hintText: 'Ask or say "add milk to grocery"…',
+                        hintText: _isListening
+                            ? 'Listening…'
+                            : 'Ask or say "add milk to grocery"…',
                         hintStyle: TextStyle(
                           fontSize: 13,
                           fontFamily: 'Nunito',
-                          color: Colors.white.withAlpha(100),
+                          color: _isListening
+                              ? Colors.redAccent.withAlpha(200)
+                              : Colors.white.withAlpha(100),
                         ),
                       ),
                     ),
@@ -1369,4 +1376,41 @@ class _ActionChip extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Pulsing "recording" indicator dot, shown next to the input while the
+// mic is listening — mirrors ChatInputBar's _PulsingDot in the Wallet screen.
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot();
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  late final Animation<double> _a;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 450))
+      ..repeat(reverse: true);
+    _a = Tween(begin: 0.3, end: 1.0).animate(_c);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _a,
+    child: Container(
+      width: 7,
+      height: 7,
+      decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+    ),
+  );
 }
