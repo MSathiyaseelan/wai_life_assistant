@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
@@ -405,6 +406,17 @@ class GroceryItem {
   String walletId;
   String? note;
 
+  /// Canonical comparison key so the same ingredient (e.g. "Tomato" vs
+  /// "tomato" vs "Tomatoes") is recognized as one thing across the recipe
+  /// library and the basket. Usually the deterministic fallback from
+  /// [normalizeIngredientName], but may carry a smarter AI-canonicalized
+  /// value (e.g. "Pori" -> "puffed rice") when set explicitly.
+  String? normalizedName;
+
+  /// The value actually used for matching — always non-null.
+  String get effectiveNormalizedName =>
+      normalizedName ?? normalizeIngredientName(name);
+
   GroceryItem({
     required this.id,
     required this.name,
@@ -417,6 +429,7 @@ class GroceryItem {
     this.isGrocery = true,
     this.expiryDate,
     this.note,
+    this.normalizedName,
     DateTime? lastUpdated,
   }) : lastUpdated = lastUpdated ?? DateTime.now();
 
@@ -438,6 +451,7 @@ class GroceryItem {
         ? DateTime.parse(m['expiry_date'] as String)
         : null,
     note: m['note'] as String?,
+    normalizedName: m['normalized_name'] as String?,
     lastUpdated: m['last_updated'] != null
         ? DateTime.parse(m['last_updated'] as String)
         : DateTime.now(),

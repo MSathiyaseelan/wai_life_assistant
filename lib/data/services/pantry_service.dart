@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 /// Thin service layer between the Pantry UI and Supabase.
 /// All methods throw [PostgrestException] on failure — callers should catch.
@@ -300,6 +301,12 @@ class PantryService {
   }
 
   /// Add a new grocery item.
+  ///
+  /// [normalizedName] lets a caller pass a smarter canonical name (e.g. the
+  /// AI parser's "Pori" -> "puffed rice" mapping). When omitted, it's
+  /// derived deterministically from [name] via [normalizeIngredientName] so
+  /// every row always has a comparison key for matching against recipe
+  /// ingredients and other basket items.
   Future<Map<String, dynamic>> addGroceryItem({
     required String walletId,
     required String name,
@@ -311,16 +318,18 @@ class PantryService {
     bool isGrocery = true,
     DateTime? expiryDate,
     String? note,
+    String? normalizedName,
   }) async {
     final row = await _db.from('grocery_items').insert({
-      'wallet_id':    walletId,
-      'created_by':   _uid,
-      'name':         name,
-      'category':     category,
-      'quantity':     quantity,
-      'unit':         unit,
-      'in_stock':     inStock,
-      'to_buy':       toBuy,
+      'wallet_id':       walletId,
+      'created_by':      _uid,
+      'name':            name,
+      'normalized_name': normalizedName ?? normalizeIngredientName(name),
+      'category':        category,
+      'quantity':        quantity,
+      'unit':            unit,
+      'in_stock':        inStock,
+      'to_buy':          toBuy,
       if (!isGrocery) 'is_grocery': false,
       'expiry_date':  expiryDate?.toIso8601String().substring(0, 10),
       'note':         note,
@@ -329,10 +338,15 @@ class PantryService {
     return row;
   }
 
-  /// Update mutable fields on a grocery item.
+  /// Update mutable fields on a grocery item. If [updates] renames the item
+  /// (contains 'name') without also specifying 'normalized_name', the
+  /// comparison key is re-derived automatically so it never goes stale.
   Future<void> updateGroceryItem(String id, Map<String, dynamic> updates) async {
+    final newName = updates['name'] as String?;
     await _db.from('grocery_items').update({
       ...updates,
+      if (newName != null && !updates.containsKey('normalized_name'))
+        'normalized_name': normalizeIngredientName(newName),
       'last_updated': DateTime.now().toIso8601String(),
     }).eq('id', id);
   }

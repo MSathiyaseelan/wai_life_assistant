@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 // ── Add Recipe Sheet ──────────────────────────────────────────────────────────
 
@@ -1060,11 +1061,13 @@ class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
     final checked = <_IngredientStatus>[];
 
     for (final ingredient in _ingredients) {
-      final name = _extractName(ingredient);
-      bool matches(GroceryItem g) =>
-          name.isNotEmpty &&
-          (g.name.toLowerCase().contains(name) ||
-              name.contains(g.name.toLowerCase()));
+      final name = normalizeIngredientName(_extractName(ingredient));
+      bool matches(GroceryItem g) {
+        if (name.isEmpty) return false;
+        final gName = g.effectiveNormalizedName;
+        return gName.isNotEmpty &&
+            (gName == name || gName.contains(name) || name.contains(gName));
+      }
       final found = inStock.any(matches);
       final listed = !found && inToBuy.any(matches);
       checked.add(_IngredientStatus(

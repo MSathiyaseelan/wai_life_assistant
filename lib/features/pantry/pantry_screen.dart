@@ -27,6 +27,7 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/create_list_sheet.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 
@@ -629,6 +630,7 @@ class _PantryScreenState extends State<PantryScreen>
     );
     final name = (m['item_name'] as String? ?? 'Item').trim();
     final addToStock = (m['action'] as String?) == 'add_stock';
+    final aiNormalized = (m['normalized_name'] as String?)?.trim();
     return GroceryItem(
       id: id,
       name: name.isEmpty ? 'Item' : name,
@@ -639,6 +641,7 @@ class _PantryScreenState extends State<PantryScreen>
       inStock: addToStock,
       toBuy: !addToStock,
       note: m['note'] as String?,
+      normalizedName: aiNormalized == null || aiNormalized.isEmpty ? null : aiNormalized,
     );
   }
 
@@ -1048,6 +1051,18 @@ class _PantryScreenState extends State<PantryScreen>
         .trim();
   }
 
+  /// Whether a normalized recipe-ingredient name refers to the same thing
+  /// as a basket item — normalized equality first (handles case/plural/
+  /// punctuation differences), falling back to substring containment for
+  /// compound names (e.g. ingredient "rice" vs basket item "basmati rice").
+  bool _ingredientMatchesGrocery(GroceryItem g, String normalizedIngredient) {
+    final gName = g.effectiveNormalizedName;
+    if (gName.isEmpty || normalizedIngredient.isEmpty) return false;
+    return gName == normalizedIngredient ||
+        gName.contains(normalizedIngredient) ||
+        normalizedIngredient.contains(gName);
+  }
+
   /// When a meal is cooked, reduce in-stock quantities for matching groceries.
   Future<void> _reduceStockForMeal(String recipeId) async {
     final rIdx = _recipes.indexWhere((r) => r.id == recipeId);
@@ -1056,13 +1071,11 @@ class _PantryScreenState extends State<PantryScreen>
     bool changed = false;
 
     for (final ingredient in recipe.ingredients) {
-      final name = _extractIngredientName(ingredient);
+      final name = normalizeIngredientName(_extractIngredientName(ingredient));
       if (name.isEmpty) continue;
 
-      final gIdx = _groceries.indexWhere((g) =>
-          g.inStock &&
-          (g.name.toLowerCase().contains(name) ||
-              name.contains(g.name.toLowerCase())));
+      final gIdx = _groceries.indexWhere(
+          (g) => g.inStock && _ingredientMatchesGrocery(g, name));
       if (gIdx < 0) continue;
 
       final item = _groceries[gIdx];
@@ -1126,11 +1139,9 @@ class _PantryScreenState extends State<PantryScreen>
     final missing = <String>[];
     final alreadyInToBuy = <String>[];
     for (final ingredient in ingredientList) {
-      final name = _extractIngredientName(ingredient);
+      final name = normalizeIngredientName(_extractIngredientName(ingredient));
       if (name.isEmpty) continue;
-      bool matches(GroceryItem g) =>
-          g.name.toLowerCase().contains(name) ||
-          name.contains(g.name.toLowerCase());
+      bool matches(GroceryItem g) => _ingredientMatchesGrocery(g, name);
       if (stockItems.any(matches)) {
         inStock.add(ingredient);
       } else if (toBuyItems.any(matches)) {
@@ -1508,7 +1519,7 @@ class _PantryScreenState extends State<PantryScreen>
     final existingIdx = _groceries.indexWhere((g) =>
         g.walletId == i.walletId &&
         (section == 'inStock' ? g.inStock : g.toBuy) &&
-        g.name.toLowerCase().trim() == i.name.toLowerCase().trim());
+        g.effectiveNormalizedName == i.effectiveNormalizedName);
     if (existingIdx >= 0) {
       final existing = _groceries[existingIdx];
       final Map<String, dynamic> updates = {};
@@ -1533,6 +1544,7 @@ class _PantryScreenState extends State<PantryScreen>
       final row = await PantryService.instance.addGroceryItem(
         walletId: widget.activeWalletId,
         name: i.name,
+        normalizedName: i.normalizedName,
         category: i.category.name,
         quantity: i.quantity,
         unit: i.unit,
@@ -1568,7 +1580,10 @@ class _PantryScreenState extends State<PantryScreen>
   Future<void> _updateGrocery(GroceryItem i, Map<String, dynamic> updates) async {
     // Apply optimistically
     setState(() {
-      if (updates.containsKey('name')) i.name = updates['name'] as String;
+      if (updates.containsKey('name')) {
+        i.name = updates['name'] as String;
+        i.normalizedName = updates['normalized_name'] as String?;
+      }
       if (updates.containsKey('quantity')) i.quantity = (updates['quantity'] as num).toDouble();
       if (updates.containsKey('unit')) i.unit = updates['unit'] as String;
       if (updates.containsKey('note')) i.note = updates['note'] as String?;
@@ -2037,10 +2052,8 @@ class _PantryScreenState extends State<PantryScreen>
     bool hasStockMatch(RecipeModel r) {
       if (r.ingredients.isEmpty || stockItems.isEmpty) return false;
       return r.ingredients.any((ing) {
-        final name = ing.toLowerCase().trim();
-        return stockItems.any((g) =>
-            g.name.toLowerCase().contains(name) ||
-            name.contains(g.name.toLowerCase()));
+        final name = normalizeIngredientName(_extractIngredientName(ing));
+        return stockItems.any((g) => _ingredientMatchesGrocery(g, name));
       });
     }
 
