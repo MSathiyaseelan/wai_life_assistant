@@ -2247,6 +2247,7 @@ class _ContainerDetailScreen extends StatefulWidget {
 class _ContainerDetailState extends State<_ContainerDetailScreen> {
   String _filter = 'All';
   late List<StoredItem> _localItems;
+  bool _confirmingDelete = false;
 
   @override
   void initState() {
@@ -2660,37 +2661,44 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext ctx) {
-    showDialog(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        title: const Text(
-          'Remove Container?',
-          style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
-        ),
-        content: Text(
-          'This will also remove all ${_localItems.length} item(s) stored in '
-          '"${widget.container.name}". This cannot be undone.',
-          style: const TextStyle(fontFamily: 'Nunito'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+  Future<void> _confirmDelete(BuildContext ctx) async {
+    if (_confirmingDelete) return;
+    _confirmingDelete = true;
+    bool? confirmed;
+    try {
+      confirmed = await showDialog<bool>(
+        context: ctx,
+        builder: (dialogCtx) => AlertDialog(
+          title: const Text(
+            'Remove Container?',
+            style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              widget.onDeleteContainer();
-            },
-            child: const Text(
-              'Remove All',
-              style: TextStyle(color: AppColors.expense),
+          content: Text(
+            'This will also remove all ${_localItems.length} item(s) stored in '
+            '"${widget.container.name}". This cannot be undone.',
+            style: const TextStyle(fontFamily: 'Nunito'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancel'),
             ),
-          ),
-        ],
-      ),
-    );
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text(
+                'Remove All',
+                style: TextStyle(color: AppColors.expense),
+              ),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _confirmingDelete = false;
+    }
+    if (confirmed == true) {
+      widget.onDeleteContainer();
+    }
   }
 
   String _fmtDate(DateTime d) {
