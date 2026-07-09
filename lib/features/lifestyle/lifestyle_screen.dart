@@ -89,7 +89,10 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         color: const Color(0xFF4A9EFF),
                         gradientEnd: const Color(0xFF2261CC),
                         onTap: () => _push(
-                          MyGarageScreen(walletId: widget.activeWalletId),
+                          MyGarageScreen(
+                            walletId: widget.activeWalletId,
+                            members: _wardrobeMembers,
+                          ),
                         ),
                       ),
                     ),
@@ -147,7 +150,10 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                         subtitle: 'Safe & organised',
                         color: const Color(0xFFFFAA2C),
                         onTap: () => _push(
-                          DocumentVaultScreen(walletId: widget.activeWalletId),
+                          DocumentVaultScreen(
+                            walletId: widget.activeWalletId,
+                            members: _wardrobeMembers,
+                          ),
                         ),
                       ),
                     ),
@@ -162,8 +168,10 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
                   subtitle: 'Find anything, anywhere at home',
                   color: const Color(0xFF6C63FF),
                   gradientEnd: const Color(0xFF4B44CC),
-                  onTap: () =>
-                      _push(ItemLocatorScreen(walletId: widget.activeWalletId)),
+                  onTap: () => _push(ItemLocatorScreen(
+                    walletId: widget.activeWalletId,
+                    members: _wardrobeMembers,
+                  )),
                 ),
               ]),
             ),

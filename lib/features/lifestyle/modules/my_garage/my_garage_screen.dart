@@ -13,7 +13,12 @@ const _garageColor = Color(0xFF4A9EFF);
 
 class MyGarageScreen extends StatefulWidget {
   final String walletId;
-  const MyGarageScreen({super.key, required this.walletId});
+  final List<LifeMember> members;
+  const MyGarageScreen({
+    super.key,
+    required this.walletId,
+    this.members = const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')],
+  });
   @override
   State<MyGarageScreen> createState() => _MyGarageScreenState();
 }
@@ -81,12 +86,14 @@ class _MyGarageScreenState extends State<MyGarageScreen> {
                 child: _VehicleCard(
                   vehicle: _filtered[i],
                   isDark: isDark,
+                  members: widget.members,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => _VehicleDetailScreen(
                         vehicle: _filtered[i],
                         isDark: isDark,
+                        members: widget.members,
                         onUpdate: () => setState(() {}),
                         onDelete: () {
                           setState(() => _vehicles.remove(_filtered[i]));
@@ -303,7 +310,7 @@ class _MyGarageScreenState extends State<MyGarageScreen> {
                 height: 50,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: mockLifeMembers
+                  children: widget.members
                       .map(
                         (m) => GestureDetector(
                           onTap: () => ss(() => selectedOwner = m.id),
@@ -410,10 +417,12 @@ class _MyGarageScreenState extends State<MyGarageScreen> {
 class _VehicleCard extends StatelessWidget {
   final VehicleModel vehicle;
   final bool isDark;
+  final List<LifeMember> members;
   final VoidCallback onTap;
   const _VehicleCard({
     required this.vehicle,
     required this.isDark,
+    required this.members,
     required this.onTap,
   });
 
@@ -421,7 +430,7 @@ class _VehicleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final owner = mockLifeMembers.firstWhere(
+    final owner = members.firstWhere(
       (m) => m.id == (vehicle.ownerId ?? 'me'),
       orElse: () => const LifeMember(id: '?', name: '?', emoji: '👤'),
     );
@@ -628,11 +637,13 @@ class _StatPill extends StatelessWidget {
 class _VehicleDetailScreen extends StatefulWidget {
   final VehicleModel vehicle;
   final bool isDark;
+  final List<LifeMember> members;
   final VoidCallback onUpdate;
   final VoidCallback onDelete;
   const _VehicleDetailScreen({
     required this.vehicle,
     required this.isDark,
+    required this.members,
     required this.onUpdate,
     required this.onDelete,
   });
@@ -753,7 +764,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
       body: TabBarView(
         controller: _tab,
         children: [
-          _DetailsTab(vehicle: v, isDark: isDark),
+          _DetailsTab(vehicle: v, isDark: isDark, members: widget.members),
           _InsuranceTab(
             vehicle: v,
             isDark: isDark,
@@ -972,7 +983,7 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
                 height: 48,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: mockLifeMembers
+                  children: widget.members
                       .map(
                         (m) => GestureDetector(
                           onTap: () => ss(() => selOwner = m.id),
@@ -1841,14 +1852,19 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
 class _DetailsTab extends StatelessWidget {
   final VehicleModel vehicle;
   final bool isDark;
-  const _DetailsTab({required this.vehicle, required this.isDark});
+  final List<LifeMember> members;
+  const _DetailsTab({
+    required this.vehicle,
+    required this.isDark,
+    required this.members,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final owner = mockLifeMembers.firstWhere(
+    final owner = members.firstWhere(
       (m) => m.id == (vehicle.ownerId ?? 'me'),
       orElse: () => const LifeMember(id: '?', name: '?', emoji: '👤'),
     );

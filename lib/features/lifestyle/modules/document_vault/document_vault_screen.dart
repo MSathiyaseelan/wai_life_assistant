@@ -5,7 +5,12 @@ import '../../widgets/life_widgets.dart';
 
 class DocumentVaultScreen extends StatefulWidget {
   final String walletId;
-  const DocumentVaultScreen({super.key, required this.walletId});
+  final List<LifeMember> members;
+  const DocumentVaultScreen({
+    super.key,
+    required this.walletId,
+    this.members = const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')],
+  });
   @override
   State<DocumentVaultScreen> createState() => _DocumentVaultScreenState();
 }
@@ -145,7 +150,7 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
                     color: color,
                     onTap: () => setState(() => _selectedMember = 'all'),
                   ),
-                  ...mockLifeMembers.map(
+                  ...widget.members.map(
                     (m) => _MemberChip(
                       label: m.name,
                       emoji: m.emoji,
@@ -204,7 +209,11 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
                         isDark: isDark,
                         onTap: () => showLifeSheet(
                           context,
-                          child: _DocDetail(doc: _filtered[i], isDark: isDark),
+                          child: _DocDetail(
+                            doc: _filtered[i],
+                            isDark: isDark,
+                            members: widget.members,
+                          ),
                         ),
                       ),
                     ),
@@ -300,7 +309,7 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: mockLifeMembers
+                  children: widget.members
                       .map(
                         (m) => GestureDetector(
                           onTap: () => ss(() => member = m.id),
@@ -621,13 +630,18 @@ class _DocCard extends StatelessWidget {
 class _DocDetail extends StatelessWidget {
   final VaultDocument doc;
   final bool isDark;
-  const _DocDetail({required this.doc, required this.isDark});
+  final List<LifeMember> members;
+  const _DocDetail({
+    required this.doc,
+    required this.isDark,
+    required this.members,
+  });
   @override
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final member = mockLifeMembers.firstWhere(
+    final member = members.firstWhere(
       (m) => m.id == doc.memberId,
       orElse: () => const LifeMember(id: '?', name: '?', emoji: '👤'),
     );

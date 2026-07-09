@@ -16,7 +16,12 @@ const _locatorColor = Color(0xFF6C63FF);
 
 class ItemLocatorScreen extends StatefulWidget {
   final String walletId;
-  const ItemLocatorScreen({super.key, required this.walletId});
+  final List<LifeMember> members;
+  const ItemLocatorScreen({
+    super.key,
+    required this.walletId,
+    this.members = const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')],
+  });
   @override
   State<ItemLocatorScreen> createState() => _ItemLocatorScreenState();
 }
@@ -421,7 +426,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
             if (item.storedBy != null)
               Builder(
                 builder: (_) {
-                  final member = mockLifeMembers.firstWhere(
+                  final member = widget.members.firstWhere(
                     (m) => m.id == item.storedBy,
                     orElse: () =>
                         const LifeMember(id: '?', name: 'Someone', emoji: '👤'),
@@ -1352,7 +1357,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                 height: 46,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: mockLifeMembers
+                  children: widget.members
                       .map(
                         (m) => GestureDetector(
                           onTap: () => ss(() => selMember = m.id),

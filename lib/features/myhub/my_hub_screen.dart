@@ -615,6 +615,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
       PageRouteBuilder(
         pageBuilder: (ctx, anim, secondaryAnim) => ItemLocatorScreen(
           walletId: _currentWallet.id,
+          members: _wardrobeMembers,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
