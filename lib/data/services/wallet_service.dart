@@ -42,17 +42,68 @@ class WalletService {
   List<String> _customIncome = [];
   List<String> _customTransfer = [];
 
+  /// Strip emoji/punctuation, collapse whitespace, lowercase. Mirrors the
+  /// SQL backfill in 088_normalize_tx_categories.sql — used to match
+  /// category names case/emoji-insensitively.
+  static String _normalize(String s) => s
+      .replaceAll(RegExp(r'[^\w\s]', unicode: true), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim()
+      .toLowerCase();
+
   List<String> _merge(List<String> defaults, List<String> custom) {
-    final set = <String>{...defaults};
-    return [...defaults, ...custom.where((c) => !set.contains(c))];
+    final seen = <String>{};
+    final out = <String>[];
+    for (final c in [...defaults, ...custom]) {
+      if (seen.add(_normalize(c))) out.add(c);
+    }
+    return out;
   }
 
   /// Returns the full category list (defaults + user-saved) for the given tx type string.
   /// [txType] is 'expense', 'income', or 'transfer' (covers lend/borrow/request).
+  /// Case/emoji-insensitively deduplicated — if legacy data has both "Food"
+  /// and "food", only the first-seen form is shown here.
   List<String> categoriesFor(String txType) {
     if (txType == 'income') return _merge(defaultIncomeCategories, _customIncome);
     if (txType == 'transfer') return _merge(defaultTransferCategories, _customTransfer);
     return _merge(defaultExpenseCategories, _customExpense);
+  }
+
+  /// Resolves a raw category string (possibly emoji-prefixed, mis-cased, or
+  /// brand new) to the canonical name that should actually be stored.
+  /// - Strips embedded emoji/punctuation from a genuinely new category.
+  /// - If a case/emoji-insensitive match already exists (default or
+  ///   user-saved), returns that exact existing string instead of creating
+  ///   a near-duplicate.
+  /// - Otherwise persists the cleaned name as a new category (fire-and-forget)
+  ///   and returns it.
+  String resolveCategoryName(String raw, String txTypeName) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final catType = txCategoryType(txTypeName);
+    final key = _normalize(trimmed);
+    if (key.isEmpty) return trimmed;
+
+    final existing = categoriesFor(catType).firstWhere(
+      (c) => _normalize(c) == key,
+      orElse: () => '',
+    );
+    if (existing.isNotEmpty) return existing;
+
+    // Genuinely new category: strip emoji/punctuation, title-case it.
+    final cleaned = trimmed
+        .replaceAll(RegExp(r'[^\w\s]', unicode: true), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final canonical = cleaned.isEmpty
+        ? trimmed
+        : cleaned
+            .split(' ')
+            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1).toLowerCase())
+            .join(' ');
+    ensureCategory(canonical, txTypeName);
+    return canonical;
   }
 
   /// Maps a TxType name to the simpler category type string.
@@ -76,9 +127,9 @@ class WalletService {
       if (rows.isEmpty) {
         // First time — seed all defaults into DB
         final seeds = [
-          ...defaultExpenseCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'expense'}),
-          ...defaultIncomeCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'income'}),
-          ...defaultTransferCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'transfer'}),
+          ...defaultExpenseCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'expense', 'normalized_name': _normalize(n)}),
+          ...defaultIncomeCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'income', 'normalized_name': _normalize(n)}),
+          ...defaultTransferCategories.map((n) => {'user_id': _uid, 'name': n, 'tx_type': 'transfer', 'normalized_name': _normalize(n)}),
         ];
         await _db.from('user_tx_categories').upsert(seeds, onConflict: 'user_id,name,tx_type');
         _customExpense = List.from(defaultExpenseCategories);
@@ -106,14 +157,18 @@ class WalletService {
   }
 
   /// Persist a category to DB whenever it is used (default or custom).
-  /// Safe to call fire-and-forget; errors are swallowed.
+  /// Safe to call fire-and-forget; errors are swallowed. No-ops if a
+  /// case/emoji-insensitive match already exists, so this never creates a
+  /// near-duplicate row (e.g. "food" when "Food" is already saved).
   Future<void> ensureCategory(String name, String txTypeName) async {
     final cat = name.trim();
     if (cat.isEmpty) return;
     final catType = txCategoryType(txTypeName);
+    final key = _normalize(cat);
+    if (categoriesFor(catType).any((c) => _normalize(c) == key)) return;
     try {
       await _db.from('user_tx_categories').upsert(
-        {'user_id': _uid, 'name': cat, 'tx_type': catType},
+        {'user_id': _uid, 'name': cat, 'tx_type': catType, 'normalized_name': key},
         onConflict: 'user_id,name,tx_type',
       );
       // Update local cache so it's immediately available
@@ -270,7 +325,7 @@ class WalletService {
       'type': type,
       'pay_mode': payMode,
       'amount': amount,
-      'category': category,
+      'category': resolveCategoryName(category, type),
       'title': title,
       'note': note,
       'person': person,
@@ -289,11 +344,20 @@ class WalletService {
   }
 
   /// Update mutable fields on a transaction (category, note, status, etc.).
+  /// If [updates] renames the category, it's resolved through the same
+  /// [resolveCategoryName] normalization used on insert.
   Future<void> updateTransaction(
     String txId,
     Map<String, dynamic> updates,
   ) async {
-    await _db.from('transactions').update(updates).eq('id', txId);
+    final newCategory = updates['category'] as String?;
+    final resolved = newCategory == null
+        ? updates
+        : {
+            ...updates,
+            'category': resolveCategoryName(newCategory, updates['type'] as String? ?? 'expense'),
+          };
+    await _db.from('transactions').update(resolved).eq('id', txId);
   }
 
   // ── Transaction Groups ────────────────────────────────────────────────────
@@ -712,6 +776,9 @@ class WalletService {
   }
 
   /// Upsert a budget limit. Pass [budgetId] to update, omit to insert.
+  /// Category is resolved through the same normalization as transactions
+  /// so budget-vs-spend matching (computeMonthlySpent/checkAndAlertBudgets)
+  /// never silently misses due to a casing/emoji mismatch.
   Future<BudgetModel> setBudget({
     required String walletId,
     required String category,
@@ -720,7 +787,7 @@ class WalletService {
     final row = await _db.from('wallet_budgets').upsert(
       {
         'wallet_id': walletId,
-        'category': category,
+        'category': resolveCategoryName(category, 'expense'),
         'limit_amount': limitAmount,
       },
       onConflict: 'wallet_id,category',
@@ -739,14 +806,24 @@ class WalletService {
   }
 
   /// Add a new expense category to the shared user_tx_categories table.
-  Future<void> addExpenseCategory(String name) async {
+  /// Returns the canonical name actually stored — either [name] as-typed
+  /// (cleaned up), or an existing case/emoji-insensitive match if one
+  /// already exists, so the caller doesn't end up displaying a near-duplicate.
+  Future<String> addExpenseCategory(String name) async {
     final cat = name.trim();
-    if (cat.isEmpty) return;
+    if (cat.isEmpty) return cat;
+    final key = _normalize(cat);
+    final existing = categoriesFor('expense').firstWhere(
+      (c) => _normalize(c) == key,
+      orElse: () => '',
+    );
+    if (existing.isNotEmpty) return existing;
     await _db.from('user_tx_categories').upsert(
-      {'user_id': _uid, 'name': cat, 'tx_type': 'expense'},
+      {'user_id': _uid, 'name': cat, 'tx_type': 'expense', 'normalized_name': key},
       onConflict: 'user_id,name,tx_type',
     );
     if (!_customExpense.contains(cat)) _customExpense.add(cat);
+    return cat;
   }
 
   /// Delete an expense category from user_tx_categories.

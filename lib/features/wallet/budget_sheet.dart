@@ -286,9 +286,9 @@ class _BudgetSheetState extends State<BudgetSheet> {
 
     if (name == null || !mounted) return;
     try {
-      await WalletService.instance.addExpenseCategory(name);
+      final canonical = await WalletService.instance.addExpenseCategory(name);
       setState(() {
-        if (!_allCategories.contains(name)) _allCategories.add(name);
+        if (!_allCategories.contains(canonical)) _allCategories.add(canonical);
       });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'add_category');

@@ -494,6 +494,7 @@ class _TxEditSheetState extends State<TxEditSheet> {
   late TextEditingController _titleCtrl;
   late TextEditingController _noteCtrl;
   late TextEditingController _personCtrl;
+  final FocusNode _catFocusNode = FocusNode();
   late TxType _type;
   late PayMode? _payMode;
   late DateTime _date;
@@ -517,6 +518,7 @@ class _TxEditSheetState extends State<TxEditSheet> {
   void dispose() {
     _amtCtrl.dispose();
     _catCtrl.dispose();
+    _catFocusNode.dispose();
     _titleCtrl.dispose();
     _noteCtrl.dispose();
     _personCtrl.dispose();
@@ -695,7 +697,14 @@ class _TxEditSheetState extends State<TxEditSheet> {
 
               // Category
               _ELbl('CATEGORY', sub),
-              _EField(_catCtrl, 'e.g. Food, Travel…', surfBg, tc),
+              _CategoryAutocomplete(
+                controller: _catCtrl,
+                focusNode: _catFocusNode,
+                surfBg: surfBg,
+                tc: tc,
+                options: WalletService.instance
+                    .categoriesFor(WalletService.txCategoryType(_type.name)),
+              ),
               const SizedBox(height: 8),
               SizedBox(
                 height: 34,
@@ -910,4 +919,84 @@ class _TxEditSheetState extends State<TxEditSheet> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     ),
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CATEGORY AUTOCOMPLETE — free typing still allowed; suggestions filtered
+// from the shared category list. The actual dedup/normalization against
+// near-duplicates ("food" vs "Food") happens server-side in
+// WalletService.resolveCategoryName on save, not here — this just helps
+// users land on an existing category instead of typing a fresh one.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CategoryAutocomplete extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final Color surfBg;
+  final Color tc;
+  final List<String> options;
+
+  const _CategoryAutocomplete({
+    required this.controller,
+    required this.focusNode,
+    required this.surfBg,
+    required this.tc,
+    required this.options,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RawAutocomplete<String>(
+      textEditingController: controller,
+      focusNode: focusNode,
+      optionsBuilder: (value) {
+        final q = value.text.trim().toLowerCase();
+        if (q.isEmpty) return options;
+        return options.where((o) => o.toLowerCase().contains(q));
+      },
+      fieldViewBuilder: (context, fieldCtrl, fieldFocus, onSubmit) => TextField(
+        controller: fieldCtrl,
+        focusNode: fieldFocus,
+        style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
+        decoration: InputDecoration(
+          hintText: 'e.g. Food, Travel…',
+          hintStyle: const TextStyle(
+            fontFamily: 'Nunito',
+            fontSize: 12,
+            color: AppColors.subLight,
+          ),
+          filled: true,
+          fillColor: surfBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+      ),
+      optionsViewBuilder: (context, onSelected, opts) => Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 180, minWidth: 220),
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              shrinkWrap: true,
+              itemCount: opts.length,
+              itemBuilder: (context, i) {
+                final o = opts.elementAt(i);
+                return ListTile(
+                  dense: true,
+                  title: Text(o, style: const TextStyle(fontFamily: 'Nunito', fontSize: 13)),
+                  onTap: () => onSelected(o),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
