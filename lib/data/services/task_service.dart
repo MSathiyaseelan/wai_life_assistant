@@ -12,6 +12,7 @@ class TaskService {
         .from('tasks')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at');
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -26,6 +27,6 @@ class TaskService {
   }
 
   Future<void> deleteTask(String id) async {
-    await _db.from('tasks').delete().eq('id', id);
+    await _db.from('tasks').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 }

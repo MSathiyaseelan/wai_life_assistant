@@ -368,6 +368,7 @@ class PantryService {
         .from('member_food_prefs')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('member_name');
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -395,15 +396,16 @@ class PantryService {
         'likes':           likes,
         'dislikes':        dislikes,
         'mandatory_foods': mandatoryFoods,
+        'deleted_at':      null, // re-adding a member un-deletes their prior record
       },
       onConflict: 'wallet_id,member_id',
     ).select().single();
     return row;
   }
 
-  /// Delete the food-prefs record for a member.
+  /// Soft-delete the food-prefs record for a member.
   Future<void> deleteFoodPrefs(String id) async {
-    await _db.from('member_food_prefs').delete().eq('id', id);
+    await _db.from('member_food_prefs').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

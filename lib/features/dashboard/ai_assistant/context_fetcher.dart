@@ -139,6 +139,7 @@ class ContextFetcher {
           .from('transactions')
           .select('type, amount, category, title, date')
           .eq('wallet_id', walletId)
+          .isFilter('deleted_at', null)
           .gte('date', fromDate)
           .order('date', ascending: false)
           .limit(50);

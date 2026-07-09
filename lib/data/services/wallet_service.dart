@@ -283,9 +283,9 @@ class WalletService {
     return row;
   }
 
-  /// Delete a transaction (balance trigger rolls back the wallet amounts).
+  /// Soft-delete a transaction (balance trigger rolls back the wallet amounts).
   Future<void> deleteTransaction(String txId) async {
-    await _db.from('transactions').delete().eq('id', txId);
+    await _db.from('transactions').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', txId);
   }
 
   /// Update mutable fields on a transaction (category, note, status, etc.).
@@ -359,6 +359,7 @@ class WalletService {
           )
         ''')
         .eq('pinned_to_dashboard', true)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return (rows as List)
         .map((r) => splitGroupFromRow(r as Map<String, dynamic>))
@@ -400,13 +401,15 @@ class WalletService {
           )
         ''')
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
 
-  /// Permanently delete a split group and all its data.
+  /// Soft-delete a split group; participants/transactions/shares are left
+  /// intact until the 30-day purge issues a real (cascading) DELETE.
   Future<void> deleteSplitGroup(String groupId) async {
-    await _db.from('split_groups').delete().eq('id', groupId);
+    await _db.from('split_groups').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', groupId);
   }
 
   /// Create a split group with an initial set of participants.

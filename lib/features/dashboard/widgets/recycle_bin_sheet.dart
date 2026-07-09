@@ -58,14 +58,20 @@ const _kTables = [
   ('function_clothing_families','Functions',['family_name']),
   ('function_bridal_essentials','Functions',['item', 'category']),
   ('function_return_gifts',    'Functions', ['gift_name']),
+  ('attended_function_groups', 'Functions', ['name']),
   ('item_locator_containers',  'Locator',   ['name', 'location']),
   ('item_locator_items',       'Locator',   ['name', 'description']),
+  ('transactions',             'Wallet',    ['title', 'category']),
   ('tx_groups',                'Wallet',    ['name']),
   ('bills',                    'Wallet',    ['name', 'category']),
   ('wallet_budgets',           'Wallet',    ['category']),
+  ('split_groups',             'Wallet',    ['name']),
   ('recipes',                  'Pantry',    ['name', 'cuisine']),
   ('meal_entries',             'Pantry',    ['name', 'meal_time']),
   ('meal_reactions',           'Pantry',    ['member_name', 'comment']),
+  ('member_food_prefs',        'Pantry',    ['member_name']),
+  ('tasks',                    'PlanIt',    ['title', 'project']),
+  ('special_days',             'PlanIt',    ['title', 'type']),
 ];
 
 class _RecycleBinSheetState extends State<RecycleBinSheet> {

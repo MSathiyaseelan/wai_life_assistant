@@ -71,6 +71,7 @@ class AiContextBuilder {
           .from('transactions')
           .select('type, amount, category, title, date')
           .eq('wallet_id', walletId)
+          .isFilter('deleted_at', null)
           .gte('date', monthStart)
           .order('date', ascending: false)
           .limit(30);

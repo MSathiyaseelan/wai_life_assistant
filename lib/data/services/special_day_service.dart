@@ -12,6 +12,7 @@ class SpecialDayService {
         .from('special_days')
         .select()
         .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
         .order('date');
     return List<Map<String, dynamic>>.from(rows);
   }
@@ -26,6 +27,6 @@ class SpecialDayService {
   }
 
   Future<void> deleteDay(String id) async {
-    await _db.from('special_days').delete().eq('id', id);
+    await _db.from('special_days').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 }
