@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '_prefs_sheet_base.dart';
 import 'privacy_policy_sheet.dart';
 import 'terms_of_service_sheet.dart';
+
+const _supportEmail = 'riyasailabs@gmail.com';
+const _playStoreUrl = 'https://play.google.com/store/apps/details?id=com.wai.lifeassistant';
 
 class AboutWaiSheet extends StatelessWidget {
   final bool isDark;
@@ -12,6 +17,38 @@ class AboutWaiSheet extends StatelessWidget {
   Color get _tc   => isDark ? AppColors.textDark   : AppColors.textLight;
   Color get _sub  => isDark ? AppColors.subDark    : AppColors.subLight;
   Color get _div  => isDark ? Colors.white.withAlpha(18) : Colors.black.withAlpha(18);
+
+  Future<void> _contactSupport(BuildContext context) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: _supportEmail,
+      query: 'subject=${Uri.encodeComponent('WAI Support Request')}',
+    );
+    try {
+      final launched = await launchUrl(uri);
+      if (!launched) throw Exception('launchUrl returned false');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'about_contact_support');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open email app. Contact us at $_supportEmail')),
+      );
+    }
+  }
+
+  Future<void> _rateApp(BuildContext context) async {
+    final uri = Uri.parse(_playStoreUrl);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) throw Exception('launchUrl returned false');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'about_rate_wai');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the Play Store.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -122,14 +159,14 @@ class AboutWaiSheet extends StatelessWidget {
                 label: 'Contact Support',
                 sub: _sub,
                 tc: _tc,
-                onTap: () {},
+                onTap: () => _contactSupport(context),
               ),
               _InfoRow(
                 emoji: '⭐',
                 label: 'Rate WAI',
                 sub: _sub,
                 tc: _tc,
-                onTap: () {},
+                onTap: () => _rateApp(context),
               ),
             ],
           ),
