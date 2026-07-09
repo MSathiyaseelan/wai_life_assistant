@@ -57,7 +57,7 @@ class TermsOfServiceSheet extends StatelessWidget {
                   _para('The App integrates third-party services that have their own terms:'),
                   _bullet('Firebase (Google) — authentication & push notifications'),
                   _bullet('Supabase — data storage and backend'),
-                  _bullet('Anthropic Claude — AI assistant features'),
+                  _bullet('Google Gemini — AI assistant features'),
                   _para('We are not responsible for the practices of these third-party services.'),
                 ]),
                 _section('7. Disclaimer of Warranties', Icons.warning_amber_rounded, const Color(0xFFEF4444), [

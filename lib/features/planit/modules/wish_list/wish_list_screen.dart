@@ -1658,7 +1658,7 @@ class _AddWishSheetState extends State<_AddWishSheet>
   bool _aiParsing = false;
   _ParsedWish? _aiPreview;
   String? _aiError;
-  bool _usingClaude = false;
+  bool _usingAI = false;
 
   final _titleCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
@@ -1721,7 +1721,7 @@ class _AddWishSheetState extends State<_AddWishSheet>
       _aiParsing = true;
       _aiError = null;
       _aiPreview = null;
-      _usingClaude = false;
+      _usingAI = false;
     });
     _ParsedWish? result;
     try {
@@ -1732,14 +1732,14 @@ class _AddWishSheetState extends State<_AddWishSheet>
       );
       if (aiResult.success && aiResult.data != null) {
         result = _parsedWishFromAI(aiResult.data!);
-        _usingClaude = true;
+        _usingAI = true;
       } else {
         throw Exception(aiResult.error);
       }
     } catch (_) {
       result = _WishNlpParser.parse(text.trim());
     }
-    debugPrint('[WishList] parse result: title=${result.title} price=${result.targetPrice} usingAI=$_usingClaude');
+    debugPrint('[WishList] parse result: title=${result.title} price=${result.targetPrice} usingAI=$_usingAI');
     if (!mounted) return;
     setState(() {
       _aiParsing = false;
@@ -1882,7 +1882,7 @@ class _AddWishSheetState extends State<_AddWishSheet>
               preview: _aiPreview!,
               isDark: widget.isDark,
               surfBg: widget.surfBg,
-              usedClaude: _usingClaude,
+              usedAI: _usingAI,
               onEdit: () => _mode.animateTo(1),
             ),
             const SizedBox(height: 16),
@@ -2409,14 +2409,14 @@ class _ErrorBanner extends StatelessWidget {
 
 class _AiPreviewCard extends StatelessWidget {
   final _ParsedWish preview;
-  final bool isDark, usedClaude;
+  final bool isDark, usedAI;
   final Color surfBg;
   final VoidCallback onEdit;
   const _AiPreviewCard({
     required this.preview,
     required this.isDark,
     required this.surfBg,
-    required this.usedClaude,
+    required this.usedAI,
     required this.onEdit,
   });
 
@@ -2474,7 +2474,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaude ? '🤖 AI Parsed' : '✨ AI Parsed',
+                        usedAI ? '🤖 AI Parsed' : '🔍 Local NLP',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2649,7 +2649,7 @@ class _AiExamples extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLAUDE PARSER
+// PARSER MODELS
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ParsedWish {

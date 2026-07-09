@@ -10972,7 +10972,7 @@ class _ParsedFunction {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLAUDE AI PARSER
+// AI PARSER — routes through the shared Gemini edge function (AIParser)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _FunctionAIParser {

@@ -1375,7 +1375,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
   bool _aiParsing = false;
   _ParsedDay? _aiPreview;
   String? _aiError;
-  bool _usingClaude = false;
+  bool _usingAI = false;
 
   // Manual / shared state
   final _titleCtrl = TextEditingController();
@@ -1446,7 +1446,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
       _aiParsing = true;
       _aiError = null;
       _aiPreview = null;
-      _usingClaude = false;
+      _usingAI = false;
     });
 
     _ParsedDay? result;
@@ -1458,7 +1458,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
       );
       if (aiResult.success && aiResult.data != null) {
         result = _parsedDayFromAI(aiResult.data!);
-        _usingClaude = true;
+        _usingAI = true;
       } else {
         throw Exception(aiResult.error);
       }
@@ -1604,7 +1604,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
               preview: _aiPreview!,
               isDark: widget.isDark,
               surfBg: widget.surfBg,
-              usedClaude: _usingClaude,
+              usedAI: _usingAI,
               onEdit: () => _mode.animateTo(1),
             ),
             const SizedBox(height: 16),
@@ -2405,14 +2405,14 @@ class _ErrorBanner extends StatelessWidget {
 
 class _AiPreviewCard extends StatelessWidget {
   final _ParsedDay preview;
-  final bool isDark, usedClaude;
+  final bool isDark, usedAI;
   final Color surfBg;
   final VoidCallback onEdit;
   const _AiPreviewCard({
     required this.preview,
     required this.isDark,
     required this.surfBg,
-    required this.usedClaude,
+    required this.usedAI,
     required this.onEdit,
   });
 
@@ -2470,7 +2470,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaude ? '🤖 AI Parsed' : '✨ AI Parsed',
+                        usedAI ? '🤖 AI Parsed' : '🔍 Local NLP',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2647,7 +2647,7 @@ class _AiExamples extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLAUDE AI PARSER
+// PARSER MODELS
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ParsedDay {

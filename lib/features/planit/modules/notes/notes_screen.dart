@@ -840,7 +840,7 @@ class _NoteSheetState extends State<_NoteSheet>
   bool _aiParsing = false;
   _ParsedNote? _aiPreview;
   String? _aiError;
-  bool _usingClaudeAI = false;
+  bool _usingAI = false;
 
   // Manual form state
   late final TextEditingController _titleCtrl;
@@ -883,7 +883,7 @@ class _NoteSheetState extends State<_NoteSheet>
       _aiParsing = true;
       _aiError = null;
       _aiPreview = null;
-      _usingClaudeAI = false;
+      _usingAI = false;
     });
 
     _ParsedNote? result;
@@ -895,14 +895,14 @@ class _NoteSheetState extends State<_NoteSheet>
       );
       if (aiResult.success && aiResult.data != null) {
         result = _parsedNoteFromAI(aiResult.data!, widget.walletId);
-        _usingClaudeAI = true;
+        _usingAI = true;
       } else {
         throw Exception(aiResult.error ?? 'AI parse failed');
       }
     } catch (_) {
       try {
         result = _NoteNlpParser.parse(text.trim(), widget.walletId);
-        _usingClaudeAI = false;
+        _usingAI = false;
       } catch (e) {
         if (mounted) {
           setState(() {
@@ -1091,7 +1091,7 @@ class _NoteSheetState extends State<_NoteSheet>
                   preview: _aiPreview!,
                   isDark: widget.isDark,
                   accent: accent,
-                  usedClaudeAI: _usingClaudeAI,
+                  usedAI: _usingAI,
                   onEdit: () => _mode.animateTo(1),
                 ),
                 const SizedBox(height: 16),
@@ -1706,7 +1706,7 @@ class _NoteErrorBanner extends StatelessWidget {
 
 class _NoteAiPreviewCard extends StatelessWidget {
   final _ParsedNote preview;
-  final bool isDark, usedClaudeAI;
+  final bool isDark, usedAI;
   final Color accent;
   final VoidCallback onEdit;
 
@@ -1714,7 +1714,7 @@ class _NoteAiPreviewCard extends StatelessWidget {
     required this.preview,
     required this.isDark,
     required this.accent,
-    required this.usedClaudeAI,
+    required this.usedAI,
     required this.onEdit,
   });
 
@@ -1742,18 +1742,18 @@ class _NoteAiPreviewCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: usedClaudeAI
+                  color: usedAI
                       ? const Color(0xFF7C3AED).withValues(alpha: 0.1)
                       : Colors.orange.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  usedClaudeAI ? '✨ Claude AI' : '🔍 Local NLP',
+                  usedAI ? '✨ AI Parsed' : '🔍 Local NLP',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'Nunito',
-                    color: usedClaudeAI
+                    color: usedAI
                         ? const Color(0xFF7C3AED)
                         : Colors.orange,
                   ),

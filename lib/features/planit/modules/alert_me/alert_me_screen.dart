@@ -1139,7 +1139,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
   bool _aiParsing = false;
   _ParsedReminder? _aiPreview;
   String? _aiError;
-  bool _usingClaudeAI = false;
+  bool _usingAI = false;
 
   // Shared form state — filled by AI parse OR manually
   final _titleCtrl = TextEditingController();
@@ -1217,24 +1217,24 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
     super.dispose();
   }
 
-  // ── AI parse: Claude API first, local NLP fallback ───────────────────────
+  // ── AI parse: Gemini first, local NLP fallback ──────────────────────────
   Future<void> _parseAI(String text) async {
     if (text.trim().isEmpty) return;
     setState(() {
       _aiParsing = true;
       _aiError = null;
       _aiPreview = null;
-      _usingClaudeAI = false;
+      _usingAI = false;
     });
 
     _ParsedReminder? result;
     try {
-      result = await _ClaudeParser.parse(text.trim(), widget.walletId);
-      _usingClaudeAI = true;
+      result = await _ReminderAIParser.parse(text.trim(), widget.walletId);
+      _usingAI = true;
     } catch (_) {
       try {
         result = _NlpParser.parse(text.trim(), widget.walletId);
-        _usingClaudeAI = false;
+        _usingAI = false;
       } catch (e) {
         if (mounted) {
           setState(() {
@@ -1388,7 +1388,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
               preview: _aiPreview!,
               isDark: widget.isDark,
               surfBg: widget.surfBg,
-              usedClaudeAI: _usingClaudeAI,
+              usedAI: _usingAI,
               onEdit: () => _mode.animateTo(1),
             ),
             const SizedBox(height: 16),
@@ -1619,14 +1619,14 @@ class _AiPreviewCard extends StatelessWidget {
   final _ParsedReminder preview;
   final bool isDark;
   final Color surfBg;
-  final bool usedClaudeAI;
+  final bool usedAI;
   final VoidCallback onEdit;
 
   const _AiPreviewCard({
     required this.preview,
     required this.isDark,
     required this.surfBg,
-    required this.usedClaudeAI,
+    required this.usedAI,
     required this.onEdit,
   });
 
@@ -1689,7 +1689,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaudeAI ? '🤖 AI Parsed' : '✨ AI Parsed',
+                        usedAI ? '🤖 AI Parsed' : '✨ AI Parsed',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2393,12 +2393,12 @@ class _EndDateBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLAUDE AI PARSER  —  real Anthropic API, returns structured JSON
-// Replace 'YOUR_ANTHROPIC_API_KEY' with your actual key or inject via config.
-// Falls back to _NlpParser automatically if no API key / no network.
+// AI PARSER — routes through the shared Gemini edge function (AIParser)
+
+// Falls back to the local NLP parser automatically on any failure.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ClaudeParser {
+class _ReminderAIParser {
   static Future<_ParsedReminder> parse(String text, String walletId) async {
     final result = await AIParser.parseText(
       feature: 'planit',

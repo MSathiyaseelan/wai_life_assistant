@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
-import 'dart:convert';
-import 'dart:io';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
@@ -2701,7 +2700,16 @@ class _AddTripSheetState extends State<_AddTripSheet>
     try {
       _ParsedTrip? result;
       try {
-        result = await _TripClaudeParser.parse(text, widget.walletId);
+        final aiResult = await AIParser.parseText(
+          feature: 'planit',
+          subFeature: 'travel',
+          text: text,
+        );
+        if (aiResult.success && aiResult.data != null) {
+          result = _parsedTripFromAI(aiResult.data!, widget.walletId);
+        } else {
+          throw Exception(aiResult.error ?? 'AI parse failed');
+        }
       } catch (_) {
         result = _TripNlpParser.parse(text, widget.walletId);
       }
@@ -3961,105 +3969,46 @@ class _ParsedTrip {
   });
 }
 
-class _TripClaudeParser {
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
+// Maps the 'planit'/'travel' AI prompt's JSON response (see
+// supabase/migrations/084_travel_board_ai_prompt.sql) onto _ParsedTrip.
+_ParsedTrip _parsedTripFromAI(Map<String, dynamic> data, String walletId) {
+  final destList = (data['destinations'] as List?)?.cast<String>() ?? [];
+  final destinations = destList
+      .asMap()
+      .entries
+      .map((e) => TripDestination(name: e.value, orderIndex: e.key))
+      .toList();
 
-  static Future<_ParsedTrip> parse(String text, String walletId) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') throw Exception('No API key');
+  DateTime? start, end;
+  try {
+    if (data['start_date'] != null) start = DateTime.parse(data['start_date'] as String);
+  } catch (_) {}
+  try {
+    if (data['end_date'] != null) end = DateTime.parse(data['end_date'] as String);
+  } catch (_) {}
 
-    final now = DateTime.now();
-    final today = now.toIso8601String().substring(0, 10);
-    final prompt =
-        '''
-Extract trip/travel details from this text and return ONLY a JSON object:
-{
-  "title": "concise trip name",
-  "emoji": "single best emoji for the trip",
-  "destinations": ["destination 1", "destination 2"],
-  "travelMode": "flight|train|car|bus|bike|ship|mixed",
-  "startDate": "YYYY-MM-DD or null",
-  "endDate": "YYYY-MM-DD or null",
-  "budget": number or null,
-  "memberIds": ["me"]
-}
+  const tm = {
+    'flight': TravelMode.flight,
+    'train': TravelMode.train,
+    'car': TravelMode.car,
+    'bus': TravelMode.bus,
+    'bike': TravelMode.bike,
+    'ship': TravelMode.ship,
+    'mixed': TravelMode.mixed,
+  };
 
-Today is $today. Return only raw JSON, no markdown.
-User text: "$text"''';
-
-    final client = HttpClient();
-    try {
-      final uri = Uri.parse('https://api.anthropic.com/v1/messages');
-      final req = await client.postUrl(uri);
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(
-        utf8.encode(
-          jsonEncode({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 400,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-          }),
-        ),
-      );
-      final res = await req.close().timeout(const Duration(seconds: 8));
-      final body = await res.transform(utf8.decoder).join();
-      if (res.statusCode != 200) throw Exception('API ${res.statusCode}');
-
-      final decoded = jsonDecode(body);
-      final content = (decoded['content'] as List).first['text'] as String;
-      final jsonStr = content
-          .replaceAll(RegExp(r'```json\s*'), '')
-          .replaceAll(RegExp(r'```\s*'), '')
-          .trim();
-      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-      final destList = (data['destinations'] as List?)?.cast<String>() ?? [];
-      final destinations = destList
-          .asMap()
-          .entries
-          .map((e) => TripDestination(name: e.value, orderIndex: e.key))
-          .toList();
-
-      DateTime? start, end;
-      try {
-        if (data['startDate'] != null) {
-          start = DateTime.parse(data['startDate']);
-        }
-      } catch (_) {}
-      try {
-        if (data['endDate'] != null) end = DateTime.parse(data['endDate']);
-      } catch (_) {}
-
-      const tm = {
-        'flight': TravelMode.flight,
-        'train': TravelMode.train,
-        'car': TravelMode.car,
-        'bus': TravelMode.bus,
-        'bike': TravelMode.bike,
-        'ship': TravelMode.ship,
-        'mixed': TravelMode.mixed,
-      };
-
-      return _ParsedTrip(
-        title: data['title'] as String,
-        emoji: data['emoji'] as String? ?? '✈️',
-        walletId: walletId,
-        destinations: destinations,
-        destination: destList.join(', '),
-        travelMode: tm[data['travelMode']] ?? TravelMode.mixed,
-        startDate: start,
-        endDate: end,
-        budget: (data['budget'] as num?)?.toDouble(),
-        memberIds: (data['memberIds'] as List?)?.cast<String>() ?? ['me'],
-      );
-    } finally {
-      client.close();
-    }
-  }
+  return _ParsedTrip(
+    title: data['title'] as String? ?? 'Trip',
+    emoji: data['emoji'] as String? ?? '✈️',
+    walletId: walletId,
+    destinations: destinations,
+    destination: destList.join(', '),
+    travelMode: tm[data['travel_mode']] ?? TravelMode.mixed,
+    startDate: start,
+    endDate: end,
+    budget: (data['budget'] as num?)?.toDouble(),
+    memberIds: (data['member_ids'] as List?)?.cast<String>() ?? ['me'],
+  );
 }
 
 class _TripNlpParser {

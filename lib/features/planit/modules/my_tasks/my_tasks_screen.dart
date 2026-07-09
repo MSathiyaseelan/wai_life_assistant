@@ -1185,7 +1185,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
   bool _aiParsing = false;
   _ParsedTask? _aiPreview;
   String? _aiError;
-  bool _usingClaudeAI = false;
+  bool _usingAI = false;
 
   // Shared form state
   final _titleCtrl = TextEditingController();
@@ -1263,7 +1263,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
       _aiParsing = true;
       _aiError = null;
       _aiPreview = null;
-      _usingClaudeAI = false;
+      _usingAI = false;
     });
 
     _ParsedTask? result;
@@ -1275,14 +1275,14 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
       );
       if (aiResult.success && aiResult.data != null) {
         result = _parsedTaskFromAI(aiResult.data!, widget.walletId);
-        _usingClaudeAI = true;
+        _usingAI = true;
       } else {
         throw Exception(aiResult.error ?? 'AI parse failed');
       }
     } catch (_) {
       try {
         result = _TaskNlpParser.parse(text.trim(), widget.walletId);
-        _usingClaudeAI = false;
+        _usingAI = false;
       } catch (e) {
         if (mounted) {
           setState(() {
@@ -1446,7 +1446,7 @@ class _AddTaskSheetState extends State<_AddTaskSheet>
               preview: _aiPreview!,
               isDark: widget.isDark,
               surfBg: widget.surfBg,
-              usedClaudeAI: _usingClaudeAI,
+              usedAI: _usingAI,
               onEdit: () => _mode.animateTo(1),
             ),
             const SizedBox(height: 16),
@@ -1666,14 +1666,14 @@ class _TaskErrorBanner extends StatelessWidget {
 
 class _TaskAiPreviewCard extends StatelessWidget {
   final _ParsedTask preview;
-  final bool isDark, usedClaudeAI;
+  final bool isDark, usedAI;
   final Color surfBg;
   final VoidCallback onEdit;
   const _TaskAiPreviewCard({
     required this.preview,
     required this.isDark,
     required this.surfBg,
-    required this.usedClaudeAI,
+    required this.usedAI,
     required this.onEdit,
   });
 
@@ -1730,7 +1730,7 @@ class _TaskAiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaudeAI ? '🤖 AI Parsed' : '✨ AI Parsed',
+                        usedAI ? '🤖 AI Parsed' : '✨ AI Parsed',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2306,7 +2306,7 @@ class _TaskManualForm extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLAUDE AI PARSER FOR TASKS
+// AI PARSER FOR TASKS — routes through the shared Gemini edge function
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ParsedTask {

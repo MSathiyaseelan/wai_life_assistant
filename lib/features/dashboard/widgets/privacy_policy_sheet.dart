@@ -78,7 +78,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                   _para('WAI uses these third-party services:'),
                   _bullet('Firebase (Google) — OTP authentication and push notifications. Privacy policy: firebase.google.com/support/privacy'),
                   _bullet('Supabase — Database, storage, and edge functions. Privacy policy: supabase.com/privacy'),
-                  _bullet('Anthropic Claude API — AI text parsing (only data you explicitly submit; not stored by Anthropic). Privacy policy: anthropic.com/privacy'),
+                  _bullet('Google Gemini API — AI text parsing (only data you explicitly submit; processed server-side, not stored by Google beyond processing). Privacy policy: policies.google.com/privacy'),
                   _para('We share only the minimum necessary data with each service.'),
                 ]),
                 _section('8. Children\'s Privacy', Icons.child_care_rounded, const Color(0xFFEF4444), [

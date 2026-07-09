@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
-import 'dart:convert';
-import 'dart:io';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCREEN
@@ -1417,7 +1416,7 @@ class _AddBillSheetState extends State<_AddBillSheet>
   bool _aiParsing = false;
   _ParsedBill? _aiPreview;
   String? _aiError;
-  bool _usingClaude = false;
+  bool _usingAI = false;
 
   final _nameCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
@@ -1469,12 +1468,21 @@ class _AddBillSheetState extends State<_AddBillSheet>
       _aiParsing = true;
       _aiError = null;
       _aiPreview = null;
-      _usingClaude = false;
+      _usingAI = false;
     });
     _ParsedBill? result;
     try {
-      result = await _BillClaudeParser.parse(text.trim());
-      _usingClaude = true;
+      final aiResult = await AIParser.parseText(
+        feature: 'wallet',
+        subFeature: 'bill',
+        text: text.trim(),
+      );
+      if (aiResult.success && aiResult.data != null) {
+        result = _parsedBillFromAI(aiResult.data!);
+        _usingAI = true;
+      } else {
+        throw Exception(aiResult.error ?? 'AI parse failed');
+      }
     } catch (_) {
       result = _BillNlpParser.parse(text.trim());
     }
@@ -1620,7 +1628,7 @@ class _AddBillSheetState extends State<_AddBillSheet>
               preview: _aiPreview!,
               isDark: widget.isDark,
               surfBg: widget.surfBg,
-              usedClaude: _usingClaude,
+              usedAI: _usingAI,
               onEdit: () => _mode.animateTo(1),
             ),
             const SizedBox(height: 16),
@@ -2016,7 +2024,7 @@ class _AiHint extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Describe your bill — Claude AI extracts name, amount, category, due date and repeat.',
+            'Describe your bill — AI extracts name, amount, category, due date and repeat.',
             style: TextStyle(
               fontSize: 12,
               fontFamily: 'Nunito',
@@ -2087,7 +2095,7 @@ class _AiInputBox extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Plain text → Claude fills all fields',
+                    'Plain text → AI fills all fields',
                     style: TextStyle(
                       fontSize: 11,
                       color: sub,
@@ -2187,14 +2195,14 @@ class _ErrorBanner extends StatelessWidget {
 
 class _AiPreviewCard extends StatelessWidget {
   final _ParsedBill preview;
-  final bool isDark, usedClaude;
+  final bool isDark, usedAI;
   final Color surfBg;
   final VoidCallback onEdit;
   const _AiPreviewCard({
     required this.preview,
     required this.isDark,
     required this.surfBg,
-    required this.usedClaude,
+    required this.usedAI,
     required this.onEdit,
   });
 
@@ -2251,7 +2259,7 @@ class _AiPreviewCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        usedClaude ? '🤖 Claude AI Parsed' : '✨ AI Parsed',
+                        usedAI ? '🤖 AI Parsed' : '🔍 Local NLP',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -2451,87 +2459,44 @@ class _ParsedBill {
   });
 }
 
-class _BillClaudeParser {
-  static const _apiKey = 'YOUR_ANTHROPIC_API_KEY';
-  static Future<_ParsedBill> parse(String text) async {
-    if (_apiKey == 'YOUR_ANTHROPIC_API_KEY') throw Exception('No API key');
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    final prompt =
-        'Extract bill details from: "$text"\nToday: $today\n'
-        'Return ONLY JSON: {"name":"","category":"electricity|water|gas|internet|phone|insurance|school|rent|subscription|medical|emi|other",'
-        '"amount":0,"dueDate":"YYYY-MM-DD","repeat":"none|daily|weekly|monthly|yearly","provider":null}\n'
-        'Rules: amount=number only, dueDate=next occurrence of the day mentioned, '
-        'repeat=monthly for utilities/subscriptions yearly for insurance, provider=company name or null';
-    final client = HttpClient();
-    try {
-      final req = await client.postUrl(
-        Uri.parse('https://api.anthropic.com/v1/messages'),
-      );
-      req.headers
-        ..set('x-api-key', _apiKey)
-        ..set('anthropic-version', '2023-06-01')
-        ..set('content-type', 'application/json');
-      req.add(
-        utf8.encode(
-          jsonEncode({
-            'model': 'claude-haiku-4-5-20251001',
-            'max_tokens': 300,
-            'messages': [
-              {'role': 'user', 'content': prompt},
-            ],
-          }),
-        ),
-      );
-      final res = await req.close().timeout(const Duration(seconds: 8));
-      final body = await res.transform(utf8.decoder).join();
-      if (res.statusCode != 200) throw Exception('${res.statusCode}');
-      final decoded = jsonDecode(body);
-      final raw = (decoded['content'] as List).first['text'] as String;
-      final data =
-          jsonDecode(
-                raw
-                    .replaceAll(RegExp(r'```json\s*'), '')
-                    .replaceAll('```', '')
-                    .trim(),
-              )
-              as Map<String, dynamic>;
-      DateTime due = DateTime.now().add(const Duration(days: 7));
-      try {
-        if (data['dueDate'] != null) due = DateTime.parse(data['dueDate']);
-      } catch (_) {}
-      const cm = {
-        'electricity': BillCategory.electricity,
-        'water': BillCategory.water,
-        'gas': BillCategory.gas,
-        'internet': BillCategory.internet,
-        'phone': BillCategory.phone,
-        'insurance': BillCategory.insurance,
-        'school': BillCategory.school,
-        'rent': BillCategory.rent,
-        'subscription': BillCategory.subscription,
-        'medical': BillCategory.medical,
-        'emi': BillCategory.emi,
-        'other': BillCategory.other,
-      };
-      const rm = {
-        'none': RepeatMode.none,
-        'daily': RepeatMode.daily,
-        'weekly': RepeatMode.weekly,
-        'monthly': RepeatMode.monthly,
-        'yearly': RepeatMode.yearly,
-      };
-      return _ParsedBill(
-        name: data['name'] as String,
-        category: cm[data['category']] ?? BillCategory.other,
-        amount: (data['amount'] as num?)?.toDouble() ?? 0,
-        dueDate: due,
-        repeat: rm[data['repeat']] ?? RepeatMode.monthly,
-        provider: data['provider'] as String?,
-      );
-    } finally {
-      client.close();
-    }
-  }
+// Maps the 'wallet'/'bill' AI prompt's JSON response (see
+// supabase/migrations/083_fix_wallet_bill_prompt_categories.sql) onto
+// _ParsedBill. Falls back to sensible defaults for any field the model
+// left null or returned in an unexpected shape.
+_ParsedBill _parsedBillFromAI(Map<String, dynamic> data) {
+  const cm = {
+    'electricity': BillCategory.electricity,
+    'water': BillCategory.water,
+    'gas': BillCategory.gas,
+    'internet': BillCategory.internet,
+    'phone': BillCategory.phone,
+    'insurance': BillCategory.insurance,
+    'school': BillCategory.school,
+    'rent': BillCategory.rent,
+    'subscription': BillCategory.subscription,
+    'medical': BillCategory.medical,
+    'emi': BillCategory.emi,
+    'other': BillCategory.other,
+  };
+  const rm = {
+    'none': RepeatMode.none,
+    'daily': RepeatMode.daily,
+    'weekly': RepeatMode.weekly,
+    'monthly': RepeatMode.monthly,
+    'yearly': RepeatMode.yearly,
+  };
+  DateTime due = DateTime.now().add(const Duration(days: 7));
+  try {
+    if (data['due_date'] != null) due = DateTime.parse(data['due_date'] as String);
+  } catch (_) {}
+  return _ParsedBill(
+    name: data['bill_name'] as String? ?? 'Bill',
+    category: cm[data['category']] ?? BillCategory.other,
+    amount: (data['amount'] as num?)?.toDouble() ?? 0,
+    dueDate: due,
+    repeat: rm[data['recurrence']] ?? RepeatMode.monthly,
+    provider: data['biller_hint'] as String?,
+  );
 }
 
 class _BillNlpParser {

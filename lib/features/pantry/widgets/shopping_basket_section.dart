@@ -893,14 +893,18 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       final month =
           '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
 
-      final usageRow = await client
-          .from('feature_usage')
-          .select('count')
-          .eq('user_id', userId)
-          .eq('feature', 'ai_parser')
-          .eq('month', month)
-          .maybeSingle();
-      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
+      final results = await Future.wait<dynamic>([
+        client
+            .from('feature_usage')
+            .select('count')
+            .eq('user_id', userId)
+            .eq('feature', 'ai_parser')
+            .eq('month', month)
+            .maybeSingle(),
+        client.rpc(AppRpc.getPlanLimits),
+      ]);
+      final usageRow = results[0] as Map<String, dynamic>?;
+      final planLimits = results[1] as Map<String, dynamic>?;
 
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
@@ -1174,11 +1178,25 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           ],
           const SizedBox(height: 24),
           if (_limitChecking)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: CircularProgressIndicator(
-                color: AppColors.income,
-                strokeWidth: 2,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      color: AppColors.income,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Just a moment…',
+                    style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                  ),
+                ],
               ),
             )
           else if (_limitReached)
