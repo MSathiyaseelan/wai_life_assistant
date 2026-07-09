@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/data/services/app_config_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RECYCLE BIN SHEET
@@ -21,6 +22,7 @@ class _RecycleBinItem {
   final String category;
   final String name;
   final DateTime deletedAt;
+  final int retentionDays;
 
   const _RecycleBinItem({
     required this.table,
@@ -28,11 +30,12 @@ class _RecycleBinItem {
     required this.category,
     required this.name,
     required this.deletedAt,
+    required this.retentionDays,
   });
 
   int get daysUntilPurge {
-    final expiry = deletedAt.add(const Duration(days: 30));
-    return expiry.difference(DateTime.now().toUtc()).inDays.clamp(0, 30);
+    final expiry = deletedAt.add(Duration(days: retentionDays));
+    return expiry.difference(DateTime.now().toUtc()).inDays.clamp(0, retentionDays);
   }
 }
 
@@ -97,7 +100,8 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final cutoff = DateTime.now().toUtc().subtract(const Duration(days: 30)).toIso8601String();
+    final retentionDays = await AppConfigService.instance.fetchRecycleBinRetentionDays();
+    final cutoff = DateTime.now().toUtc().subtract(Duration(days: retentionDays)).toIso8601String();
     final all = <_RecycleBinItem>[];
 
     await Future.wait(_kTables.map((entry) async {
@@ -129,6 +133,7 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
             category: category,
             name: name,
             deletedAt: deletedAt,
+            retentionDays: retentionDays,
           ));
         }
       } catch (e, stack) {

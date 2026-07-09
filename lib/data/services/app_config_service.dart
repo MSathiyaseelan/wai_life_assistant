@@ -22,4 +22,20 @@ class AppConfigService {
       return 1;
     }
   }
+
+  /// Days a soft-deleted record stays recoverable before the daily purge
+  /// job hard-deletes it. Returns 30 (current default) on any error or
+  /// when not configured.
+  Future<int> fetchRecycleBinRetentionDays() async {
+    try {
+      final row = await _db
+          .from('app_config')
+          .select('value')
+          .eq('key', 'recycle_bin_retention_days')
+          .maybeSingle();
+      return int.tryParse(row?['value'] as String? ?? '') ?? 30;
+    } catch (_) {
+      return 30;
+    }
+  }
 }
