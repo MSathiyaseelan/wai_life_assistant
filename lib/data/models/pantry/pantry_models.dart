@@ -458,6 +458,29 @@ class GroceryItem {
   );
 }
 
+/// A saved "Create List" snapshot — a named, dated group of grocery_items
+/// (linked via GroceryItem's list_id), shown in Pantry's list history.
+class GroceryListModel {
+  final String id;
+  final String walletId;
+  final String name;
+  final DateTime createdAt;
+
+  const GroceryListModel({
+    required this.id,
+    required this.walletId,
+    required this.name,
+    required this.createdAt,
+  });
+
+  factory GroceryListModel.fromMap(Map<String, dynamic> m) => GroceryListModel(
+    id: m['id'] as String,
+    walletId: m['wallet_id'] as String,
+    name: m['name'] as String,
+    createdAt: DateTime.parse(m['created_at'] as String),
+  );
+}
+
 // ── Master Recipe (shared catalogue, read from DB) ────────────────────────────
 
 class MasterRecipe {

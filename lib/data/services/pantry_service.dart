@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
+import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 
 /// Thin service layer between the Pantry UI and Supabase.
 /// All methods throw [PostgrestException] on failure — callers should catch.
@@ -370,6 +371,88 @@ class PantryService {
   /// Delete a grocery item.
   Future<void> deleteGroceryItem(String id) async {
     await _db.from('grocery_items').delete().eq('id', id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GROCERY LISTS — "Create List" history
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Save the currently-selected To Buy items as a named list, so it shows
+  /// up in list history. Items keep living in grocery_items (still
+  /// in_stock/to_buy as before) — this just tags them with a list_id.
+  Future<Map<String, dynamic>> createGroceryList({
+    required String walletId,
+    required String name,
+    required List<String> itemIds,
+  }) async {
+    final list = await _db.from('grocery_lists').insert({
+      'wallet_id': walletId,
+      'created_by': _uid,
+      'name': name,
+    }).select().single();
+    if (itemIds.isNotEmpty) {
+      await _db
+          .from('grocery_items')
+          .update({'list_id': list['id']})
+          .inFilter('id', itemIds);
+    }
+    return list;
+  }
+
+  /// Fetch list history for a wallet, newest first.
+  Future<List<Map<String, dynamic>>> fetchGroceryLists(String walletId) async {
+    final rows = await _db
+        .from('grocery_lists')
+        .select()
+        .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Fetch the items tagged to a given list (reflects their current live
+  /// in_stock/to_buy state, not a frozen snapshot).
+  Future<List<Map<String, dynamic>>> fetchListItems(String listId) async {
+    final rows = await _db
+        .from('grocery_items')
+        .select()
+        .eq('list_id', listId)
+        .order('name');
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Fetch items across multiple lists in one query — used to compute
+  /// per-list item/bought counts in the list history overview.
+  Future<List<Map<String, dynamic>>> fetchItemsForLists(List<String> listIds) async {
+    if (listIds.isEmpty) return [];
+    final rows = await _db.from('grocery_items').select().inFilter('list_id', listIds);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Mark a batch of items (from a list, or anywhere) as bought: move to
+  /// In Stock and off the To Buy list. Mirrors the single-item mark-bought
+  /// behavior used elsewhere — non-grocery (quick-list) items are deleted
+  /// instead of moved to stock, since they're one-off purchases.
+  Future<void> markItemsBought(List<GroceryItem> items) async {
+    final toStock = items.where((i) => i.isGrocery).map((i) => i.id).toList();
+    final toDelete = items.where((i) => !i.isGrocery).map((i) => i.id).toList();
+    if (toStock.isNotEmpty) {
+      await _db.from('grocery_items').update({
+        'in_stock': true,
+        'to_buy': false,
+        'last_updated': DateTime.now().toIso8601String(),
+      }).inFilter('id', toStock);
+    }
+    if (toDelete.isNotEmpty) {
+      await _db.from('grocery_items').delete().inFilter('id', toDelete);
+    }
+  }
+
+  /// Soft-delete a grocery list. Items keep their list_id (until purge sets
+  /// it to null via ON DELETE SET NULL on hard-delete) but the list itself
+  /// stops showing in history.
+  Future<void> deleteGroceryList(String id) async {
+    await _db.from('grocery_lists').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -14,6 +14,7 @@ class PantryFlowSelector extends StatelessWidget {
   final VoidCallback onBasket;
   final VoidCallback onScanBill;
   final VoidCallback onCreateList;
+  final VoidCallback onListHistory;
 
   const PantryFlowSelector({
     super.key,
@@ -22,6 +23,7 @@ class PantryFlowSelector extends StatelessWidget {
     required this.onBasket,
     required this.onScanBill,
     required this.onCreateList,
+    required this.onListHistory,
   });
 
   static Future<void> show(
@@ -31,6 +33,7 @@ class PantryFlowSelector extends StatelessWidget {
     required VoidCallback onBasket,
     required VoidCallback onScanBill,
     required VoidCallback onCreateList,
+    required VoidCallback onListHistory,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -42,6 +45,7 @@ class PantryFlowSelector extends StatelessWidget {
         onBasket: onBasket,
         onScanBill: onScanBill,
         onCreateList: onCreateList,
+        onListHistory: onListHistory,
       ),
     );
   }
@@ -136,8 +140,13 @@ class PantryFlowSelector extends StatelessWidget {
                 onTap: () { Navigator.pop(context); onCreateList(); },
               ),
               const SizedBox(width: 12),
-              // Spacer tile to keep alignment
-              const Expanded(child: SizedBox()),
+              _PantryFlowTile(
+                emoji: '📜',
+                label: 'List History',
+                subtitle: 'View past lists\n& mark bought',
+                color: AppColors.income,
+                onTap: () { Navigator.pop(context); onListHistory(); },
+              ),
             ],
           ),
         ],

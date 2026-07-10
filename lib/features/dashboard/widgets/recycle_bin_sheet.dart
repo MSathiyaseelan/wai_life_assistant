@@ -73,6 +73,7 @@ const _kTables = [
   ('meal_entries',             'Pantry',    ['name', 'meal_time']),
   ('meal_reactions',           'Pantry',    ['member_name', 'comment']),
   ('member_food_prefs',        'Pantry',    ['member_name']),
+  ('grocery_lists',            'Pantry',    ['name']),
   ('tasks',                    'PlanIt',    ['title', 'project']),
   ('special_days',             'PlanIt',    ['title', 'type']),
 ];

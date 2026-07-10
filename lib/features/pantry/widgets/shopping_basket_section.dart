@@ -74,8 +74,13 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
     super.dispose();
   }
 
-  List<GroceryItem> get _walletItems =>
-      widget.items.where((i) => i.walletId == widget.walletId).toList();
+  // Quick-list items (Personal Care / Household Supplies, added from the
+  // Dashboard's Shopping List) are stored in the same grocery_items table
+  // but flagged isGrocery=false — they belong to that quick list, not the
+  // Pantry grocery Basket, so they're excluded here.
+  List<GroceryItem> get _walletItems => widget.items
+      .where((i) => i.walletId == widget.walletId && i.isGrocery)
+      .toList();
 
   List<GroceryItem> get _inStock => _walletItems
       .where((i) => i.inStock)

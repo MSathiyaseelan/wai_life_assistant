@@ -27,6 +27,7 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/create_list_sheet.dart';
+import 'package:wai_life_assistant/features/pantry/widgets/grocery_list_history_sheet.dart';
 import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
@@ -835,6 +836,24 @@ class _PantryScreenState extends State<PantryScreen>
         _sectionTab.animateTo(2);
         _showCreateList(context);
       },
+      onListHistory: () {
+        _sectionTab.animateTo(2);
+        _showListHistory(context);
+      },
+    );
+  }
+
+  void _showListHistory(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => GroceryListHistorySheet(
+        walletId: widget.activeWalletId,
+        isDark: isDark,
+        onItemsChanged: _refresh,
+      ),
     );
   }
 
@@ -864,7 +883,11 @@ class _PantryScreenState extends State<PantryScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => CreateListSheet(items: toBuy),
+      builder: (_) => CreateListSheet(
+        items: toBuy,
+        walletId: widget.activeWalletId,
+        onSaved: () => PantryService.listChangeSignal.value++,
+      ),
     );
   }
 
@@ -1915,7 +1938,7 @@ class _PantryScreenState extends State<PantryScreen>
     final expiring =
         _groceries
             .where((g) {
-              if (g.walletId != widget.activeWalletId) return false;
+              if (g.walletId != widget.activeWalletId || !g.isGrocery) return false;
               if (g.expiryDate == null) return false;
               final expiryDay = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
               final todayDay = DateTime(now.year, now.month, now.day);
@@ -1959,7 +1982,7 @@ class _PantryScreenState extends State<PantryScreen>
     final todayDay = DateTime(now.year, now.month, now.day);
     final soonDay = todayDay.add(const Duration(days: 3));
     return _groceries.where((g) {
-      if (g.walletId != widget.activeWalletId) return false;
+      if (g.walletId != widget.activeWalletId || !g.isGrocery) return false;
       if (g.expiryDate == null) return false;
       final exp = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
       return !exp.isAfter(soonDay);
@@ -1969,7 +1992,7 @@ class _PantryScreenState extends State<PantryScreen>
   Widget _buildSummaryStrip(bool isDark) {
     final now = DateTime.now();
     final todayMeals = _mealsForDate(now).length;
-    final toBuyCount = _groceries.where((g) => g.walletId == widget.activeWalletId && g.toBuy).length;
+    final toBuyCount = _groceries.where((g) => g.walletId == widget.activeWalletId && g.isGrocery && g.toBuy).length;
     final expiringCnt = _expiringCount();
     final recipeCount = _recipes.length;
 

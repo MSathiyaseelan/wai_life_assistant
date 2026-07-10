@@ -5,11 +5,20 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
+import 'package:wai_life_assistant/data/services/pantry_service.dart';
 
 class CreateListSheet extends StatefulWidget {
   final List<GroceryItem> items;
-  const CreateListSheet({super.key, required this.items});
+  final String walletId;
+  final VoidCallback? onSaved;
+  const CreateListSheet({
+    super.key,
+    required this.items,
+    required this.walletId,
+    this.onSaved,
+  });
 
   @override
   State<CreateListSheet> createState() => _CreateListSheetState();
@@ -58,6 +67,58 @@ class _CreateListSheetState extends State<CreateListSheet> {
     buf.writeln('─' * 30);
     buf.write('📦 ${selected.length} item${selected.length == 1 ? '' : 's'}');
     return buf.toString();
+  }
+
+  Future<void> _saveList() async {
+    final selected = _selectedItems;
+    if (selected.isEmpty) return;
+    final nameCtrl = TextEditingController(text: '🛒 Shopping List – ${_dateStr()}');
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Save List', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          style: const TextStyle(fontFamily: 'Nunito'),
+          decoration: const InputDecoration(hintText: 'List name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final v = nameCtrl.text.trim();
+              if (v.isNotEmpty) Navigator.pop(ctx, v);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || !mounted) return;
+
+    try {
+      await PantryService.instance.createGroceryList(
+        walletId: widget.walletId,
+        name: name,
+        itemIds: selected.map((i) => i.id).toList(),
+      );
+      widget.onSaved?.call();
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved "$name" to list history 📜')),
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'create_grocery_list');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save list. Please try again.')),
+      );
+    }
   }
 
   Future<void> _exportCsv() async {
@@ -300,6 +361,35 @@ class _CreateListSheetState extends State<CreateListSheet> {
             ),
           ),
           const SizedBox(height: 18),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _selectedCount == 0 ? null : _saveList,
+              icon: const Icon(Icons.bookmark_add_rounded, size: 18),
+              label: Text(
+                _selectedCount == 0
+                    ? 'Select items to save'
+                    : 'Save List ($_selectedCount item${_selectedCount == 1 ? '' : 's'})',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.income,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: AppColors.income.withValues(alpha: 0.3),
+                elevation: 3,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
 
           Row(
             children: [
