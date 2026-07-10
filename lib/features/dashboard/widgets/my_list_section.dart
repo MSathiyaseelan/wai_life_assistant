@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/create_list_sheet.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 class MyListSection extends StatelessWidget {
   final List<GroceryItem> items;
@@ -387,7 +388,7 @@ class _GroceryRow extends StatelessWidget {
             ),
             Expanded(
               child: Text(
-                item.name,
+                displayCase(item.name),
                 style: TextStyle(
                   fontSize: 13,
                   fontFamily: 'Nunito',

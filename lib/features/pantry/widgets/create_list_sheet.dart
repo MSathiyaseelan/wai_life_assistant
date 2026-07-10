@@ -9,6 +9,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 class CreateListSheet extends StatefulWidget {
   final List<GroceryItem> items;
@@ -63,7 +64,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
     buf.writeln('─' * 30);
     for (var i = 0; i < selected.length; i++) {
       final g = selected[i];
-      buf.writeln('${i + 1}. ${g.category.emoji} ${g.name} — ${_fmtQty(g)}');
+      buf.writeln('${i + 1}. ${g.category.emoji} ${displayCase(g.name)} — ${_fmtQty(g)}');
     }
     buf.writeln('─' * 30);
     buf.write('📦 ${selected.length} item${selected.length == 1 ? '' : 's'}');
@@ -110,7 +111,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
       final q = g.quantity == g.quantity.truncateToDouble()
           ? g.quantity.toInt().toString()
           : g.quantity.toString();
-      buf.writeln('${i + 1},"${g.name}","${g.category.label}","$q","${g.unit}"');
+      buf.writeln('${i + 1},"${displayCase(g.name)}","${g.category.label}","$q","${g.unit}"');
     }
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/shopping_list.csv');
@@ -161,7 +162,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
                 for (var i = 0; i < selected.length; i++)
                   [
                     '${i + 1}',
-                    selected[i].name,
+                    displayCase(selected[i].name),
                     selected[i].category.label,
                     _fmtQty(selected[i]),
                   ],
@@ -297,7 +298,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.name,
+                                displayCase(item.name),
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,

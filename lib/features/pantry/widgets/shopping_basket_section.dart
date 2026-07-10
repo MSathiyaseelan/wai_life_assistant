@@ -10,6 +10,7 @@ import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 class ShoppingBasketSection extends StatefulWidget {
   final List<GroceryItem> items;
@@ -335,7 +336,7 @@ class _GroceryList extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.name,
+                        displayCase(item.name),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,

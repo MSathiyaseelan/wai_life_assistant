@@ -23,3 +23,18 @@ String normalizeIngredientName(String raw) {
   }
   return s;
 }
+
+/// Display-only capitalization: "ghee" -> "Ghee", "coconut oil" -> "Coconut
+/// Oil". Only touches the first letter of each word — leaves the rest of a
+/// word untouched (so an already-mixed-case name like "iPhone" isn't
+/// mangled). Names are stored as typed/parsed (often lowercase from manual
+/// entry or OCR); this is applied at render time so it doesn't affect the
+/// [normalizeIngredientName] comparison key used for matching.
+String displayCase(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return trimmed;
+  return trimmed
+      .split(' ')
+      .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+      .join(' ');
+}

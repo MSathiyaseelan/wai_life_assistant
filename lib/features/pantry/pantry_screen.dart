@@ -1556,7 +1556,7 @@ class _PantryScreenState extends State<PantryScreen>
       }
       await _updateGrocery(existing, updates);
       _showSavedSnack(
-        '${existing.name} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
+        '${displayCase(existing.name)} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
         AppColors.income,
       );
       return;
@@ -2282,7 +2282,7 @@ class _PantryScreenState extends State<PantryScreen>
           _addGrocery(item);
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('${item.name} added to basket!',
+            content: Text('${displayCase(item.name)} added to basket!',
                 style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
             backgroundColor: AppColors.expense,
             behavior: SnackBarBehavior.floating,
@@ -3739,7 +3739,7 @@ class _ExpiryBanner extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.name,
+                          displayCase(item.name),
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
@@ -4218,7 +4218,7 @@ class _MultiBasketConfirmSheetState extends State<_MultiBasketConfirmSheet> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.name,
+                                displayCase(item.name),
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
