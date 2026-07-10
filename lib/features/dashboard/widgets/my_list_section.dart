@@ -65,7 +65,11 @@ class MyListSection extends StatelessWidget {
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (_) => CreateListSheet(items: items),
+                  builder: (_) => CreateListSheet(
+                    items: items,
+                    walletId: walletId,
+                    onSaved: () => PantryService.listChangeSignal.value++,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
