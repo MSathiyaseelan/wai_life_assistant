@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
@@ -69,61 +70,39 @@ class _CreateListSheetState extends State<CreateListSheet> {
     return buf.toString();
   }
 
-  Future<void> _saveList() async {
+  // Auto-saved to list history the first time the user actually does
+  // something with the list (Share/Excel/PDF) — no separate "Save" step.
+  // Idempotent per sheet session: repeated exports reuse the same list
+  // instead of creating a new history entry each time.
+  bool _saving = false;
+  String? _savedListId;
+
+  Future<void> _ensureSaved() async {
+    if (_savedListId != null || _saving) return;
     final selected = _selectedItems;
     if (selected.isEmpty) return;
-    final nameCtrl = TextEditingController(text: '🛒 Shopping List – ${_dateStr()}');
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Save List', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: nameCtrl,
-          autofocus: true,
-          style: const TextStyle(fontFamily: 'Nunito'),
-          decoration: const InputDecoration(hintText: 'List name'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final v = nameCtrl.text.trim();
-              if (v.isNotEmpty) Navigator.pop(ctx, v);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (name == null || !mounted) return;
-
+    _saving = true;
     try {
-      await PantryService.instance.createGroceryList(
+      final list = await PantryService.instance.createGroceryList(
         walletId: widget.walletId,
-        name: name,
+        name: '🛒 Shopping List – ${_dateStr()}',
         itemIds: selected.map((i) => i.id).toList(),
       );
+      _savedListId = list['id'] as String;
       widget.onSaved?.call();
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved "$name" to list history 📜')),
-      );
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'create_grocery_list');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save list. Please try again.')),
-      );
+      // Silent: saving to history is a side effect, not the user's primary
+      // intent — the export/share itself should still succeed regardless.
+    } finally {
+      _saving = false;
     }
   }
 
   Future<void> _exportCsv() async {
     final selected = _selectedItems;
     if (selected.isEmpty) return;
+    unawaited(_ensureSaved());
     final buf = StringBuffer();
     buf.writeln('#,Item,Category,Quantity,Unit');
     for (var i = 0; i < selected.length; i++) {
@@ -145,6 +124,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
   Future<void> _exportPdf() async {
     final selected = _selectedItems;
     if (selected.isEmpty) return;
+    unawaited(_ensureSaved());
 
     final doc = pw.Document();
     doc.addPage(
@@ -362,35 +342,6 @@ class _CreateListSheetState extends State<CreateListSheet> {
           ),
           const SizedBox(height: 18),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _selectedCount == 0 ? null : _saveList,
-              icon: const Icon(Icons.bookmark_add_rounded, size: 18),
-              label: Text(
-                _selectedCount == 0
-                    ? 'Select items to save'
-                    : 'Save List ($_selectedCount item${_selectedCount == 1 ? '' : 's'})',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
-                  fontFamily: 'Nunito',
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.income,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.income.withValues(alpha: 0.3),
-                elevation: 3,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-
           Row(
             children: [
               Expanded(
@@ -455,7 +406,10 @@ class _CreateListSheetState extends State<CreateListSheet> {
             child: ElevatedButton.icon(
               onPressed: _selectedCount == 0
                   ? null
-                  : () => Share.share(_buildListText(), subject: 'Shopping List'),
+                  : () {
+                      unawaited(_ensureSaved());
+                      Share.share(_buildListText(), subject: 'Shopping List');
+                    },
               icon: const Icon(Icons.share_rounded, size: 18),
               label: Text(
                 _selectedCount == 0
