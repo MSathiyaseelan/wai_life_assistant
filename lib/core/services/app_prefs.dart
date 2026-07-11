@@ -122,7 +122,11 @@ class AppPrefs extends ChangeNotifier {
 
   // ── Default Scope ──────────────────────────────────────────────────────────
 
-  /// 'personal' | 'family'
+  /// The last-selected wallet id for this tab (personal wallet's real id, or
+  /// a specific family's wallet id — not just a personal/family flag, so the
+  /// exact family sticks when the user belongs to more than one). Defaults
+  /// to the 'personal' sentinel, which never matches a real wallet id and so
+  /// safely falls back to the personal wallet (see _applyScope).
   String get walletScope    => _s('wallet_scope',  def: 'personal');
   set walletScope(String v) => _setS('wallet_scope', v);
 

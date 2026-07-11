@@ -70,13 +70,17 @@ class MonthYearPicker extends StatelessWidget {
           const Icon(Icons.calendar_month_rounded,
               color: AppColors.primary, size: 16),
           const SizedBox(width: 6),
-          Text(
-            selected.label,
-            style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-              fontFamily: 'Nunito',
+          Flexible(
+            child: Text(
+              selected.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                fontFamily: 'Nunito',
+              ),
             ),
           ),
           const SizedBox(width: 4),

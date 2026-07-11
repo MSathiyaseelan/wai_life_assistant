@@ -411,16 +411,16 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
               child: Text(family.emoji,
                   style: const TextStyle(fontSize: 20)),
             ),
-            title: const Text(
-              'My Family',
-              style: TextStyle(
+            title: Text(
+              family.name,
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 fontFamily: 'Nunito',
               ),
             ),
             subtitle: Text(
-              family.name,
+              '${family.members.length} member${family.members.length == 1 ? '' : 's'}',
               style: TextStyle(
                 fontSize: 10,
                 fontFamily: 'Nunito',
@@ -1602,10 +1602,10 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     );
   }
 
-  void _confirmDeleteFamily(BuildContext context, FamilyModel family) {
-    showDialog(
+  Future<void> _confirmDeleteFamily(BuildContext context, FamilyModel family) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text(
           'Delete Family',
           style: TextStyle(
@@ -1621,36 +1621,12 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx, false),
             child: const Text('Cancel',
                 style: TextStyle(fontFamily: 'Nunito')),
           ),
           TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final messenger = ScaffoldMessenger.of(context);
-              try {
-                await ProfileService.instance.deleteFamily(family.id);
-                if (mounted) {
-                  // Switch to personal wallet and refresh
-                  widget.appState.switchWallet(
-                    widget.appState.wallets
-                        .firstWhere((w) => w.isPersonal,
-                            orElse: () => personalWallet)
-                        .id,
-                  );
-                  await widget.appState.reload();
-                  if (mounted) setState(() {});
-                }
-              } catch (_) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to delete family. Try again.'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
+            onPressed: () => Navigator.pop(dialogCtx, true),
             child: const Text(
               'Delete',
               style: TextStyle(
@@ -1663,6 +1639,30 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         ],
       ),
     );
+    if (confirmed != true || !mounted || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ProfileService.instance.deleteFamily(family.id);
+      if (mounted) {
+        // Switch to personal wallet and refresh
+        widget.appState.switchWallet(
+          widget.appState.wallets
+              .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+              .id,
+        );
+        await widget.appState.reload();
+        if (mounted) setState(() {});
+      }
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'delete_family');
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete family. Try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showTransferAdminDialog(

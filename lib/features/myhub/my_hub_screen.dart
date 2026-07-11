@@ -202,7 +202,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
   List<PlanMember> get _members {
     if (_currentWallet.isPersonal) return [];
     final family = _appState.families.firstWhere(
-      (f) => f.id == _currentWallet.id,
+      (f) => f.walletId == _currentWallet.id,
       orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
     );
     return family.members

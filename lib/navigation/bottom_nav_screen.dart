@@ -217,21 +217,19 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  // Called by any tab's wallet switcher pill — switches wallet AND persists scope
-  // so that _applyScope restores the correct wallet when returning to any tab.
+  // Called by any tab's wallet switcher pill — switches wallet AND persists
+  // the specific wallet id (not just personal/family) so that _applyScope
+  // restores the exact same wallet when returning to any tab — including
+  // which family, when the user belongs to more than one.
   void _onWalletChange(String walletId) {
     _appState.switchWallet(walletId);
-    final wallets = _appState.wallets;
-    if (wallets.isEmpty) return;
-    final wallet = wallets.firstWhere((w) => w.id == walletId, orElse: () => wallets.first);
-    final scope = wallet.isPersonal ? 'personal' : 'family';
     final prefs = AppPrefs.instance;
     if (!prefs.ready) return;
     // Persist to all tab scopes so switching tabs doesn't reset the selection.
-    prefs.walletScope = scope;
-    prefs.pantryScope = scope;
-    prefs.hubScope    = scope;
-    prefs.planItScope = scope;
+    prefs.walletScope = walletId;
+    prefs.pantryScope = walletId;
+    prefs.hubScope    = walletId;
+    prefs.planItScope = walletId;
   }
 
   // Tab index → which AppPrefs scope key to read.
@@ -239,19 +237,23 @@ class _AppShellState extends State<AppShell> {
   void _applyScope(int tabIndex) {
     final prefs = AppPrefs.instance;
     if (!prefs.ready) return;
-    final scope = switch (tabIndex) {
+    final storedWalletId = switch (tabIndex) {
       1 => prefs.walletScope,
       2 => prefs.pantryScope,
       3 => prefs.hubScope,
       4 => prefs.planItScope,
       _ => null,
     };
-    if (scope == null) return;
+    if (storedWalletId == null) return;
     final wallets = _appState.wallets;
     if (wallets.isEmpty) return;
-    final target = scope == 'family'
-        ? wallets.firstWhere((w) => !w.isPersonal, orElse: () => wallets.first)
-        : wallets.firstWhere((w) => w.isPersonal, orElse: () => wallets.first);
+    // Look up the exact wallet by id (covers any of the user's families).
+    // Falls back to the personal wallet if it's stale/no longer accessible
+    // (e.g. removed from that family) or on first launch (default 'personal').
+    final target = wallets.firstWhere(
+      (w) => w.id == storedWalletId,
+      orElse: () => wallets.firstWhere((w) => w.isPersonal, orElse: () => wallets.first),
+    );
     _appState.switchWallet(target.id);
   }
 
