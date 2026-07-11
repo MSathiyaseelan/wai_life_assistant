@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
+import 'package:wai_life_assistant/core/services/contact_service.dart';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;
@@ -1275,6 +1276,40 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     var role = editing?.role ?? MemberRole.member;
     var emoji = editing?.emoji ?? '👤';
     String? memberPhotoPath = editing?.photoPath;
+    ContactService.instance.preload();
+
+    // ── Contact lookup (type '@' in Full name to search device contacts) ────
+    var contactSuggestions = <ContactEntry>[];
+    var showContactDropdown = false;
+
+    Future<void> onNameChanged(String value, void Function(void Function()) ss) async {
+      final cursor = nameCtrl.selection.baseOffset;
+      final beforeCursor = value.substring(0, cursor.clamp(0, value.length));
+      final atIdx = beforeCursor.lastIndexOf('@');
+      if (atIdx < 0) {
+        if (showContactDropdown) ss(() => showContactDropdown = false);
+        return;
+      }
+      final query = beforeCursor.substring(atIdx + 1).toLowerCase();
+      final all = await ContactService.instance.getContacts();
+      ss(() {
+        contactSuggestions = all
+            .where((c) => query.isEmpty || c.name.toLowerCase().contains(query))
+            .take(6)
+            .toList();
+        showContactDropdown = contactSuggestions.isNotEmpty;
+      });
+    }
+
+    void selectContact(ContactEntry contact, void Function(void Function()) ss) {
+      nameCtrl.text = contact.name;
+      nameCtrl.selection = TextSelection.collapsed(offset: contact.name.length);
+      if (contact.phone.isNotEmpty) phoneCtrl.text = contact.phone;
+      ss(() {
+        showContactDropdown = false;
+        contactSuggestions = [];
+      });
+    }
     const avatars = [
       '👤',
       '🧑',
@@ -1448,10 +1483,43 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
 
                     _Field(
                       controller: nameCtrl,
-                      hint: 'Full name *',
+                      hint: 'Full name * (type @ to search contacts)',
                       surfBg: surfBg,
                       tc: isDark ? AppColors.textDark : AppColors.textLight,
+                      onChanged: (v) => onNameChanged(v, ss),
                     ),
+                    if (showContactDropdown) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 220),
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          padding: EdgeInsets.zero,
+                          itemCount: contactSuggestions.length,
+                          itemBuilder: (_, i) {
+                            final c = contactSuggestions[i];
+                            return ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.person_rounded, size: 20, color: AppColors.primary),
+                              title: Text(c.name,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontFamily: 'Nunito',
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? AppColors.textDark : AppColors.textLight)),
+                              subtitle: c.phone.isNotEmpty
+                                  ? Text(c.phone, style: const TextStyle(fontSize: 11, fontFamily: 'Nunito'))
+                                  : null,
+                              onTap: () => selectContact(c, ss),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1823,17 +1891,20 @@ class _Field extends StatelessWidget {
   final String hint;
   final Color surfBg, tc;
   final TextInputType? inputType;
+  final void Function(String)? onChanged;
   const _Field({
     required this.controller,
     required this.hint,
     required this.surfBg,
     required this.tc,
     this.inputType,
+    this.onChanged,
   });
   @override
   Widget build(BuildContext context) => TextField(
     controller: controller,
     keyboardType: inputType,
+    onChanged: onChanged,
     style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc),
     decoration: InputDecoration(
       hintText: hint,
