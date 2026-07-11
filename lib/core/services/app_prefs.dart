@@ -139,6 +139,13 @@ class AppPrefs extends ChangeNotifier {
   String get hubScope    => _s('hub_scope',  def: 'personal');
   set hubScope(String v) => _setS('hub_scope', v);
 
+  // ── Dashboard banners ─────────────────────────────────────────────────────
+
+  /// The dashboard's "Create or join a family" banner, shown to users who
+  /// aren't in any family group yet. Sticky once dismissed.
+  bool get familyBannerDismissed    => _b('family_banner_dismissed',  def: false);
+  set familyBannerDismissed(bool v) => _setB('family_banner_dismissed', v);
+
   // ── AI Parser ──────────────────────────────────────────────────────────────
 
   bool get aiAlwaysConfirm    => _b('ai_always_confirm',  def: true);

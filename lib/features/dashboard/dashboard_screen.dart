@@ -42,6 +42,8 @@ import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sh
 import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/family_group_banner.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
@@ -1199,6 +1201,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         onUpgrade: _prefsTap(context, Theme.of(context).brightness == Brightness.dark, 'Subscription'),
                       ),
                       const SizedBox(height: 16),
+
+                      // ── No family group yet ───────────────────────────────────
+                      if (appState.families.isEmpty &&
+                          !AppPrefs.instance.familyBannerDismissed) ...[
+                        FamilyGroupBanner(
+                          isDark: Theme.of(context).brightness == Brightness.dark,
+                          onCreateOrJoin: () => FamilySwitcherSheet.show(
+                            context,
+                            currentWalletId: appState.activeWalletId,
+                            onSelect: (id) => AppStateScope.of(context).switchWallet(id),
+                          ),
+                          onDismiss: () => setState(
+                              () => AppPrefs.instance.familyBannerDismissed = true),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
                       // ── Needs Attention ───────────────────────────────────────
                       if (_nudges.isNotEmpty) ...[
