@@ -420,7 +420,7 @@ class ContextFetcher {
             .limit(10),
         _db
             .from('health_appointments')
-            .select('doctor_name, speciality, appt_date')
+            .select('doctor_name, appt_date')
             .eq('wallet_id', walletId)
             .gte('appt_date', today)
             .order('appt_date')
@@ -443,7 +443,7 @@ class ContextFetcher {
         // Doctors on file
         _db
             .from('health_doctors')
-            .select('name, speciality')
+            .select('name, specialty')
             .eq('wallet_id', walletId)
             .limit(10),
         // Active insurance policies
@@ -463,9 +463,8 @@ class ContextFetcher {
 
       final appts = (results[1] as List).map((r) {
         final doc  = r['doctor_name'] as String? ?? '';
-        final spec = r['speciality']  as String? ?? '';
         final date = r['appt_date']   as String? ?? '';
-        return '$doc${spec.isNotEmpty ? ' ($spec)' : ''} on $date';
+        return '$doc on $date';
       }).where((s) => s.isNotEmpty).toList();
 
       final vaccines = (results[2] as List).map((r) {
@@ -487,8 +486,8 @@ class ContextFetcher {
       }).where((s) => s.isNotEmpty).toList();
 
       final doctors = (results[4] as List).map((r) {
-        final name = r['name']      as String? ?? '';
-        final spec = r['speciality'] as String? ?? '';
+        final name = r['name']     as String? ?? '';
+        final spec = r['specialty'] as String? ?? '';
         return '$name${spec.isNotEmpty ? ' ($spec)' : ''}';
       }).where((s) => s.isNotEmpty).toList();
 

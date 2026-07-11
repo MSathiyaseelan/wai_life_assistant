@@ -184,7 +184,6 @@ class ActionExecutor {
         await HealthService.instance.addAppointment({
           'wallet_id':   walletId,
           'doctor_name': _str(d, 'doctor_name'),
-          if (d['speciality'] != null) 'speciality': d['speciality'],
           if (d['appt_date'] != null)  'appt_date':  d['appt_date'],
           if (d['notes'] != null)      'notes':       d['notes'],
         });
@@ -215,7 +214,7 @@ class ActionExecutor {
         await HealthService.instance.addDoctor({
           'wallet_id': walletId,
           'name':      _str(d, 'name'),
-          if (d['speciality'] != null) 'speciality': d['speciality'],
+          if (d['specialty'] != null)  'specialty':  d['specialty'],
           if (d['phone'] != null)      'phone':      d['phone'],
           if (d['hospital'] != null)   'hospital':   d['hospital'],
           if (d['notes'] != null)      'notes':      d['notes'],

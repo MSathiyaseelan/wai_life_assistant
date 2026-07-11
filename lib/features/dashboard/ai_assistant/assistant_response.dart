@@ -198,9 +198,8 @@ class ActionPayload {
           if (str('frequency').isNotEmpty) ('Frequency',  str('frequency')),
         ],
       ActionType.addAppointment => [
-          if (str('doctor_name').isNotEmpty) ('Doctor',    str('doctor_name')),
-          if (str('speciality').isNotEmpty)  ('Specialty', str('speciality')),
-          if (str('appt_date').isNotEmpty)   ('Date',      str('appt_date')),
+          if (str('doctor_name').isNotEmpty) ('Doctor', str('doctor_name')),
+          if (str('appt_date').isNotEmpty)   ('Date',   str('appt_date')),
         ],
       ActionType.addVital => [
           if (str('vital_type').isNotEmpty) ('Type',    str('vital_type')),
@@ -213,9 +212,9 @@ class ActionPayload {
           if (str('next_due').isNotEmpty)     ('Next Due',    str('next_due')),
         ],
       ActionType.addDoctor => [
-          if (str('name').isNotEmpty)       ('Doctor',    str('name')),
-          if (str('speciality').isNotEmpty) ('Specialty', str('speciality')),
-          if (str('phone').isNotEmpty)      ('Phone',     str('phone')),
+          if (str('name').isNotEmpty)      ('Doctor',    str('name')),
+          if (str('specialty').isNotEmpty) ('Specialty', str('specialty')),
+          if (str('phone').isNotEmpty)     ('Phone',     str('phone')),
         ],
       ActionType.addInsurance => [
           if (str('policy_name').isNotEmpty)  ('Policy',    str('policy_name')),
