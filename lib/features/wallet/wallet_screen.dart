@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
@@ -686,8 +687,10 @@ class _WalletScreenState extends State<WalletScreen>
 
   Future<void> _moveTxToWallet(TxModel tx, WalletModel target) async {
     setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+    var deleted = false;
     try {
       await WalletService.instance.deleteTransaction(tx.id);
+      deleted = true;
       await WalletService.instance.addTransaction(
         walletId: target.id,
         type: tx.type.name,
@@ -722,9 +725,23 @@ class _WalletScreenState extends State<WalletScreen>
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Wallet] moveTx failed: $e');
-      if (mounted) setState(() => _transactions.insert(0, tx)); // revert
+      ErrorLogger.log(e, stackTrace: stack, action: 'move_tx_to_wallet');
+      if (deleted) {
+        // The delete succeeded but the re-add failed — undelete the
+        // original so the transaction isn't silently lost.
+        try {
+          await WalletService.instance.updateTransaction(tx.id, {'deleted_at': null});
+        } catch (e2, stack2) {
+          ErrorLogger.log(e2, stackTrace: stack2, action: 'move_tx_to_wallet_rollback');
+        }
+      }
+      if (!mounted) return;
+      setState(() => _transactions.insert(0, tx)); // revert
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to move transaction. Please try again.')),
+      );
     }
   }
 
@@ -1276,27 +1293,55 @@ class _WalletScreenState extends State<WalletScreen>
       context,
       existing: group,
       walletId: widget.activeWalletId,
-      onSave: (updated) {
+      onSave: (updated) async {
         setState(() {
           final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
           if (idx >= 0) _splitGroups[idx] = updated;
         });
         _syncPinnedGroups();
         if (AuthCoordinator.instance.isLoggedIn) {
-          WalletService.instance.updateSplitGroup(
-            updated.id,
-            name: updated.name,
-            emoji: updated.emoji,
-            pinned: updated.pinnedToDashboard,
-          ).catchError((e) => ErrorLogger.log(e, action: 'update_split_group'));
+          try {
+            await WalletService.instance.updateSplitGroup(
+              updated.id,
+              name: updated.name,
+              emoji: updated.emoji,
+              pinned: updated.pinnedToDashboard,
+            );
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'update_split_group');
+            if (!mounted) return;
+            setState(() {
+              final idx = _splitGroups.indexWhere((g) => g.id == group.id);
+              if (idx >= 0) _splitGroups[idx] = group; // revert
+            });
+            _syncPinnedGroups();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save group. Please try again.')),
+            );
+          }
         }
       },
-      onDelete: () {
+      onDelete: () async {
+        final removedIdx = _splitGroups.indexWhere((g) => g.id == group.id);
         setState(() => _splitGroups.removeWhere((g) => g.id == group.id));
         _syncPinnedGroups();
         if (AuthCoordinator.instance.isLoggedIn) {
-          WalletService.instance.deleteSplitGroup(group.id)
-              .catchError((e) => ErrorLogger.log(e, action: 'delete_split_group'));
+          try {
+            await WalletService.instance.deleteSplitGroup(group.id);
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'delete_split_group');
+            if (!mounted) return;
+            setState(() {
+              final insertAt = removedIdx >= 0 && removedIdx <= _splitGroups.length
+                  ? removedIdx
+                  : _splitGroups.length;
+              _splitGroups.insert(insertAt, group); // revert
+            });
+            _syncPinnedGroups();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to delete group. Please try again.')),
+            );
+          }
         }
       },
     );
@@ -2142,7 +2187,9 @@ class _WalletScreenState extends State<WalletScreen>
                       budgetAlerts: (_budgetsMap[wallets[i].id] ?? [])
                           .where((b) => b.isAlert)
                           .toList(),
-                      onTap: () {},
+                      onTap: wallets[i].id == widget.activeWalletId
+                          ? () {}
+                          : () => widget.onWalletChange(wallets[i].id),
                       onBudget: () => BudgetSheet.show(
                         context,
                         walletId: wallets[i].id,
@@ -2789,8 +2836,17 @@ class _WalletScreenState extends State<WalletScreen>
             if (updated.title != null) fields['title'] = updated.title;
             await WalletService.instance.updateTransaction(updated.id, fields);
             WalletService.txChangeSignal.value++;
-          } catch (e) {
+          } catch (e, stack) {
             debugPrint('[Wallet] updateTransaction failed: $e');
+            ErrorLogger.log(e, stackTrace: stack, action: 'update_transaction');
+            if (!mounted) return;
+            setState(() {
+              final idx = _transactions.indexWhere((t) => t.id == tx.id);
+              if (idx >= 0) _transactions[idx] = tx; // revert to pre-edit state
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save changes. Please try again.')),
+            );
           }
         },
         onDelete: () async {
@@ -2852,8 +2908,13 @@ class _WalletScreenState extends State<WalletScreen>
       }
       WalletService.txChangeSignal.value++;
       if (mounted) await _loadTxGroups();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Wallet] assignTxToGroup failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'assign_tx_to_group');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to add to group. Please try again.')),
+      );
     }
   }
 
@@ -2872,8 +2933,13 @@ class _WalletScreenState extends State<WalletScreen>
       }
       WalletService.txChangeSignal.value++;
       if (mounted) await _loadTxGroups();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Wallet] unassignTxFromGroup failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'unassign_tx_from_group');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to remove from group. Please try again.')),
+      );
     }
   }
 
@@ -2881,8 +2947,13 @@ class _WalletScreenState extends State<WalletScreen>
     try {
       await WalletService.instance.updateTxGroup(g.id, name: name, emoji: emoji);
       if (mounted) await _loadTxGroups();
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Wallet] renameTxGroup failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'rename_tx_group');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to rename group. Please try again.')),
+      );
     }
   }
 
@@ -2894,8 +2965,13 @@ class _WalletScreenState extends State<WalletScreen>
       if (mounted) {
         await _loadTransactions();
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[Wallet] deleteTxGroup failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'delete_tx_group');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete group. Please try again.')),
+      );
     }
   }
 
@@ -3063,7 +3139,8 @@ class _WalletScreenState extends State<WalletScreen>
   static String _categoryEmoji(String cat) => walletCategoryEmoji(cat);
 
   static String _fmtAmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
     return v.toStringAsFixed(0);
   }
@@ -3745,7 +3822,8 @@ class _ContactTxPage extends StatelessWidget {
   });
 
   String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 10000) return '${(v / 1000).toStringAsFixed(1)}K';
     return v.toStringAsFixed(0);
   }

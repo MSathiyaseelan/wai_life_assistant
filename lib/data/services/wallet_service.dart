@@ -28,7 +28,8 @@ class WalletService {
   static const defaultExpenseCategories = [
     'Food', 'Groceries', 'Transport', 'Shopping', 'Bills',
     'Health', 'Entertainment', 'Education', 'Fuel', 'Housing',
-    'Clothing', 'Gifts', 'Subscription', 'Investment', 'Other',
+    'Clothing', 'Gifts', 'Subscription', 'Investment', 'Fitness',
+    'Vacation', 'Other',
   ];
   static const defaultIncomeCategories = [
     'Salary', 'Freelance', 'Business', 'Rent', 'Investment',

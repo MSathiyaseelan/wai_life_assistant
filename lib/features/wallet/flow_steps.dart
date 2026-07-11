@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 
@@ -1466,11 +1467,11 @@ class _SuccessStepState extends State<SuccessStep>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final amt = widget.data.amount ?? 0;
-    final fmtAmt = amt >= 100000
-        ? '${(amt / 100000).toStringAsFixed(1)}L'
-        : amt >= 1000
-        ? '${(amt / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}k'
-        : amt.toStringAsFixed(0);
+    final largeAmt = formatLargeAmount(amt);
+    final fmtAmt = largeAmt ??
+        (amt >= 1000
+            ? '${(amt / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}k'
+            : amt.toStringAsFixed(0));
 
     return FadeTransition(
       opacity: _fade,

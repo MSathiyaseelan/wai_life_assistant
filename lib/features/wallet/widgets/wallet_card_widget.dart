@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
 class WalletCardWidget extends StatefulWidget {
@@ -59,7 +60,8 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
 
   String _fmt(double v) {
     if (widget.hidden) return '••••';
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 10000) {
       final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
       return '${s}k';
@@ -69,7 +71,8 @@ class _WalletCardWidgetState extends State<WalletCardWidget> {
 
   String _fmtSmall(double v) {
     if (widget.hidden) return '••';
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 10000) {
       final s = (v / 1000).toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
       return '${s}k';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import '../../../../../core/theme/app_theme.dart';
 
@@ -342,11 +343,11 @@ class FlowData {
     return rows;
   }
 
-  String _fmt(double v) => v >= 100000
-      ? '${(v / 100000).toStringAsFixed(1)}L'
-      : v >= 1000
-      ? '${(v / 1000).toStringAsFixed(1)}K'
-      : v.toStringAsFixed(0);
+  String _fmt(double v) =>
+      formatLargeAmount(v) ??
+      (v >= 1000
+          ? '${(v / 1000).toStringAsFixed(1)}K'
+          : v.toStringAsFixed(0));
 }
 
 // ── Chat message model ────────────────────────────────────────────────────────

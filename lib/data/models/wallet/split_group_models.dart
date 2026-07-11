@@ -298,13 +298,15 @@ class SplitGroup {
   // Net balance per participant:
   //   positive = others owe them (they paid more)
   //   negative = they owe others
+  // Only counts shares that aren't settled yet — once a share is marked
+  // SettleStatus.settled, the money has already changed hands, so it no
+  // longer contributes to either side's outstanding balance.
   Map<String, double> get netBalances {
     final map = <String, double>{for (final p in participants) p.id: 0.0};
     for (final tx in transactions) {
-      // Payer gets credited the full amount
-      map[tx.addedById] = (map[tx.addedById] ?? 0) + tx.totalAmount;
-      // Each person is debited their share
       for (final s in tx.shares) {
+        if (s.status == SettleStatus.settled) continue;
+        map[tx.addedById] = (map[tx.addedById] ?? 0) + s.amount;
         map[s.participantId] = (map[s.participantId] ?? 0) - s.amount;
       }
     }

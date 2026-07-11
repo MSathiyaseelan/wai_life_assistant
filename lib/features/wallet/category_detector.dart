@@ -57,13 +57,14 @@ class CategoryDetector {
       if (has(['business', 'revenue', 'sale', 'selling', 'earning'])) return '📦 Business';
     } else {
       if (has(['food', 'eat', 'lunch', 'dinner', 'breakfast', 'snack', 'restaurant', 'cafe', 'coffee', 'pizza', 'burger', 'grocery', 'groceries', 'meal', 'swiggy', 'zomato', 'bake', 'chai', 'tea'])) return '🍕 Food';
-      if (has(['petrol', 'diesel', 'fuel', 'cab', 'uber', 'ola', 'rapido', 'metro', 'bus', 'train', 'toll', 'parking', 'flight', 'auto', 'commute', 'namma'])) return '🚗 Travel';
+      if (has(['petrol', 'diesel', 'fuel', 'cab', 'uber', 'ola', 'rapido', 'metro', 'bus', 'train', 'toll', 'parking', 'flight', 'auto', 'commute', 'namma'])) return '🚗 Transport';
       if (has(['shopping', 'amazon', 'flipkart', 'meesho', 'myntra', 'purchase', 'order', 'bought', 'buy'])) return '🛒 Shopping';
       if (has(['medicine', 'medical', 'doctor', 'hospital', 'pharmacy', 'clinic', 'dental', 'tablet', 'pill', 'health', 'checkup'])) return '💊 Health';
       if (has(['movie', 'netflix', 'prime', 'hotstar', 'game', 'gaming', 'concert', 'party', 'entertainment', 'theatre'])) return '🎬 Entertainment';
       if (has(['rent', 'housing', 'maintenance', 'repair', 'plumber', 'electrician', 'society', 'house', 'home'])) return '🏠 Housing';
       if (has(['school', 'college', 'course', 'book', 'tuition', 'fee', 'exam', 'education', 'study', 'learning', 'coaching'])) return '📚 Education';
-      if (has(['electric', 'internet', 'wifi', 'utility', 'gas', 'recharge', 'subscription', 'broadband', 'dth'])) return '💡 Utilities';
+      if (has(['electric', 'internet', 'wifi', 'utility', 'gas', 'recharge', 'broadband', 'dth'])) return '💡 Bills';
+      if (has(['subscription', 'membership', 'renewal'])) return '📺 Subscription';
       if (has(['shirt', 'pant', 'dress', 'cloth', 'fashion', 'jeans', 'kurta', 'saree', 'outfit', 'wear', 'footwear', 'shoes'])) return '👕 Clothing';
       if (has(['gift', 'present', 'birthday', 'anniversary', 'wedding', 'festival', 'diwali'])) return '🎁 Gifts';
       if (has(['gym', 'yoga', 'workout', 'fitness', 'cycling', 'swim', 'run', 'zumba', 'pilates'])) return '🏋️ Fitness';

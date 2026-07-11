@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
@@ -228,6 +229,10 @@ class _BudgetSheetState extends State<BudgetSheet> {
       setState(() => _budgets.removeWhere((x) => x.id == b.id));
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'delete_budget');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete budget. Please try again.')),
+      );
     }
   }
 
@@ -583,7 +588,8 @@ class _BudgetTile extends StatelessWidget {
   }
 
   String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 1000) {
       final s = (v / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.?0+$'), '');
       return '${s}k';
@@ -721,7 +727,8 @@ class _CategoryTile extends StatelessWidget {
   });
 
   static String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 1000) {
       final s = (v / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.?0+$'), '');
       return '${s}k';
@@ -832,7 +839,8 @@ class _MonthSummaryCard extends StatelessWidget {
   });
 
   static String _fmt(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return large;
     if (v >= 1000) {
       final s = (v / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.?0+$'), '');
       return '${s}k';

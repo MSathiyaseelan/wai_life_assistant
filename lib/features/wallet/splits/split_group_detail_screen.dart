@@ -47,6 +47,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   final _chatScroll = ScrollController();
   RealtimeChannel? _chatChannel;
   bool _chatLoading = true;
+  bool _chatError = false;
 
   late Map<String, double> _cachedNetBalances;
   late List<({String fromId, String toId, double amount})> _cachedSettlementPlan;
@@ -103,6 +104,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
 
   // ── Chat: fetch history + subscribe to realtime ───────────────────────────
   Future<void> _initChat() async {
+    setState(() => _chatError = false);
     try {
       final rows = await WalletService.instance.fetchMessages(_group.id);
       if (!mounted) return;
@@ -113,10 +115,14 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         _chatLoading = false;
       });
       _scrollToBottom();
-    } catch (_) {
-      if (mounted) setState(() => _chatLoading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_split_chat');
+      if (mounted) setState(() { _chatLoading = false; _chatError = true; });
     }
 
+    // Retrying re-enters this method — drop any previous subscription first
+    // so we don't stack duplicate realtime listeners.
+    _chatChannel?.unsubscribe();
     _chatChannel = WalletService.instance.subscribeToMessages(
       _group.id,
       (row) {
@@ -143,6 +149,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   }
 
   void _update() {
+    _recomputeGroupCache();
     final wasSettled = _group.isSettled;
     if (!wasSettled && _group.isFullySettled && _group.transactions.isNotEmpty) {
       _group.isSettled = true;
@@ -2120,6 +2127,33 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         Expanded(
           child: _chatLoading
               ? const Center(child: CircularProgressIndicator())
+              : _chatError
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('⚠️', style: TextStyle(fontSize: 40)),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Couldn\'t load chat',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: tc,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _chatLoading = true);
+                          _initChat();
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
               : _group.messages.isEmpty
               ? Center(
                   child: Column(
@@ -2869,9 +2903,10 @@ class _ShareRow extends StatelessWidget {
     }
 
     // Reminder button (payer can send to pending shares)
-    if (_iAmPayer && !_isMyShare && st == SettleStatus.pending) {
+    final sendReminder = onSendReminder;
+    if (_iAmPayer && !_isMyShare && st == SettleStatus.pending && sendReminder != null) {
       actions.add(
-        _ActionBtn('🔔 Send Reminder', AppColors.lend, onSendReminder ?? () {}),
+        _ActionBtn('🔔 Send Reminder', AppColors.lend, sendReminder),
       );
     }
 
@@ -3325,9 +3360,14 @@ class _ProofSheetState extends State<_ProofSheet> {
           imageBytes: bytes,
           extension: ext.isEmpty ? 'jpg' : ext,
         );
-      } catch (_) {
-        // fallback: store local path if upload fails
-        imageUrl = _pickedImage!.path;
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'upload_proof_image');
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to upload photo. Please try again.')),
+        );
+        return; // don't submit a broken device-local path as if it were a real URL
       }
     }
     widget.onSubmit(_noteCtrl.text.trim(), imageUrl);

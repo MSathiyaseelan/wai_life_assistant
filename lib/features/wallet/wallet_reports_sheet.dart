@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 
@@ -222,7 +223,8 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
 
   String _fmt(double v) {
     final cs = AppPrefs.cs;
-    if (v >= 100000) return '$cs${(v / 100000).toStringAsFixed(1)}L';
+    final large = formatLargeAmount(v);
+    if (large != null) return '$cs$large';
     if (v >= 1000) return '$cs${(v / 1000).toStringAsFixed(1)}K';
     return '$cs${v.toStringAsFixed(0)}';
   }
