@@ -10,7 +10,8 @@ import 'package:wai_life_assistant/data/services/app_config_service.dart';
 
 class RecycleBinSheet extends StatefulWidget {
   final bool isDark;
-  const RecycleBinSheet({super.key, required this.isDark});
+  final String walletId;
+  const RecycleBinSheet({super.key, required this.isDark, required this.walletId});
 
   @override
   State<RecycleBinSheet> createState() => _RecycleBinSheetState();
@@ -78,10 +79,26 @@ const _kTables = [
   ('special_days',             'PlanIt',    ['title', 'type']),
 ];
 
+// Tables with no wallet_id column of their own — they're scoped to a wallet
+// only indirectly via a parent table (e.g. function_participants belongs to
+// a function row, meal_reactions belongs to a meal_entries row). Restoring
+// items from these still relies on RLS alone; properly scoping them would
+// require joining through their parent, which the recycle bin doesn't
+// currently do — cross-wallet mixing is possible here until that's added.
+const _kTablesWithoutWalletId = {
+  'family_members',
+  'function_participants',
+  'function_clothing_families',
+  'function_bridal_essentials',
+  'function_return_gifts',
+  'meal_reactions',
+};
+
 class _RecycleBinSheetState extends State<RecycleBinSheet> {
   bool _loading = true;
   List<_RecycleBinItem> _items = [];
   final Set<String> _restoring = {};
+  int _retentionDays = 30;
 
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -102,6 +119,7 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final retentionDays = await AppConfigService.instance.fetchRecycleBinRetentionDays();
+    if (mounted) setState(() => _retentionDays = retentionDays);
     final cutoff = DateTime.now().toUtc().subtract(Duration(days: retentionDays)).toIso8601String();
     final all = <_RecycleBinItem>[];
 
@@ -109,11 +127,15 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
       final (table, category, nameCols) = entry;
       try {
         final cols = {'id', 'deleted_at', ...nameCols}.join(',');
-        final rows = await _db
+        var query = _db
             .from(table)
             .select(cols)
             .not('deleted_at', 'is', null)
-            .gt('deleted_at', cutoff)
+            .gt('deleted_at', cutoff);
+        if (!_kTablesWithoutWalletId.contains(table)) {
+          query = query.eq('wallet_id', widget.walletId);
+        }
+        final rows = await query
             .order('deleted_at', ascending: false)
             .limit(50);
         for (final row in (rows as List)) {
@@ -249,7 +271,7 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
             children: [
               Text('Recycle Bin',
                 style: TextStyle(fontSize: 18, fontFamily: 'Nunito', fontWeight: FontWeight.w900, color: _tc)),
-              Text('Items are permanently deleted after 30 days',
+              Text('Items are permanently deleted after $_retentionDays days',
                 style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _sub)),
             ],
           ),
@@ -324,7 +346,7 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
         Text('Recycle bin is empty',
           style: TextStyle(fontSize: 16, fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: _tc)),
         const SizedBox(height: 4),
-        Text('Deleted items will appear here for 30 days',
+        Text('Deleted items will appear here for $_retentionDays days',
           style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: _sub)),
       ],
     ),

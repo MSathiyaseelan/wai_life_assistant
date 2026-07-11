@@ -576,8 +576,9 @@ class _PinSetupSheetState extends State<_PinSetupSheet> {
       if (!_confirming) {
         if (_pin.length < _digits) _pin += digit;
         if (_pin.length == _digits) {
-          Future.delayed(const Duration(milliseconds: 120),
-              () => setState(() => _confirming = true));
+          Future.delayed(const Duration(milliseconds: 120), () {
+            if (mounted) setState(() => _confirming = true);
+          });
         }
       } else {
         if (_confirm.length < _digits) _confirm += digit;

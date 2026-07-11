@@ -66,16 +66,6 @@ class FamilyGroupBanner extends StatelessWidget {
                     color: tc,
                   ),
                 ),
-                // const SizedBox(height: 3),
-                // Text(
-                //   'Create or join a family group to share wallets, plans, and reminders with the people you live with.',
-                //   style: TextStyle(
-                //     fontSize: 12,
-                //     fontFamily: 'Nunito',
-                //     color: sub,
-                //     height: 1.3,
-                //   ),
-                // ),
                 const SizedBox(height: 10),
                 GestureDetector(
                   onTap: onCreateOrJoin,

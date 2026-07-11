@@ -44,6 +44,8 @@ import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.da
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/family_group_banner.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
+import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
+import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
@@ -194,9 +196,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ));
       return;
     }
+    final intent = parsed.toParsedIntent();
     await IntentConfirmSheet.show(
       context,
-      intent: parsed.toParsedIntent(),
+      intent: intent,
       walletId: walletId,
       onSave: (tx) {
         setState(() => _transactions.insert(0, tx));
@@ -204,7 +207,28 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         WalletService.instance.ensureCategory(tx.category, tx.type.name)
             .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
       },
-      onOpenFlow: () {},
+      onOpenFlow: () => _openConversation(intent.flowType, walletId),
+    );
+  }
+
+  // "Edit in full flow" escape hatch from IntentConfirmSheet — opens the
+  // step-by-step ConversationFlow so the user can adjust fields the quick
+  // confirm card doesn't expose.
+  void _openConversation(FlowType flowType, String walletId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConversationScreen(
+          flowType: flowType,
+          walletId: walletId,
+          wallets: AppStateScope.of(context).wallets,
+          transactions: _transactions,
+          onComplete: (tx) {
+            setState(() => _transactions.insert(0, tx));
+            WalletService.txChangeSignal.value++;
+          },
+        ),
+      ),
     );
   }
 
@@ -573,7 +597,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         'note': updated.note,
         'ingredients': updated.ingredients,
       });
-    } catch (_) {
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'update_meal');
       _loadTodayMeals(updated.walletId); // revert by reloading on error
     }
   }
@@ -610,7 +635,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         try {
           final rows = await PantryService.instance.fetchRecipes(m.walletId);
           recipes = rows.map(RecipeModel.fromMap).toList();
-        } catch (_) {}
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'meal_edit_fetch_recipes');
+        }
         if (!mounted) return;
         AddMealSheet.show(
           context,
@@ -633,7 +660,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         try {
           await PantryService.instance.deleteMealEntry(m.id);
           PantryService.mealChangeSignal.value++;
-        } catch (_) {
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'delete_meal');
           _loadTodayMeals(m.walletId); // revert by reloading
         }
       },
@@ -1225,7 +1253,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           title: 'Needs Attention',
                           sub: sub,
                           action: 'PlanIt →',
-                          onAction: () {},
+                          onAction: () {
+                            DashNavService.planIt.value = 'alerts';
+                            widget.onTabSwitch?.call(4);
+                          },
                         ),
                         const SizedBox(height: 8),
                         _NudgesCard(
@@ -1265,7 +1296,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         title: 'Today',
                         sub: sub,
                         action: 'Wallet →',
-                        onAction: () {},
+                        onAction: () => widget.onTabSwitch?.call(1),
                       ),
                       const SizedBox(height: 10),
                       Builder(
@@ -1386,7 +1417,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           title: 'Split Activity',
                           sub: sub,
                           action: 'View all →',
-                          onAction: () {},
+                          onAction: () => widget.onTabSwitch?.call(1),
                         ),
                         const SizedBox(height: 8),
                         ..._activeSplits(walletId).map(
@@ -1407,7 +1438,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           title: 'Active Splits',
                           sub: sub,
                           action: 'Wallet →',
-                          onAction: () {},
+                          onAction: () => widget.onTabSwitch?.call(1),
                         ),
                         const SizedBox(height: 8),
                         ..._pinnedGroups.map(
@@ -2252,7 +2283,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 'Notifications':
         sheet = NotificationPrefsSheet(isDark: isDark);
       case 'Recycle Bin':
-        sheet = RecycleBinSheet(isDark: isDark);
+        sheet = RecycleBinSheet(isDark: isDark, walletId: AppStateScope.of(ctx).activeWalletId);
       case 'Privacy & Security':
         sheet = PrivacySecuritySheet(isDark: isDark);
       case 'Language & Voice':
@@ -4697,75 +4728,3 @@ class _PlanNudge {
     this.onTap,
   });
 }
-
-
-// import 'package:flutter/material.dart';
-// import 'widgets/greeting_header.dart';
-// import 'widgets/search_bar.dart';
-// import 'widgets/feature_card.dart';
-// import 'widgets/quick_stats.dart';
-
-// class DashboardScreen extends StatelessWidget {
-//   const DashboardScreen({super.key});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: const Color(0xFFF5F6FA),
-//       body: SafeArea(
-//         child: Padding(
-//           padding: const EdgeInsets.all(16),
-//           child: Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               const GreetingHeader(),
-//               const SizedBox(height: 20),
-//               const HomeSearchBar(),
-//               const SizedBox(height: 20),
-//               const QuickStats(),
-//               const SizedBox(height: 24),
-//               const Text(
-//                 "Services",
-//                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-//               ),
-//               const SizedBox(height: 16),
-//               Expanded(
-//                 child: GridView.count(
-//                   crossAxisCount: 2,
-//                   mainAxisSpacing: 16,
-//                   crossAxisSpacing: 16,
-//                   children: [
-//                     FeatureCard(
-//                       title: "Health",
-//                       icon: Icons.favorite,
-//                       color: Colors.red,
-//                       onTap: () {},
-//                     ),
-//                     FeatureCard(
-//                       title: "Finance",
-//                       icon: Icons.account_balance,
-//                       color: Colors.green,
-//                       onTap: () {},
-//                     ),
-//                     FeatureCard(
-//                       title: "Tasks",
-//                       icon: Icons.check_circle,
-//                       color: Colors.blue,
-//                       onTap: () {},
-//                     ),
-//                     FeatureCard(
-//                       title: "Emergency",
-//                       icon: Icons.warning,
-//                       color: Colors.orange,
-//                       onTap: () {},
-//                     ),
-//                   ],
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ),
-//       ),
-//     );
-//   }
-// }

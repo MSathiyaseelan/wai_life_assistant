@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/subscription/subscription_models.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
@@ -28,6 +29,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   String _billingCycle = 'yearly';
   List<SubscriptionPlanData>? _plans;
   bool _loading = true;
+  bool _hasError = false;
 
   // ── colours ────────────────────────────────────────────────────────────────
   Color get _bg   => widget.isDark ? AppColors.cardDark  : AppColors.cardLight;
@@ -56,8 +58,8 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
       _isPro ? 'Family Pro' : _isPlus ? 'Family Plus' : 'Personal';
 
   SubscriptionPlanData? get _personal =>
-      _plans?.firstWhere((p) => p.planKey == 'personal_free',
-          orElse: () => _plans!.first);
+      _plans?.where((p) => p.planKey == 'personal_free').firstOrNull ??
+      _plans?.firstOrNull;
   SubscriptionPlanData? get _plus =>
       _plans?.where((p) => p.planKey == 'family_plus').firstOrNull;
   SubscriptionPlanData? get _pro =>
@@ -70,11 +72,13 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   }
 
   Future<void> _loadPlans() async {
+    setState(() => _hasError = false);
     try {
       final plans = await ProfileService.instance.fetchSubscriptionPlans();
       if (mounted) setState(() { _plans = plans; _loading = false; });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_subscription_plans');
+      if (mounted) setState(() { _loading = false; _hasError = true; });
     }
   }
 
@@ -211,7 +215,33 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
           Expanded(
             child: _loading
                 ? Center(child: CircularProgressIndicator(color: _planColor))
-                : ListView(
+                : (_hasError || _plans == null || _plans!.isEmpty)
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Couldn\'t load plans',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontFamily: 'Nunito',
+                                    fontWeight: FontWeight.w700,
+                                    color: _tc)),
+                            const SizedBox(height: 4),
+                            Text('Check your connection and try again.',
+                                style: TextStyle(
+                                    fontSize: 12, fontFamily: 'Nunito', color: _sub)),
+                            const SizedBox(height: 14),
+                            TextButton(
+                              onPressed: () {
+                                setState(() => _loading = true);
+                                _loadPlans();
+                              },
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
                     children: [
                       _currentPlanCard(),

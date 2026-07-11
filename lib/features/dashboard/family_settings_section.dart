@@ -114,10 +114,19 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         permEdit:    f.permEdit,
         permDelete:  f.permDelete,
       );
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'save_family_permission');
       // Revert on failure
       _syncPermsFromModel();
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save permission. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _savingPerms = false);
     }

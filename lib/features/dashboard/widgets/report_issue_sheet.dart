@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/issue_report_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORT ISSUE SHEET
@@ -160,9 +161,9 @@ class _NewReportTabState extends State<_NewReportTab> {
       backgroundColor: Colors.transparent,
       builder: (_) => _ImageSourcePicker(isDark: widget.isDark),
     );
-    if (src == null) return;
+    if (src == null || !mounted) return;
     final img = await ImagePicker().pickImage(source: src, imageQuality: 80);
-    if (img == null) return;
+    if (img == null || !mounted) return;
     setState(() => _localPaths.add(img.path));
   }
 
@@ -192,10 +193,11 @@ class _NewReportTabState extends State<_NewReportTab> {
             backgroundColor: Color(0xFF2ECC71)),
       );
       widget.onSubmitted();
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'submit_issue_report');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit: $e'),
+        SnackBar(content: const Text('Failed to submit. Please try again.'),
             backgroundColor: Colors.red.shade400),
       );
     } finally {

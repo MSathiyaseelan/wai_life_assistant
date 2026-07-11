@@ -16,6 +16,8 @@ import 'package:wai_life_assistant/features/dashboard/ai_assistant/action_execut
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
+import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
+import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -422,12 +424,30 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       ));
       return;
     }
+    final intent = parsed.toParsedIntent();
     await IntentConfirmSheet.show(
       context,
-      intent:     parsed.toParsedIntent(),
+      intent:     intent,
       walletId:   _selectedWalletId,
       onSave:     (tx) => widget.onTransactionSaved?.call(tx),
-      onOpenFlow: () {},
+      onOpenFlow: () => _openConversation(intent.flowType),
+    );
+  }
+
+  // "Edit in full flow" escape hatch from IntentConfirmSheet — opens the
+  // step-by-step ConversationFlow so the user can adjust fields the quick
+  // confirm card doesn't expose.
+  void _openConversation(FlowType flowType) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ConversationScreen(
+          flowType: flowType,
+          walletId: _selectedWalletId,
+          wallets: widget.wallets,
+          onComplete: (tx) => widget.onTransactionSaved?.call(tx),
+        ),
+      ),
     );
   }
 
