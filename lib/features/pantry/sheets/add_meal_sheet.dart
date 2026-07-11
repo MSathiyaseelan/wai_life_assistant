@@ -213,11 +213,15 @@ class _AddMealSheetState extends State<AddMealSheet>
         _nameCtrl.text = slotMeal.name;
         _emoji = slotMeal.emoji;
         _selectedRecipeIds = slotMeal.recipeIds.toSet();
+        _ingredients
+          ..clear()
+          ..addAll(slotMeal.ingredients);
       } else if (_prefilledExisting != null) {
         _prefilledExisting = null;
         _nameCtrl.clear();
         _emoji = '🍛';
         _selectedRecipeIds = {};
+        _ingredients.clear();
       }
     });
   }

@@ -626,8 +626,9 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
 
   void _quickAdd(BuildContext ctx, MasterRecipe r) {
     widget.onSave(r.toRecipeModel());
+    final messenger = ScaffoldMessenger.of(ctx);
     Navigator.pop(context);
-    ScaffoldMessenger.of(ctx).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           '${r.emoji} ${r.name} added to Recipe Box!',
@@ -1468,7 +1469,7 @@ class _RecipeActionsState extends State<_RecipeActions> {
         name: widget.recipe.name,
         mealTime: _selectedTime,
         date: DateTime.now(),
-        walletId: 'personal',
+        walletId: 'personal', // placeholder; caller (onLogMeal) must override with the active wallet
         recipeIds: [widget.recipe.id],
         emoji: widget.recipe.emoji,
       ),
@@ -1495,14 +1496,13 @@ class _RecipeActionsState extends State<_RecipeActions> {
   void _addAllToBasket() {
     if (widget.onAddToBasket == null) return;
     for (final ing in widget.recipe.ingredients) {
-      // Parse "Chicken 500g" → name="Chicken", qty=500, unit="g"
-      final parts = ing.trim().split(RegExp(r'\s+'));
-      final name = parts.first;
+      // Parse "Chicken 500g" / "500 g Chicken breast" → name, qty, unit
+      final parsed = _parseIng(ing);
+      final name = parsed.name;
       double qty = 1;
       String unit = 'pcs';
-      if (parts.length > 1) {
-        final raw = parts.sublist(1).join(' ');
-        final m = RegExp(r'([\d.]+)\s*(\w+)?').firstMatch(raw);
+      if (parsed.qtyUnit.isNotEmpty) {
+        final m = RegExp(r'^([\d./½¼¾]+)\s*(\w+)?').firstMatch(parsed.qtyUnit);
         if (m != null) {
           qty = double.tryParse(m.group(1) ?? '1') ?? 1;
           unit = m.group(2) ?? 'pcs';
@@ -1515,7 +1515,7 @@ class _RecipeActionsState extends State<_RecipeActions> {
           category: GroceryCategory.other,
           quantity: qty,
           unit: unit,
-          walletId: 'personal',
+          walletId: 'personal', // placeholder; caller (onAddToBasket) must override with the active wallet
           toBuy: true,
           inStock: false,
         ),

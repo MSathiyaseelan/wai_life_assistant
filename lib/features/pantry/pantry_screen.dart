@@ -213,7 +213,8 @@ class _PantryScreenState extends State<PantryScreen>
     final temps = toInsert.map((m) => MealEntry(
       id: 'cp_${DateTime.now().microsecondsSinceEpoch}_${m.id}',
       name: m.name, mealTime: m.mealTime, date: targetDate,
-      walletId: widget.activeWalletId, emoji: m.emoji, note: m.note, recipeIds: m.recipeIds,
+      walletId: widget.activeWalletId, emoji: m.emoji, note: m.note,
+      recipeIds: m.recipeIds, ingredients: m.ingredients,
     )).toList();
     setState(() => _meals.addAll(temps));
     _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} to ${_shortDay(targetDay)}');
@@ -225,6 +226,7 @@ class _PantryScreenState extends State<PantryScreen>
           walletId: widget.activeWalletId,
           name: m.name, emoji: m.emoji, mealTime: m.mealTime.name,
           date: targetDate, recipeIds: m.recipeIds, note: m.note,
+          ingredients: m.ingredients,
         );
         if (!mounted) return;
         final saved = MealEntry.fromMap(row);
@@ -269,6 +271,7 @@ class _PantryScreenState extends State<PantryScreen>
       name: item.meal.name, mealTime: item.meal.mealTime, date: item.targetDate,
       walletId: widget.activeWalletId, emoji: item.meal.emoji,
       note: item.meal.note, recipeIds: item.meal.recipeIds,
+      ingredients: item.meal.ingredients,
     )).toList();
     setState(() => _meals.addAll(temps));
     _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} into this week');
@@ -281,6 +284,7 @@ class _PantryScreenState extends State<PantryScreen>
           name: item.meal.name, emoji: item.meal.emoji,
           mealTime: item.meal.mealTime.name, date: item.targetDate,
           recipeIds: item.meal.recipeIds, note: item.meal.note,
+          ingredients: item.meal.ingredients,
         );
         if (!mounted) return;
         final saved = MealEntry.fromMap(row);
@@ -925,11 +929,9 @@ class _PantryScreenState extends State<PantryScreen>
 
       // Notify family members when a meal is added in family scope
       final appState = AppStateScope.of(context);
-      if (!appState.isPersonal) {
-        final family = appState.families.firstWhere(
-          (f) => f.walletId == widget.activeWalletId,
-          orElse: () => appState.families.first,
-        );
+      if (!appState.isPersonal && appState.families.isNotEmpty) {
+        final matches = appState.families.where((f) => f.walletId == widget.activeWalletId);
+        final family = matches.isNotEmpty ? matches.first : appState.families.first;
         FamilyNotificationTrigger.notify(
           eventType: 'pantry.meal_added',
           familyId: family.id,
@@ -945,7 +947,8 @@ class _PantryScreenState extends State<PantryScreen>
       if ((m.recipeIds.isNotEmpty || m.ingredients.isNotEmpty) && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(m));
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_meal');
       if (!mounted) return;
       setState(() => _meals.remove(m));
       _showSavedSnack('Failed to save meal', AppColors.expense);
@@ -977,7 +980,8 @@ class _PantryScreenState extends State<PantryScreen>
       if ((updated.recipeIds.isNotEmpty || updated.ingredients.isNotEmpty) && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(updated));
       }
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_update_meal');
       if (!mounted) return;
       setState(() {
         final idx = _meals.indexWhere((e) => e.id == updated.id);
@@ -1010,12 +1014,15 @@ class _PantryScreenState extends State<PantryScreen>
         status: status.name,
         servingsCount: servingsCount,
       );
-      if (status == MealStatus.cooked && m.recipeIds.isNotEmpty) {
+      if (status == MealStatus.cooked &&
+          original.mealStatus != MealStatus.cooked &&
+          m.recipeIds.isNotEmpty) {
         for (final rid in m.recipeIds) {
           await _reduceStockForMeal(rid);
         }
       }
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_update_meal_status');
       if (!mounted) return;
       setState(() {
         final idx = _meals.indexWhere((e) => e.id == original.id);
@@ -1081,9 +1088,15 @@ class _PantryScreenState extends State<PantryScreen>
   bool _ingredientMatchesGrocery(GroceryItem g, String normalizedIngredient) {
     final gName = g.effectiveNormalizedName;
     if (gName.isEmpty || normalizedIngredient.isEmpty) return false;
-    return gName == normalizedIngredient ||
-        gName.contains(normalizedIngredient) ||
-        normalizedIngredient.contains(gName);
+    if (gName == normalizedIngredient) return true;
+    // Substring containment is only meaningful for whole-word matches on
+    // names long enough to avoid false positives (e.g. "tea" inside "steak").
+    const minLen = 4;
+    if (gName.length < minLen || normalizedIngredient.length < minLen) return false;
+    bool containsWhole(String haystack, String needle) =>
+        RegExp(r'\b' + RegExp.escape(needle) + r'\b').hasMatch(haystack);
+    return containsWhole(gName, normalizedIngredient) ||
+        containsWhole(normalizedIngredient, gName);
   }
 
   /// When a meal is cooked, reduce in-stock quantities for matching groceries.
@@ -1101,8 +1114,11 @@ class _PantryScreenState extends State<PantryScreen>
           (g) => g.inStock && _ingredientMatchesGrocery(g, name));
       if (gIdx < 0) continue;
 
+      final required = _splitIngredient(ingredient).qty;
+      final deduction = required > 0 ? required : 1.0;
+
       final item = _groceries[gIdx];
-      final newQty = item.quantity - 1;
+      final newQty = item.quantity - deduction;
       final Map<String, dynamic> updates = {};
 
       if (newQty <= 0) {
@@ -1234,7 +1250,8 @@ class _PantryScreenState extends State<PantryScreen>
           try {
             await PantryService.instance.deleteMealEntry(m.id);
             PantryService.mealChangeSignal.value++;
-          } catch (e) {
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'pantry_delete_meal');
             if (!mounted) return;
             setState(() => _meals.add(m)); // revert
             _showSavedSnack('Failed to delete meal', AppColors.expense);
@@ -1274,7 +1291,8 @@ class _PantryScreenState extends State<PantryScreen>
                 _meals[idx] = _meals[idx].copyWith(reactions: list);
               }
             });
-          } catch (e) {
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_reaction');
             if (!mounted) return;
             setState(() {
               final idx = _meals.indexWhere((e) => e.id == m.id);
@@ -1308,8 +1326,9 @@ class _PantryScreenState extends State<PantryScreen>
               'reaction_emoji': updated.reactionEmoji,
               'comment': updated.comment,
             });
-          } catch (_) {
-            // Reactions are non-critical; swallow silently
+          } catch (e) {
+            // Reactions are non-critical; log only, no user-facing snackbar
+            ErrorLogger.warning(e, action: 'pantry_update_reaction');
           }
         },
         onReactionDeleted: (reactionIndex) async {
@@ -1327,8 +1346,9 @@ class _PantryScreenState extends State<PantryScreen>
           if (dbId == null) return;
           try {
             await PantryService.instance.deleteReaction(dbId);
-          } catch (_) {
-            // Reactions are non-critical; swallow silently
+          } catch (e) {
+            // Reactions are non-critical; log only, no user-facing snackbar
+            ErrorLogger.warning(e, action: 'pantry_delete_reaction');
           }
         },
         onStatusChanged: (status, servingsCount) =>
@@ -1367,7 +1387,8 @@ class _PantryScreenState extends State<PantryScreen>
         final idx = _recipes.indexWhere((e) => e.id == r.id);
         if (idx >= 0) _recipes[idx] = saved;
       });
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_recipe');
       if (!mounted) return;
       setState(() => _recipes.remove(r));
       _showSavedSnack('Failed to save recipe', AppColors.expense);
@@ -1391,7 +1412,8 @@ class _PantryScreenState extends State<PantryScreen>
         'cook_time_min': updated.cookTimeMin,
         'is_favourite': updated.isFavourite,
       });
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_update_recipe');
       if (!mounted) return;
       setState(() => _recipes[idx] = old); // revert
       _showSavedSnack('Failed to update recipe', AppColors.expense);
@@ -1403,7 +1425,8 @@ class _PantryScreenState extends State<PantryScreen>
     try {
       await PantryService.instance.deleteRecipe(r.id);
       _showSavedSnack('Recipe removed from your box', AppColors.subLight);
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_delete_recipe');
       if (!mounted) return;
       setState(() => _recipes.add(r));
       _showSavedSnack('Failed to remove recipe', AppColors.expense);
@@ -1489,7 +1512,8 @@ class _PantryScreenState extends State<PantryScreen>
     });
     try {
       await PantryService.instance.updateGroceryItem(i.id, updates);
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_toggle_buy');
       if (!mounted) return;
       setState(() {
         i.toBuy = !newToBuy;
@@ -1510,7 +1534,8 @@ class _PantryScreenState extends State<PantryScreen>
       try {
         await PantryService.instance.deleteGroceryItem(i.id);
         PantryService.listChangeSignal.value++;
-      } catch (_) {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'pantry_mark_bought_delete');
         if (!mounted) return;
         setState(() => _groceries.add(i));
         _showSavedSnack('Failed to update item', AppColors.expense);
@@ -1526,7 +1551,8 @@ class _PantryScreenState extends State<PantryScreen>
         'in_stock': true,
         'to_buy': false,
       });
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_mark_bought');
       if (!mounted) return;
       setState(() {
         i.inStock = false;
@@ -1582,7 +1608,8 @@ class _PantryScreenState extends State<PantryScreen>
         final idx = _groceries.indexWhere((g) => g.id == i.id);
         if (idx >= 0) _groceries[idx] = saved;
       });
-    } catch (e) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_grocery');
       if (!mounted) return;
       setState(() => _groceries.remove(i));
       _showSavedSnack('Failed to save item', AppColors.expense);
@@ -1593,7 +1620,8 @@ class _PantryScreenState extends State<PantryScreen>
     setState(() => _groceries.remove(i));
     try {
       await PantryService.instance.deleteGroceryItem(i.id);
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_delete_grocery');
       if (!mounted) return;
       setState(() => _groceries.add(i));
       _showSavedSnack('Failed to delete item', AppColors.expense);
@@ -1619,7 +1647,8 @@ class _PantryScreenState extends State<PantryScreen>
     });
     try {
       await PantryService.instance.updateGroceryItem(i.id, updates);
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_update_grocery');
       if (!mounted) return;
       _showSavedSnack('Failed to update item', AppColors.expense);
     }
@@ -2438,12 +2467,38 @@ class _AddBasketSheetState extends State<_AddBasketSheet>
           _aiCtrl.clear();
         });
         _tab.animateTo(1); // switch to Manual tab
+      } else {
+        _fallbackParse(text);
       }
-    } catch (_) {
-      // silently fall through
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_basket_ai_parse');
+      if (!mounted) return;
+      _fallbackParse(text);
     } finally {
       if (mounted) setState(() => _parsing = false);
     }
+  }
+
+  /// Local NLP fallback when the AI parser fails or returns no usable data.
+  void _fallbackParse(String text) {
+    final intent = PantryNlpParser.parse(text);
+    if (intent.groceryName == null || intent.groceryName!.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not understand that — try filling the form manually.')),
+      );
+      return;
+    }
+    setState(() {
+      _nameCtrl.text = intent.groceryName!;
+      _cat = intent.groceryCat ?? GroceryCategory.other;
+      _unit = _units.contains(intent.unit) ? intent.unit! : _units[0];
+      final qty = intent.qty ?? 1.0;
+      _qtyCtrl.text = qty == qty.truncateToDouble()
+          ? qty.toInt().toString()
+          : qty.toString();
+      _aiCtrl.clear();
+    });
+    _tab.animateTo(1);
   }
 
   // ── Submit manual form ───────────────────────────────────────────────────
