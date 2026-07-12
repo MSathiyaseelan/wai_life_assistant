@@ -842,6 +842,20 @@ class FunctionChatMessage {
     required this.text,
     required this.at,
   });
+
+  factory FunctionChatMessage.fromJson(Map<String, dynamic> json) => FunctionChatMessage(
+    id: json['id'] as String,
+    senderId: json['sender_id'] as String? ?? 'me',
+    text: json['text'] as String? ?? '',
+    at: DateTime.tryParse(json['at'] as String? ?? '') ?? DateTime.now(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'sender_id': senderId,
+    'text': text,
+    'at': at.toIso8601String(),
+  };
 }
 
 class FunctionModel {
@@ -915,6 +929,9 @@ class FunctionModel {
     notes: json['notes'] as String?,
     isPlanned: json['is_planned'] as bool? ?? false,
     icon: json['icon'] as String? ?? '🎊',
+    chat: (json['chat'] as List<dynamic>? ?? [])
+        .map((c) => FunctionChatMessage.fromJson(c as Map<String, dynamic>))
+        .toList(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -929,6 +946,7 @@ class FunctionModel {
     if (notes != null) 'notes': notes,
     'is_planned': isPlanned,
     'icon': icon,
+    'chat': chat.map((c) => c.toJson()).toList(),
   };
 }
 
@@ -1041,6 +1059,11 @@ class UpcomingFunction {
     plannedGifts: (json['planned_gifts'] as List<dynamic>? ?? [])
         .map((g) => PlannedGiftItem.fromJson(g as Map<String, dynamic>))
         .toList(),
+    chat: (json['chat'] as List<dynamic>? ?? [])
+        .map((c) => FunctionChatMessage.fromJson(c as Map<String, dynamic>))
+        .toList(),
+    votes: (json['votes'] as Map<String, dynamic>? ?? {})
+        .map((k, v) => MapEntry(k, v as String)),
   );
 
   Map<String, dynamic> toJson() => {
@@ -1053,6 +1076,8 @@ class UpcomingFunction {
     if (venue != null) 'venue': venue,
     if (notes != null) 'notes': notes,
     'planned_gifts': plannedGifts.map((g) => g.toJson()).toList(),
+    'chat': chat.map((c) => c.toJson()).toList(),
+    'votes': votes,
   };
 }
 

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -11,6 +12,13 @@ import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
+
+/// Locally-unique id for a not-yet-persisted member/family draft. Combines
+/// microsecond timestamp with a random suffix so rapid successive calls
+/// (e.g. fast double-taps) never collide, unlike a bare millisecondsSinceEpoch.
+String _newLocalId([String prefix = '']) =>
+    '$prefix${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 32)}';
 
 class FamilySwitcherSheet extends StatefulWidget {
   final String currentWalletId;
@@ -554,7 +562,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     } else {
       _members.add(
         FamilyMember(
-          id: 'me_${DateTime.now().millisecondsSinceEpoch}',
+          id: _newLocalId('me_'),
           name: 'Me',
           emoji: '🧑',
           role: MemberRole.admin,
@@ -642,13 +650,22 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                           isDark: isDark,
                           surfBg: surfBg,
                           onTap: () async {
-                            final picker = ImagePicker();
-                            final img = await picker.pickImage(
-                                source: ImageSource.gallery, imageQuality: 80);
-                            if (img != null) {
-                              setState(() {
-                                _groupPhotoPath = img.path;
-                              });
+                            try {
+                              final picker = ImagePicker();
+                              final img = await picker.pickImage(
+                                  source: ImageSource.gallery, imageQuality: 80);
+                              if (img != null) {
+                                setState(() {
+                                  _groupPhotoPath = img.path;
+                                });
+                              }
+                            } catch (e, stack) {
+                              ErrorLogger.log(e, stackTrace: stack, action: 'family_pick_group_photo');
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Failed to pick photo')),
+                                );
+                              }
                             }
                           },
                         ),
@@ -659,13 +676,22 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                           isDark: isDark,
                           surfBg: surfBg,
                           onTap: () async {
-                            final picker = ImagePicker();
-                            final img = await picker.pickImage(
-                                source: ImageSource.camera, imageQuality: 80);
-                            if (img != null) {
-                              setState(() {
-                                _groupPhotoPath = img.path;
-                              });
+                            try {
+                              final picker = ImagePicker();
+                              final img = await picker.pickImage(
+                                  source: ImageSource.camera, imageQuality: 80);
+                              if (img != null) {
+                                setState(() {
+                                  _groupPhotoPath = img.path;
+                                });
+                              }
+                            } catch (e, stack) {
+                              ErrorLogger.log(e, stackTrace: stack, action: 'family_pick_group_photo');
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Failed to pick photo')),
+                                );
+                              }
                             }
                           },
                         ),
@@ -1108,7 +1134,8 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         }
 
         if (mounted) {
-          widget.appState.reload();
+          await widget.appState.reload();
+          if (!mounted) return;
           _showPhotoErrors(photoErrors);
           Navigator.pop(context);
         }
@@ -1231,10 +1258,11 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
               try {
                 await ProfileService.instance.deleteFamily(widget.existing!.id);
                 if (mounted) {
-                  widget.appState.reload();
-                  Navigator.pop(context);
+                  await widget.appState.reload();
+                  if (mounted) Navigator.pop(context);
                 }
-              } catch (e) {
+              } catch (e, stack) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'family_delete');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -1380,14 +1408,23 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                           isDark: isDark,
                           surfBg: surfBg,
                           onTap: () async {
-                            final picker = ImagePicker();
-                            final img = await picker.pickImage(
-                                source: ImageSource.gallery,
-                                imageQuality: 80);
-                            if (img != null) {
-                              ss(() {
-                                memberPhotoPath = img.path;
-                              });
+                            try {
+                              final picker = ImagePicker();
+                              final img = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                  imageQuality: 80);
+                              if (img != null) {
+                                ss(() {
+                                  memberPhotoPath = img.path;
+                                });
+                              }
+                            } catch (e, stack) {
+                              ErrorLogger.log(e, stackTrace: stack, action: 'family_pick_member_photo');
+                              if (ctx2.mounted) {
+                                ScaffoldMessenger.of(ctx2).showSnackBar(
+                                  const SnackBar(content: Text('Failed to pick photo')),
+                                );
+                              }
                             }
                           },
                         ),
@@ -1398,14 +1435,23 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                           isDark: isDark,
                           surfBg: surfBg,
                           onTap: () async {
-                            final picker = ImagePicker();
-                            final img = await picker.pickImage(
-                                source: ImageSource.camera,
-                                imageQuality: 80);
-                            if (img != null) {
-                              ss(() {
-                                memberPhotoPath = img.path;
-                              });
+                            try {
+                              final picker = ImagePicker();
+                              final img = await picker.pickImage(
+                                  source: ImageSource.camera,
+                                  imageQuality: 80);
+                              if (img != null) {
+                                ss(() {
+                                  memberPhotoPath = img.path;
+                                });
+                              }
+                            } catch (e, stack) {
+                              ErrorLogger.log(e, stackTrace: stack, action: 'family_pick_member_photo');
+                              if (ctx2.mounted) {
+                                ScaffoldMessenger.of(ctx2).showSnackBar(
+                                  const SnackBar(content: Text('Failed to pick photo')),
+                                );
+                              }
                             }
                           },
                         ),
@@ -1642,8 +1688,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                             } else {
                               _members.add(
                                 FamilyMember(
-                                  id: DateTime.now().millisecondsSinceEpoch
-                                      .toString(),
+                                  id: _newLocalId(),
                                   name: nameCtrl.text.trim(),
                                   emoji: emoji,
                                   photoPath: memberPhotoPath,

@@ -13,6 +13,7 @@ import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../widgets/life_widgets.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -164,7 +165,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       for (final row in rawMyResults.expand((r) => r)) {
         try {
           loaded.add(FunctionModel.fromJson(row));
-        } catch (e) {
+        } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_parse_error');
           debugPrint('[MyFunctions] parse error: $e | row: $row');
         }
       }
@@ -172,7 +173,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       for (final row in rawUpcoming) {
         try {
           upcoming.add(UpcomingFunction.fromJson(row));
-        } catch (e) {
+        } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_upcoming_parse_error');
           debugPrint('[MyFunctions] upcoming parse error: $e | row: $row');
         }
       }
@@ -180,7 +181,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       for (final row in rawAttended) {
         try {
           attended.add(AttendedFunction.fromJson(row));
-        } catch (e) {
+        } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_attended_parse_error');
           debugPrint('[MyFunctions] attended parse error: $e | row: $row');
         }
       }
@@ -188,7 +189,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       for (final row in rawAttendedGroups) {
         try {
           attendedGroups.add(AttendedFunctionGroup.fromRow(row));
-        } catch (e) {
+        } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_attended_group_parse_error');
           debugPrint('[MyFunctions] attended group parse error: $e | row: $row');
         }
       }
@@ -230,7 +231,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       rawUpcoming = results[1];
       rawAttended = results[2];
       rawAttendedGroups = results[3];
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_fetch_error');
       debugPrint('[MyFunctions] fetch error: $e');
     }
     if (!mounted) return;
@@ -240,7 +241,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     for (final row in rawFunctions) {
       try {
         functions.add(FunctionModel.fromJson(row));
-      } catch (e) {
+      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_functions_parse_error');
         debugPrint('[MyFunctions] functions parse error: $e | row: $row');
       }
     }
@@ -248,7 +249,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     for (final row in rawUpcoming) {
       try {
         upcoming.add(UpcomingFunction.fromJson(row));
-      } catch (e) {
+      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_upcoming_parse_error');
         debugPrint('[MyFunctions] upcoming parse error: $e | row: $row');
       }
     }
@@ -256,7 +257,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     for (final row in rawAttended) {
       try {
         attended.add(AttendedFunction.fromJson(row));
-      } catch (e) {
+      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_attended_parse_error');
         debugPrint('[MyFunctions] attended parse error: $e | row: $row');
       }
     }
@@ -264,7 +265,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     for (final row in rawAttendedGroups) {
       try {
         attendedGroups.add(AttendedFunctionGroup.fromRow(row));
-      } catch (e) {
+      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_attended_group_parse_error');
         debugPrint('[MyFunctions] attended group parse error: $e | row: $row');
       }
     }
@@ -410,11 +411,20 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                         itemBuilder: (_, i) => Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: SwipeTile(
-                            onDelete: () {
+                            onDelete: () async {
                               HapticFeedback.mediumImpact();
                               final item = _activeUpcoming[i];
                               setState(() => _upcoming.remove(item));
-                              FunctionsService.instance.deleteUpcoming(item.id);
+                              try {
+                                await FunctionsService.instance.deleteUpcoming(item.id);
+                              } catch (e, stack) {
+                                ErrorLogger.log(e, stackTrace: stack, action: 'delete_upcoming_function');
+                                if (!mounted) return;
+                                setState(() => _upcoming.add(item));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Failed to delete function')),
+                                );
+                              }
                             },
                             child: _UpcomingCard(
                               item: _activeUpcoming[i],
@@ -550,10 +560,19 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                       Padding(
                                         padding: const EdgeInsets.only(bottom: 12),
                                         child: SwipeTile(
-                                          onDelete: () {
+                                          onDelete: () async {
                                             HapticFeedback.mediumImpact();
                                             setState(() => _upcoming.remove(item));
-                                            FunctionsService.instance.deleteUpcoming(item.id);
+                                            try {
+                                              await FunctionsService.instance.deleteUpcoming(item.id);
+                                            } catch (e, stack) {
+                                              ErrorLogger.log(e, stackTrace: stack, action: 'delete_past_upcoming_function');
+                                              if (!mounted) return;
+                                              setState(() => _upcoming.add(item));
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Failed to delete function')),
+                                              );
+                                            }
                                           },
                                           child: _AttendedCard(
                                             item: _upcomingToAttended(item),
@@ -571,11 +590,20 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                       Padding(
                                         padding: const EdgeInsets.only(bottom: 12),
                                         child: SwipeTile(
-                                          onDelete: () {
+                                          onDelete: () async {
                                             HapticFeedback.mediumImpact();
                                             final item = ungroupedFiltered[i];
                                             setState(() => _attended.remove(item));
-                                            FunctionsService.instance.deleteAttended(item.id);
+                                            try {
+                                              await FunctionsService.instance.deleteAttended(item.id);
+                                            } catch (e, stack) {
+                                              ErrorLogger.log(e, stackTrace: stack, action: 'delete_attended_function');
+                                              if (!mounted) return;
+                                              setState(() => _attended.add(item));
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Failed to delete function')),
+                                              );
+                                            }
                                           },
                                           child: _AttendedCard(
                                             item: ungroupedFiltered[i],
@@ -605,10 +633,19 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   allFamilyWalletNames: widget.allFamilyWalletNames,
                   currentWalletId: widget.walletId,
                   personalWalletId: widget.personalWalletId,
-                  onDelete: (fn) {
+                  onDelete: (fn) async {
                     HapticFeedback.mediumImpact();
                     setState(() => _functions.remove(fn));
-                    FunctionsService.instance.deleteMyFunction(fn.id);
+                    try {
+                      await FunctionsService.instance.deleteMyFunction(fn.id);
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'delete_my_function');
+                      if (!mounted) return;
+                      setState(() => _functions.add(fn));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Failed to delete function')),
+                      );
+                    }
                   },
                   onUpdate: () => setState(() {
                     _functions.removeWhere((f) => f.walletId != widget.walletId);
@@ -706,8 +743,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     );
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
-              } catch (e) {
-                debugPrint('[Functions] save error: $e');
+              } catch (e, stack) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
                 if (ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     SnackBar(
@@ -743,7 +780,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       }
       await FunctionsService.instance.setAttendedGroup(item.id, groupId);
       if (mounted) setState(() => item.groupId = groupId);
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_assign_group_error');
       debugPrint('[Functions] assign group error: $e');
     }
   }
@@ -786,7 +823,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           );
         }
       });
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_rename_group_error');
       debugPrint('[Functions] rename group error: $e');
     }
   }
@@ -801,7 +838,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           if (a.groupId == group.id) a.groupId = null;
         }
       });
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_delete_group_error');
       debugPrint('[Functions] delete group error: $e');
     }
   }
@@ -1202,7 +1239,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           _attended.insert(0, AttendedFunction.fromJson(row));
                         });
                       }
-                    } catch (e) {
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_convert_error');
                       debugPrint('[Functions] convert error: $e');
                     }
                     if (ctx.mounted) Navigator.pop(ctx);
@@ -2550,8 +2587,8 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
           ..addAll(results[3].map((r) => FunctionReturnGift.fromJson(r)));
         _loading = false;
       });
-    } catch (e) {
-      debugPrint('[PlannedDetail] load error: $e');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'planned_detail_load');
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -2757,16 +2794,23 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                     isDark: isDark,
                     textOf: (m) => (m as FunctionChatMessage).text,
                     senderOf: (m) => (m as FunctionChatMessage).senderId,
-                    onSend: (text) => setState(
-                      () => fn.chat.add(
-                        FunctionChatMessage(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          senderId: 'me',
-                          text: text,
-                          at: DateTime.now(),
+                    onSend: (text) async {
+                      setState(
+                        () => fn.chat.add(
+                          FunctionChatMessage(
+                            id: DateTime.now().millisecondsSinceEpoch.toString(),
+                            senderId: 'me',
+                            text: text,
+                            at: DateTime.now(),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                      try {
+                        await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                      } catch (e, stack) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'function_chat_send');
+                      }
+                    },
                   ),
                 ),
               ],
@@ -3240,7 +3284,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                           folder: 'functions',
                           name: 'fn_${fn.id}',
                         );
-                      } catch (e) {
+                      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_icon_upload_error');
                         debugPrint('[Functions] icon upload error: $e');
                       }
                     }
@@ -3264,8 +3308,8 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         Navigator.pop(ctx);
                         if (moved && ctx.mounted) Navigator.pop(ctx);
                       }
-                    } catch (e) {
-                      debugPrint('[Functions] save error: $e');
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
                       setState(() => fn.walletId = originalWalletId);
                     }
                   },
@@ -3423,7 +3467,8 @@ class _ParticipantsTab extends StatelessWidget {
                     }
                     onChanged();
                     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  } catch (e) {
+                  } catch (e, stack) {
+                    ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_participant');
                     if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
                   }
                 },
@@ -3714,7 +3759,8 @@ class _ClothingGiftsTab extends StatelessWidget {
                   }
                   onChanged();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e) {
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
                   if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
                 }
               },
@@ -3961,7 +4007,8 @@ class _BridalEssentialsTab extends StatelessWidget {
                   }
                   onChanged();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e) {
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
                   if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
                 }
               },
@@ -4151,7 +4198,8 @@ class _ReturnGiftsTab extends StatelessWidget {
                   }
                   onChanged();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e) {
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
                   if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
                 }
               },
@@ -4313,8 +4361,8 @@ class _FunctionDetailState extends State<_FunctionDetail>
         _returnGifts..clear()..addAll(results[3].map(FunctionReturnGift.fromJson));
         _planningLoading = false;
       });
-    } catch (e) {
-      debugPrint('[FunctionDetail] planning load error: $e');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'function_detail_planning_load');
       if (mounted) setState(() => _planningLoading = false);
     }
   }
@@ -4602,16 +4650,23 @@ class _FunctionDetailState extends State<_FunctionDetail>
               isDark: isDark,
               textOf: (m) => (m as FunctionChatMessage).text,
               senderOf: (m) => (m as FunctionChatMessage).senderId,
-              onSend: (text) => setState(
-                () => fn.chat.add(
-                  FunctionChatMessage(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    senderId: 'me',
-                    text: text,
-                    at: DateTime.now(),
+              onSend: (text) async {
+                setState(
+                  () => fn.chat.add(
+                    FunctionChatMessage(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      senderId: 'me',
+                      text: text,
+                      at: DateTime.now(),
+                    ),
                   ),
-                ),
-              ),
+                );
+                try {
+                  await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'function_chat_send');
+                }
+              },
             ),
           ),
         ],
@@ -5284,7 +5339,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
                         folder: 'functions',
                         name: 'fn_${fn.id}',
                       );
-                    } catch (e) {
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_icon_upload_error');
                       debugPrint('[Functions] icon upload error: $e');
                     }
                   }
@@ -5312,8 +5367,8 @@ class _FunctionDetailState extends State<_FunctionDetail>
                       Navigator.pop(ctx);
                       if (moved && ctx.mounted) Navigator.pop(ctx);
                     }
-                  } catch (e) {
-                    debugPrint('[Functions] save error: $e');
+                  } catch (e, stack) {
+                    ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
                     setState(() => fn.walletId = originalWalletId);
                   }
                 },
@@ -6875,7 +6930,7 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
       widget.onUpdate();
       if (mounted) Navigator.pop(context);
       return;
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_error');
       debugPrint('[UpcomingDetail] save error: $e');
     }
     if (mounted) setState(() => _saving = false);
@@ -7027,16 +7082,23 @@ class _UpcomingDetailState extends State<_UpcomingDetail>
             isDark: isDark,
             textOf: (m) => (m as FunctionChatMessage).text,
             senderOf: (m) => (m as FunctionChatMessage).senderId,
-            onSend: (text) => setState(
-              () => item.chat.add(
-                FunctionChatMessage(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  senderId: 'me',
-                  text: text,
-                  at: DateTime.now(),
+            onSend: (text) async {
+              setState(
+                () => item.chat.add(
+                  FunctionChatMessage(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    senderId: 'me',
+                    text: text,
+                    at: DateTime.now(),
+                  ),
                 ),
-              ),
-            ),
+              );
+              try {
+                await FunctionsService.instance.updateUpcoming(item.id, item.toJson());
+              } catch (e, stack) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'upcoming_chat_send');
+              }
+            },
           ),
         ],
       ),
@@ -7072,21 +7134,30 @@ class _UpcomingPlanningTabState extends State<_UpcomingPlanningTab> {
 
   Future<void> _addItem() async {
     if (_selected == null) return;
+    final added = PlannedGiftItem(
+      category: _selected!,
+      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+    );
     setState(() {
-      widget.item.plannedGifts.add(
-        PlannedGiftItem(
-          category: _selected!,
-          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-        ),
-      );
+      widget.item.plannedGifts.add(added);
       _selected = null;
       _notesCtrl.clear();
     });
     widget.onUpdate();
-    await FunctionsService.instance.updateUpcoming(
-      widget.item.id,
-      widget.item.toJson(),
-    );
+    try {
+      await FunctionsService.instance.updateUpcoming(
+        widget.item.id,
+        widget.item.toJson(),
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'upcoming_add_planned_gift');
+      if (!mounted) return;
+      setState(() => widget.item.plannedGifts.remove(added));
+      widget.onUpdate();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save gift plan')),
+      );
+    }
   }
 
   @override
@@ -7326,6 +7397,7 @@ class _UpcomingVotingTabState extends State<_UpcomingVotingTab> {
           ...sortedTally.map((e) {
             final cat = _upcomingGiftCategories.firstWhere(
               (c) => c.$2 == e.key,
+              orElse: () => ('🎁', e.key),
             );
             final pct = totalVotes > 0 ? e.value / totalVotes : 0.0;
             return Padding(
@@ -7474,14 +7546,24 @@ class _UpcomingVotingTabState extends State<_UpcomingVotingTab> {
                     children: _upcomingGiftCategories.map((cat) {
                       final sel = myVote == cat.$2;
                       return GestureDetector(
-                        onTap: () => setState(() {
-                          if (sel) {
-                            widget.item.votes.remove(member.id);
-                          } else {
-                            widget.item.votes[member.id] = cat.$2;
+                        onTap: () async {
+                          setState(() {
+                            if (sel) {
+                              widget.item.votes.remove(member.id);
+                            } else {
+                              widget.item.votes[member.id] = cat.$2;
+                            }
+                            widget.onUpdate();
+                          });
+                          try {
+                            await FunctionsService.instance.updateUpcoming(
+                              widget.item.id,
+                              widget.item.toJson(),
+                            );
+                          } catch (e, stack) {
+                            ErrorLogger.log(e, stackTrace: stack, action: 'upcoming_vote');
                           }
-                          widget.onUpdate();
-                        }),
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           padding: const EdgeInsets.symmetric(
@@ -7609,7 +7691,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
       await FunctionsService.instance.addMoiEntries(dataList);
       await _persistDrafts([]);
       await _loadMoi();
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_savealldrafts_error');
       debugPrint('[MoiTab] saveAllDrafts error: $e');
     } finally {
       if (mounted) setState(() => _savingDrafts = false);
@@ -7647,7 +7729,7 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
           ..clear()
           ..addAll([...draftEntries, ...dbEntries]);
       });
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_load_error');
       debugPrint('[MoiTab] load error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -8607,8 +8689,8 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
       }
       widget.onSave();
       if (mounted) Navigator.pop(context);
-    } catch (e) {
-      debugPrint('[AddMoi] save error: $e');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'add_moi_save');
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -8656,7 +8738,7 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
           subject: 'Moi Entry Template',
         ),
       );
-    } catch (e) {
+    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_template_download_error');
       debugPrint('[Moi] template download error: $e');
     }
   }
@@ -10124,7 +10206,8 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
     _ParsedFunction? result;
     try {
       result = await _FunctionAIParser.parse(text.trim(), widget.tabIdx);
-    } catch (_) {
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'function_ai_parse_fallback');
       result = _FunctionNlpParser.parse(text.trim(), widget.tabIdx);
     }
     if (!mounted) return;
@@ -10154,7 +10237,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
           folder: 'functions',
           name: 'fn_${DateTime.now().millisecondsSinceEpoch}',
         );
-      } catch (e) {
+      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_icon_upload_error');
         debugPrint('[Functions] icon upload error: $e');
       }
     }

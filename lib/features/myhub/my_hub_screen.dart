@@ -16,6 +16,7 @@ import 'package:wai_life_assistant/features/lifestyle/modules/my_wardrobe/my_war
 import 'package:wai_life_assistant/features/lifestyle/modules/health_space/health_space_screen.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 class MyHubScreen extends StatefulWidget {
   final String activeWalletId;
@@ -154,7 +155,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
         final d = DateTime.tryParse(a['appt_date'] as String? ?? '');
         return d != null && !DateTime(d.year, d.month, d.day).isBefore(DateTime(today.year, today.month, today.day));
       }).toList()
-        ..sort((a, b) => (a['appt_date'] as String).compareTo(b['appt_date'] as String));
+        ..sort((a, b) => DateTime.parse(a['appt_date'] as String)
+            .compareTo(DateTime.parse(b['appt_date'] as String)));
       setState(() {
         _functions
           ..clear()
@@ -178,8 +180,16 @@ class _MyHubScreenState extends State<MyHubScreen> {
           _nextAppointmentDoctor = null;
         }
       });
-    } catch (e) {
-      debugPrint('[MyHub] _loadData error: $e');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'myhub_load_data');
+      _loadedKey = null; // allow retry — this load never completed
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Failed to load MyHub data'),
+          action: SnackBarAction(label: 'Retry', onPressed: _loadData),
+        ),
+      );
     }
   }
 

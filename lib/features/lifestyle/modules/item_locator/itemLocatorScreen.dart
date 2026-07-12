@@ -251,11 +251,18 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
             setState(() => _items.insert(0, item));
             onAdded(item);
           }),
-          onDeleteItem: (item) {
+          onDeleteItem: (item) async {
             setState(() => _items.remove(item));
-            ItemLocatorService.instance.deleteItem(item.id).catchError(
-              (e) => debugPrint('[ItemLocator] deleteItem error: $e'),
-            );
+            try {
+              await ItemLocatorService.instance.deleteItem(item.id);
+            } catch (e, stack) {
+              ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_delete_item');
+              if (!mounted) return;
+              setState(() => _items.insert(0, item));
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Failed to delete item')),
+              );
+            }
           },
           onEditItem: (item) => _showEditItem(ctx, item, isDark, surfBg),
           onDeleteContainer: () {
@@ -1070,9 +1077,14 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
         String newCid = selCid;
         if (containerHint.isNotEmpty) {
           final emptyContainer = StorageContainer(id: '', walletId: '', type: StorageType.other, name: '');
+          bool nameMatches(String a, String b) {
+            const minLen = 4;
+            if (a.length < minLen || b.length < minLen) return a == b;
+            return RegExp(r'\b' + RegExp.escape(a) + r'\b').hasMatch(b) ||
+                RegExp(r'\b' + RegExp.escape(b) + r'\b').hasMatch(a);
+          }
           final match = _myContainers.firstWhere(
-            (c) => c.name.toLowerCase().contains(containerHint.toLowerCase()) ||
-                   containerHint.toLowerCase().contains(c.name.toLowerCase()),
+            (c) => nameMatches(c.name.toLowerCase(), containerHint.toLowerCase()),
             orElse: () => _myContainers.firstWhere(
               (c) => roomHint.isNotEmpty && (c.location?.toLowerCase().contains(roomHint.toLowerCase()) ?? false),
               orElse: () => emptyContainer,

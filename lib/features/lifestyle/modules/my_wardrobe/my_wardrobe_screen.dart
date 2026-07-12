@@ -795,6 +795,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
     final localPath = _photoPath;
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     () async {
       try {
@@ -823,6 +824,9 @@ class _AddClothingSheetState extends State<AddClothingSheet>
         widget.onItemAdded?.call(saved);
       } catch (e) {
         ErrorLogger.warning(e, action: 'wardrobe_add_item');
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Failed to add item')),
+        );
       }
     }();
   }

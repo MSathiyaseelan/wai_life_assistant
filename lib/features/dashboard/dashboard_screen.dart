@@ -1370,7 +1370,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                 AnimatedBuilder(
                                   animation: _pulsePageController,
                                   builder: (ctx, _) {
-                                    final page = _pulsePageController.hasClients
+                                    final page = _pulsePageController.positions.length == 1
                                         ? (_pulsePageController.page ?? 0)
                                               .round()
                                         : 0;
@@ -1567,7 +1567,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                 AnimatedBuilder(
                                   animation: _platePageController,
                                   builder: (ctx, _) {
-                                    final page = _platePageController.hasClients
+                                    final page = _platePageController.positions.length == 1
                                         ? (_platePageController.page ?? 0)
                                               .round()
                                         : 0;
@@ -1680,7 +1680,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               AnimatedBuilder(
                                 animation: _listPageController,
                                 builder: (ctx, _) {
-                                  final page = _listPageController.hasClients
+                                  final page = _listPageController.positions.length == 1
                                       ? (_listPageController.page ?? 0).round()
                                       : 0;
                                   return Row(
