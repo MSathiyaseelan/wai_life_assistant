@@ -130,15 +130,25 @@ Future<void> _handleAction(NotificationResponse response) async {
       payload: response.payload,
     );
 
-    // Update the reminder's due date/time in the database
+    // Update the reminder's snoozed flag, and only shift due_date/due_time
+    // for non-repeating reminders — for a repeating one, due_date/due_time
+    // is the recurring anchor, so overwriting it would permanently shift
+    // every future occurrence instead of delaying just this one.
     if (reminderId != null) {
       try {
+        final row = await Supabase.instance.client
+            .from('reminders')
+            .select('repeat')
+            .eq('id', reminderId)
+            .maybeSingle();
+        final repeat = row?['repeat'] as String?;
         String pad(int v) => v.toString().padLeft(2, '0');
-        await Supabase.instance.client.from('reminders').update({
-          'due_date': '${snoozeAt.year}-${pad(snoozeAt.month)}-${pad(snoozeAt.day)}',
-          'due_time': '${pad(snoozeAt.hour)}:${pad(snoozeAt.minute)}',
-          'snoozed': true,
-        }).eq('id', reminderId);
+        final updates = <String, dynamic>{'snoozed': true};
+        if (repeat == null || repeat == 'none') {
+          updates['due_date'] = '${snoozeAt.year}-${pad(snoozeAt.month)}-${pad(snoozeAt.day)}';
+          updates['due_time'] = '${pad(snoozeAt.hour)}:${pad(snoozeAt.minute)}';
+        }
+        await Supabase.instance.client.from('reminders').update(updates).eq('id', reminderId);
         debugPrint('[Notifications] DB updated for snooze "$title" → $snoozeAt');
       } catch (e) {
         debugPrint('[Notifications] DB snooze update failed: $e');
@@ -317,6 +327,48 @@ class NotificationService {
     );
   }
 
+  // ── Snooze a single occurrence ─────────────────────────────────────────────
+  // Delays only the next-due notification by [delay] without touching the
+  // reminder's persisted dueDate/dueTime (the recurring anchor) — calling
+  // `schedule(r)` with a mutated dueDate/dueTime instead would regenerate
+  // the *entire* recurring series from the new time, permanently shifting
+  // every future occurrence rather than delaying just this one.
+  Future<void> snoozeOnce(ReminderModel r, Duration delay) async {
+    await init();
+    // Cancel just the next-due slot (the base id — always the soonest
+    // upcoming occurrence, since schedule()/rescheduleAll() only ever
+    // create entries for times still in the future). The rest of a bounded
+    // series (_id(r)+1 .. _id(r)+count-1) is left untouched.
+    await _plugin.cancel(_id(r));
+
+    final tzName   = (await FlutterTimezone.getLocalTimezone()).identifier;
+    final location = tz.getLocation(tzName);
+    final snoozeAt = tz.TZDateTime.now(location).add(delay);
+
+    final payload = jsonEncode({
+      'id':    r.id,
+      'emoji': r.emoji,
+      'title': r.title,
+      'note':  r.note,
+    });
+    final body = r.note ?? _priorityLabel(r.priority);
+
+    await _plugin.zonedSchedule(
+      _id(r),
+      '${r.emoji} ${r.title}',
+      body,
+      snoozeAt,
+      NotificationDetails(
+        android: _alarmAndroidDetails(body: body),
+        iOS: _alarmIosDetails,
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
+  }
+
   // ── Cancel ─────────────────────────────────────────────────────────────────
   Future<void> cancel(ReminderModel r) async {
     await init();
@@ -369,6 +421,11 @@ class NotificationService {
   }
 
   // ── Reschedule all on app start ────────────────────────────────────────────
+  // NOTE: cancelAll() wipes every pending local notification process-wide,
+  // not just reminders. Safe today because reminders are the only feature
+  // using zonedSchedule (verified via repo-wide grep) — if another feature
+  // ever schedules its own local notifications, this would silently wipe
+  // them out whenever the Alert Me screen loads.
   Future<void> rescheduleAll(List<ReminderModel> reminders) async {
     await init();
     await _plugin.cancelAll();
@@ -378,7 +435,10 @@ class NotificationService {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  int _id(ReminderModel r) => r.id.hashCode.abs() % 2147483647;
+  // Reserve headroom below the int32 ceiling so `_id(r) + idx` (idx up to
+  // `maxOccurrences` in `schedule`/`cancel`) never overflows the platform
+  // plugin's valid notification-id range.
+  int _id(ReminderModel r) => r.id.hashCode.abs() % (2147483647 - 500);
 
   String _priorityLabel(Priority p) {
     if (p == Priority.urgent) return 'Urgent reminder';

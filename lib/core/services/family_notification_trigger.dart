@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FamilyNotificationTrigger
@@ -39,8 +40,8 @@ class FamilyNotificationTrigger {
       },
     ).then((_) {
       debugPrint('[FCM] notified: $eventType');
-    }).catchError((e) {
-      debugPrint('[FCM] notify error: $e');
+    }).catchError((e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'family_notification_trigger');
     });
   }
 }

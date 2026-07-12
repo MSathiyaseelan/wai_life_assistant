@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/notification_prefs.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NotifDeepLink — carries the destination from a notification tap.
@@ -41,6 +42,12 @@ class NotifDeepLink {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Messages carrying a `notification` payload are already auto-displayed by
+  // the OS/FCM SDK while the app is backgrounded/terminated — showing them
+  // again here via the local-notifications plugin would duplicate every push.
+  // Only a true data-only message (no `notification` field) needs manual
+  // display, since the OS never surfaces those on its own.
+  if (message.notification != null) return;
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
     const InitializationSettings(
@@ -129,6 +136,9 @@ class FcmService {
 
     if (kDebugMode) debugPrint('[FCM] saving FCM token for current user');
     try {
+      // Keyed on (user_id, platform, fcm_token) — not just (user_id,
+      // platform) — so a second device on the same platform gets its own
+      // row instead of silently overwriting the first device's token.
       await Supabase.instance.client.from('user_fcm_tokens').upsert(
         {
           'user_id': userId,
@@ -136,11 +146,11 @@ class FcmService {
           'platform': Platform.isAndroid ? 'android' : 'ios',
           'updated_at': DateTime.now().toIso8601String(),
         },
-        onConflict: 'user_id, platform',
+        onConflict: 'user_id, platform, fcm_token',
       );
       debugPrint('[FCM] token saved OK');
-    } catch (e) {
-      debugPrint('[FCM] token save failed: $e');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'fcm_save_token');
     }
   }
 

@@ -200,7 +200,11 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     final idx = _reminders.indexWhere((r) => r.id == updated.id);
     final original = idx >= 0 ? _reminders[idx] : null;
     setState(() { if (idx >= 0) _reminders[idx] = updated; });
-    await NotificationService.instance.cancel(updated);
+    // Cancel using the *original* schedule — the notification ids actually
+    // scheduled were computed from the old repeat/repeatEndDate, not the
+    // new ones, so cancelling with `updated` can leave stale occurrences
+    // (e.g. a shortened or removed repeat) still scheduled to fire later.
+    await NotificationService.instance.cancel(original ?? updated);
     if (!updated.done) NotificationService.instance.schedule(updated);
     try {
       await ReminderService.instance.updateReminder(updated.id, updated.toMap());
@@ -233,6 +237,22 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   }
 
   Future<void> _snooze(ReminderModel r) async {
+    // Repeating reminders: delay only the next-due notification — mutating
+    // dueDate/dueTime (the recurring anchor) and rescheduling would shift
+    // every future occurrence of the series, not just this one.
+    if (r.repeat != RepeatMode.none) {
+      final origSnoozed = r.snoozed;
+      setState(() => r.snoozed = true);
+      try {
+        await ReminderService.instance.updateReminder(r.id, {'snoozed': true});
+        await NotificationService.instance.snoozeOnce(r, const Duration(minutes: 10));
+      } catch (e) {
+        ErrorLogger.log(e, action: 'reminder_snooze');
+        if (mounted) setState(() => r.snoozed = origSnoozed);
+      }
+      return;
+    }
+
     final origDate = r.dueDate;
     final origTime = r.dueTime;
     final origSnoozed = r.snoozed;
@@ -523,7 +543,7 @@ class _ReminderList extends StatelessWidget {
       isDark: isDark,
       familyLabel: familyLabel,
       onDone: familyLabel == null && onDone != null ? () => onDone!(r) : null,
-      onSnooze: (familyLabel == null && onSnooze != null && isOverdue && r.snoozed)
+      onSnooze: (familyLabel == null && onSnooze != null && isOverdue)
           ? () => onSnooze!(r)
           : null,
       onTap: familyLabel == null && onTap != null ? () => onTap!(r) : null,

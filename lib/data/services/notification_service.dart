@@ -57,6 +57,10 @@ class NotificationService {
     _bump();
   }
 
+  /// Marks all unread notifications read, excluding invites — invite
+  /// notifications are resolved via explicit accept/decline, not a bulk
+  /// mark-read, so a stray invite the user hasn't acted on isn't silently
+  /// dismissed by "Mark all read".
   Future<void> markAllRead() async {
     final uid = _uid;
     if (uid == null) return;
@@ -64,7 +68,8 @@ class NotificationService {
         .from('notifications')
         .update({'is_read': true})
         .eq('user_id', uid)
-        .eq('is_read', false);
+        .eq('is_read', false)
+        .neq('tx_type', 'invite');
     _bump();
   }
 

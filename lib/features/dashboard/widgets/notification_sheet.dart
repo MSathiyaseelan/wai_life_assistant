@@ -21,23 +21,37 @@ class NotificationSheet extends StatefulWidget {
 class _NotificationSheetState extends State<NotificationSheet> {
   List<AppNotification> _items = [];
   bool _loading = true;
+  bool _syncing = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    // Re-sync while the sheet is open (e.g. a new family notification
+    // arrives via realtime) instead of only refreshing on next open.
+    NotificationService.changeSignal.addListener(_onChange);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.changeSignal.removeListener(_onChange);
+    super.dispose();
+  }
+
+  void _onChange() {
+    if (!_syncing) _load();
   }
 
   Future<void> _load() async {
+    _syncing = true;
     final items = await NotificationService.instance.fetchAll();
-    if (!mounted) return;
+    if (!mounted) { _syncing = false; return; }
     setState(() {
       _items = items;
       _loading = false;
     });
     // Mark non-invite notifications as read; invite tiles need explicit action
-    final nonInviteUnread = items.where((n) => !n.isInvite && !n.isRead);
-    if (nonInviteUnread.isNotEmpty) {
+    if (items.any((n) => !n.isInvite && !n.isRead)) {
       await _markNonInviteRead();
       if (mounted) {
         setState(() {
@@ -47,14 +61,13 @@ class _NotificationSheetState extends State<NotificationSheet> {
         });
       }
     }
+    _syncing = false;
   }
 
-  Future<void> _markNonInviteRead() async {
-    // Mark only non-invite notifications read (invites managed via accept/decline)
-    for (final n in _items.where((n) => !n.isInvite && !n.isRead)) {
-      await NotificationService.instance.markRead(n.id);
-    }
-  }
+  // Single bulk update (excludes invites server-side) instead of one
+  // markRead() round-trip per item — avoids N sequential requests and N
+  // redundant changeSignal fires for a list that can have up to 50 items.
+  Future<void> _markNonInviteRead() => NotificationService.instance.markAllRead();
 
   void _removeItem(String id) {
     setState(() => _items.removeWhere((n) => n.id == id));
@@ -246,6 +259,9 @@ class _InviteTileState extends State<_InviteTile> {
       final ok = await InviteService.instance.acceptInvite(inviteId);
       if (!mounted) return;
       if (ok) {
+        // Belt-and-suspenders: ensure the notification row is marked read
+        // regardless of whether the accept RPC already does it server-side.
+        NotificationService.instance.markRead(widget.n.id);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('You joined ${widget.n.txTitle ?? 'the family'}!'),
           backgroundColor: AppColors.income,
@@ -268,8 +284,12 @@ class _InviteTileState extends State<_InviteTile> {
     setState(() => _loading = true);
     try {
       await InviteService.instance.declineInvite(inviteId);
+      // Belt-and-suspenders: ensure the notification row is marked read
+      // regardless of whether the decline RPC already does it server-side.
+      NotificationService.instance.markRead(widget.n.id);
       if (mounted) widget.onDeclined();
-    } catch (_) {
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'decline_family_invite');
       if (mounted) _showError('Failed to decline invite.');
     } finally {
       if (mounted) setState(() => _loading = false);

@@ -898,12 +898,38 @@ class WalletService {
       if (!shouldAlert80 && !shouldAlert100) continue;
 
       final threshold = shouldAlert100 ? 100 : 80;
+      final column = shouldAlert100 ? 'last_100_alert_month' : 'last_80_alert_month';
       final alertMsg = threshold == 100
           ? '${budget.category} budget exceeded! Spent ${AppPrefs.cs}${spent.toStringAsFixed(0)} of ${AppPrefs.cs}${budget.limitAmount.toStringAsFixed(0)}'
           : '${budget.category} budget at ${(pct * 100).toStringAsFixed(0)}%. Spent ${AppPrefs.cs}${spent.toStringAsFixed(0)} of ${AppPrefs.cs}${budget.limitAmount.toStringAsFixed(0)}';
 
+      // Atomically claim this threshold BEFORE sending anything: the update
+      // only affects a row if the column still isn't `currentMonth`, so two
+      // overlapping calls for the same budget (e.g. two expenses added in
+      // quick succession) can't both pass — the loser's update touches 0
+      // rows and it skips sending. This closes the race where the in-memory
+      // `budget` object's alert-month flag hadn't been updated yet when a
+      // second call read it.
+      List<dynamic> claimed;
+      try {
+        claimed = await _db
+            .from('wallet_budgets')
+            .update({column: currentMonth})
+            .eq('id', budget.id)
+            .or('$column.is.null,$column.neq.$currentMonth')
+            .select('id');
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'budget_alert_claim');
+        continue;
+      }
+      if (claimed.isEmpty) continue; // another concurrent call already claimed it
+
+      if (shouldAlert80)  budget.last80AlertMonth  = currentMonth;
+      if (shouldAlert100) budget.last100AlertMonth = currentMonth;
+
       // Send in-app notifications to family members
       if (familyId != null && memberUserIds.isNotEmpty) {
+        var anySucceeded = false;
         for (final userId in memberUserIds) {
           try {
             await _db.from('notifications').insert({
@@ -917,26 +943,25 @@ class WalletService {
               'tx_title':    alertMsg,
               'is_read':     false,
             });
+            anySucceeded = true;
           } catch (e, stack) {
             ErrorLogger.log(e, stackTrace: stack, action: 'budget_alert_notify');
           }
         }
-      }
-
-      // Update the alert month column so we don't repeat
-      try {
-        final updatePayload = <String, dynamic>{};
-        if (shouldAlert80)  updatePayload['last_80_alert_month']  = currentMonth;
-        if (shouldAlert100) updatePayload['last_100_alert_month'] = currentMonth;
-        await _db
-            .from('wallet_budgets')
-            .update(updatePayload)
-            .eq('id', budget.id);
-        // Reflect in local model so the caller's list stays accurate
-        if (shouldAlert80)  budget.last80AlertMonth  = currentMonth;
-        if (shouldAlert100) budget.last100AlertMonth = currentMonth;
-      } catch (e, stack) {
-        ErrorLogger.log(e, stackTrace: stack, action: 'budget_alert_update_month');
+        // Every member's insert failed — release the claim so a future
+        // expense in this category retries the alert instead of it being
+        // permanently silenced for the month. A partial success keeps the
+        // claim (re-sending to the members who already got it would spam
+        // them for no benefit to the ones who didn't).
+        if (!anySucceeded) {
+          try {
+            await _db.from('wallet_budgets').update({column: null}).eq('id', budget.id);
+            if (shouldAlert80)  budget.last80AlertMonth  = null;
+            if (shouldAlert100) budget.last100AlertMonth = null;
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'budget_alert_release_claim');
+          }
+        }
       }
     }
   }
