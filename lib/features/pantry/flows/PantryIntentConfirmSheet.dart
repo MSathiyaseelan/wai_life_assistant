@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'pantry_nlp_parser.dart';
@@ -680,6 +681,37 @@ class _PantryIntentConfirmSheetState extends State<PantryIntentConfirmSheet> {
     );
   }
 
+  /// If this intent came from Gemini, compares what the user actually saved
+  /// against what the AI originally returned and logs the diff to
+  /// `ai_parse_logs` so it can later inform prompt fixes and local-NLP
+  /// training. No-op for local-NLP intents (no parseLogId) or when nothing
+  /// the AI got wrong was changed.
+  void _maybeRecordCorrection(Map<String, dynamic> corrected) {
+    final parseLogId = widget.intent.parseLogId;
+    final original = widget.intent.aiRawData;
+    if (parseLogId == null || original == null) return;
+
+    final wasChanged = corrected.entries.any((e) {
+      if (!original.containsKey(e.key)) return false;
+      final before = original[e.key];
+      if (before is num && e.value is num) {
+        return before.toDouble() != (e.value as num).toDouble();
+      }
+      final beforeStr = before?.toString().trim();
+      final afterStr = e.value?.toString().trim();
+      return (beforeStr?.isEmpty ?? true ? null : beforeStr) !=
+          (afterStr?.isEmpty ?? true ? null : afterStr);
+    });
+
+    if (wasChanged) {
+      AIParser.recordCorrection(
+        parseLogId: parseLogId,
+        original: original,
+        corrected: corrected,
+      );
+    }
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
   void _save() {
     HapticFeedback.mediumImpact();
@@ -688,6 +720,10 @@ class _PantryIntentConfirmSheetState extends State<PantryIntentConfirmSheet> {
       case PantryIntentKind.meal:
         final name = _mealNameCtrl.text.trim();
         if (name.isEmpty) return;
+        _maybeRecordCorrection({
+          'meal_name': name,
+          'meal_time': _mealTime.name,
+        });
         widget.onSaveMeal(
           MealEntry(
             id: now.millisecondsSinceEpoch.toString(),
@@ -701,6 +737,7 @@ class _PantryIntentConfirmSheetState extends State<PantryIntentConfirmSheet> {
       case PantryIntentKind.recipe:
         final name = _recipeNameCtrl.text.trim();
         if (name.isEmpty) return;
+        _maybeRecordCorrection({'recipe_name': name});
         widget.onSaveRecipe(
           RecipeModel(
             id: now.millisecondsSinceEpoch.toString(),
@@ -714,6 +751,12 @@ class _PantryIntentConfirmSheetState extends State<PantryIntentConfirmSheet> {
       case PantryIntentKind.basket:
         final name = _itemNameCtrl.text.trim();
         if (name.isEmpty) return;
+        _maybeRecordCorrection({
+          'item_name': name,
+          'quantity': double.tryParse(_qtyCtrl.text) ?? 1,
+          'unit': _unitCtrl.text.trim().isEmpty ? 'pcs' : _unitCtrl.text.trim(),
+          'category': _groceryCat.name,
+        });
         widget.onSaveBasket(
           GroceryItem(
             id: now.millisecondsSinceEpoch.toString(),

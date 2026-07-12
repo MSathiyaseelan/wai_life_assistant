@@ -24,6 +24,13 @@ class ParsedIntent {
   final DateTime? date;
   final double confidence; // 0–1
 
+  /// `ai_parse_logs` row id, set only when this intent came from Gemini
+  /// (not the local NLP fallback). Used to write back corrections.
+  final String? parseLogId;
+  /// Raw fields Gemini returned, kept so the confirm sheet can diff the
+  /// user's final edits against what the AI originally said.
+  final Map<String, dynamic>? aiRawData;
+
   const ParsedIntent({
     required this.flowType,
     this.amount,
@@ -34,6 +41,8 @@ class ParsedIntent {
     this.note,
     this.date,
     required this.confidence,
+    this.parseLogId,
+    this.aiRawData,
   });
 }
 

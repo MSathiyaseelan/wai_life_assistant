@@ -241,7 +241,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       }
     }
 
-    final intent = _mapToIntent(result.data!);
+    final intent = _mapToIntent(result.data!, result.parseLogId);
 
     // Pop Spark sheet then show confirm sheet
     if (!mounted) return;
@@ -255,7 +255,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
     );
   }
 
-  ParsedIntent _mapToIntent(Map<String, dynamic> data) {
+  ParsedIntent _mapToIntent(Map<String, dynamic> data, String? parseLogId) {
     // flow type
     FlowType flowType;
     switch ((data['type'] as String? ?? '').toLowerCase()) {
@@ -287,6 +287,8 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       title: data['title'] as String?,
       note: data['note'] as String?,
       confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
+      parseLogId: parseLogId,
+      aiRawData: data,
     );
   }
 

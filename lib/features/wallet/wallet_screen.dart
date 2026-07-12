@@ -950,8 +950,8 @@ class _WalletScreenState extends State<WalletScreen>
         }
       }
       intent = isSplit
-          ? _splitResultToIntent(result.data!)
-          : _aiResultToIntent(result.data!);
+          ? _splitResultToIntent(result.data!, result.parseLogId)
+          : _aiResultToIntent(result.data!, result.parseLogId);
     } else {
       debugPrint(
         '⚠️ AI failed, falling back to NlpParser. Reason: ${result.error}',
@@ -970,7 +970,7 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   // Maps wallet/split AI response → ParsedIntent
-  ParsedIntent _splitResultToIntent(Map<String, dynamic> data) {
+  ParsedIntent _splitResultToIntent(Map<String, dynamic> data, String? parseLogId) {
     DateTime? date;
     final dateStr = data['date'] as String?;
     if (dateStr != null) date = DateTime.tryParse(dateStr);
@@ -983,10 +983,12 @@ class _WalletScreenState extends State<WalletScreen>
       note: data['title'] as String?,
       date: date,
       confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
+      parseLogId: parseLogId,
+      aiRawData: data,
     );
   }
 
-  ParsedIntent _aiResultToIntent(Map<String, dynamic> data) {
+  ParsedIntent _aiResultToIntent(Map<String, dynamic> data, String? parseLogId) {
     FlowType flowType;
     switch ((data['type'] as String? ?? '').toLowerCase()) {
       case 'income':
@@ -1021,6 +1023,8 @@ class _WalletScreenState extends State<WalletScreen>
       note: data['note'] as String?,
       date: date,
       confidence: (data['confidence'] as num?)?.toDouble() ?? 0.8,
+      parseLogId: parseLogId,
+      aiRawData: data,
     );
   }
 

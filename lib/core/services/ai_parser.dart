@@ -200,6 +200,28 @@ class AIParser {
     return 'Something went wrong. Please try again.';
   }
 
+  /// Writes back what the user actually kept after editing an AI-parsed
+  /// result, so `ai_parse_logs` can be mined for prompt-improvement and
+  /// local-NLP training data later. Fire-and-forget: correction tracking
+  /// must never block or fail a save.
+  static void recordCorrection({
+    required String parseLogId,
+    required Map<String, dynamic> original,
+    required Map<String, dynamic> corrected,
+  }) {
+    _supabase
+        .from('ai_parse_logs')
+        .update({
+          'was_corrected': true,
+          'correction': {'original': original, 'corrected': corrected},
+        })
+        .eq('id', parseLogId)
+        .then(
+          (_) {},
+          onError: (e) => debugPrint('[AIParser] recordCorrection failed: $e'),
+        );
+  }
+
   static String _getDayName(int weekday) {
     const days = [
       'Monday',
@@ -239,6 +261,10 @@ class AIParseResult {
   final bool needsReview;
   final String? error;
   final Map<String, dynamic>? meta;
+
+  /// The `ai_parse_logs` row id for this parse, if the server returned one.
+  /// Pass this to [AIParser.recordCorrection] when the user edits the result.
+  String? get parseLogId => meta?['parse_log_id'] as String?;
 
   AIParseResult({
     required this.success,

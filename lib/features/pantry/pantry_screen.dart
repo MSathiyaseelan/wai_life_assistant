@@ -605,7 +605,7 @@ class _PantryScreenState extends State<PantryScreen>
           return;
         }
         // Single item or meal/recipe
-        _handleParsedIntent(_mapAiResult(data), text);
+        _handleParsedIntent(_mapAiResult(data, result.parseLogId), text);
       } else {
         _handleParsedIntent(PantryNlpParser.parse(text), text);
       }
@@ -651,7 +651,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   /// Map edge-function JSON (single item or meal/recipe) to a [PantryIntent].
-  PantryIntent _mapAiResult(Map<String, dynamic> d) {
+  PantryIntent _mapAiResult(Map<String, dynamic> d, String? parseLogId) {
     // Infer kind from whichever signal is present:
     //   explicit 'kind' field  >  presence of meal fields  >  default basket
     final kindStr = d['kind'] as String? ??
@@ -686,6 +686,8 @@ class _PantryScreenState extends State<PantryScreen>
           mealTime: mt,
           mealDate: date,
           confidence: confidence,
+          parseLogId: parseLogId,
+          aiRawData: d,
         );
 
       case 'recipe':
@@ -693,6 +695,8 @@ class _PantryScreenState extends State<PantryScreen>
           kind: PantryIntentKind.recipe,
           recipeName: d['recipe_name'] as String?,
           confidence: confidence,
+          parseLogId: parseLogId,
+          aiRawData: d,
         );
 
       default: // 'basket' — single item
@@ -709,6 +713,8 @@ class _PantryScreenState extends State<PantryScreen>
           groceryCat: cat,
           confidence: confidence,
           addToStock: (d['action'] as String?) == 'add_stock',
+          parseLogId: parseLogId,
+          aiRawData: d,
         );
     }
   }

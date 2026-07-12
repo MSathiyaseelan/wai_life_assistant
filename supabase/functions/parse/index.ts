@@ -255,6 +255,40 @@ async function logParse(
   }).then(() => {}).catch(() => {});
 }
 
+// Same as logParse but awaits the insert and returns the new row's id, so the
+// caller can hand it back to the client for later correction write-back
+// (see ai_parse_logs.was_corrected / correction). Only used on the success
+// path — error logs don't need to be correctable.
+async function logParseAndGetId(
+  supabase: ReturnType<typeof createClient>,
+  userId: string | null,
+  req: ParseRequest,
+  promptId: string,
+  result: unknown,
+  tokensUsed: number,
+  latencyMs: number
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("ai_parse_logs")
+    .insert({
+      user_id:       userId,
+      feature:       req.feature,
+      sub_feature:   req.sub_feature,
+      input_type:    req.input_type,
+      prompt_id:     promptId,
+      raw_input:     req.text || (req.image_base64 ? "[image]" : null),
+      parsed_output: result || null,
+      confidence:    (result as Record<string, unknown>)?.confidence || null,
+      tokens_used:   tokensUsed,
+      latency_ms:    latencyMs,
+    })
+    .select("id")
+    .single();
+
+  if (error) return null;
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 // ── Main Handler ──────────────────────────────────────────────
 serve(async (req: Request) => {
 
@@ -408,8 +442,8 @@ serve(async (req: Request) => {
     return errorResponse("AI returned invalid JSON", 422);
   }
 
-  // ── Log successful parse
-  await logParse(
+  // ── Log successful parse (awaited so we can return its id for correction write-back)
+  const parseLogId = await logParseAndGetId(
     supabase, userId, body, promptRow.id,
     parsed, geminiResult.tokens, geminiResult.latencyMs
   );
@@ -427,6 +461,7 @@ serve(async (req: Request) => {
       tokens_used: geminiResult.tokens,
       latency_ms:  geminiResult.latencyMs,
       prompt_id:   promptRow.id,
+      parse_log_id: parseLogId,
       model,
     },
   });

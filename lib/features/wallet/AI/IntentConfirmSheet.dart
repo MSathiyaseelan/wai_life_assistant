@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -204,6 +205,8 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
         date:     _date,
       );
 
+      _maybeRecordCorrection(amount, category);
+
       if (!mounted) return;
       final saved = TxModel.fromRow(row);
       widget.onSave(saved);
@@ -217,6 +220,54 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
           content: Text('Failed to save: $e'),
           behavior: SnackBarBehavior.floating,
         ),
+      );
+    }
+  }
+
+  /// If this intent came from Gemini, compares what the user actually saved
+  /// against what the AI originally returned and logs the diff to
+  /// `ai_parse_logs` so it can later inform prompt fixes and local-NLP
+  /// training. No-op for local-NLP intents (no parseLogId) or when nothing
+  /// the AI got wrong was changed.
+  void _maybeRecordCorrection(double amount, String category) {
+    final parseLogId = widget.intent.parseLogId;
+    final original = widget.intent.aiRawData;
+    if (parseLogId == null || original == null) return;
+
+    final person = _personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim();
+    final title = _titleCtrl.text.trim().isEmpty ? null : _titleCtrl.text.trim();
+    final note = _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim();
+
+    // Only compare fields the AI actually returned for this prompt (expense
+    // vs split responses use different shapes) so the diff stays meaningful.
+    final corrected = <String, dynamic>{
+      if (original.containsKey('amount')) 'amount': amount,
+      if (original.containsKey('total_amount')) 'total_amount': amount,
+      if (original.containsKey('category')) 'category': category,
+      if (original.containsKey('type')) 'type': _flowType.txType.name,
+      if (original.containsKey('payment_mode')) 'payment_mode': _payMode?.name,
+      if (original.containsKey('person')) 'person': person,
+      if (original.containsKey('paid_by')) 'paid_by': person,
+      if (original.containsKey('title')) 'title': title,
+      if (original.containsKey('note')) 'note': note,
+    };
+
+    final wasChanged = corrected.entries.any((e) {
+      final before = original[e.key];
+      if (before is num && e.value is num) {
+        return before.toDouble() != (e.value as num).toDouble();
+      }
+      final beforeStr = before?.toString().trim();
+      final afterStr = e.value?.toString().trim();
+      return (beforeStr?.isEmpty ?? true ? null : beforeStr) !=
+          (afterStr?.isEmpty ?? true ? null : afterStr);
+    });
+
+    if (wasChanged) {
+      AIParser.recordCorrection(
+        parseLogId: parseLogId,
+        original: original,
+        corrected: corrected,
       );
     }
   }
