@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
@@ -30,6 +31,7 @@ import 'package:wai_life_assistant/features/dashboard/family_settings_section.da
 import 'package:wai_life_assistant/data/services/notification_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/notification_prefs_sheet.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/about_wai_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/report_issue_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_security_sheet.dart';
@@ -133,6 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   bool _wasOnline = true;
   int _unreadNotifCount = 0;
+  String _appVersion = '';
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
@@ -158,6 +161,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _loadPinnedGroups();
     _loadProfile();
     _loadUnreadCount();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _appVersion = 'v${info.version}');
+    });
     ShortcutService.pending.addListener(_onShortcut);
     if (ShortcutService.pending.value == ShortcutService.pasteBankSms) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _onShortcut());
@@ -309,8 +315,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ss(() {});
       }
     } catch (e, stack) {
-      debugPrint('[Dashboard] photo upload error: $e');
       ErrorLogger.log(e, stackTrace: stack, action: 'upload_profile_photo');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to upload photo')),
+        );
+      }
     }
   }
 
@@ -2892,9 +2902,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                               '${picked.year.toString().padLeft(4, "0")}-'
                                               '${picked.month.toString().padLeft(2, "0")}-'
                                               '${picked.day.toString().padLeft(2, "0")}';
+                                          final original = _userDob;
                                           setState(() => _userDob = iso);
                                           ss(() {});
-                                          ProfileService.instance.updateProfile(dob: iso);
+                                          try {
+                                            await ProfileService.instance.updateProfile(dob: iso);
+                                          } catch (e, stack) {
+                                            ErrorLogger.log(e, stackTrace: stack, action: 'save_profile_dob');
+                                            if (mounted) {
+                                              setState(() => _userDob = original);
+                                              ss(() {});
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Failed to save date of birth')),
+                                              );
+                                            }
+                                          }
                                         }
                                       },
                                       child: Container(
@@ -2966,13 +2988,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                         onPressed: () async {
                                           final name = nameCtrl.text.trim();
                                           if (name.isNotEmpty) {
+                                            final original = _userName;
                                             setState(() => _userName = name);
                                             try {
                                               await ProfileService.instance
                                                   .updateProfile(name: name);
                                             } catch (e, stack) {
-                                              debugPrint('[Dashboard] save: $e');
                                               ErrorLogger.log(e, stackTrace: stack, action: 'save_profile_name');
+                                              if (mounted) {
+                                                setState(() => _userName = original);
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  const SnackBar(content: Text('Failed to save name')),
+                                                );
+                                              }
                                             }
                                           }
                                           ss(() => profileExpanded = false);
@@ -3010,7 +3038,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         sRow(
                           emoji: '📱', bg: const Color(0xFFE0EEFF),
                           title: 'Change Phone Number', subtitle: 'OTP verification required',
-                          onTap: () {},
+                          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Change Phone Number — coming soon')),
+                          ),
                         ),
                       ]),
 
@@ -3022,36 +3052,48 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       const SizedBox(height: 24),
                       sToggleLabel('APPEARANCE', appearanceExpanded,
                           () => ss(() => appearanceExpanded = !appearanceExpanded)),
-                      if (appearanceExpanded) sCard([
-                        sRow(emoji: '🎨', bg: const Color(0xFFFFE0E0), title: 'Theme',
-                          subtitle: 'App colour scheme', value: themeLabel,
-                          onTap: _prefsTap(ctx, isDark, 'Theme')),
-                        sRow(emoji: '🌐', bg: const Color(0xFFE0EEFF), title: 'Language & Voice',
-                          subtitle: 'Input & speech language', value: 'English',
-                          onTap: _prefsTap(ctx, isDark, 'Language & Voice')),
-                        sRow(emoji: AppPrefs.cs, bg: const Color(0xFFE0F0FF), title: 'Currency',
-                          subtitle: 'Display currency', value: 'INR',
-                          onTap: _prefsTap(ctx, isDark, 'Currency')),
-                        sRow(emoji: '📅', bg: const Color(0xFFE0F8EC), title: 'Date & Time',
-                          subtitle: 'Format & timezone', value: 'DD/MM/YYYY',
-                          onTap: _prefsTap(ctx, isDark, 'Date & Time')),
-                      ]),
+                      if (appearanceExpanded) ListenableBuilder(
+                        listenable: AppPrefs.instance,
+                        builder: (_, _) => sCard([
+                          sRow(emoji: '🎨', bg: const Color(0xFFFFE0E0), title: 'Theme',
+                            subtitle: 'App colour scheme', value: themeLabel,
+                            onTap: _prefsTap(ctx, isDark, 'Theme')),
+                          sRow(emoji: '🌐', bg: const Color(0xFFE0EEFF), title: 'Language & Voice',
+                            subtitle: 'Input & speech language', value: AppPrefs.instance.appLanguageLabel,
+                            onTap: _prefsTap(ctx, isDark, 'Language & Voice')),
+                          sRow(emoji: AppPrefs.cs, bg: const Color(0xFFE0F0FF), title: 'Currency',
+                            subtitle: 'Display currency', value: AppPrefs.instance.currentCurrency.code,
+                            onTap: _prefsTap(ctx, isDark, 'Currency')),
+                          sRow(emoji: '📅', bg: const Color(0xFFE0F8EC), title: 'Date & Time',
+                            subtitle: 'Format & timezone',
+                            value: AppPrefs.dateFormats
+                                .firstWhere((f) => f.key == AppPrefs.instance.dateFormat,
+                                    orElse: () => AppPrefs.dateFormats.first)
+                                .label,
+                            onTap: _prefsTap(ctx, isDark, 'Date & Time')),
+                        ]),
+                      ),
 
                       // ── FEATURES ──────────────────────────────────────────
                       const SizedBox(height: 24),
                       sToggleLabel('FEATURES', featuresExpanded,
                           () => ss(() => featuresExpanded = !featuresExpanded)),
-                      if (featuresExpanded) sCard([
-                        sRow(emoji: '🏠', bg: const Color(0xFFFFEDD5), title: 'Default Scope',
-                          subtitle: 'Personal or Family on tab open', value: 'Per tab',
-                          onTap: _prefsTap(ctx, isDark, 'Default Scope')),
-                        sRow(emoji: '✦', bg: const Color(0xFFE8E0FF), title: 'AI Parser',
-                          subtitle: 'Receipt & SMS auto-fill behaviour', value: 'Always confirm',
-                          onTap: _prefsTap(ctx, isDark, 'AI Parser Settings')),
-                        sRow(emoji: '🔔', bg: const Color(0xFFE0F8EC), title: 'Notifications',
-                          subtitle: 'Alerts & reminders', value: 'On',
-                          onTap: _prefsTap(ctx, isDark, 'Notifications')),
-                      ]),
+                      if (featuresExpanded) ListenableBuilder(
+                        listenable: Listenable.merge([AppPrefs.instance, NotificationPrefs.instance]),
+                        builder: (_, _) => sCard([
+                          sRow(emoji: '🏠', bg: const Color(0xFFFFEDD5), title: 'Default Scope',
+                            subtitle: 'Personal or Family on tab open', value: 'Per tab',
+                            onTap: _prefsTap(ctx, isDark, 'Default Scope')),
+                          sRow(emoji: '✦', bg: const Color(0xFFE8E0FF), title: 'AI Parser',
+                            subtitle: 'Receipt & SMS auto-fill behaviour',
+                            value: AppPrefs.instance.aiAlwaysConfirm ? 'Always confirm' : 'Auto-fill',
+                            onTap: _prefsTap(ctx, isDark, 'AI Parser Settings')),
+                          sRow(emoji: '🔔', bg: const Color(0xFFE0F8EC), title: 'Notifications',
+                            subtitle: 'Alerts & reminders',
+                            value: NotificationPrefs.instance.masterOn ? 'On' : 'Off',
+                            onTap: _prefsTap(ctx, isDark, 'Notifications')),
+                        ]),
+                      ),
 
                       // ── PRIVACY & ABOUT ───────────────────────────────────
                       const SizedBox(height: 24),
@@ -3065,7 +3107,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           subtitle: 'Restore recently deleted items', value: '',
                           onTap: _prefsTap(ctx, isDark, 'Recycle Bin')),
                         sRow(emoji: 'ℹ️', bg: const Color(0xFFF0F0F0), title: 'About WAI',
-                          subtitle: 'Version, licences & credits', value: 'v1.0.0',
+                          subtitle: 'Version, licences & credits', value: _appVersion,
                           onTap: _prefsTap(ctx, isDark, 'About')),
                       ]),
 

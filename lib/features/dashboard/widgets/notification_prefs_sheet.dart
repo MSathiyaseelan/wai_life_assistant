@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/notification_prefs.dart';
+import 'package:wai_life_assistant/core/services/notification_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATION PREFERENCES SHEET
@@ -296,7 +297,13 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
             ),
             Switch.adaptive(
               value: _prefs.masterOn,
-              onChanged: (v) => setState(() => _prefs.masterOn = v),
+              onChanged: (v) {
+                setState(() => _prefs.masterOn = v);
+                // The pref alone doesn't guarantee the OS will actually
+                // deliver anything — request the platform permission so a
+                // switch shown "On" isn't silently blocked by the OS.
+                if (v) NotificationService.instance.requestPermissions();
+              },
               activeTrackColor: AppColors.primary,
             ),
           ],

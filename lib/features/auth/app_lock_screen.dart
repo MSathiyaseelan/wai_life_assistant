@@ -148,6 +148,18 @@ class _AppLockGuardState extends State<AppLockGuard>
                 );
               },
               onSwitchToPin: () => setState(() => _biometricFailed = true),
+              onResetLock: () {
+                // Last-resort escape hatch for a device stuck with biometric
+                // auth unavailable and no fallback PIN ever set — app lock is
+                // a local device preference, not account security, so
+                // disabling it here doesn't expose anything a Supabase
+                // session on this device didn't already have access to.
+                _prefs.appLockEnabled = false;
+                setState(() {
+                  _locked = false;
+                  _biometricFailed = false;
+                });
+              },
             ),
           ),
       ],
@@ -168,6 +180,7 @@ class _AppLockOverlay extends StatefulWidget {
   final VoidCallback onUnlocked;
   final VoidCallback onRetryBiometric;
   final VoidCallback onSwitchToPin;
+  final VoidCallback onResetLock;
 
   const _AppLockOverlay({
     required this.isDark,
@@ -178,6 +191,7 @@ class _AppLockOverlay extends StatefulWidget {
     required this.onUnlocked,
     required this.onRetryBiometric,
     required this.onSwitchToPin,
+    required this.onResetLock,
   });
 
   @override
@@ -218,6 +232,31 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
       _error = null;
       _pin = _pin.substring(0, _pin.length - 1);
     });
+  }
+
+  Future<void> _confirmResetLock(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Turn off App Lock?'),
+        content: const Text(
+          'Biometric authentication is unavailable on this device and no '
+          'fallback PIN was set. Turning off App Lock removes the unlock '
+          'requirement — you can re-enable it with a PIN from Settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Turn Off'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) widget.onResetLock();
   }
 
   Future<void> _checkPin() async {
@@ -361,6 +400,19 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
                     fontFamily: 'Nunito',
                     fontWeight: FontWeight.w800,
                     color: AppColors.primary,
+                  ),
+                ),
+              )
+              else if (widget.biometricFailed)
+              TextButton(
+                onPressed: () => _confirmResetLock(context),
+                child: Text(
+                  'Turn off App Lock',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w800,
+                    color: _sub,
                   ),
                 ),
               ),

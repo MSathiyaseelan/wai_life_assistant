@@ -69,7 +69,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
                             title: 'Enable App Lock',
                             subtitle: 'Require authentication to open the app',
                             value: _prefs.appLockEnabled,
-                            onChanged: (v) => setState(() => _prefs.appLockEnabled = v),
+                            onChanged: (v) => _onAppLockToggled(context, v),
                           ),
                           if (_prefs.appLockEnabled) ...[
                             _divider(),
@@ -362,6 +362,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
                     Icons.fingerprint_rounded,
                     'Biometric',
                     'Face ID / Fingerprint',
+                    onSelected: () => _ensurePinFallback(context),
                   ),
                   const SizedBox(height: 6),
                   _methodOption(
@@ -491,7 +492,47 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
 
   // ── PIN Setup / Change dialog ──────────────────────────────────────────────
 
-  void _showPinSetup(BuildContext context, {bool changeMode = false}) {
+  // Biometric-only app lock with no fallback PIN can permanently lock the
+  // user out if biometric auth ever fails or is unenrolled — require a PIN
+  // to exist before the lock can actually be armed.
+  Future<void> _onAppLockToggled(BuildContext context, bool enable) async {
+    if (!enable) {
+      setState(() => _prefs.appLockEnabled = false);
+      return;
+    }
+    if (_prefs.lockMethod == LockMethod.biometric && !await _prefs.hasPin()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Set a fallback PIN first, in case biometric auth is unavailable.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _showPinSetup(context, thenEnableLock: true);
+      return;
+    }
+    setState(() => _prefs.appLockEnabled = true);
+  }
+
+  /// Called when the user selects Biometric as the lock method while App
+  /// Lock is already enabled — same lockout risk as `_onAppLockToggled`.
+  Future<void> _ensurePinFallback(BuildContext context) async {
+    if (!_prefs.appLockEnabled || await _prefs.hasPin()) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Set a fallback PIN first, in case biometric auth is unavailable.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    _showPinSetup(context);
+  }
+
+  void _showPinSetup(
+    BuildContext context, {
+    bool changeMode = false,
+    bool thenEnableLock = false,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -500,6 +541,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
         isDark: widget.isDark,
         changeMode: changeMode,
         onSaved: () {
+          if (thenEnableLock) _prefs.appLockEnabled = true;
           if (mounted) setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '_prefs_sheet_base.dart';
 
 class DefaultScopeSheet extends StatefulWidget {
@@ -22,12 +23,23 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
     _p.init().then((_) { if (mounted) setState(() => _loading = false); });
   }
 
+  // The scope value itself is already durably saved on this device via
+  // AppPrefs/SharedPreferences the moment it's set — this call only syncs it
+  // to Supabase for other devices, so a failure here doesn't need a revert,
+  // just visibility that cross-device sync didn't happen.
   void _persist() {
     ProfileService.instance.updateDefaultScopes(
       walletScope: _p.walletScope,
       pantryScope: _p.pantryScope,
       planItScope: _p.planItScope,
-    ).catchError((e) => debugPrint('[DefaultScope] persist error: $e'));
+    ).catchError((e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'persist_default_scopes');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved on this device, but failed to sync to your account')),
+        );
+      }
+    });
   }
 
   @override

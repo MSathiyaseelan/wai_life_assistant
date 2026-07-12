@@ -94,6 +94,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     _deletePerm = f.permDelete;
   }
 
+  int _permSaveGen = 0;
+
   Future<void> _savePermission(
     String field,
     String dbValue,
@@ -104,8 +106,11 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     if (field == 'perm_invite') f.permInvite = dbValue;
     if (field == 'perm_edit')   f.permEdit   = dbValue;
     if (field == 'perm_delete') f.permDelete = dbValue;
-    // Persist to Supabase (admin-only via RLS)
-    if (_savingPerms) return;
+    // Always persist — never skip a change even if another save is already
+    // in flight, otherwise a rapid second toggle is silently dropped while
+    // the UI still shows it as active. `gen` ensures only the most recent
+    // call's outcome can revert local state or clear the saving flag.
+    final gen = ++_permSaveGen;
     setState(() => _savingPerms = true);
     try {
       await ProfileService.instance.updateFamilyPermissions(
@@ -116,19 +121,21 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       );
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'save_family_permission');
-      // Revert on failure
-      _syncPermsFromModel();
-      if (mounted) {
-        setState(() {});
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save permission. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      if (gen == _permSaveGen) {
+        // Revert on failure — only if no newer save has superseded this one.
+        _syncPermsFromModel();
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to save permission. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } finally {
-      if (mounted) setState(() => _savingPerms = false);
+      if (mounted && gen == _permSaveGen) setState(() => _savingPerms = false);
     }
   }
 
@@ -1533,6 +1540,13 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   }
 
   void _confirmLeaveFamily(BuildContext context, FamilyModel family) {
+    if (family.members.isEmpty) {
+      // Data-consistency edge case (member list not yet synced) — nothing
+      // to leave from and no safe fallback member to act as.
+      ErrorLogger.warning('confirmLeaveFamily called with empty member list',
+          action: 'confirm_leave_family_empty');
+      return;
+    }
     final uid = Supabase.instance.client.auth.currentUser?.id;
     final myMember = family.members.firstWhere(
       (m) => m.userId == uid,

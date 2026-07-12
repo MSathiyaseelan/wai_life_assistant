@@ -424,8 +424,9 @@ class _MyReportsTabState extends State<_MyReportsTab> {
     try {
       final r = await IssueReportService.instance.fetchMyReports();
       if (mounted) setState(() { _reports = r; _error = null; });
-    } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_my_reports');
+      if (mounted) setState(() => _error = 'Failed to load reports');
     }
   }
 
@@ -469,8 +470,17 @@ class _MyReportsTabState extends State<_MyReportsTab> {
           report: _reports![i],
           isDark: widget.isDark,
           onDelete: () async {
-            await IssueReportService.instance.deleteReport(_reports![i].id);
-            _load();
+            try {
+              await IssueReportService.instance.deleteReport(_reports![i].id);
+              _load();
+            } catch (e, stack) {
+              ErrorLogger.log(e, stackTrace: stack, action: 'delete_report');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Failed to delete report')),
+                );
+              }
+            }
           },
         ),
       ),

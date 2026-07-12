@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -82,12 +83,21 @@ class AboutWaiSheet extends StatelessWidget {
                       color: _tc,
                     )),
                 const SizedBox(height: 4),
-                Text('Version 1.0.0 (Build 1)',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'Nunito',
-                      color: _sub,
-                    )),
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (_, snap) {
+                    final info = snap.data;
+                    final label = info == null
+                        ? 'Version…'
+                        : 'Version ${info.version} (Build ${info.buildNumber})';
+                    return Text(label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'Nunito',
+                          color: _sub,
+                        ));
+                  },
+                ),
                 const SizedBox(height: 24),
               ],
             ),

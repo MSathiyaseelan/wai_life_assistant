@@ -79,19 +79,19 @@ const _kTables = [
   ('special_days',             'PlanIt',    ['title', 'type']),
 ];
 
-// Tables with no wallet_id column of their own — they're scoped to a wallet
-// only indirectly via a parent table (e.g. function_participants belongs to
-// a function row, meal_reactions belongs to a meal_entries row). Restoring
-// items from these still relies on RLS alone; properly scoping them would
-// require joining through their parent, which the recycle bin doesn't
-// currently do — cross-wallet mixing is possible here until that's added.
-const _kTablesWithoutWalletId = {
-  'family_members',
-  'function_participants',
-  'function_clothing_families',
-  'function_bridal_essentials',
-  'function_return_gifts',
-  'meal_reactions',
+// Tables with no wallet_id column of their own — scoped to a wallet only
+// indirectly via a parent table. (parentTable, parentWalletIdColumn) — the
+// join is expressed via Supabase's embedded-resource filter syntax
+// (`table!inner(col)` + `.eq('table.col', ...)`), which requires the FK
+// relationship to exist (it does, via REFERENCES on each of these).
+// `family_members` is a further hop (family_members -> families <- wallets)
+// and is resolved separately since embedded filters only support one hop.
+const _kParentJoins = {
+  'function_participants':      ('functions_my', 'wallet_id'),
+  'function_clothing_families': ('functions_my', 'wallet_id'),
+  'function_bridal_essentials': ('functions_my', 'wallet_id'),
+  'function_return_gifts':      ('functions_my', 'wallet_id'),
+  'meal_reactions':              ('meal_entries', 'wallet_id'),
 };
 
 class _RecycleBinSheetState extends State<RecycleBinSheet> {
@@ -123,16 +123,34 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
     final cutoff = DateTime.now().toUtc().subtract(Duration(days: retentionDays)).toIso8601String();
     final all = <_RecycleBinItem>[];
 
+    // family_members is a further hop (family_members -> families <- wallets)
+    // than the single-hop embedded filter below supports — resolve this
+    // wallet's family_id once so it isn't visible from unrelated wallets.
+    String? familyId;
+    try {
+      final w = await _db.from('wallets').select('family_id').eq('id', widget.walletId).maybeSingle();
+      familyId = w?['family_id'] as String?;
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'recycle_bin_resolve_family');
+    }
+
     await Future.wait(_kTables.map((entry) async {
       final (table, category, nameCols) = entry;
+      if (table == 'family_members' && familyId == null) {
+        return; // Personal wallet — no family_members to show.
+      }
       try {
         final cols = {'id', 'deleted_at', ...nameCols}.join(',');
-        var query = _db
-            .from(table)
-            .select(cols)
-            .not('deleted_at', 'is', null)
-            .gt('deleted_at', cutoff);
-        if (!_kTablesWithoutWalletId.contains(table)) {
+        final parentJoin = _kParentJoins[table];
+        var query = parentJoin != null
+            ? _db.from(table).select('$cols, ${parentJoin.$1}!inner(${parentJoin.$2})')
+            : _db.from(table).select(cols);
+        query = query.not('deleted_at', 'is', null).gt('deleted_at', cutoff);
+        if (table == 'family_members') {
+          query = query.eq('family_id', familyId!);
+        } else if (parentJoin != null) {
+          query = query.eq('${parentJoin.$1}.${parentJoin.$2}', widget.walletId);
+        } else {
           query = query.eq('wallet_id', widget.walletId);
         }
         final rows = await query
