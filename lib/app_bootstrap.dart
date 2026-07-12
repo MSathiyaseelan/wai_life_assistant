@@ -16,9 +16,7 @@ import 'firebase_options.dart';
 import 'main.dart';
 import 'core/env/env.dart';
 import 'package:provider/provider.dart';
-import 'features/planit/ToDo/todoController.dart';
 import 'features/pantry/groceries/grocerycontroller.dart';
-import 'features/planit/specialDay/specialDaysController.dart';
 import 'package:wai_life_assistant/features/lifestyle/widgets/lifestyle_controller.dart';
 
 Future<void> bootstrapApp(String env) async {
@@ -78,9 +76,7 @@ Future<void> bootstrapApp(String env) async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => TodoController()),
         ChangeNotifierProvider(create: (_) => GroceryController()),
-        ChangeNotifierProvider(create: (_) => SpecialDaysController()),
         ChangeNotifierProvider(create: (_) => LifestyleController()),
         // add more controllers when needed
       ],

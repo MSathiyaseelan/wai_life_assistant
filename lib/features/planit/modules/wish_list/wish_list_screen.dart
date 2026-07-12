@@ -105,9 +105,14 @@ class _WishListScreenState extends State<WishListScreen>
           widget.wishes..clear()..addAll(loaded);
           _loading = false;
         });
-      } catch (e) {
-        debugPrint('[WishList] personal load error: $e');
-        if (mounted) setState(() => _loading = false);
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'wish_load');
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load wishes')),
+          );
+        }
       }
       return;
     }
@@ -123,9 +128,14 @@ class _WishListScreenState extends State<WishListScreen>
           ..addAll(loaded);
         _loading = false;
       });
-    } catch (e) {
-      debugPrint('[WishList] load error: $e');
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'wish_load');
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load wishes')),
+        );
+      }
     }
   }
 
@@ -134,9 +144,13 @@ class _WishListScreenState extends State<WishListScreen>
       final row = await WishService.instance.addWish(w.toRow());
       final saved = WishModel.fromRow(row);
       if (mounted) setState(() => _wishes.add(saved));
-    } catch (e) {
-      debugPrint('[WishList] add error: $e');
-      if (mounted) setState(() => _wishes.add(w));
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'wish_add');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save wish')),
+        );
+      }
     }
   }
 
@@ -180,9 +194,19 @@ class _WishListScreenState extends State<WishListScreen>
     }
   }
 
+  Future<void> _persistPurchasedToggle(WishModel w, bool revertTo) async {
+    try {
+      await WishService.instance.updateWish(w.id, w.toRow());
+    } catch (e) {
+      ErrorLogger.log(e, action: 'wish_toggle_purchased');
+      if (mounted) setState(() => w.purchased = revertTo);
+    }
+  }
+
   void _togglePurchased(WishModel w) {
     final prev = w.purchased;
     setState(() => w.purchased = !w.purchased);
+    _persistPurchasedToggle(w, prev);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -200,7 +224,10 @@ class _WishListScreenState extends State<WishListScreen>
         action: SnackBarAction(
           label: 'Undo',
           textColor: Colors.white,
-          onPressed: () => setState(() => w.purchased = prev),
+          onPressed: () {
+            setState(() => w.purchased = prev);
+            _persistPurchasedToggle(w, !prev);
+          },
         ),
       ),
     );
@@ -208,7 +235,9 @@ class _WishListScreenState extends State<WishListScreen>
 
   /// Toggle purchased without closing the sheet — sheet updates in-place.
   void _togglePurchasedInSheet(WishModel w, BuildContext sheetCtx) {
+    final prev = w.purchased;
     w.purchased = !w.purchased;
+    _persistPurchasedToggle(w, prev);
   }
 
   @override

@@ -120,8 +120,14 @@ class _AlertMeScreenState extends State<AlertMeScreen>
           _loading = false;
         });
         NotificationService.instance.rescheduleAll(loaded);
-      } catch (_) {
-        if (mounted) setState(() => _loading = false);
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'reminder_load');
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load reminders')),
+          );
+        }
       }
       return;
     }
@@ -139,8 +145,14 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       });
       // Reschedule all active reminders on load
       NotificationService.instance.rescheduleAll(loaded);
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'reminder_load');
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load reminders')),
+        );
+      }
     }
   }
 
@@ -162,9 +174,13 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       final saved = ReminderModel.fromRow(row);
       if (mounted) setState(() => _reminders.add(saved));
       NotificationService.instance.schedule(saved);
-    } catch (_) {
-      if (mounted) setState(() => _reminders.add(r));
-      NotificationService.instance.schedule(r);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'reminder_add');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save reminder')),
+        );
+      }
     }
   }
 
@@ -2540,10 +2556,14 @@ class _NlpParser {
     }
 
     // ── Time ─────────────────────────────────────────────────────────────
+    // Prefer unambiguous time markers ("at 10am", "10:30", "10am") over a
+    // bare digit run, which would otherwise grab a date-related number first
+    // (e.g. the "5" in "on the 5th at 10am" instead of the actual "10am").
     TimeOfDay time = const TimeOfDay(hour: 9, minute: 0);
-    final tMatch = RegExp(
-      r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?',
-    ).firstMatch(lower);
+    final tMatch = RegExp(r'\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b').firstMatch(lower) ??
+        RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b').firstMatch(lower) ??
+        RegExp(r'(\d{1,2}):(\d{2})\s*(am|pm)?').firstMatch(lower) ??
+        RegExp(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?').firstMatch(lower);
     if (tMatch != null) {
       int h = int.parse(tMatch.group(1)!);
       final min = int.tryParse(tMatch.group(2) ?? '0') ?? 0;

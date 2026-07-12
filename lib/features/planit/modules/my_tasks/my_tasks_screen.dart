@@ -109,9 +109,14 @@ class _MyTasksScreenState extends State<MyTasksScreen>
           widget.tasks..clear()..addAll(loaded);
           _loading = false;
         });
-      } catch (e) {
-        debugPrint('[MyTasks] personal load error: $e');
-        if (mounted) setState(() => _loading = false);
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'task_load');
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load tasks')),
+          );
+        }
       }
       return;
     }
@@ -128,9 +133,14 @@ class _MyTasksScreenState extends State<MyTasksScreen>
           ..addAll(loaded);
         _loading = false;
       });
-    } catch (e) {
-      debugPrint('[MyTasks] load error: $e');
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'task_load');
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load tasks')),
+        );
+      }
     }
   }
 
@@ -140,9 +150,13 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       final row = await TaskService.instance.addTask(t.toRow());
       final saved = TaskModel.fromRow(row);
       if (mounted) setState(() => _tasks.add(saved));
-    } catch (e) {
-      debugPrint('[MyTasks] add error: $e');
-      if (mounted) setState(() => _tasks.add(t));
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'task_add');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save task')),
+        );
+      }
     }
   }
 
@@ -182,10 +196,13 @@ class _MyTasksScreenState extends State<MyTasksScreen>
 
   Future<void> _toggleSubtask(SubTask st) async {
     setState(() => st.done = !st.done);
-    final parent = _tasks.firstWhere(
-      (t) => t.subtasks.any((s) => s.id == st.id),
-      orElse: () => _tasks.first,
-    );
+    final parentIdx = _tasks.indexWhere((t) => t.subtasks.any((s) => s.id == st.id));
+    if (parentIdx < 0) {
+      // No task owns this subtask (stale reference) — nothing to persist.
+      if (mounted) setState(() => st.done = !st.done);
+      return;
+    }
+    final parent = _tasks[parentIdx];
     try {
       await TaskService.instance.updateTask(parent.id, {
         'subtasks': parent.subtasks.map((s) => s.toMap()).toList(),

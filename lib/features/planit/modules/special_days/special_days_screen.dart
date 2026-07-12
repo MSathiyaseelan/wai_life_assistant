@@ -380,9 +380,14 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
           widget.days..clear()..addAll(loaded);
           _loading = false;
         });
-      } catch (e) {
-        debugPrint('[SpecialDays] personal load error: $e');
-        if (mounted) setState(() => _loading = false);
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'special_day_load');
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load special days')),
+          );
+        }
       }
       return;
     }
@@ -398,9 +403,14 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
           ..addAll(loaded);
         _loading = false;
       });
-    } catch (e) {
-      debugPrint('[SpecialDays] load error: $e');
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'special_day_load');
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load special days')),
+        );
+      }
     }
   }
 
@@ -409,9 +419,13 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       final row = await SpecialDayService.instance.addDay(d.toRow());
       final saved = SpecialDayModel.fromRow(row);
       if (mounted) setState(() => _days.add(saved));
-    } catch (e) {
-      debugPrint('[SpecialDays] add error: $e');
-      if (mounted) setState(() => _days.add(d));
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'special_day_add');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save special day')),
+        );
+      }
     }
   }
 

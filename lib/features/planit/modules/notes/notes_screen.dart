@@ -243,9 +243,14 @@ class _NotesScreenState extends State<NotesScreen> {
           _notes = loaded;
           _loading = false;
         });
-      } catch (e) {
-        debugPrint('[Notes] personal load error: $e');
-        if (mounted) setState(() => _loading = false);
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'note_load');
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load notes')),
+          );
+        }
       }
       return;
     }
@@ -259,17 +264,22 @@ class _NotesScreenState extends State<NotesScreen> {
         _notes = loaded;
         _loading = false;
       });
-    } catch (e) {
-      debugPrint('[Notes] load error: $e');
-      if (mounted) setState(() => _loading = false);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'note_load');
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load notes')),
+        );
+      }
     }
   }
 
   Future<void> _saveNote(NoteModel note, {bool isNew = false}) async {
-    try {
-      if (isNew || note.id.isEmpty) {
-        // note.id.isEmpty guards against a broken local note (e.g. from a
-        // prior failed save) being re-submitted as an update.
+    if (isNew || note.id.isEmpty) {
+      // note.id.isEmpty guards against a broken local note (e.g. from a
+      // prior failed save) being re-submitted as an update.
+      try {
         final row = await NoteService.instance.addNote(note.toRow());
         final saved = NoteModel.fromRow(row);
         if (mounted) {
@@ -283,17 +293,31 @@ class _NotesScreenState extends State<NotesScreen> {
             }
           });
         }
-      } else {
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'note_add');
         if (mounted) {
-          setState(() {
-            final i = _notes.indexWhere((n) => n.id == note.id);
-            if (i >= 0) _notes[i] = note;
-          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save note')),
+          );
         }
-        await NoteService.instance.updateNote(note.id, note.toRow());
       }
-    } catch (e) {
-      debugPrint('[Notes] save error: $e');
+    } else {
+      final idx = _notes.indexWhere((n) => n.id == note.id);
+      final original = idx >= 0 ? _notes[idx] : null;
+      setState(() { if (idx >= 0) _notes[idx] = note; });
+      try {
+        await NoteService.instance.updateNote(note.id, note.toRow());
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'note_update');
+        if (mounted && idx >= 0 && original != null) {
+          setState(() => _notes[idx] = original);
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to save note')),
+          );
+        }
+      }
     }
   }
 
