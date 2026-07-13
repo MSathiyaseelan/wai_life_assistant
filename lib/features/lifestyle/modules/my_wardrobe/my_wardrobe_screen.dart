@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
@@ -3027,12 +3028,12 @@ class _WardrobePhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (_isNetwork) {
-      return Image.network(
-        path,
+      return CachedNetworkImage(
+        imageUrl: path,
         width: width,
         height: height,
         fit: fit,
-        errorBuilder: (_, e, stack) => Container(
+        errorWidget: (_, e, stack) => Container(
           width: width,
           height: height,
           color: _wardrobeColor.withValues(alpha: 0.08),

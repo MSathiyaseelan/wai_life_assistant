@@ -173,7 +173,10 @@ class _WalletScreenState extends State<WalletScreen>
     }
   }
 
-  Future<void> _loadBudgets() async {
+  /// Budgets rarely change mid-session, so this is a no-op if we already
+  /// have this wallet's budgets cached — pass [force] after an edit (e.g.
+  /// the budget sheet closing) to guarantee a fresh fetch.
+  Future<void> _loadBudgets({bool force = false}) async {
     final walletId = _appState.activeWalletId.isNotEmpty &&
             _appState.activeWalletId != 'personal'
         ? _appState.activeWalletId
@@ -183,6 +186,7 @@ class _WalletScreenState extends State<WalletScreen>
         walletId == 'personal') {
       return;
     }
+    if (!force && _budgetsMap.containsKey(walletId)) return;
     try {
       final budgets = await WalletService.instance.fetchBudgets(walletId);
       final spent = WalletService.computeMonthlySpent(_transactions);
@@ -604,9 +608,11 @@ class _WalletScreenState extends State<WalletScreen>
       if (groupOverride != null) {
         await _assignTxToGroup(saved, groupOverride);
       }
-      // Reload wallet so the card reflects updated balance
-      await AppStateScope.of(context).reload();
       if (!mounted) return;
+      // Note: no AppState reload here — the wallet card's balance is computed
+      // client-side from _transactions (see _periodStats), not from
+      // AppState.wallets, so a full wallets/families/members refetch would be
+      // pure overhead on every save.
       // Check budget thresholds whenever an expense is saved
       if (saved.type == TxType.expense) {
         _checkBudgetsAfterExpense(saved.walletId);
@@ -704,8 +710,10 @@ class _WalletScreenState extends State<WalletScreen>
         dueDate: tx.dueDate,
         date: tx.date,
       );
+      // txChangeSignal notifies other screens (e.g. Dashboard) to refresh
+      // their own transaction lists — no AppState reload needed here, see
+      // note in _persistTransaction.
       WalletService.txChangeSignal.value++;
-      if (mounted) await AppStateScope.of(context).reload();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2151,7 +2159,8 @@ class _WalletScreenState extends State<WalletScreen>
                         .where((t) => t.walletId == wallets[0].id)
                         .toList(),
                     isDark: isDark,
-                  ).then((_) => _loadBudgets()),
+                    initialBudgets: _budgetsMap[wallets[0].id],
+                  ).then((_) => _loadBudgets(force: true)),
                   onReports: () => WalletReportsSheet.show(
                     context,
                     transactions: _transactions
@@ -2201,7 +2210,8 @@ class _WalletScreenState extends State<WalletScreen>
                             .where((t) => t.walletId == wallets[i].id)
                             .toList(),
                         isDark: isDark,
-                      ).then((_) => _loadBudgets()),
+                        initialBudgets: _budgetsMap[wallets[i].id],
+                      ).then((_) => _loadBudgets(force: true)),
                       onReports: () => WalletReportsSheet.show(
                         context,
                         transactions: _transactions

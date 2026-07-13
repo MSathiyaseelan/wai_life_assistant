@@ -908,14 +908,14 @@ class _MedicationsTab extends StatelessWidget {
                     try {
                       await HealthService.instance.deleteMedication(m.id);
                       onDelete(m.id);
-                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_med'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete medication'))); }
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_med'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete medication'))); }
                   },
                   onEdit: () => _showMedSheet(context, existing: m),
                   onToggle: () async {
                     try {
                       await HealthService.instance.updateMedication(m.id, {'is_active': false});
                       onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, scheduleTimes: m.scheduleTimes, mealTiming: m.mealTiming, notes: m.notes, isActive: false, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
-                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_deactivate_med'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update medication'))); }
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_deactivate_med'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update medication'))); }
                   })),
               ],
               if (past.isNotEmpty) ...[
@@ -926,14 +926,14 @@ class _MedicationsTab extends StatelessWidget {
                     try {
                       await HealthService.instance.deleteMedication(m.id);
                       onDelete(m.id);
-                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_med'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete medication'))); }
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_med'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete medication'))); }
                   },
                   onEdit: () => _showMedSheet(context, existing: m),
                   onToggle: () async {
                     try {
                       await HealthService.instance.updateMedication(m.id, {'is_active': true});
                       onToggle(Medication(id: m.id, walletId: m.walletId, memberId: m.memberId, name: m.name, dosage: m.dosage, frequency: m.frequency, scheduleTimes: m.scheduleTimes, mealTiming: m.mealTiming, notes: m.notes, isActive: true, startDate: m.startDate, endDate: m.endDate, refillDate: m.refillDate));
-                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_activate_med'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update medication'))); }
+                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_activate_med'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update medication'))); }
                   })),
               ],
             ]),
@@ -1515,7 +1515,9 @@ class _DoctorsTab extends StatelessWidget {
                       onDelete(d.id);
                     } catch (e, stack) {
                       ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_doctor');
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete doctor')));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete doctor')));
+                      }
                     }
                   },
                   child: Container(
@@ -1790,7 +1792,7 @@ class _DocumentsTab extends StatelessWidget {
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   confirmDismiss: (_) => confirmDelete(context),
                   onDismissed: (_) async {
-                    try { await HealthService.instance.deleteDocument(d.id, d.fileUrls); onDelete(d.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_doc'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete document'))); }
+                    try { await HealthService.instance.deleteDocument(d.id, d.fileUrls); onDelete(d.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_doc'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete document'))); }
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -2107,14 +2109,14 @@ class _AppointmentsTab extends StatelessWidget {
               if (upcoming.isNotEmpty) ...[
                 const LifeLabel(text: 'UPCOMING'),
                 ...upcoming.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark,
-                  onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_appt'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete appointment'))); } },
+                  onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_appt'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete appointment'))); } },
                   onEdit: () => _showSheet(context, existing: a))),
               ],
               if (past.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const LifeLabel(text: 'PAST'),
                 ...past.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark,
-                  onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_appt'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete appointment'))); } },
+                  onDelete: () async { try { await HealthService.instance.deleteAppointment(a.id); onDelete(a.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_appt'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete appointment'))); } },
                   onEdit: () => _showSheet(context, existing: a))),
               ],
             ]),
@@ -2414,7 +2416,7 @@ class _VitalsTabState extends State<_VitalsTab> {
                       direction: DismissDirection.endToStart,
                       background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                       confirmDismiss: (_) => confirmDelete(context),
-                      onDismissed: (_) async { try { await HealthService.instance.deleteVital(v.id); widget.onDelete(v.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_vital'); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vital'))); } },
+                      onDismissed: (_) async { try { await HealthService.instance.deleteVital(v.id); widget.onDelete(v.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_vital'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vital'))); } },
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: _healthColor.withValues(alpha: 0.18))),
@@ -2628,9 +2630,9 @@ class _VaccinesTab extends StatelessWidget {
       body: vaccinations.isEmpty
           ? const LifeEmptyState(emoji: '💉', title: 'No vaccinations', subtitle: 'Track vaccines and due dates')
           : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
-              if (overdue.isNotEmpty) ...[const LifeLabel(text: '⚠️ OVERDUE'), ...overdue.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.red, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
-              if (dueSoon.isNotEmpty) ...[if (overdue.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: '🔔 DUE SOON'), ...dueSoon.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.orange, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
-              if (rest.isNotEmpty) ...[if (overdue.isNotEmpty || dueSoon.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: 'COMPLETED'), ...rest.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: _healthColor, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
+              if (overdue.isNotEmpty) ...[const LifeLabel(text: '⚠️ OVERDUE'), ...overdue.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.red, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
+              if (dueSoon.isNotEmpty) ...[if (overdue.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: '🔔 DUE SOON'), ...dueSoon.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.orange, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
+              if (rest.isNotEmpty) ...[if (overdue.isNotEmpty || dueSoon.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: 'COMPLETED'), ...rest.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: _healthColor, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
             ]),
     );
   }
@@ -2860,7 +2862,7 @@ class _InsuranceTab extends StatelessWidget {
                   direction: DismissDirection.endToStart,
                   background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.delete_rounded, color: Colors.red)),
                   confirmDismiss: (_) => confirmDelete(context),
-                  onDismissed: (_) async { try { await HealthService.instance.deleteInsurance(p.id); onDelete(p.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_insurance'); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete insurance policy'))); } },
+                  onDismissed: (_) async { try { await HealthService.instance.deleteInsurance(p.id); onDelete(p.id); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_delete_insurance'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete insurance policy'))); } },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16), border: Border.all(color: accent.withValues(alpha: 0.25))),

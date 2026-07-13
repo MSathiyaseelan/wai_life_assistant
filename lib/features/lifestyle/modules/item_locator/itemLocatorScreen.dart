@@ -259,6 +259,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
               ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_delete_item');
               if (!mounted) return;
               setState(() => _items.insert(0, item));
+              if (!ctx.mounted) return;
               ScaffoldMessenger.of(ctx).showSnackBar(
                 const SnackBar(content: Text('Failed to delete item')),
               );

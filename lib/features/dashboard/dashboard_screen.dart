@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../../../core/theme/app_theme.dart';
@@ -2442,6 +2443,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
 
     if (!confirmed) return;
+    if (!sheetCtx.mounted) return;
 
     showDialog(
       context: sheetCtx,
@@ -2661,7 +2663,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                               ? Text(_initials(_userName),
                                                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
                                                     color: AppColors.primary, fontFamily: 'Nunito'))
-                                              : ClipOval(child: Image.network(_userPhotoUrl,
+                                              : ClipOval(child: CachedNetworkImage(imageUrl: _userPhotoUrl,
                                                   width: 56, height: 56, fit: BoxFit.cover)),
                                           ),
                                           Positioned(
@@ -2755,8 +2757,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                                         ),
                                                       )
                                                     : ClipOval(
-                                                        child: Image.network(
-                                                          _userPhotoUrl,
+                                                        child: CachedNetworkImage(
+                                                          imageUrl: _userPhotoUrl,
                                                           width: 54,
                                                           height: 54,
                                                           fit: BoxFit.cover,

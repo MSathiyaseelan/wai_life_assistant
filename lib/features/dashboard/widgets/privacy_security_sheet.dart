@@ -501,7 +501,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
       return;
     }
     if (_prefs.lockMethod == LockMethod.biometric && !await _prefs.hasPin()) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Set a fallback PIN first, in case biometric auth is unavailable.'),
@@ -518,7 +518,7 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
   /// Lock is already enabled — same lockout risk as `_onAppLockToggled`.
   Future<void> _ensurePinFallback(BuildContext context) async {
     if (!_prefs.appLockEnabled || await _prefs.hasPin()) return;
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Set a fallback PIN first, in case biometric auth is unavailable.'),

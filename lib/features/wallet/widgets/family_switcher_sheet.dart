@@ -661,7 +661,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                               }
                             } catch (e, stack) {
                               ErrorLogger.log(e, stackTrace: stack, action: 'family_pick_group_photo');
-                              if (mounted) {
+                              if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Failed to pick photo')),
                                 );
@@ -687,7 +687,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                               }
                             } catch (e, stack) {
                               ErrorLogger.log(e, stackTrace: stack, action: 'family_pick_group_photo');
-                              if (mounted) {
+                              if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Failed to pick photo')),
                                 );
@@ -1181,6 +1181,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
 
         if (mounted) {
           await widget.appState.reload();
+          if (!mounted) return;
           _showPhotoErrors(photoErrors);
           // onSelect expects a wallet ID, not a family ID
           Navigator.pop(context, result['wallet_id'] as String?);

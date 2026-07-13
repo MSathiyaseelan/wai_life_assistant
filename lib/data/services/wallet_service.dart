@@ -42,6 +42,7 @@ class WalletService {
   List<String> _customExpense = [];
   List<String> _customIncome = [];
   List<String> _customTransfer = [];
+  bool _categoriesLoaded = false;
 
   /// Strip emoji/punctuation, collapse whitespace, lowercase. Mirrors the
   /// SQL backfill in 088_normalize_tx_categories.sql — used to match
@@ -117,7 +118,10 @@ class WalletService {
   /// Load user-saved categories from DB into cache.
   /// On first use (empty table for this user), seeds all defaults so the DB
   /// becomes the source of truth immediately.
-  Future<void> loadCategories() async {
+  /// Categories rarely change mid-session, so subsequent calls are a no-op
+  /// unless [forceReload] is set — pass true after switching accounts.
+  Future<void> loadCategories({bool forceReload = false}) async {
+    if (_categoriesLoaded && !forceReload) return;
     try {
       final rows = await _db
           .from('user_tx_categories')
@@ -136,6 +140,7 @@ class WalletService {
         _customExpense = List.from(defaultExpenseCategories);
         _customIncome = List.from(defaultIncomeCategories);
         _customTransfer = List.from(defaultTransferCategories);
+        _categoriesLoaded = true;
         return;
       }
 
@@ -151,6 +156,7 @@ class WalletService {
           .where((r) => r['tx_type'] == 'transfer')
           .map((r) => r['name'] as String)
           .toList();
+      _categoriesLoaded = true;
     } catch (e, stack) {
       debugPrint('[WalletService] loadCategories error: $e');
       ErrorLogger.log(e, stackTrace: stack, action: 'load_tx_categories');

@@ -421,6 +421,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                 ErrorLogger.log(e, stackTrace: stack, action: 'delete_upcoming_function');
                                 if (!mounted) return;
                                 setState(() => _upcoming.add(item));
+                                if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text('Failed to delete function')),
                                 );
@@ -569,6 +570,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                               ErrorLogger.log(e, stackTrace: stack, action: 'delete_past_upcoming_function');
                                               if (!mounted) return;
                                               setState(() => _upcoming.add(item));
+                                              if (!context.mounted) return;
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 const SnackBar(content: Text('Failed to delete function')),
                                               );
@@ -600,6 +602,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                               ErrorLogger.log(e, stackTrace: stack, action: 'delete_attended_function');
                                               if (!mounted) return;
                                               setState(() => _attended.add(item));
+                                              if (!context.mounted) return;
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 const SnackBar(content: Text('Failed to delete function')),
                                               );
@@ -642,6 +645,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       ErrorLogger.log(e, stackTrace: stack, action: 'delete_my_function');
                       if (!mounted) return;
                       setState(() => _functions.add(fn));
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Failed to delete function')),
                       );
@@ -1085,7 +1089,9 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                             FunctionsService.instance.deleteAttended(item.id)
                                 .catchError((e) => debugPrint('[Functions] deleteAttended failed: $e'));
                           })
-                          .catchError((e) => debugPrint('[Functions] addUpcoming failed: $e'));
+                          .catchError((e) {
+                            debugPrint('[Functions] addUpcoming failed: $e');
+                          });
                     } else {
                       await FunctionsService.instance.updateAttended(
                         item.id,

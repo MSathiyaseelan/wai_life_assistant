@@ -1287,9 +1287,13 @@ class _VoteCard extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     const color = Color(0xFF4A9EFF);
     final total = vote.tally.values.fold(0, (s, v) => s + v);
+    // tally is keyed by stringified option index ("0", "1", ...) — see TripVote.tally.
     final winner = vote.tally.isEmpty
         ? -1
-        : vote.tally.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+        : int.tryParse(
+                vote.tally.entries.reduce((a, b) => a.value >= b.value ? a : b).key,
+              ) ??
+              -1;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1312,7 +1316,7 @@ class _VoteCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ...vote.options.asMap().entries.map((e) {
-            final count = vote.tally[e.key] ?? 0;
+            final count = vote.tally[e.key.toString()] ?? 0;
             final pct = total > 0 ? count / total : 0.0;
             final isWin = e.key == winner && total > 0;
             return Padding(

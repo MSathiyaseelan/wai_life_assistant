@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -547,8 +548,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                           child: family.photoPath != null &&
                                   family.photoPath!.isNotEmpty
                               ? ClipOval(
-                                  child: Image.network(
-                                    family.photoPath!,
+                                  child: CachedNetworkImage(
+                                    imageUrl: family.photoPath!,
                                     width: 52,
                                     height: 52,
                                     fit: BoxFit.cover,
@@ -886,7 +887,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
               alignment: Alignment.center,
               child: m.photoPath != null && m.photoPath!.isNotEmpty
                   ? ClipOval(
-                      child: Image.network(m.photoPath!,
+                      child: CachedNetworkImage(imageUrl: m.photoPath!,
                           width: 36, height: 36, fit: BoxFit.cover),
                     )
                   : Text(m.emoji,

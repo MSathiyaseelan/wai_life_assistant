@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -2773,12 +2774,12 @@ class _ShareRow extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: share.proofImagePath!.startsWith('http')
-                      ? Image.network(
-                          share.proofImagePath!,
+                      ? CachedNetworkImage(
+                          imageUrl: share.proofImagePath!,
                           height: 110,
                           width: double.infinity,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                          errorWidget: (_, __, ___) => Container(
                             height: 110,
                             color: const Color(0xFF2196F3).withValues(alpha: 0.07),
                             alignment: Alignment.center,
@@ -4482,7 +4483,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
                           ),
                           lastDate: DateTime.now(),
                         );
-                        if (date == null || !mounted) return;
+                        if (date == null || !context.mounted) return;
                         final time = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay.fromDateTime(_expenseDate),

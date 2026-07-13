@@ -16,12 +16,17 @@ class BudgetSheet extends StatefulWidget {
   final String walletId;
   final List<TxModel> transactions; // current wallet transactions for spent calc
   final bool isDark;
+  /// Budgets already loaded by the caller (e.g. WalletScreen's cache).
+  /// When provided, the sheet skips its own fetch and uses these directly —
+  /// avoids a redundant `fetchBudgets` round-trip every time the sheet opens.
+  final List<BudgetModel>? initialBudgets;
 
   const BudgetSheet({
     super.key,
     required this.walletId,
     required this.transactions,
     required this.isDark,
+    this.initialBudgets,
   });
 
   static Future<void> show(
@@ -29,6 +34,7 @@ class BudgetSheet extends StatefulWidget {
     required String walletId,
     required List<TxModel> transactions,
     required bool isDark,
+    List<BudgetModel>? initialBudgets,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -38,6 +44,7 @@ class BudgetSheet extends StatefulWidget {
         walletId: walletId,
         transactions: transactions,
         isDark: isDark,
+        initialBudgets: initialBudgets,
       ),
     );
   }
@@ -63,7 +70,21 @@ class _BudgetSheetState extends State<BudgetSheet> {
     if (!mounted) return;
     setState(() { _loading = true; _loadError = null; });
     try {
-      final budgets = await WalletService.instance.fetchBudgets(widget.walletId);
+      // Reuse budgets the caller already fetched instead of re-querying —
+      // BudgetModel is cloned per-instance below so editing here can't
+      // silently mutate the caller's cached list.
+      final budgets = widget.initialBudgets != null
+          ? widget.initialBudgets!
+              .map((b) => BudgetModel(
+                    id: b.id,
+                    walletId: b.walletId,
+                    category: b.category,
+                    limitAmount: b.limitAmount,
+                    last80AlertMonth: b.last80AlertMonth,
+                    last100AlertMonth: b.last100AlertMonth,
+                  ))
+              .toList()
+          : await WalletService.instance.fetchBudgets(widget.walletId);
       final spent = WalletService.computeMonthlySpent(widget.transactions);
       for (final b in budgets) {
         b.spent = spent[b.category] ?? 0;

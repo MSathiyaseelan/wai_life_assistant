@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -475,7 +476,7 @@ class _MyReportsTabState extends State<_MyReportsTab> {
               _load();
             } catch (e, stack) {
               ErrorLogger.log(e, stackTrace: stack, action: 'delete_report');
-              if (mounted) {
+              if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Failed to delete report')),
                 );
@@ -627,7 +628,7 @@ class _IssueCardState extends State<_IssueCard> {
                             onTap: () => _showImageFull(ctx, r.screenshots[i]),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.network(r.screenshots[i],
+                              child: CachedNetworkImage(imageUrl: r.screenshots[i],
                                   width: 72, height: 72, fit: BoxFit.cover),
                             ),
                           ),
@@ -706,7 +707,7 @@ class _IssueCardState extends State<_IssueCard> {
         insetPadding: const EdgeInsets.all(16),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Image.network(url, fit: BoxFit.contain),
+          child: CachedNetworkImage(imageUrl: url, fit: BoxFit.contain),
         ),
       ),
     );

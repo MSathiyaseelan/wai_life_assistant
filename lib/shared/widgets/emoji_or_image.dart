@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 /// Displays either an emoji string or an image (local file or remote URL).
@@ -27,12 +28,12 @@ class EmojiOrImage extends StatelessWidget {
       final radius = borderRadius ?? size / 4;
       Widget img;
       if (_isRemote) {
-        img = Image.network(
-          value,
+        img = CachedNetworkImage(
+          imageUrl: value,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Text('👤', style: TextStyle(fontSize: size * 0.6)),
+          errorWidget: (_, _, _) => Text('👤', style: TextStyle(fontSize: size * 0.6)),
         );
       } else {
         final path = value.startsWith('file://') ? value.substring(7) : value;
