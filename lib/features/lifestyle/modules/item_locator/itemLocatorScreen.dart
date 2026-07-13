@@ -17,10 +17,17 @@ const _locatorColor = Color(0xFF6C63FF);
 class ItemLocatorScreen extends StatefulWidget {
   final String walletId;
   final List<LifeMember> members;
+  /// Containers/items MyHubScreen already fetched for its summary card.
+  /// When both are provided, the initial load is skipped entirely — pull to
+  /// refresh still hits Supabase for a real update.
+  final List<StorageContainer>? initialContainers;
+  final List<StoredItem>? initialItems;
   const ItemLocatorScreen({
     super.key,
     required this.walletId,
     this.members = const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')],
+    this.initialContainers,
+    this.initialItems,
   });
   @override
   State<ItemLocatorScreen> createState() => _ItemLocatorScreenState();
@@ -36,7 +43,12 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    if (widget.initialContainers != null && widget.initialItems != null) {
+      _containers.addAll(widget.initialContainers!);
+      _items.addAll(widget.initialItems!);
+    } else {
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {

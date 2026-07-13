@@ -60,6 +60,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
   DateTime? _nextAppointmentDate;
   String? _nextAppointmentDoctor;
   String? _loadedKey;
+  // True only once _functions/_containers/_items/_wardrobeItems actually hold
+  // real data — _loadedKey flips non-null before the fetch resolves, so it
+  // alone isn't safe to gate "can a sub-screen skip its own fetch?" on.
+  bool _hasLoadedOnce = false;
 
 
   @override
@@ -179,6 +183,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
           _nextAppointmentDate = null;
           _nextAppointmentDoctor = null;
         }
+        _hasLoadedOnce = true;
       });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'myhub_load_data');
@@ -626,6 +631,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
         pageBuilder: (ctx, anim, secondaryAnim) => ItemLocatorScreen(
           walletId: _currentWallet.id,
           members: _wardrobeMembers,
+          initialContainers: _hasLoadedOnce ? _containers : null,
+          initialItems: _hasLoadedOnce ? _items : null,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
@@ -666,6 +673,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
         pageBuilder: (ctx, anim, secondaryAnim) => MyWardrobeScreen(
           walletId: _currentWallet.id,
           members: _wardrobeMembers,
+          initialItems: _hasLoadedOnce ? _wardrobeItems : null,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
@@ -744,7 +752,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
           walletId: _currentWallet.id,
           walletName: _currentWallet.name,
           walletEmoji: _currentWallet.emoji,
-          parentFunctions: _functions,
+          parentFunctions: _hasLoadedOnce ? _functions : null,
           familyWalletNames: _familyWalletNames,
           allFamilyWalletNames: _allFamilyWalletNames,
           personalWalletId: _personalWalletId,

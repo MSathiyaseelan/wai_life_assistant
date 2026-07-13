@@ -32,6 +32,9 @@ class AIAssistantWidget extends StatefulWidget {
   final void Function(int tabIndex)? onNavigate;
   final void Function(TxModel tx)? onTransactionSaved;
   final VoidCallback? onUpgrade;
+  /// Data DashboardScreen already has loaded — lets ContextFetcher skip
+  /// re-querying Supabase for whatever it already covers.
+  final DashboardAiCache? cache;
 
   const AIAssistantWidget({
     super.key,
@@ -39,6 +42,7 @@ class AIAssistantWidget extends StatefulWidget {
     this.onNavigate,
     this.onTransactionSaved,
     this.onUpgrade,
+    this.cache,
   });
 
   @override
@@ -243,7 +247,11 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     try {
       final intent = IntentClassifier.instance.classify(question);
       if (kDebugMode) debugPrint('[WAI] AI intent resolved, sources=${intent.dataSources}');
-      final ctx = await ContextFetcher.instance.fetch(intent, _selectedWalletId);
+      final ctx = await ContextFetcher.instance.fetch(
+        intent,
+        _selectedWalletId,
+        cache: widget.cache,
+      );
       final contextBlock = ctx.toPromptBlock();
       if (kDebugMode) debugPrint('[WAI] context fetched');
       final familyMembers = ctx.family.isNotEmpty

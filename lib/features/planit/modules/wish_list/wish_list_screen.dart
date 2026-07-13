@@ -18,6 +18,9 @@ class WishListScreen extends StatefulWidget {
   final bool openAdd;
   /// Family wallet ID → display label. Non-empty only in Personal view.
   final Map<String, String> familyWalletNames;
+  /// True when [wishes] is already a real, fully-loaded snapshot from
+  /// PlanItScreen — skips this screen's own initial fetch.
+  final bool preloaded;
   const WishListScreen({
     super.key,
     required this.walletId,
@@ -27,6 +30,7 @@ class WishListScreen extends StatefulWidget {
     required this.wishes,
     this.openAdd = false,
     this.familyWalletNames = const {},
+    this.preloaded = false,
   });
   @override
   State<WishListScreen> createState() => _WishListScreenState();
@@ -56,7 +60,7 @@ class _WishListScreenState extends State<WishListScreen>
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
-    if (online && !_wasOnline) _loadWishes();
+    if (online && !_wasOnline) _loadWishes(force: true);
     _wasOnline = online;
   }
 
@@ -67,7 +71,11 @@ class _WishListScreenState extends State<WishListScreen>
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
-    _loadWishes();
+    if (widget.preloaded) {
+      _wishes = List.from(widget.wishes);
+    } else {
+      _loadWishes();
+    }
     if (widget.openAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -85,7 +93,7 @@ class _WishListScreenState extends State<WishListScreen>
     super.dispose();
   }
 
-  Future<void> _loadWishes() async {
+  Future<void> _loadWishes({bool force = false}) async {
     if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
       return;
@@ -96,7 +104,7 @@ class _WishListScreenState extends State<WishListScreen>
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
-          allIds.map((id) => WishService.instance.fetchWishes(id)),
+          allIds.map((id) => WishService.instance.fetchWishes(id, force: force)),
         );
         if (!mounted) return;
         final loaded = results.expand((rows) => rows.map(WishModel.fromRow)).toList();
@@ -118,7 +126,7 @@ class _WishListScreenState extends State<WishListScreen>
     }
     setState(() => _loading = true);
     try {
-      final rows = await WishService.instance.fetchWishes(widget.walletId);
+      final rows = await WishService.instance.fetchWishes(widget.walletId, force: force);
       if (!mounted) return;
       final loaded = rows.map(WishModel.fromRow).toList();
       setState(() {
@@ -360,7 +368,7 @@ class _WishListScreenState extends State<WishListScreen>
               controller: _tab,
               children: [
                 RefreshIndicator(
-                  onRefresh: _loadWishes,
+                  onRefresh: () => _loadWishes(force: true),
                   child: _loading
                       ? const Center(child: CircularProgressIndicator())
                       : _WishList(
@@ -374,7 +382,7 @@ class _WishListScreenState extends State<WishListScreen>
                         ),
                 ),
                 RefreshIndicator(
-                  onRefresh: _loadWishes,
+                  onRefresh: () => _loadWishes(force: true),
                   child: _WishList(
                     key: ValueKey('purchased-${_purchased.length}'),
                     wishes: _purchased,

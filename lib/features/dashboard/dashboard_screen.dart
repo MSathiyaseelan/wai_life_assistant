@@ -51,6 +51,7 @@ import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/shortcut_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_assistant_widget.dart';
+import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -521,20 +522,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _loadTodayMeals(wid);
       }
       for (final wid in List<String>.from(_loadedPlanItWalletIds)) {
-        _loadPlanItData(wid);
+        _loadPlanItData(wid, force: true);
       }
     }
   }
 
-  Future<void> _loadPlanItData(String walletId) async {
+  Future<void> _loadPlanItData(String walletId, {bool force = false}) async {
     if (_isPlaceholder(walletId)) return;
     _loadedPlanItWalletIds.add(walletId);
     try {
       final results = await Future.wait([
-        ReminderService.instance.fetchReminders(walletId),
-        TaskService.instance.fetchTasks(walletId),
-        SpecialDayService.instance.fetchDays(walletId),
-        WishService.instance.fetchWishes(walletId),
+        ReminderService.instance.fetchReminders(walletId, force: force),
+        TaskService.instance.fetchTasks(walletId, force: force),
+        SpecialDayService.instance.fetchDays(walletId, force: force),
+        WishService.instance.fetchWishes(walletId, force: force),
         FunctionsService.instance.fetchMyFunctions(walletId),
         FunctionsService.instance.fetchUpcoming(walletId),
       ]);
@@ -1230,6 +1231,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       // ── AI Assistant ──────────────────────────────────────────
                       AIAssistantWidget(
                         wallets: appState.wallets,
+                        cache: DashboardAiCache(
+                          transactions: _transactions,
+                          toBuyByWallet: _myListMap,
+                          tasksByWallet: _tasksMap,
+                          specialDaysByWallet: _specialDaysMap,
+                          remindersByWallet: _remindersMap,
+                          myFunctionsByWallet: _functionsMap,
+                          upcomingFunctionsByWallet: _upcomingAttendingMap,
+                          healthMedsByWallet: _healthMedsMap,
+                          healthApptsByWallet: _healthApptsMap,
+                          healthVaccsByWallet: _healthVaccsMap,
+                        ),
                         onNavigate: widget.onTabSwitch,
                         onTransactionSaved: (tx) {
                           setState(() => _transactions.insert(0, tx));

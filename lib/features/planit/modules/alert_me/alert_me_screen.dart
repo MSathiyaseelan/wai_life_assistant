@@ -21,6 +21,10 @@ class AlertMeScreen extends StatefulWidget {
   /// Family wallet ID → display label (e.g. "👨‍👩‍👧 Our Family").
   /// Non-empty only when opened from Personal view.
   final Map<String, String> familyWalletNames;
+  /// True when [reminders] is already a real, fully-loaded snapshot from
+  /// PlanItScreen (not just an empty placeholder mid-load) — skips this
+  /// screen's own initial fetch.
+  final bool preloaded;
   const AlertMeScreen({
     super.key,
     required this.walletId,
@@ -31,6 +35,7 @@ class AlertMeScreen extends StatefulWidget {
     required this.reminders,
     this.openAdd = false,
     this.familyWalletNames = const {},
+    this.preloaded = false,
   });
   @override
   State<AlertMeScreen> createState() => _AlertMeScreenState();
@@ -67,7 +72,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
-    if (online && !_wasOnline) _loadReminders();
+    if (online && !_wasOnline) _loadReminders(force: true);
     _wasOnline = online;
   }
 
@@ -78,7 +83,12 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
-    _loadReminders();
+    if (widget.preloaded) {
+      _reminders = List.from(widget.reminders);
+      NotificationService.instance.rescheduleAll(_reminders);
+    } else {
+      _loadReminders();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.instance.requestPermissions();
     });
@@ -99,7 +109,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     super.dispose();
   }
 
-  Future<void> _loadReminders() async {
+  Future<void> _loadReminders({bool force = false}) async {
     if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
       return;
@@ -110,7 +120,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
-          allIds.map((id) => ReminderService.instance.fetchReminders(id)),
+          allIds.map((id) => ReminderService.instance.fetchReminders(id, force: force)),
         );
         if (!mounted) return;
         final loaded = results.expand((rows) => rows.map(ReminderModel.fromRow)).toList();
@@ -133,7 +143,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     }
     setState(() => _loading = true);
     try {
-      final rows = await ReminderService.instance.fetchReminders(widget.walletId);
+      final rows = await ReminderService.instance.fetchReminders(widget.walletId, force: force);
       if (!mounted) return;
       final loaded = rows.map(ReminderModel.fromRow).toList();
       setState(() {
@@ -397,7 +407,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onDelete: _delete,
             onTap: (r) => _openDetailSheet(context, r, isDark, surfBg),
             onReactivate: null,
-            onRefresh: _loadReminders,
+            onRefresh: () => _loadReminders(force: true),
             familyWalletNames: widget.familyWalletNames,
           ),
           _ReminderList(
@@ -408,7 +418,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onSnooze: null,
             onDelete: _delete,
             onTap: null,
-            onRefresh: _loadReminders,
+            onRefresh: () => _loadReminders(force: true),
             onReactivate: _markActive,
             familyWalletNames: widget.familyWalletNames,
           ),

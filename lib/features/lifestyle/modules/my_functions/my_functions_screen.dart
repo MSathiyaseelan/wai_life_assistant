@@ -131,16 +131,35 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   Future<void> _loadData() async {
     // Personal view: functions_my from all wallets; upcoming+attended from personal wallet only.
     if (widget.familyWalletNames.isNotEmpty) {
-      final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
       final svc = FunctionsService.instance;
-      final rawMyResults = await Future.wait(
-        allIds.map(
-          (id) => svc.fetchMyFunctions(id).catchError((e) {
-            debugPrint('[MyFunctions] fetch error for wallet $id: $e');
-            return <Map<String, dynamic>>[];
-          }),
-        ),
-      );
+
+      // MyHubScreen already fetched fetchMyFunctions for every wallet id to
+      // build its summary card — reuse that instead of re-fetching the same
+      // rows here. This one is a real latency win (these calls are awaited
+      // sequentially, not in the Future.wait below).
+      List<FunctionModel> loaded;
+      if (widget.parentFunctions != null) {
+        loaded = List<FunctionModel>.from(widget.parentFunctions!);
+      } else {
+        final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
+        final rawMyResults = await Future.wait(
+          allIds.map(
+            (id) => svc.fetchMyFunctions(id).catchError((e) {
+              debugPrint('[MyFunctions] fetch error for wallet $id: $e');
+              return <Map<String, dynamic>>[];
+            }),
+          ),
+        );
+        loaded = [];
+        for (final row in rawMyResults.expand((r) => r)) {
+          try {
+            loaded.add(FunctionModel.fromJson(row));
+          } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_parse_error');
+            debugPrint('[MyFunctions] parse error: $e | row: $row');
+          }
+        }
+      }
+
       final rawUpcoming = await svc.fetchUpcoming(widget.walletId).catchError((
         e,
       ) {
@@ -161,14 +180,6 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       });
       if (!mounted) return;
 
-      final loaded = <FunctionModel>[];
-      for (final row in rawMyResults.expand((r) => r)) {
-        try {
-          loaded.add(FunctionModel.fromJson(row));
-        } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_parse_error');
-          debugPrint('[MyFunctions] parse error: $e | row: $row');
-        }
-      }
       final upcoming = <UpcomingFunction>[];
       for (final row in rawUpcoming) {
         try {
@@ -215,30 +226,36 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       return;
     }
 
-    List<Map<String, dynamic>> rawFunctions = [];
+    List<Map<String, dynamic>>? rawFunctions;
     List<Map<String, dynamic>> rawUpcoming = [];
     List<Map<String, dynamic>> rawAttended = [];
     List<Map<String, dynamic>> rawAttendedGroups = [];
     try {
       final svc = FunctionsService.instance;
+      // Skip re-fetching functions when MyHubScreen already loaded them for
+      // this wallet — saves one query even though it doesn't shorten wall
+      // time here (the calls below run concurrently either way).
       final results = await Future.wait([
-        svc.fetchMyFunctions(widget.walletId),
+        if (widget.parentFunctions == null) svc.fetchMyFunctions(widget.walletId),
         svc.fetchUpcoming(widget.walletId),
         svc.fetchAttended(widget.walletId),
         svc.fetchAttendedGroups(widget.walletId),
       ]);
-      rawFunctions = results[0];
-      rawUpcoming = results[1];
-      rawAttended = results[2];
-      rawAttendedGroups = results[3];
+      final offset = widget.parentFunctions == null ? 1 : 0;
+      if (offset == 1) rawFunctions = results[0];
+      rawUpcoming = results[offset];
+      rawAttended = results[offset + 1];
+      rawAttendedGroups = results[offset + 2];
     } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_fetch_error');
       debugPrint('[MyFunctions] fetch error: $e');
     }
     if (!mounted) return;
 
     // Parse each list independently — a failure in one must not block others.
-    final functions = <FunctionModel>[];
-    for (final row in rawFunctions) {
+    final functions = widget.parentFunctions != null
+        ? List<FunctionModel>.from(widget.parentFunctions!)
+        : <FunctionModel>[];
+    for (final row in rawFunctions ?? const <Map<String, dynamic>>[]) {
       try {
         functions.add(FunctionModel.fromJson(row));
       } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_functions_parse_error');

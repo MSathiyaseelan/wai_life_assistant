@@ -208,7 +208,11 @@ class _NotesScreenState extends State<NotesScreen> {
     super.initState();
     _wasOnline = NetworkService.instance.isOnline.value;
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
-    _loadNotes();
+    if (widget.notes != null) {
+      _notes = List.from(widget.notes!);
+    } else {
+      _loadNotes();
+    }
     if (widget.openAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _openNoteSheet();

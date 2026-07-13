@@ -18,6 +18,9 @@ class MyTasksScreen extends StatefulWidget {
   final bool openAdd;
   /// Family wallet ID → display label. Non-empty only in Personal view.
   final Map<String, String> familyWalletNames;
+  /// True when [tasks] is already a real, fully-loaded snapshot from
+  /// PlanItScreen — skips this screen's own initial fetch.
+  final bool preloaded;
   const MyTasksScreen({
     super.key,
     required this.walletId,
@@ -27,6 +30,7 @@ class MyTasksScreen extends StatefulWidget {
     required this.tasks,
     this.openAdd = false,
     this.familyWalletNames = const {},
+    this.preloaded = false,
   });
   @override
   State<MyTasksScreen> createState() => _MyTasksScreenState();
@@ -60,7 +64,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
-    if (online && !_wasOnline) _loadTasks();
+    if (online && !_wasOnline) _loadTasks(force: true);
     _wasOnline = online;
   }
 
@@ -71,7 +75,11 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
-    _loadTasks();
+    if (widget.preloaded) {
+      _tasks = List.from(widget.tasks);
+    } else {
+      _loadTasks();
+    }
     if (widget.openAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -89,7 +97,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     super.dispose();
   }
 
-  Future<void> _loadTasks() async {
+  Future<void> _loadTasks({bool force = false}) async {
     if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
       return;
@@ -100,7 +108,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
-          allIds.map((id) => TaskService.instance.fetchTasks(id)),
+          allIds.map((id) => TaskService.instance.fetchTasks(id, force: force)),
         );
         if (!mounted) return;
         final loaded = results.expand((rows) => rows.map(TaskModel.fromRow)).toList();
@@ -122,7 +130,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     }
     setState(() => _loading = true);
     try {
-      final rows = await TaskService.instance.fetchTasks(widget.walletId);
+      final rows = await TaskService.instance.fetchTasks(widget.walletId, force: force);
       if (!mounted) return;
       final loaded = rows.map(TaskModel.fromRow).toList();
       setState(() {
@@ -332,7 +340,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
-                  onRefresh: _loadTasks,
+                  onRefresh: () => _loadTasks(force: true),
                   familyWalletNames: widget.familyWalletNames,
                 ),
                 _TaskList(
@@ -345,7 +353,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
-                  onRefresh: _loadTasks,
+                  onRefresh: () => _loadTasks(force: true),
                   familyWalletNames: widget.familyWalletNames,
                 ),
                 _TaskList(
@@ -356,7 +364,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: null,
-                  onRefresh: _loadTasks,
+                  onRefresh: () => _loadTasks(force: true),
                   familyWalletNames: widget.familyWalletNames,
                 ),
               ],

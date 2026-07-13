@@ -33,24 +33,29 @@ class PantryService {
   // MASTER RECIPES  (shared catalogue)
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /// Admin-curated and rarely changes, so the full catalogue is fetched once
+  /// per session and every search (including repeat "Recipe Library" tab
+  /// opens across different AddRecipeSheet instances) filters it in memory
+  /// instead of re-querying Supabase.
+  List<Map<String, dynamic>>? _masterRecipesCache;
+
   /// Search the shared master recipe catalogue by name, cuisine, or tag.
   /// Returns all rows when [query] is empty.
   Future<List<Map<String, dynamic>>> searchMasterRecipes(String query) async {
-    final q = query.trim();
-    if (q.isEmpty) {
+    if (_masterRecipesCache == null) {
       final rows = await _db
           .from('master_recipes')
           .select()
           .order('name');
-      return List<Map<String, dynamic>>.from(rows);
+      _masterRecipesCache = List<Map<String, dynamic>>.from(rows);
     }
-    // Use ilike on name; for wider coverage also filter by cuisine/tags client-side
-    final rows = await _db
-        .from('master_recipes')
-        .select()
-        .or('name.ilike.%$q%,cuisine.ilike.%$q%')
-        .order('name');
-    return List<Map<String, dynamic>>.from(rows);
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return _masterRecipesCache!;
+    return _masterRecipesCache!.where((r) {
+      final name = (r['name'] as String?)?.toLowerCase() ?? '';
+      final cuisine = (r['cuisine'] as String?)?.toLowerCase() ?? '';
+      return name.contains(q) || cuisine.contains(q);
+    }).toList();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

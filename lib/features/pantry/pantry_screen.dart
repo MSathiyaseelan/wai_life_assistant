@@ -84,6 +84,14 @@ class _PantryScreenState extends State<PantryScreen>
   List<MemberFoodPrefs> _foodPrefs = [];
   final _basketTabNotifier = ValueNotifier<int>(0);
 
+  // Wallet IDs already fetched this session, per dataset — switching back to
+  // a previously-visited wallet reuses what's already loaded instead of
+  // refetching. Pass force: true (pull-to-refresh, error recovery) to bypass.
+  final Set<String> _mealsLoadedFor = {};
+  final Set<String> _recipesLoadedFor = {};
+  final Set<String> _groceriesLoadedFor = {};
+  final Set<String> _foodPrefsLoadedFor = {};
+
   // ── Family food prefs ────────────────────────────────────────────────────────
   List<PantryMember> _buildMembers() {
     final appState = AppStateScope.read(context);
@@ -142,7 +150,7 @@ class _PantryScreenState extends State<PantryScreen>
     } catch (e) {
       if (!mounted) return;
       _showSavedSnack('Failed to save food preferences', AppColors.expense);
-      _loadFoodPrefs(); // reload to restore consistent state
+      _loadFoodPrefs(force: true); // reload to restore consistent state
     }
   }
 
@@ -238,7 +246,7 @@ class _PantryScreenState extends State<PantryScreen>
     } catch (e) {
       if (!mounted) return;
       _showSavedSnack('Failed to paste some meals', AppColors.expense);
-      await _loadMeals(); // reload to get consistent state
+      await _loadMeals(force: true); // reload to get consistent state
     }
   }
 
@@ -296,7 +304,7 @@ class _PantryScreenState extends State<PantryScreen>
     } catch (e) {
       if (!mounted) return;
       _showSavedSnack('Failed to paste some meals', AppColors.expense);
-      await _loadMeals();
+      await _loadMeals(force: true);
     }
   }
 
@@ -376,16 +384,18 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _loadRecipes() async {
+  Future<void> _loadRecipes({bool force = false}) async {
     if (!mounted) return;
     if (_isPlaceholder(widget.activeWalletId)) {
       setState(() => _recipesLoading = false);
       return;
     }
+    if (!force && _recipesLoadedFor.contains(widget.activeWalletId)) return;
     setState(() => _recipesLoading = true);
     try {
       final rows = await PantryService.instance.fetchRecipes(widget.activeWalletId);
       if (!mounted) return;
+      _recipesLoadedFor.add(widget.activeWalletId);
       setState(() {
         _recipes = rows.map(RecipeModel.fromMap).toList();
         _recipesLoading = false;
@@ -410,16 +420,18 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _loadMeals() async {
+  Future<void> _loadMeals({bool force = false}) async {
     if (!mounted) return;
     if (_isPlaceholder(widget.activeWalletId)) {
       setState(() => _mealsLoading = false);
       return;
     }
+    if (!force && _mealsLoadedFor.contains(widget.activeWalletId)) return;
     setState(() => _mealsLoading = true);
     try {
       final rows = await PantryService.instance.fetchMealEntries(widget.activeWalletId);
       if (!mounted) return;
+      _mealsLoadedFor.add(widget.activeWalletId);
       setState(() {
         _meals = rows.map(MealEntry.fromMap).toList();
         _mealsLoading = false;
@@ -432,11 +444,13 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _loadFoodPrefs() async {
+  Future<void> _loadFoodPrefs({bool force = false}) async {
     if (!mounted || _isPlaceholder(widget.activeWalletId)) return;
+    if (!force && _foodPrefsLoadedFor.contains(widget.activeWalletId)) return;
     try {
       final rows = await PantryService.instance.fetchFoodPrefs(widget.activeWalletId);
       if (!mounted) return;
+      _foodPrefsLoadedFor.add(widget.activeWalletId);
       setState(() {
         _foodPrefs = rows.map(MemberFoodPrefs.fromMap).toList();
       });
@@ -445,16 +459,18 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _loadGroceries() async {
+  Future<void> _loadGroceries({bool force = false}) async {
     if (!mounted) return;
     if (_isPlaceholder(widget.activeWalletId)) {
       setState(() => _groceriesLoading = false);
       return;
     }
+    if (!force && _groceriesLoadedFor.contains(widget.activeWalletId)) return;
     setState(() => _groceriesLoading = true);
     try {
       final rows = await PantryService.instance.fetchGroceryItems(widget.activeWalletId);
       if (!mounted) return;
+      _groceriesLoadedFor.add(widget.activeWalletId);
       setState(() {
         _groceries = rows.map(GroceryItem.fromMap).toList();
         _groceriesLoading = false;
@@ -506,10 +522,10 @@ class _PantryScreenState extends State<PantryScreen>
 
   // ── Pull-to-refresh ───────────────────────────────────────────────────────
   Future<void> _refresh() => Future.wait([
-    _loadMeals(),
-    _loadRecipes(),
-    _loadGroceries(),
-    _loadFoodPrefs(),
+    _loadMeals(force: true),
+    _loadRecipes(force: true),
+    _loadGroceries(force: true),
+    _loadFoodPrefs(force: true),
   ]);
 
   // ── Wallet switch ──────────────────────────────────────────────────────────

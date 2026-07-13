@@ -70,6 +70,10 @@ class _PlanItScreenState extends State<PlanItScreen> {
   /// Composite key of all wallet IDs whose data is currently loaded.
   /// Format: "personal|family-id-1|family-id-2"
   String? _loadedKey;
+  // True only once _reminders/_tasksList/_days/_wishes/_notes actually hold
+  // real data — _loadedKey flips non-null before the fetch resolves, so it
+  // alone isn't safe to gate "can a module screen skip its own fetch?" on.
+  bool _hasLoadedOnce = false;
 
   @override
   void initState() {
@@ -113,7 +117,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
     }
   }
 
-  Future<void> _loadAllData() async {
+  Future<void> _loadAllData({bool force = false}) async {
     final wid = widget.activeWalletId;
     if (wid.isEmpty) return;
     // When viewing Personal, also fetch data from all family wallets so they
@@ -123,15 +127,15 @@ class _PlanItScreenState extends State<PlanItScreen> {
         : [wid];
     // Composite key prevents redundant fetches when nothing has changed.
     final loadKey = walletIds.join('|');
-    if (loadKey == _loadedKey) return;
+    if (!force && loadKey == _loadedKey) return;
     _loadedKey = loadKey;
     try {
       final perWallet = await Future.wait(
         walletIds.map((id) => Future.wait([
-          ReminderService.instance.fetchReminders(id),
-          TaskService.instance.fetchTasks(id),
-          SpecialDayService.instance.fetchDays(id),
-          WishService.instance.fetchWishes(id),
+          ReminderService.instance.fetchReminders(id, force: force),
+          TaskService.instance.fetchTasks(id, force: force),
+          SpecialDayService.instance.fetchDays(id, force: force),
+          WishService.instance.fetchWishes(id, force: force),
           NoteService.instance.fetchNotes(id),
         ])),
       );
@@ -152,6 +156,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         _notes
           ..clear()
           ..addAll(perWallet.expand((r) => r[4]).map(NoteModel.fromRow));
+        _hasLoadedOnce = true;
       });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'planit_load_all_data');
@@ -236,10 +241,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
       backgroundColor: bg,
       appBar: _buildAppBar(isDark, textColor),
       body: RefreshIndicator(
-        onRefresh: () async {
-          _loadedKey = null;
-          await _loadAllData();
-        },
+        onRefresh: () => _loadAllData(force: true),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -727,6 +729,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         isPersonal: _currentWallet.isPersonal,
         reminders: _reminders,
         familyWalletNames: _familyWalletNames,
+        preloaded: _hasLoadedOnce,
       ),
       quickAddBuilder: (ctx, wid) => AlertMeScreen(
         walletId: wid,
@@ -737,6 +740,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         reminders: _reminders,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
+        preloaded: _hasLoadedOnce,
       ),
     ),
     _ModuleInfo(
@@ -752,6 +756,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         members: _members,
         tasks: _tasksList,
         familyWalletNames: _familyWalletNames,
+        preloaded: _hasLoadedOnce,
       ),
       quickAddBuilder: (ctx, wid) => MyTasksScreen(
         walletId: wid,
@@ -761,6 +766,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         tasks: _tasksList,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
+        preloaded: _hasLoadedOnce,
       ),
     ),
     _ModuleInfo(
@@ -776,6 +782,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         members: _members,
         days: _days,
         familyWalletNames: _familyWalletNames,
+        preloaded: _hasLoadedOnce,
       ),
       quickAddBuilder: (ctx, wid) => SpecialDaysScreen(
         walletId: wid,
@@ -785,6 +792,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         days: _days,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
+        preloaded: _hasLoadedOnce,
       ),
     ),
     _ModuleInfo(
@@ -799,6 +807,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletEmoji: _currentWallet.emoji,
         wishes: _wishes,
         familyWalletNames: _familyWalletNames,
+        preloaded: _hasLoadedOnce,
       ),
       quickAddBuilder: (ctx, wid) => WishListScreen(
         walletId: wid,
@@ -807,6 +816,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         wishes: _wishes,
         familyWalletNames: _familyWalletNames,
         openAdd: true,
+        preloaded: _hasLoadedOnce,
       ),
     ),
     _ModuleInfo(
@@ -819,7 +829,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletId: wid,
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
-        notes: _notes,
+        notes: _hasLoadedOnce ? _notes : null,
         familyWalletNames: _familyWalletNames,
       ),
       quickAddBuilder: (ctx, wid) => NotesScreen(
@@ -827,7 +837,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
         walletName: _currentWallet.name,
         walletEmoji: _currentWallet.emoji,
         openAdd: true,
-        notes: _notes,
+        notes: _hasLoadedOnce ? _notes : null,
         familyWalletNames: _familyWalletNames,
       ),
     ),

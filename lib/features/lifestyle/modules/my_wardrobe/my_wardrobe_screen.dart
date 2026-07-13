@@ -117,10 +117,15 @@ String _fmtDate(DateTime d) {
 class MyWardrobeScreen extends StatefulWidget {
   final String walletId;
   final List<LifeMember> members;
+  /// Items MyHubScreen already fetched for its summary card — when
+  /// provided, skips re-fetching just this one query (outfit logs are
+  /// always fetched fresh, MyHub doesn't have those).
+  final List<ClothingItem>? initialItems;
   const MyWardrobeScreen({
     super.key,
     required this.walletId,
     required this.members,
+    this.initialItems,
   });
   @override
   State<MyWardrobeScreen> createState() => _MyWardrobeScreenState();
@@ -173,22 +178,24 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     }
     try {
       final svc = WardrobeService.instance;
+      final skipItems = widget.initialItems != null;
       final results = await Future.wait([
-        svc.fetchItems(widget.walletId),
+        if (!skipItems) svc.fetchItems(widget.walletId),
         svc.fetchOutfitLogs(widget.walletId),
       ]);
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _clothes
-          ..clear()
-          ..addAll(
-            (results[0]).map((r) => ClothingItem.fromJson(r)),
-          );
+        _clothes.clear();
+        if (skipItems) {
+          _clothes.addAll(widget.initialItems!);
+        } else {
+          _clothes.addAll((results[0]).map((r) => ClothingItem.fromJson(r)));
+        }
         _outfitLogs
           ..clear()
           ..addAll(
-            (results[1]).map((r) => OutfitLog.fromJson(r)),
+            (results[skipItems ? 0 : 1]).map((r) => OutfitLog.fromJson(r)),
           );
       });
     } catch (e, stack) {

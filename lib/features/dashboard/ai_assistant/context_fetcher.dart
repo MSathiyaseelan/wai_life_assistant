@@ -2,12 +2,53 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
+import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'intent_classifier.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DashboardAiCache — data DashboardScreen already has in memory for the
+// wallets it has loaded, keyed by walletId. When a wallet's entry is present
+// (even if empty), ContextFetcher reuses it instead of re-querying Supabase
+// for that data source. A missing key means "not loaded yet here" and falls
+// back to a live fetch, so this can never hand the AI stale-empty data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class DashboardAiCache {
+  /// All wallets' transactions, merged — filtered by walletId + date range
+  /// per request. Unlike the other fields this isn't wallet-keyed because
+  /// DashboardScreen already stores it as one merged list.
+  final List<TxModel>? transactions;
+  final Map<String, List<GroceryItem>>? toBuyByWallet;
+  final Map<String, List<TaskModel>>? tasksByWallet;
+  final Map<String, List<SpecialDayModel>>? specialDaysByWallet;
+  final Map<String, List<ReminderModel>>? remindersByWallet;
+  final Map<String, List<FunctionModel>>? myFunctionsByWallet;
+  final Map<String, List<UpcomingFunction>>? upcomingFunctionsByWallet;
+  final Map<String, List<Map<String, dynamic>>>? healthMedsByWallet;
+  final Map<String, List<Map<String, dynamic>>>? healthApptsByWallet;
+  final Map<String, List<Map<String, dynamic>>>? healthVaccsByWallet;
+
+  const DashboardAiCache({
+    this.transactions,
+    this.toBuyByWallet,
+    this.tasksByWallet,
+    this.specialDaysByWallet,
+    this.remindersByWallet,
+    this.myFunctionsByWallet,
+    this.upcomingFunctionsByWallet,
+    this.healthMedsByWallet,
+    this.healthApptsByWallet,
+    this.healthVaccsByWallet,
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HouseholdContext — aggregated data passed to the AI
@@ -85,8 +126,9 @@ class ContextFetcher {
 
   Future<HouseholdContext> fetch(
     QuestionIntent intent,
-    String walletId,
-  ) async {
+    String walletId, {
+    DashboardAiCache? cache,
+  }) async {
     final sources = intent.dataSources;
     final isCrossTab = sources.contains(DataSource.crossTab);
 
@@ -99,12 +141,12 @@ class ContextFetcher {
     final fetchMyHub     = sources.contains(DataSource.myHub)     || isCrossTab;
 
     final results = await Future.wait([
-      fetchWallet    ? _fetchWallet(walletId, intent.timeRange) : Future.value(<String, dynamic>{}),
-      fetchPantry    ? _fetchPantry(walletId)    : Future.value(<String, dynamic>{}),
-      fetchPlanit    ? _fetchPlanit(walletId)    : Future.value(<String, dynamic>{}),
-      fetchFunctions ? _fetchFunctions(walletId) : Future.value(<String, dynamic>{}),
+      fetchWallet    ? _fetchWallet(walletId, intent.timeRange, cache) : Future.value(<String, dynamic>{}),
+      fetchPantry    ? _fetchPantry(walletId, cache)    : Future.value(<String, dynamic>{}),
+      fetchPlanit    ? _fetchPlanit(walletId, cache)    : Future.value(<String, dynamic>{}),
+      fetchFunctions ? _fetchFunctions(walletId, cache) : Future.value(<String, dynamic>{}),
       fetchFamily    ? _fetchFamily(walletId)    : Future.value(<String, dynamic>{}),
-      fetchHealth    ? _fetchHealth(walletId)    : Future.value(<String, dynamic>{}),
+      fetchHealth    ? _fetchHealth(walletId, cache)    : Future.value(<String, dynamic>{}),
       fetchMyHub     ? _fetchMyHub(walletId)     : Future.value(<String, dynamic>{}),
     ]);
 
@@ -119,30 +161,58 @@ class ContextFetcher {
     );
   }
 
-  Future<Map<String, dynamic>> _fetchWallet(String walletId, TimeRange range) async {
+  Future<Map<String, dynamic>> _fetchWallet(
+    String walletId,
+    TimeRange range,
+    DashboardAiCache? cache,
+  ) async {
     if (walletId.isEmpty) return {};
     try {
       final now = DateTime.now();
+      final DateTime fromDateTime;
       final String fromDate;
       switch (range) {
         case TimeRange.today:
-          fromDate = now.toIso8601String().substring(0, 10);
+          fromDateTime = DateTime(now.year, now.month, now.day);
         case TimeRange.thisWeek:
-          fromDate = now.subtract(const Duration(days: 7)).toIso8601String().substring(0, 10);
+          fromDateTime = now.subtract(const Duration(days: 7));
         case TimeRange.lastMonth:
-          fromDate = DateTime(now.year, now.month - 1, 1).toIso8601String().substring(0, 10);
+          fromDateTime = DateTime(now.year, now.month - 1, 1);
         default:
-          fromDate = DateTime(now.year, now.month, 1).toIso8601String().substring(0, 10);
+          fromDateTime = DateTime(now.year, now.month, 1);
       }
+      fromDate = fromDateTime.toIso8601String().substring(0, 10);
 
-      final rows = await _db
-          .from('transactions')
-          .select('type, amount, category, title, date')
-          .eq('wallet_id', walletId)
-          .isFilter('deleted_at', null)
-          .gte('date', fromDate)
-          .order('date', ascending: false)
-          .limit(50);
+      // DashboardScreen already holds this wallet's full transaction history
+      // (merged across all its loaded wallets) — reuse it instead of a fresh
+      // query when available, filtering/limiting in-memory the same way the
+      // live query does.
+      final List<Map<String, dynamic>> rows;
+      final cached = cache?.transactions;
+      if (cached != null) {
+        final filtered = cached
+            .where((t) => t.walletId == walletId && !t.date.isBefore(fromDateTime))
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+        rows = filtered
+            .take(50)
+            .map((t) => {
+                  'type': t.type.name,
+                  'amount': t.amount,
+                  'category': t.category,
+                  'title': t.title,
+                })
+            .toList();
+      } else {
+        rows = await _db
+            .from('transactions')
+            .select('type, amount, category, title, date')
+            .eq('wallet_id', walletId)
+            .isFilter('deleted_at', null)
+            .gte('date', fromDate)
+            .order('date', ascending: false)
+            .limit(50);
+      }
 
       double income = 0, expense = 0, lend = 0, borrow = 0, split = 0, returned = 0;
       final catTotals = <String, double>{};
@@ -200,21 +270,34 @@ class ContextFetcher {
     }
   }
 
-  Future<Map<String, dynamic>> _fetchPantry(String walletId) async {
+  Future<Map<String, dynamic>> _fetchPantry(String walletId, DashboardAiCache? cache) async {
     if (walletId.isEmpty) return {};
     try {
       // Use to_buy items only — matches what the Pantry "To Buy" tab shows.
       // fetchGroceryItems returns ALL items (including in-stock) which over-counts.
-      final rows = await PantryService.instance.fetchToBuyItems(walletId);
-
-      final pending = rows
-          .where((r) => r['is_grocery'] != false) // grocery items only (exclude quick-add non-grocery)
-          .map((r) {
-        final name = r['name'] as String? ?? '';
-        final qty = r['qty'] as num?;
-        final unit = r['unit'] as String? ?? '';
-        return qty != null ? '$name ${qty.toStringAsFixed(0)}$unit' : name;
-      }).where((s) => s.isNotEmpty).toList();
+      final cachedToBuy = cache?.toBuyByWallet?[walletId];
+      final List<String> pending;
+      if (cachedToBuy != null) {
+        pending = cachedToBuy
+            .where((g) => g.isGrocery)
+            .map((g) => g.name.isEmpty
+                ? ''
+                : '${g.name} ${g.quantity.toStringAsFixed(0)}${g.unit}')
+            .where((s) => s.isNotEmpty)
+            .toList();
+      } else {
+        final rows = await PantryService.instance.fetchToBuyItems(walletId);
+        pending = rows
+            .where((r) => r['is_grocery'] != false) // grocery items only (exclude quick-add non-grocery)
+            .map((r) {
+          final name = r['name'] as String? ?? '';
+          // Column is 'quantity' in the DB — was previously read as 'qty'
+          // (always null), so shopping-list context never showed amounts.
+          final qty = r['quantity'] as num?;
+          final unit = r['unit'] as String? ?? '';
+          return qty != null ? '$name ${qty.toStringAsFixed(0)}$unit' : name;
+        }).where((s) => s.isNotEmpty).toList();
+      }
 
       List<Map<String, dynamic>> mealRows = [];
       try {
@@ -246,19 +329,31 @@ class ContextFetcher {
     }
   }
 
-  Future<Map<String, dynamic>> _fetchPlanit(String walletId) async {
+  Future<Map<String, dynamic>> _fetchPlanit(String walletId, DashboardAiCache? cache) async {
     if (walletId.isEmpty) return {};
     try {
-      final tasks = await TaskService.instance.fetchTasks(walletId);
-      final pending = tasks
-          .where((t) => t['is_done'] != true)
-          .take(8)
-          .map((t) => t['title'] as String? ?? '')
-          .where((s) => s.isNotEmpty)
-          .toList();
+      final cachedTasks = cache?.tasksByWallet?[walletId];
+      final List<String> pending;
+      if (cachedTasks != null) {
+        pending = cachedTasks
+            .where((t) => t.status != TaskStatus.done)
+            .take(8)
+            .map((t) => t.title)
+            .where((s) => s.isNotEmpty)
+            .toList();
+      } else {
+        final tasks = await TaskService.instance.fetchTasks(walletId);
+        pending = tasks
+            .where((t) => t['is_done'] != true)
+            .take(8)
+            .map((t) => t['title'] as String? ?? '')
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
 
       final now = DateTime.now();
       final today = now.toIso8601String().substring(0, 10);
+      final todayDate = DateTime(now.year, now.month, now.day);
 
       List<Map<String, dynamic>> billRows = [];
       List<Map<String, dynamic>> reminderRows = [];
@@ -277,48 +372,70 @@ class ContextFetcher {
         debugPrint('[ContextFetcher] bills error: $e');
       }
 
-      try {
-        final raw = await _db
-            .from('reminders')
-            .select('title, due_date')
-            .eq('wallet_id', walletId)
-            .eq('done', false)
-            .gte('due_date', today)
-            .order('due_date')
-            .limit(5);
-        reminderRows = List<Map<String, dynamic>>.from(raw);
-      } catch (e, stack) {
-        ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_reminders');
-        debugPrint('[ContextFetcher] reminders error: $e');
+      // Reminders — reuse Dashboard's cached list (reapplying the same
+      // "not done, due today or later" filter) when available.
+      final cachedReminders = cache?.remindersByWallet?[walletId];
+      List<String> reminders;
+      if (cachedReminders != null) {
+        reminders = (cachedReminders
+                .where((r) => !r.done && !r.dueDate.isBefore(todayDate))
+                .toList()
+              ..sort((a, b) => a.dueDate.compareTo(b.dueDate)))
+            .take(5)
+            .map((r) => '${r.title} on ${r.dueDate.toIso8601String().substring(0, 10)}')
+            .toList();
+      } else {
+        try {
+          final raw = await _db
+              .from('reminders')
+              .select('title, due_date')
+              .eq('wallet_id', walletId)
+              .eq('done', false)
+              .gte('due_date', today)
+              .order('due_date')
+              .limit(5);
+          reminderRows = List<Map<String, dynamic>>.from(raw);
+        } catch (e, stack) {
+          ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_reminders');
+          debugPrint('[ContextFetcher] reminders error: $e');
+        }
+        reminders = reminderRows
+            .map((r) => '${r['title']} on ${r['due_date']}')
+            .toList();
       }
 
-      // Special days — fetch all so AI can answer birthday/anniversary queries by name
-      List<Map<String, dynamic>> specialDayRows = [];
-      try {
-        final raw = await SpecialDayService.instance.fetchDays(walletId);
-        specialDayRows = raw;
-      } catch (e, stack) {
-        ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_special_days');
-        debugPrint('[ContextFetcher] special_days error: $e');
+      // Special days — reuse Dashboard's cache (already unfiltered, same as
+      // the live fetch) so the AI can answer birthday/anniversary queries by name.
+      final cachedDays = cache?.specialDaysByWallet?[walletId];
+      final List<String> specialDays;
+      if (cachedDays != null) {
+        specialDays = cachedDays
+            .map((d) =>
+                '${d.title} (${d.type.name}) — ${d.date.toIso8601String().substring(0, 10)}')
+            .where((s) => s.isNotEmpty)
+            .toList();
+      } else {
+        List<Map<String, dynamic>> specialDayRows = [];
+        try {
+          specialDayRows = await SpecialDayService.instance.fetchDays(walletId);
+        } catch (e, stack) {
+          ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_special_days');
+          debugPrint('[ContextFetcher] special_days error: $e');
+        }
+        specialDays = specialDayRows
+            .map((r) {
+              final title = r['title'] as String? ?? '';
+              final date  = r['date']  as String? ?? '';
+              final type  = r['type']  as String? ?? '';
+              return '$title ($type) — $date';
+            })
+            .where((s) => s.isNotEmpty)
+            .toList();
       }
 
       final bills = billRows
           .map((r) =>
               '${r['name']} ${AppPrefs.cs}${(r['amount'] as num?)?.toStringAsFixed(0) ?? '?'} due ${r['due_date']}')
-          .toList();
-
-      final reminders = reminderRows
-          .map((r) => '${r['title']} on ${r['due_date']}')
-          .toList();
-
-      final specialDays = specialDayRows
-          .map((r) {
-            final title = r['title'] as String? ?? '';
-            final date  = r['date']  as String? ?? '';
-            final type  = r['type']  as String? ?? '';
-            return '$title ($type) — $date';
-          })
-          .where((s) => s.isNotEmpty)
           .toList();
 
       return {
@@ -335,39 +452,65 @@ class ContextFetcher {
     }
   }
 
-  Future<Map<String, dynamic>> _fetchFunctions(String walletId) async {
+  Future<Map<String, dynamic>> _fetchFunctions(String walletId, DashboardAiCache? cache) async {
     if (walletId.isEmpty) return {};
     try {
-      final upcoming = await FunctionsService.instance.fetchUpcoming(walletId);
-      final my = await FunctionsService.instance.fetchMyFunctions(walletId);
+      final cachedUpcoming = cache?.upcomingFunctionsByWallet?[walletId];
+      final List<String> upcomingList;
+      if (cachedUpcoming != null) {
+        upcomingList = cachedUpcoming.take(5).map((u) {
+          final title = u.functionTitle;
+          final person = u.personName;
+          final date = u.date?.toIso8601String().substring(0, 10) ?? '';
+          final type = u.type.name;
+          final label = [
+            if (title.isNotEmpty) title,
+            if (person.isNotEmpty) 'for $person',
+            if (type.isNotEmpty && type != 'other') '($type)',
+            if (date.isNotEmpty) 'on $date',
+          ].join(' ');
+          return label;
+        }).where((s) => s.isNotEmpty).toList();
+      } else {
+        final upcoming = await FunctionsService.instance.fetchUpcoming(walletId);
+        upcomingList = upcoming
+            .take(5)
+            .map((r) {
+              final title = r['function_title'] as String? ?? '';
+              final person = r['person_name'] as String? ?? '';
+              final date = r['date'] as String? ?? '';
+              final type = r['type'] as String? ?? '';
+              final label = [
+                if (title.isNotEmpty) title,
+                if (person.isNotEmpty) 'for $person',
+                if (type.isNotEmpty && type != 'other') '($type)',
+                if (date.isNotEmpty) 'on $date',
+              ].join(' ');
+              return label;
+            })
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
 
-      final upcomingList = upcoming
-          .take(5)
-          .map((r) {
-            final title = r['function_title'] as String? ?? '';
-            final person = r['person_name'] as String? ?? '';
-            final date = r['date'] as String? ?? '';
-            final type = r['type'] as String? ?? '';
-            final label = [
-              if (title.isNotEmpty) title,
-              if (person.isNotEmpty) 'for $person',
-              if (type.isNotEmpty && type != 'other') '($type)',
-              if (date.isNotEmpty) 'on $date',
-            ].join(' ');
-            return label;
-          })
-          .where((s) => s.isNotEmpty)
-          .toList();
-
-      final myList = my
-          .take(3)
-          .map((r) {
-            final title = r['title'] as String? ?? '';
-            final date = r['function_date'] as String? ?? '';
-            return date.isNotEmpty ? '$title on $date' : title;
-          })
-          .where((s) => s.isNotEmpty)
-          .toList();
+      final cachedMy = cache?.myFunctionsByWallet?[walletId];
+      final List<String> myList;
+      if (cachedMy != null) {
+        myList = cachedMy.take(3).map((f) {
+          final date = f.functionDate?.toIso8601String().substring(0, 10) ?? '';
+          return date.isNotEmpty ? '${f.title} on $date' : f.title;
+        }).where((s) => s.isNotEmpty).toList();
+      } else {
+        final my = await FunctionsService.instance.fetchMyFunctions(walletId);
+        myList = my
+            .take(3)
+            .map((r) {
+              final title = r['title'] as String? ?? '';
+              final date = r['function_date'] as String? ?? '';
+              return date.isNotEmpty ? '$title on $date' : title;
+            })
+            .where((s) => s.isNotEmpty)
+            .toList();
+      }
 
       return {
         if (upcomingList.isNotEmpty) 'upcoming_functions': upcomingList.join(', '),
@@ -404,49 +547,26 @@ class ContextFetcher {
     }
   }
 
-  Future<Map<String, dynamic>> _fetchHealth(String walletId) async {
+  Future<Map<String, dynamic>> _fetchHealth(String walletId, DashboardAiCache? cache) async {
     if (walletId.isEmpty) return {};
     try {
       final now = DateTime.now();
       final today = now.toIso8601String().substring(0, 10);
       final in30d = now.add(const Duration(days: 30)).toIso8601String().substring(0, 10);
 
-      final results = await Future.wait([
-        _db
-            .from('health_medications')
-            .select('name, dosage, frequency')
-            .eq('wallet_id', walletId)
-            .eq('is_active', true)
-            .limit(10),
-        _db
-            .from('health_appointments')
-            .select('doctor_name, appt_date')
-            .eq('wallet_id', walletId)
-            .gte('appt_date', today)
-            .order('appt_date')
-            .limit(5),
-        _db
-            .from('health_vaccinations')
-            .select('vaccine_name, next_due_date')
-            .eq('wallet_id', walletId)
-            .gte('next_due_date', today)
-            .lte('next_due_date', in30d)
-            .order('next_due_date')
-            .limit(5),
-        // Recent vitals — last 5 readings for quick summary
+      // Vitals/doctors/insurance aren't cached anywhere in Dashboard — always live.
+      final liveResults = await Future.wait([
         _db
             .from('health_vitals')
             .select('vital_type, value, value2, sub_type, recorded_at')
             .eq('wallet_id', walletId)
             .order('recorded_at', ascending: false)
             .limit(5),
-        // Doctors on file
         _db
             .from('health_doctors')
             .select('name, specialty')
             .eq('wallet_id', walletId)
             .limit(10),
-        // Active insurance policies
         _db
             .from('health_insurance')
             .select('policy_name, provider, coverage_amount, expiry_date')
@@ -454,26 +574,99 @@ class ContextFetcher {
             .limit(5),
       ]);
 
-      final meds = (results[0] as List).map((r) {
-        final name   = r['name']      as String? ?? '';
-        final dosage = r['dosage']    as String? ?? '';
-        final freq   = r['frequency'] as String? ?? '';
-        return '$name${dosage.isNotEmpty ? ' $dosage' : ''}${freq.isNotEmpty ? ' ($freq)' : ''}';
-      }).where((s) => s.isNotEmpty).toList();
+      // Meds/appointments/vaccinations — reuse Dashboard's cache (which holds
+      // the unfiltered table) when available, reapplying the same filters
+      // the live query below would otherwise apply server-side.
+      final cachedMeds = cache?.healthMedsByWallet?[walletId];
+      final List<String> meds;
+      if (cachedMeds != null) {
+        meds = cachedMeds
+            .where((r) => r['is_active'] == true)
+            .take(10)
+            .map((r) {
+          final name   = r['name']      as String? ?? '';
+          final dosage = r['dosage']    as String? ?? '';
+          final freq   = r['frequency'] as String? ?? '';
+          return '$name${dosage.isNotEmpty ? ' $dosage' : ''}${freq.isNotEmpty ? ' ($freq)' : ''}';
+        }).where((s) => s.isNotEmpty).toList();
+      } else {
+        final rows = await _db
+            .from('health_medications')
+            .select('name, dosage, frequency')
+            .eq('wallet_id', walletId)
+            .eq('is_active', true)
+            .limit(10);
+        meds = (rows as List).map((r) {
+          final name   = r['name']      as String? ?? '';
+          final dosage = r['dosage']    as String? ?? '';
+          final freq   = r['frequency'] as String? ?? '';
+          return '$name${dosage.isNotEmpty ? ' $dosage' : ''}${freq.isNotEmpty ? ' ($freq)' : ''}';
+        }).where((s) => s.isNotEmpty).toList();
+      }
 
-      final appts = (results[1] as List).map((r) {
-        final doc  = r['doctor_name'] as String? ?? '';
-        final date = r['appt_date']   as String? ?? '';
-        return '$doc on $date';
-      }).where((s) => s.isNotEmpty).toList();
+      final cachedAppts = cache?.healthApptsByWallet?[walletId];
+      final List<String> appts;
+      if (cachedAppts != null) {
+        appts = (cachedAppts
+                .where((r) => ((r['appt_date'] as String?) ?? '').compareTo(today) >= 0)
+                .toList()
+              ..sort((a, b) => ((a['appt_date'] as String?) ?? '')
+                  .compareTo((b['appt_date'] as String?) ?? '')))
+            .take(5)
+            .map((r) {
+          final doc  = r['doctor_name'] as String? ?? '';
+          final date = r['appt_date']   as String? ?? '';
+          return '$doc on $date';
+        }).where((s) => s.isNotEmpty).toList();
+      } else {
+        final rows = await _db
+            .from('health_appointments')
+            .select('doctor_name, appt_date')
+            .eq('wallet_id', walletId)
+            .gte('appt_date', today)
+            .order('appt_date')
+            .limit(5);
+        appts = (rows as List).map((r) {
+          final doc  = r['doctor_name'] as String? ?? '';
+          final date = r['appt_date']   as String? ?? '';
+          return '$doc on $date';
+        }).where((s) => s.isNotEmpty).toList();
+      }
 
-      final vaccines = (results[2] as List).map((r) {
-        final name = r['vaccine_name']  as String? ?? '';
-        final due  = r['next_due_date'] as String? ?? '';
-        return '$name due $due';
-      }).where((s) => s.isNotEmpty).toList();
+      final cachedVaccs = cache?.healthVaccsByWallet?[walletId];
+      final List<String> vaccines;
+      if (cachedVaccs != null) {
+        vaccines = (cachedVaccs
+                .where((r) {
+                  final due = (r['next_due_date'] as String?) ?? '';
+                  return due.compareTo(today) >= 0 && due.compareTo(in30d) <= 0;
+                })
+                .toList()
+              ..sort((a, b) => ((a['next_due_date'] as String?) ?? '')
+                  .compareTo((b['next_due_date'] as String?) ?? '')))
+            .take(5)
+            .map((r) {
+          final name = r['vaccine_name']  as String? ?? '';
+          final due  = r['next_due_date'] as String? ?? '';
+          return '$name due $due';
+        }).where((s) => s.isNotEmpty).toList();
+      } else {
+        final rows = await _db
+            .from('health_vaccinations')
+            .select('vaccine_name, next_due_date')
+            .eq('wallet_id', walletId)
+            .gte('next_due_date', today)
+            .lte('next_due_date', in30d)
+            .order('next_due_date')
+            .limit(5);
+        vaccines = (rows as List).map((r) {
+          final name = r['vaccine_name']  as String? ?? '';
+          final due  = r['next_due_date'] as String? ?? '';
+          return '$name due $due';
+        }).where((s) => s.isNotEmpty).toList();
+      }
 
-      final vitals = (results[3] as List).map((r) {
+      final vitals = (liveResults[0] as List).map((r) {
         final type  = r['vital_type'] as String? ?? '';
         final val   = r['value']      as num?;
         final val2  = r['value2']     as num?;
@@ -485,13 +678,13 @@ class ContextFetcher {
         return '$type: $reading${sub.isNotEmpty ? ' $sub' : ''} (on $date)';
       }).where((s) => s.isNotEmpty).toList();
 
-      final doctors = (results[4] as List).map((r) {
+      final doctors = (liveResults[1] as List).map((r) {
         final name = r['name']     as String? ?? '';
         final spec = r['specialty'] as String? ?? '';
         return '$name${spec.isNotEmpty ? ' ($spec)' : ''}';
       }).where((s) => s.isNotEmpty).toList();
 
-      final insurance = (results[5] as List).map((r) {
+      final insurance = (liveResults[2] as List).map((r) {
         final policy   = r['policy_name']     as String? ?? '';
         final provider = r['provider']        as String? ?? '';
         final coverage = r['coverage_amount'] as num?;

@@ -262,6 +262,9 @@ class SpecialDaysScreen extends StatefulWidget {
   final bool openAdd;
   /// Family wallet ID → display label. Non-empty only in Personal view.
   final Map<String, String> familyWalletNames;
+  /// True when [days] is already a real, fully-loaded snapshot from
+  /// PlanItScreen — skips this screen's own initial fetch.
+  final bool preloaded;
   const SpecialDaysScreen({
     super.key,
     required this.walletId,
@@ -271,6 +274,7 @@ class SpecialDaysScreen extends StatefulWidget {
     required this.days,
     this.openAdd = false,
     this.familyWalletNames = const {},
+    this.preloaded = false,
   });
   @override
   State<SpecialDaysScreen> createState() => _SpecialDaysScreenState();
@@ -331,7 +335,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
 
   void _onNetworkChange() {
     final online = NetworkService.instance.isOnline.value;
-    if (online && !_wasOnline) _loadDays();
+    if (online && !_wasOnline) _loadDays(force: true);
     _wasOnline = online;
   }
 
@@ -342,7 +346,11 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     _tab = TabController(length: 2, vsync: this);
     _tab.addListener(() => setState(() {}));
-    _loadDays();
+    if (widget.preloaded) {
+      _days = List.from(widget.days);
+    } else {
+      _loadDays();
+    }
     if (widget.openAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -360,7 +368,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     super.dispose();
   }
 
-  Future<void> _loadDays() async {
+  Future<void> _loadDays({bool force = false}) async {
     if (widget.walletId.isEmpty) {
       setState(() => _loading = false);
       return;
@@ -371,7 +379,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
-          allIds.map((id) => SpecialDayService.instance.fetchDays(id)),
+          allIds.map((id) => SpecialDayService.instance.fetchDays(id, force: force)),
         );
         if (!mounted) return;
         final loaded = results.expand((rows) => rows.map(SpecialDayModel.fromRow)).toList();
@@ -393,7 +401,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     }
     setState(() => _loading = true);
     try {
-      final rows = await SpecialDayService.instance.fetchDays(widget.walletId);
+      final rows = await SpecialDayService.instance.fetchDays(widget.walletId, force: force);
       if (!mounted) return;
       final loaded = rows.map(SpecialDayModel.fromRow).toList();
       setState(() {
@@ -564,7 +572,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
               controller: _tab,
               children: [
                 RefreshIndicator(
-                  onRefresh: _loadDays,
+                  onRefresh: () => _loadDays(force: true),
                   child: _DayList(
                     key: ValueKey('upcoming-${_upcoming().length}'),
                     days: _upcoming(),
@@ -576,7 +584,7 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
                   ),
                 ),
                 RefreshIndicator(
-                  onRefresh: _loadDays,
+                  onRefresh: () => _loadDays(force: true),
                   child: _DayList(
                     key: ValueKey('past-${_past().length}'),
                     days: _past(),
