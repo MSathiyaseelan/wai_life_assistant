@@ -14,6 +14,7 @@ import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetch
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/action_executor.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
+import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
@@ -218,6 +219,20 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     });
   }
 
+  // Guards against NlpParser false-positiving on a question that happens to
+  // contain a number and a spend-ish word (e.g. "Did I spend more than 500
+  // this month?" scores amount+intent = 0.75) — those need Gemini + live
+  // context, not to be treated as a new transaction.
+  static const _questionStarters = [
+    'how', 'what', 'when', 'where', 'why', 'who',
+    'did', 'is', 'are', 'should', 'can', 'could', 'will', 'does', 'do',
+  ];
+  bool _looksLikeQuestion(String text) {
+    final t = text.trim().toLowerCase();
+    if (t.endsWith('?')) return true;
+    return _questionStarters.any((w) => t.startsWith('$w '));
+  }
+
   // ── Submit ─────────────────────────────────────────────────────────────────
 
   Future<void> _submit(String q) async {
@@ -231,6 +246,31 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       setState(() => _limitReached = true);
       return;
     }
+
+    // Try the same deterministic local parser Wallet's own quick-add bar uses
+    // before ever calling Gemini — "Coffee 15 gpay", "Tea 25 gpay", "Spend 15
+    // gpay for Coffee" all score above its 0.75 confidence threshold (amount
+    // + category keyword + payment-mode keyword), so entries like these never
+    // need an AI call at all. Skipped for anything that reads like a question
+    // (needs live data only Gemini + context can answer).
+    if (!_looksLikeQuestion(question)) {
+      final localIntent = NlpParser.parse(question);
+      if (localIntent.confidence >= 0.75) {
+        _hideSuggestions();
+        _focus.unfocus();
+        HapticFeedback.lightImpact();
+        _ctrl.clear();
+        await IntentConfirmSheet.show(
+          context,
+          intent: localIntent,
+          walletId: _selectedWalletId,
+          onSave: (tx) => widget.onTransactionSaved?.call(tx),
+          onOpenFlow: () => _openConversation(localIntent.flowType),
+        );
+        return;
+      }
+    }
+
     _hideSuggestions();
     _focus.unfocus();
     HapticFeedback.lightImpact();

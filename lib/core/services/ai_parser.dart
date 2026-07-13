@@ -3,8 +3,24 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+class _CachedParse {
+  final AIParseResult result;
+  final DateTime expiresAt;
+  const _CachedParse(this.result, this.expiresAt);
+}
+
 class AIParser {
   static final _supabase = Supabase.instance.client;
+
+  /// Short-lived cache for identical text parses (e.g. re-submitting "Coffee
+  /// 15 gpay" or accidentally double-tapping send) — avoids paying for a
+  /// second Gemini call for input we've already parsed seconds ago. Keyed on
+  /// feature+subFeature+normalized text only (not the injected context), so
+  /// the TTL is kept short: long enough to absorb accidental repeats, short
+  /// enough that a genuine follow-up question (whose answer depends on data
+  /// that may have changed since) can't get served a stale answer.
+  static final Map<String, _CachedParse> _parseCache = {};
+  static const _cacheTtl = Duration(seconds: 90);
 
   /// Parse plain text input
   static Future<AIParseResult> parseText({
@@ -13,7 +29,15 @@ class AIParser {
     required String text,
     Map<String, dynamic>? context,
   }) async {
-    return _invoke(
+    final cacheKey = '$feature|$subFeature|${text.trim().toLowerCase()}';
+    _pruneExpiredCacheEntries();
+    final cached = _parseCache[cacheKey];
+    if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
+      debugPrint('[AIParser] cache hit → $cacheKey');
+      return cached.result;
+    }
+
+    final result = await _invoke(
       feature: feature,
       subFeature: subFeature,
       inputType: 'text',
@@ -22,6 +46,15 @@ class AIParser {
         'context': _buildContext(context),
       },
     );
+    if (result.success) {
+      _parseCache[cacheKey] = _CachedParse(result, DateTime.now().add(_cacheTtl));
+    }
+    return result;
+  }
+
+  static void _pruneExpiredCacheEntries() {
+    final now = DateTime.now();
+    _parseCache.removeWhere((_, cached) => cached.expiresAt.isBefore(now));
   }
 
   /// Parse image input (receipt, wardrobe, pantry scan)
