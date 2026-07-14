@@ -61,6 +61,12 @@ class CategoryDetector {
         return '🎁 Gift';
       if (has(['business', 'revenue', 'sale', 'selling', 'earning'])) return '📦 Business';
     } else {
+      // Checked before the generic Food keywords so meat/seafood purchases
+      // get their own category instead of falling into plain "Food".
+      if (has(['chicken', 'mutton', 'prawn', 'prawns', 'shrimp', 'crab', 'fish',
+               'beef', 'beaf', 'squid', 'lobster', 'pork', 'duck', 'lamb',
+               'egg', 'eggs', 'meat', 'nonveg', 'non-veg', 'non veg']))
+        return '🍖 Meats';
       if (has(['food', 'eat', 'lunch', 'dinner', 'breakfast', 'snack', 'restaurant', 'cafe', 'coffee', 'pizza', 'burger', 'grocery', 'groceries', 'meal', 'swiggy', 'zomato', 'bake', 'chai', 'tea'])) return '🍕 Food';
       if (has(['petrol', 'diesel', 'fuel', 'cab', 'uber', 'ola', 'rapido', 'metro', 'bus', 'train', 'toll', 'parking', 'flight', 'auto', 'commute', 'namma'])) return '🚗 Transport';
       if (has(['shopping', 'amazon', 'flipkart', 'meesho', 'myntra', 'purchase', 'order', 'bought', 'buy'])) return '🛒 Shopping';
