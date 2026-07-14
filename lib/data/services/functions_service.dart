@@ -1,4 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
 
 class FunctionsService {
   FunctionsService._();
@@ -9,6 +11,47 @@ class FunctionsService {
     final uid = _db.auth.currentUser?.id;
     if (uid == null) throw StateError('Not authenticated');
     return uid;
+  }
+
+  /// Sum of `amount` across a function's `gifts` JSONB list (same shape as
+  /// PlannedGiftItem.toJson — gifts without an amount contribute 0).
+  double _giftsTotal(dynamic gifts) {
+    if (gifts is! List) return 0;
+    return gifts.fold<double>(0, (sum, g) {
+      final amount = (g as Map?)?['amount'];
+      return sum + ((amount is num) ? amount.toDouble() : 0);
+    });
+  }
+
+  /// Creates the matching Personal-wallet expense for an attended function's
+  /// gift, the first time it has a recorded amount — fire-and-forget aside
+  /// from returning the new transaction id to store on the function row, so
+  /// this never runs twice for the same function.
+  Future<String?> _syncGiftToWallet({
+    required String personalWalletId,
+    required dynamic gifts,
+    required String functionName,
+    String? personName,
+    String? familyName,
+  }) async {
+    final total = _giftsTotal(gifts);
+    if (total <= 0) return null;
+    try {
+      final who = personName ?? familyName;
+      final row = await WalletService.instance.addTransaction(
+        walletId: personalWalletId,
+        type: 'expense',
+        amount: total,
+        category: '🎁 Gifts',
+        title: functionName,
+        note: who != null ? 'Gift given at $functionName for $who' : 'Gift given at $functionName',
+      );
+      return row['id'] as String?;
+    } catch (e) {
+      // Never let the wallet sync block saving the attended function itself.
+      ErrorLogger.warning(e, action: 'sync_attended_gift_to_wallet');
+      return null;
+    }
   }
 
   // ── Our Functions ────────────────────────────────────────────────────────
@@ -82,16 +125,65 @@ class FunctionsService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
-  Future<Map<String, dynamic>> addAttended(Map<String, dynamic> data) async {
-    final row = await _db
+  /// [personalWalletId] enables auto-logging the gift as a Personal-wallet
+  /// expense — pass it whenever the caller has it (my_functions_screen.dart
+  /// always does). Omitted only for callers that don't want the sync.
+  Future<Map<String, dynamic>> addAttended(
+    Map<String, dynamic> data, {
+    String? personalWalletId,
+  }) async {
+    var row = await _db
         .from('functions_attended')
         .insert({...data, 'user_id': _uid})
         .select()
         .single();
+
+    if (personalWalletId != null) {
+      final txId = await _syncGiftToWallet(
+        personalWalletId: personalWalletId,
+        gifts: row['gifts'],
+        functionName: row['function_name'] as String? ?? '',
+        personName: row['person_name'] as String?,
+        familyName: row['family_name'] as String?,
+      );
+      if (txId != null) {
+        row = await _db
+            .from('functions_attended')
+            .update({'wallet_tx_id': txId})
+            .eq('id', row['id'] as String)
+            .select()
+            .single();
+      }
+    }
     return row;
   }
 
-  Future<void> updateAttended(String id, Map<String, dynamic> updates) async {
+  /// Same [personalWalletId] contract as [addAttended] — only actually syncs
+  /// when [updates] touches `gifts` and this function doesn't already have
+  /// a linked transaction (checked via a lightweight lookup first), so
+  /// editing unrelated fields (venue, notes, ...) never creates a duplicate.
+  Future<void> updateAttended(
+    String id,
+    Map<String, dynamic> updates, {
+    String? personalWalletId,
+  }) async {
+    if (personalWalletId != null && updates.containsKey('gifts')) {
+      final existing = await _db
+          .from('functions_attended')
+          .select('wallet_tx_id, function_name, person_name, family_name')
+          .eq('id', id)
+          .maybeSingle();
+      if (existing != null && existing['wallet_tx_id'] == null) {
+        final txId = await _syncGiftToWallet(
+          personalWalletId: personalWalletId,
+          gifts: updates['gifts'],
+          functionName: (existing['function_name'] as String?) ?? '',
+          personName: existing['person_name'] as String?,
+          familyName: existing['family_name'] as String?,
+        );
+        if (txId != null) updates = {...updates, 'wallet_tx_id': txId};
+      }
+    }
     await _db.from('functions_attended').update(updates).eq('id', id);
   }
 
