@@ -176,6 +176,11 @@ class AIParser {
     }
     final msg = raw.toLowerCase();
 
+    // App-side monthly plan limit (our own check_feature_limit RPC, not Gemini)
+    if (msg.contains('monthly ai usage limit') || msg.contains('upgrade your plan')) {
+      return "You've reached this month's AI limit on the Free plan. Upgrade for more AI parsing.";
+    }
+
     // Quota / rate limit (Gemini 429 / RESOURCE_EXHAUSTED)
     if (msg.contains('quota_exceeded') || msg.contains('quota') ||
         msg.contains('resource_exhausted') || msg.contains('rate_limit') ||

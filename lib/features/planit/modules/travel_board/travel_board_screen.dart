@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -2714,7 +2715,8 @@ class _AddTripSheetState extends State<_AddTripSheet>
         } else {
           throw Exception(aiResult.error ?? 'AI parse failed');
         }
-      } catch (_) {
+      } catch (e) {
+        if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
         result = _TripNlpParser.parse(text, widget.walletId);
       }
       setState(() {

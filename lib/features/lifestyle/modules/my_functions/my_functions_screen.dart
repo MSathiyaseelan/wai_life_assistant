@@ -14,6 +14,7 @@ import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import '../../widgets/life_widgets.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -10242,6 +10243,9 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
       result = await _FunctionAIParser.parse(text.trim(), widget.tabIdx);
     } catch (e) {
       ErrorLogger.warning(e, action: 'function_ai_parse_fallback');
+      if (mounted) {
+        maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
+      }
       result = _FunctionNlpParser.parse(text.trim(), widget.tabIdx);
     }
     if (!mounted) return;

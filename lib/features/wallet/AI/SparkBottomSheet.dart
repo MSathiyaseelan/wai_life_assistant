@@ -9,6 +9,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
@@ -215,6 +216,7 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
     if (!mounted) return;
 
     if (!result.success || result.data == null) {
+      maybeShowAiLimitSnackbar(context, result.error);
       setState(() {
         _isLoading = false;
         _errorMsg = result.error ?? 'Could not understand. Try rephrasing.';
@@ -222,24 +224,12 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
       return;
     }
 
-    // Increment usage only on a successful AI response
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId != null) {
-      try {
-        final allowed = await Supabase.instance.client.rpc(
-          AppRpc.checkFeatureLimit,
-          params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-        ) as bool? ?? true;
-        if (mounted) {
-          setState(() {
-            _monthlyUsed = _monthlyUsed + 1;
-            if (!allowed) _limitReached = true;
-          });
-        }
-      } catch (e) {
-        ErrorLogger.warning(e, action: 'spark_increment_limit');
-      }
-    }
+    // Refresh the usage counter for display only — the actual usage
+    // increment already happened server-side inside the parse Edge
+    // Function's own check_feature_limit gate. Re-calling that RPC here
+    // would increment the count a second time for a single parse, so we
+    // just re-read the current tally instead.
+    if (mounted) await _checkLimitOnOpen();
 
     final intent = _mapToIntent(result.data!, result.parseLogId);
 

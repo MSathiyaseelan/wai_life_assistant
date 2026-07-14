@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import '../../widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
@@ -1484,7 +1485,8 @@ class _AddDaySheetState extends State<_AddDaySheet>
       } else {
         throw Exception(aiResult.error);
       }
-    } catch (_) {
+    } catch (e) {
+      if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
       result = _DayNlpParser.parse(text.trim());
     }
 

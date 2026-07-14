@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
@@ -34,11 +35,19 @@ class SplitGroupSheet extends StatefulWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => SplitGroupSheet(
-        existing: existing,
-        walletId: walletId,
-        onSave: onSave,
-        onDelete: onDelete,
+      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
+      // render inside this modal route instead of bubbling up to the page
+      // underneath, where they'd stay hidden behind the sheet.
+      builder: (_) => ScaffoldMessenger(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SplitGroupSheet(
+            existing: existing,
+            walletId: walletId,
+            onSave: onSave,
+            onDelete: onDelete,
+          ),
+        ),
       ),
     );
   }
@@ -345,7 +354,10 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
         text: text,
       );
       if (!result.success || result.data == null) {
-        if (mounted) setState(() => _aiError = result.error ?? 'Could not parse. Try again.');
+        if (mounted) {
+          maybeShowAiLimitSnackbar(context, result.error);
+          setState(() => _aiError = result.error ?? 'Could not parse. Try again.');
+        }
         return;
       }
       final d = result.data!;

@@ -3350,7 +3350,15 @@ class _SpendingPulseCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: tc.withValues(alpha: 0.07)),
       ),
-      child: Column(
+      // SingleChildScrollView (not ClipRRect) so the Column gets an unbounded
+      // height and never trips the RenderFlex overflow assertion during the
+      // one-frame gap while the parent AnimatedContainer is still tweening
+      // toward _pulseCardHeight()'s new (taller) target.
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Stat row ──────────────────────────────────────────────────────
@@ -3480,6 +3488,8 @@ class _SpendingPulseCard extends StatelessWidget {
               const SizedBox(height: 12),
           ],
         ],
+        ),
+        ),
       ),
     );
   }

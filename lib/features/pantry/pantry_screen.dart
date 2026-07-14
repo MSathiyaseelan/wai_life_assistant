@@ -22,6 +22,7 @@ import 'package:wai_life_assistant/features/pantry/flows/pantry_flow_selector.da
 import 'package:wai_life_assistant/features/pantry/flows/PantryIntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
@@ -623,6 +624,7 @@ class _PantryScreenState extends State<PantryScreen>
         // Single item or meal/recipe
         _handleParsedIntent(_mapAiResult(data, result.parseLogId), text);
       } else {
+        maybeShowAiLimitSnackbar(context, result.error);
         _handleParsedIntent(PantryNlpParser.parse(text), text);
       }
     } catch (_) {
@@ -2326,7 +2328,13 @@ class _PantryScreenState extends State<PantryScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AddBasketSheet(
+      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
+      // render inside this modal route instead of bubbling up to the page
+      // underneath, where they'd stay hidden behind the sheet.
+      builder: (_) => ScaffoldMessenger(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: _AddBasketSheet(
         isDark: isDark,
         walletId: widget.activeWalletId,
         onItemAdded: (item) {
@@ -2347,6 +2355,8 @@ class _PantryScreenState extends State<PantryScreen>
           _showMultiBasketConfirm(items);
         },
         mapBasketItems: _mapBasketItems,
+          ),
+        ),
       ),
     );
   }
@@ -2490,6 +2500,7 @@ class _AddBasketSheetState extends State<_AddBasketSheet>
         });
         _tab.animateTo(1); // switch to Manual tab
       } else {
+        maybeShowAiLimitSnackbar(context, result.error);
         _fallbackParse(text);
       }
     } catch (e, stack) {

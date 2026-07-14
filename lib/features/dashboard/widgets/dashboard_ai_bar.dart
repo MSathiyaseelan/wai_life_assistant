@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_context_builder.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DashboardAiBar
@@ -99,6 +100,7 @@ class _DashboardAiBarState extends State<DashboardAiBar>
       if (!mounted) return;
 
       if (!result.success || result.data == null) {
+        maybeShowAiLimitSnackbar(context, result.error);
         setState(() {
           _answer = result.error ?? 'Sorry, I couldn\'t fetch an answer right now. Try again.';
           _deepLinks = [];

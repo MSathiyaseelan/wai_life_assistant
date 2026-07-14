@@ -6,6 +6,7 @@ import 'package:wai_life_assistant/data/services/note_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 
 // ── Note color palette ────────────────────────────────────────────────────────
@@ -927,7 +928,8 @@ class _NoteSheetState extends State<_NoteSheet>
       } else {
         throw Exception(aiResult.error ?? 'AI parse failed');
       }
-    } catch (_) {
+    } catch (e) {
+      if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
       try {
         result = _NoteNlpParser.parse(text.trim(), widget.walletId);
         _usingAI = false;

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/utils/confirm_delete.dart';
 import '../../../../../core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/models/health/health_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
@@ -700,6 +701,7 @@ class _ProfileTab extends StatelessWidget {
           if (result.success && result.data != null) {
             applyAiData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             // Fallback to local parser
             applyAiData(parseLocally(text));
           }
@@ -1099,6 +1101,7 @@ class _MedicationsTab extends StatelessWidget {
           if (result.success && result.data != null) {
             applyMedAiData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             applyMedAiData(parseMedLocally(text));
           }
         } catch (_) {
@@ -1638,6 +1641,7 @@ class _DoctorsTab extends StatelessWidget {
           if (result.success && result.data != null) {
             applyDocAiData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             // Simple local fallback — just put the whole text in name
             ss(() { if (nameCtrl.text.isEmpty) nameCtrl.text = text; aiActive = false; });
           }
@@ -2167,6 +2171,7 @@ class _AppointmentsTab extends StatelessWidget {
           if (result.success && result.data != null) {
             applyData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             ss(() { aiActive = false; });
           }
         } catch (_) {
@@ -2516,6 +2521,7 @@ class _VitalsTabState extends State<_VitalsTab> {
           if (result.success && result.data != null) {
             applyData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             ss(() { aiActive = false; });
           }
         } catch (_) {
@@ -2681,6 +2687,7 @@ class _VaccinesTab extends StatelessWidget {
           if (result.success && result.data != null) {
             applyData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             ss(() { aiActive = false; });
           }
         } catch (_) {
@@ -2980,6 +2987,7 @@ class _InsuranceTab extends StatelessWidget {
           if (result.success && result.data != null) {
             applyData(result.data!);
           } else {
+            maybeShowAiLimitSnackbar(ctx2, result.error);
             ss(() { aiActive = false; });
           }
         } catch (_) {

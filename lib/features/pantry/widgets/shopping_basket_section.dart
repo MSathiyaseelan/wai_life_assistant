@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
@@ -947,24 +948,13 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
 
   Future<void> _analyze(File imageFile) async {
     try {
-      // Increment + check limit right before the API call (not on button tap)
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId != null) {
-        final allowed =
-            await Supabase.instance.client.rpc(
-                  AppRpc.checkFeatureLimit,
-                  params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-                )
-                as bool? ??
-            true;
-        if (!mounted) return;
-        if (!allowed) {
-          setState(() {
-            _limitReached = true;
-            _phase = 'pick';
-          });
-          return;
-        }
+      // Re-check the (non-incrementing) locally-known limit right before the
+      // API call — the actual gate + increment happens once, server-side,
+      // inside the parse Edge Function's own check_feature_limit call. Doing
+      // it again here too would double-count a single scan.
+      if (_limitReached) {
+        setState(() => _phase = 'pick');
+        return;
       }
 
       final bytes = await imageFile.readAsBytes();
@@ -981,12 +971,15 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       if (!mounted) return;
 
       if (!result.success) {
+        maybeShowAiLimitSnackbar(context, result.error);
         setState(() {
           _error = result.error ?? 'Could not read bill. Please try again.';
           _phase = 'pick';
         });
         return;
       }
+      await _checkLimitOnOpen();
+      if (!mounted) return;
 
       final rawItems =
           (result.data?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];

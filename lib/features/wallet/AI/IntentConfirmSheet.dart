@@ -10,6 +10,7 @@ import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTENT CONFIRM SHEET
@@ -25,6 +26,11 @@ class IntentConfirmSheet extends StatefulWidget {
   /// When set, the sheet is in edit mode — TxModel will use this id instead
   /// of generating a new one (so callers can call updateTransaction with it).
   final String? existingId;
+  /// Error to surface as a SnackBar once the sheet is on-screen (e.g. the AI
+  /// monthly-limit message from the parse call that preceded this sheet —
+  /// shown here instead of by the caller so it renders inside this sheet's
+  /// own ScaffoldMessenger scope rather than getting covered by it).
+  final String? pendingError;
 
   const IntentConfirmSheet({
     super.key,
@@ -33,6 +39,7 @@ class IntentConfirmSheet extends StatefulWidget {
     required this.onSave,
     required this.onOpenFlow,
     this.existingId,
+    this.pendingError,
   });
 
   static Future<void> show(
@@ -42,17 +49,27 @@ class IntentConfirmSheet extends StatefulWidget {
     required void Function(TxModel) onSave,
     required VoidCallback onOpenFlow,
     String? existingId,
+    String? pendingError,
   }) {
     return showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => IntentConfirmSheet(
-        intent: intent,
-        walletId: walletId,
-        onSave: onSave,
-        onOpenFlow: onOpenFlow,
-        existingId: existingId,
+      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
+      // render inside this modal route instead of bubbling up to the page
+      // underneath, where they'd stay hidden behind the sheet.
+      builder: (_) => ScaffoldMessenger(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: IntentConfirmSheet(
+            intent: intent,
+            walletId: walletId,
+            onSave: onSave,
+            onOpenFlow: onOpenFlow,
+            existingId: existingId,
+            pendingError: pendingError,
+          ),
+        ),
       ),
     );
   }
@@ -89,6 +106,12 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   @override
   void initState() {
     super.initState();
+    if (widget.pendingError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        maybeShowAiLimitSnackbar(context, widget.pendingError);
+      });
+    }
     final i = widget.intent;
     _flowType = i.flowType;
     _amountCtrl = TextEditingController(

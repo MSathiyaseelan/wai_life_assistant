@@ -13,6 +13,7 @@ import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
@@ -3710,11 +3711,19 @@ class _AddExpenseSheet extends StatefulWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _AddExpenseSheet(
-        group: group,
-        isDark: isDark,
-        onSave: onSave,
-        existing: existing,
+      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
+      // render inside this modal route instead of bubbling up to the page
+      // underneath, where they'd stay hidden behind the sheet.
+      builder: (_) => ScaffoldMessenger(
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: _AddExpenseSheet(
+            group: group,
+            isDark: isDark,
+            onSave: onSave,
+            existing: existing,
+          ),
+        ),
       ),
     );
   }
@@ -3836,6 +3845,7 @@ class _AddExpenseSheetState extends State<_AddExpenseSheet>
       );
       if (!mounted) return;
       if (!result.success || result.data == null) {
+        maybeShowAiLimitSnackbar(context, result.error);
         setState(() {
           _aiLoading = false;
           _aiError = result.error ?? 'Could not understand. Try rephrasing.';

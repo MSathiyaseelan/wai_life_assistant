@@ -9,6 +9,7 @@ import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
@@ -789,6 +790,8 @@ class _AddClothingSheetState extends State<AddClothingSheet>
           _aiCtrl.clear();
         });
         _tab.animateTo(1);
+      } else {
+        maybeShowAiLimitSnackbar(context, result.error);
       }
     } catch (e) {
       ErrorLogger.warning(e, action: 'wardrobe_ai_parse');

@@ -18,6 +18,7 @@ import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
@@ -308,25 +309,14 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         },
       );
       if (!mounted) return;
+      maybeShowAiLimitSnackbar(context, result.error);
 
-      // Increment usage only on a successful AI response
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId != null && result.success) {
-        final allowed = await Supabase.instance.client.rpc(
-          AppRpc.checkFeatureLimit,
-          params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
-        ) as bool? ?? true;
-        if (mounted) {
-          setState(() {
-            _monthlyUsed = _monthlyUsed + 1;
-            // Set limit when server says no OR when local count catches up to limit.
-            // The second condition prevents 21/20 display: when the 20th call is
-            // allowed by the server (count just hit 20), the next submit is still
-            // blocked locally without needing a 21st AI request.
-            if (!allowed || _monthlyUsed >= _monthlyLimit) _limitReached = true;
-          });
-        }
-      }
+      // Refresh the usage counter for display only — the actual usage
+      // increment already happened server-side inside the parse Edge
+      // Function's own check_feature_limit gate. Re-calling that RPC here
+      // would increment the count a second time for a single call, so we
+      // just re-read the current tally instead.
+      if (result.success && mounted) await _checkLimitOnOpen();
 
       if (!mounted) return;
       final response = AssistantResponse.fromResult(result);

@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import '../../widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 
 class WishListScreen extends StatefulWidget {
   final String walletId;
@@ -1773,7 +1774,8 @@ class _AddWishSheetState extends State<_AddWishSheet>
       } else {
         throw Exception(aiResult.error);
       }
-    } catch (_) {
+    } catch (e) {
+      if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
       result = _WishNlpParser.parse(text.trim());
     }
     debugPrint('[WishList] parse result: title=${result.title} price=${result.targetPrice} usingAI=$_usingAI');

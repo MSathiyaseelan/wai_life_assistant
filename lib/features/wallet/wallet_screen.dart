@@ -82,6 +82,43 @@ class _WalletScreenState extends State<WalletScreen>
 
   // Drag-and-drop state
   TxModel? _draggingTx;
+  final GlobalKey _txListKey = GlobalKey();
+  final ScrollController _txScrollController = ScrollController();
+  Timer? _dragScrollTimer;
+
+  void _handleDragPointerMove(PointerMoveEvent event) {
+    if (_draggingTx == null) {
+      _stopDragAutoScroll();
+      return;
+    }
+    final box = _txListKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !_txScrollController.hasClients) return;
+    final local = box.globalToLocal(event.position);
+    final height = box.size.height;
+    const edge = 72.0;
+    double direction;
+    if (local.dy < edge && local.dy >= -edge) {
+      direction = -1;
+    } else if (local.dy > height - edge && local.dy <= height + edge) {
+      direction = 1;
+    } else {
+      _stopDragAutoScroll();
+      return;
+    }
+    _dragScrollTimer ??= Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!_txScrollController.hasClients) return;
+      final pos = _txScrollController.position;
+      final target = (pos.pixels + direction * 10)
+          .clamp(pos.minScrollExtent, pos.maxScrollExtent);
+      if (target == pos.pixels) return;
+      _txScrollController.jumpTo(target);
+    });
+  }
+
+  void _stopDragAutoScroll() {
+    _dragScrollTimer?.cancel();
+    _dragScrollTimer = null;
+  }
 
   // Wallets list (from AppStateScope)
   List<WalletModel> _allWallets = [];
@@ -382,6 +419,8 @@ class _WalletScreenState extends State<WalletScreen>
     _familyPageCtrl?.dispose();
     _searchCtrl.dispose();
     _speech.stop();
+    _dragScrollTimer?.cancel();
+    _txScrollController.dispose();
     super.dispose();
   }
 
@@ -951,21 +990,14 @@ class _WalletScreenState extends State<WalletScreen>
     if (kDebugMode) debugPrint('🤖 AI parse ($subFeature): success=${result.success} error=${result.error}');
 
     ParsedIntent intent;
+    String? pendingError;
     if (result.success && result.data != null) {
-      // Increment usage only on a successful AI response
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId != null) {
-        final allowed = await Supabase.instance.client.rpc(
-          AppRpc.checkFeatureLimit,
-          params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-        ) as bool? ?? true;
-        if (mounted) {
-          setState(() {
-            _aiMonthlyUsed = _aiMonthlyUsed + 1;
-            if (!allowed) _aiLimitReached = true;
-          });
-        }
-      }
+      // Refresh the usage counter for display only — the actual usage
+      // increment already happened server-side inside the parse Edge
+      // Function's own check_feature_limit gate. Re-calling that RPC here
+      // would increment the count a second time for a single parse, so we
+      // just re-read the current tally instead.
+      if (mounted) await _loadAiLimit();
       intent = isSplit
           ? _splitResultToIntent(result.data!, result.parseLogId)
           : _aiResultToIntent(result.data!, result.parseLogId);
@@ -973,6 +1005,7 @@ class _WalletScreenState extends State<WalletScreen>
       debugPrint(
         '⚠️ AI failed, falling back to NlpParser. Reason: ${result.error}',
       );
+      pendingError = result.error;
       intent = NlpParser.parse(text);
     }
 
@@ -983,6 +1016,7 @@ class _WalletScreenState extends State<WalletScreen>
       walletId: widget.activeWalletId,
       onSave: _onTransactionSaved,
       onOpenFlow: () => _openConversation(intent.flowType),
+      pendingError: pendingError,
     );
   }
 
@@ -2044,9 +2078,15 @@ class _WalletScreenState extends State<WalletScreen>
     final entries = grouped.entries.toList()
       ..sort((a, b) => (sectionDates[b.key] ?? DateTime(0))
           .compareTo(sectionDates[a.key] ?? DateTime(0)));
-    return RefreshIndicator(
+    return Listener(
+      onPointerMove: _handleDragPointerMove,
+      onPointerUp: (_) => _stopDragAutoScroll(),
+      onPointerCancel: (_) => _stopDragAutoScroll(),
+      child: RefreshIndicator(
       onRefresh: _refreshAll,
       child: CustomScrollView(
+        key: _txListKey,
+        controller: _txScrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           // Wallet card(s) at the top of the tab
@@ -2125,6 +2165,7 @@ class _WalletScreenState extends State<WalletScreen>
               ),
             ),
         ],
+      ),
       ),
     );
   }

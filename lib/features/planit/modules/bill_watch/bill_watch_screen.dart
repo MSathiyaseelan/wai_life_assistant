@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -1483,7 +1484,8 @@ class _AddBillSheetState extends State<_AddBillSheet>
       } else {
         throw Exception(aiResult.error ?? 'AI parse failed');
       }
-    } catch (_) {
+    } catch (e) {
+      if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
       result = _BillNlpParser.parse(text.trim());
     }
     if (!mounted) return;

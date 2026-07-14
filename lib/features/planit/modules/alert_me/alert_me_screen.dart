@@ -7,6 +7,7 @@ import 'package:wai_life_assistant/data/services/reminder_service.dart';
 import 'package:wai_life_assistant/core/services/notification_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import '../../widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
@@ -1277,7 +1278,8 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
     try {
       result = await _ReminderAIParser.parse(text.trim(), widget.walletId);
       _usingAI = true;
-    } catch (_) {
+    } catch (e) {
+      if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
       try {
         result = _NlpParser.parse(text.trim(), widget.walletId);
         _usingAI = false;

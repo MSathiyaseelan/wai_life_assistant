@@ -4,6 +4,7 @@ import '../../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../widgets/life_widgets.dart';
 
@@ -555,6 +556,8 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                 'notes': d['note'] as String?,
               };
             }
+          } else {
+            maybeShowAiLimitSnackbar(ctx, result.error);
           }
         } catch (_) {}
         parsed ??= parseContainerNlp(text);
@@ -1072,7 +1075,11 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                   .join(', '),
             },
           );
-          if (result.success && result.data != null) parsed = result.data;
+          if (result.success && result.data != null) {
+            parsed = result.data;
+          } else {
+            maybeShowAiLimitSnackbar(ctx, result.error);
+          }
         } catch (_) {}
         parsed ??= _nlpParseItem(text);
         if (parsed == null) {
