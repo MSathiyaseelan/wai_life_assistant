@@ -1013,7 +1013,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
-              child: const Text('ðŸ”',
+              child: const Text('🔐',
                   style: TextStyle(fontSize: 18)),
             ),
             title: const Text(
@@ -1058,7 +1058,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 12),
                   _buildPermissionRow(
-                    icon: 'ðŸ‘¥',
+                    icon: '👥',
                     label: 'Who can invite members',
                     currentDb: _invitePerm,
                     isEditable: isAdmin,
@@ -1069,7 +1069,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 10),
                   _buildPermissionRow(
-                    icon: 'âœï¸',
+                    icon: '✏️',
                     label: 'Who can edit entries',
                     currentDb: _editPerm,
                     isEditable: isAdmin,
@@ -1080,7 +1080,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   ),
                   const SizedBox(height: 10),
                   _buildPermissionRow(
-                    icon: 'ðŸ—‘ï¸',
+                    icon: '🗑️',
                     label: 'Who can delete entries',
                     currentDb: _deletePerm,
                     isEditable: isAdmin,
@@ -1211,7 +1211,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: const Text('ðŸ”—', style: TextStyle(fontSize: 18)),
+                child: const Text('🔗', style: TextStyle(fontSize: 18)),
               ),
               const SizedBox(width: 12),
               Text(

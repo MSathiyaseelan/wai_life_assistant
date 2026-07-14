@@ -13,8 +13,16 @@ class AppPrefs extends ChangeNotifier {
 
   SharedPreferences? _prefs;
 
+  /// Callers (many settings sheets' initState) call this defensively on every
+  /// open "just in case" prefs aren't loaded yet. Only the first real call
+  /// does async work and should notify listeners — once already initialized,
+  /// `_prefs ??= await ...` would skip the await entirely (RHS never
+  /// evaluated) and notifyListeners() would fire synchronously, often while
+  /// Flutter is still mid-build for the very screen calling init() from its
+  /// own initState — "setState() or markNeedsBuild() called during build".
   Future<void> init() async {
-    _prefs ??= await SharedPreferences.getInstance();
+    if (_prefs != null) return;
+    _prefs = await SharedPreferences.getInstance();
     notifyListeners();
   }
 

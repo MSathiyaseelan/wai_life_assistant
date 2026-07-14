@@ -1255,7 +1255,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       const SizedBox(height: 16),
 
                       // ── No family group yet ───────────────────────────────────
-                      if (appState.families.isEmpty &&
+                      // Gated on !appState.loading too — otherwise this briefly
+                      // flashes for every user on cold start, since families
+                      // starts empty until AppStateNotifier.init()'s fetch
+                      // resolves, even for users who do have a family group.
+                      if (!appState.loading &&
+                          appState.families.isEmpty &&
                           !AppPrefs.instance.familyBannerDismissed) ...[
                         FamilyGroupBanner(
                           isDark: Theme.of(context).brightness == Brightness.dark,
