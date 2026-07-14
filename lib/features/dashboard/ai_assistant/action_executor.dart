@@ -82,6 +82,7 @@ class ActionExecutor {
           title: d['title'] as String?,
           note: d['note'] as String?,
           payMode: _payMode(d, fallback: 'cash'),
+          date: _parseDate(d['date'] as String?),
         );
         return TxModel.fromRow(row);
 
@@ -94,6 +95,7 @@ class ActionExecutor {
           title: d['title'] as String?,
           note: d['note'] as String?,
           payMode: _payMode(d, fallback: 'online'),
+          date: _parseDate(d['date'] as String?),
         );
         return TxModel.fromRow(row);
 
@@ -106,6 +108,7 @@ class ActionExecutor {
           title: d['title'] as String?,
           note: d['note'] as String?,
           person: _str(d, 'person').isEmpty ? null : _str(d, 'person'),
+          date: _parseDate(d['date'] as String?),
         );
         return TxModel.fromRow(row);
 
@@ -118,6 +121,7 @@ class ActionExecutor {
           title: d['title'] as String?,
           note: d['note'] as String?,
           person: _str(d, 'person').isEmpty ? null : _str(d, 'person'),
+          date: _parseDate(d['date'] as String?),
         );
         return TxModel.fromRow(row);
 

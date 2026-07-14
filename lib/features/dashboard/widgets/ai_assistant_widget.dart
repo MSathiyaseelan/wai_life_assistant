@@ -842,6 +842,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                         wallets: widget.wallets,
                         selectedWalletId: _selectedWalletId,
                         onWalletSelected: (id) => setState(() => _selectedWalletId = id),
+                        onDateChanged: () => setState(() {}),
                       )
                     : _ResponseCard(
                         response: _response!,
@@ -875,6 +876,7 @@ class _ActionCard extends StatelessWidget {
   final List<WalletModel> wallets;
   final String selectedWalletId;
   final ValueChanged<String> onWalletSelected;
+  final VoidCallback onDateChanged;
 
   const _ActionCard({
     required this.response,
@@ -887,6 +889,7 @@ class _ActionCard extends StatelessWidget {
     required this.wallets,
     required this.selectedWalletId,
     required this.onWalletSelected,
+    required this.onDateChanged,
   });
 
   @override
@@ -944,6 +947,7 @@ class _ActionCard extends StatelessWidget {
                     wallets: wallets,
                     selectedWalletId: selectedWalletId,
                     onWalletSelected: onWalletSelected,
+                    onDateChanged: onDateChanged,
                   ),
           ),
         ],
@@ -960,6 +964,7 @@ class _ConfirmContent extends StatelessWidget {
   final List<WalletModel> wallets;
   final String selectedWalletId;
   final ValueChanged<String> onWalletSelected;
+  final VoidCallback onDateChanged;
 
   const _ConfirmContent({
     required this.action,
@@ -969,11 +974,30 @@ class _ConfirmContent extends StatelessWidget {
     required this.wallets,
     required this.selectedWalletId,
     required this.onWalletSelected,
+    required this.onDateChanged,
   });
+
+  Future<void> _pickDate(BuildContext context, String dateKey) async {
+    final current = DateTime.tryParse(action.data[dateKey] as String? ?? '') ??
+        DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime.now().subtract(const Duration(days: 365 * 2)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked == null) return;
+    // Mutate the action's data map in place — ActionExecutor reads this same
+    // map fresh at confirm-time, so no other wiring is needed for the edited
+    // date to actually be saved.
+    action.data[dateKey] = picked.toIso8601String().split('T').first;
+    onDateChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
     final fields = action.displayFields;
+    final dateKey = action.dateFieldKey;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -995,13 +1019,28 @@ class _ConfirmContent extends StatelessWidget {
           ],
         ),
 
-        // Field chips
-        if (fields.isNotEmpty) ...[
+        // Field chips — the date chip (when this action has one) is
+        // editable, since the AI's guessed date is exactly what a user
+        // most often wants to correct before saving.
+        if (fields.isNotEmpty || dateKey != null) ...[
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             runSpacing: 6,
-            children: fields.map((f) => _FieldChip(label: f.$1, value: f.$2)).toList(),
+            children: [
+              ...fields.map((f) => _FieldChip(label: f.$1, value: f.$2)),
+              if (dateKey != null)
+                GestureDetector(
+                  onTap: () => _pickDate(context, dateKey),
+                  child: _FieldChip(
+                    label: 'Date',
+                    value: (action.data[dateKey] as String?)?.isNotEmpty == true
+                        ? action.data[dateKey] as String
+                        : DateTime.now().toIso8601String().split('T').first,
+                    editable: true,
+                  ),
+                ),
+            ],
           ),
         ],
 
@@ -1154,7 +1193,8 @@ class _SuccessContent extends StatelessWidget {
 class _FieldChip extends StatelessWidget {
   final String label;
   final String value;
-  const _FieldChip({required this.label, required this.value});
+  final bool editable;
+  const _FieldChip({required this.label, required this.value, this.editable = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1163,32 +1203,45 @@ class _FieldChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withAlpha(12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withAlpha(25)),
-      ),
-      child: RichText(
-        text: TextSpan(
-          children: [
-            TextSpan(
-              text: '$label  ',
-              style: TextStyle(
-                fontSize: 9,
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w700,
-                color: Colors.white.withAlpha(120),
-                letterSpacing: 0.3,
-              ),
-            ),
-            TextSpan(
-              text: value,
-              style: const TextStyle(
-                fontSize: 11,
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ],
+        border: Border.all(
+          color: editable
+              ? const Color(0xFFA5B4FC).withAlpha(120)
+              : Colors.white.withAlpha(25),
         ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: '$label  ',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withAlpha(120),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                TextSpan(
+                  text: value,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (editable) ...[
+            const SizedBox(width: 4),
+            const Icon(Icons.edit_rounded, size: 11, color: Color(0xFFA5B4FC)),
+          ],
+        ],
       ),
     );
   }

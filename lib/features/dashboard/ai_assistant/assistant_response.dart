@@ -117,6 +117,18 @@ class ActionPayload {
         ActionType.addInsurance         => 'Add Insurance Policy',
       };
 
+  /// The `data` key holding this action's date, for transaction actions only
+  /// — lets the confirm card render an editable date picker instead of a
+  /// static field, since the AI's guessed date (or "today" when it inferred
+  /// none) is exactly what a user most often wants to correct before saving.
+  String? get dateFieldKey => switch (actionType) {
+        ActionType.addExpense ||
+        ActionType.addIncome ||
+        ActionType.addLend ||
+        ActionType.addBorrow => 'date',
+        _ => null,
+      };
+
   /// Human-readable key-value pairs to show in the confirmation card.
   List<(String, String)> get displayFields {
     String str(String key) => (data[key] as String? ?? '').trim();

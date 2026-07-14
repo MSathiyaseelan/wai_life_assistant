@@ -620,10 +620,19 @@ class _WalletScreenState extends State<WalletScreen>
       // ConversationScreen may still be on top (it pops after a 1800ms delay).
       // Wait until WalletScreen's route is active before starting the snackbar
       // timer — otherwise the timer expires while the screen is hidden and the
-      // snackbar appears permanently stuck when the user returns.
-      while (mounted && ModalRoute.of(context)?.isCurrent == false) {
+      // snackbar appears permanently stuck when the user returns. Capped so
+      // this can never hang indefinitely if isCurrent never flips.
+      var waited = 0;
+      while (mounted && ModalRoute.of(context)?.isCurrent == false && waited < 5000) {
         await Future.delayed(const Duration(milliseconds: 100));
+        waited += 100;
       }
+      if (!mounted) return;
+      // Extra settle buffer: isCurrent flips true right as ConversationScreen's
+      // pop transition *starts*, not once it's fully finished — showing the
+      // snackbar in that exact window is what leaves it stuck until a manual
+      // swipe. Give the transition a moment to actually settle first.
+      await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       final otherWallets = _allWallets
           .where((w) => w.id != saved.walletId)

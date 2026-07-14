@@ -53,7 +53,12 @@ class CategoryDetector {
       if (has(['rent', 'rental', 'lease', 'tenant'])) return '🏠 Rent';
       if (has(['bonus', 'incentive', 'reward', 'increment', 'hike'])) return '💰 Bonus';
       if (has(['refund', 'cashback', 'reimburse'])) return '🔁 Refund';
-      if (has(['gift', 'present', 'birthday', 'festival', 'diwali', 'wedding'])) return '🎁 Gift';
+      if (has(['gift', 'present', 'birthday', 'festival', 'diwali', 'wedding',
+               // MOI/cash-gift customs by Indian region/language — Tamil
+               // "moi", Hindi/Punjabi "shagun"/"neg", Bengali/Urdu "salami",
+               // Telugu "kaanuka", Kannada "kaanike".
+               'moi', 'shagun', 'neg', 'salami', 'kaanuka', 'kanuka', 'kaanike', 'kanike']))
+        return '🎁 Gift';
       if (has(['business', 'revenue', 'sale', 'selling', 'earning'])) return '📦 Business';
     } else {
       if (has(['food', 'eat', 'lunch', 'dinner', 'breakfast', 'snack', 'restaurant', 'cafe', 'coffee', 'pizza', 'burger', 'grocery', 'groceries', 'meal', 'swiggy', 'zomato', 'bake', 'chai', 'tea'])) return '🍕 Food';
@@ -61,12 +66,17 @@ class CategoryDetector {
       if (has(['shopping', 'amazon', 'flipkart', 'meesho', 'myntra', 'purchase', 'order', 'bought', 'buy'])) return '🛒 Shopping';
       if (has(['medicine', 'medical', 'doctor', 'hospital', 'pharmacy', 'clinic', 'dental', 'tablet', 'pill', 'health', 'checkup'])) return '💊 Health';
       if (has(['movie', 'netflix', 'prime', 'hotstar', 'game', 'gaming', 'concert', 'party', 'entertainment', 'theatre'])) return '🎬 Entertainment';
+      // Checked before Housing/Transport so "home loan"/"car loan" don't get
+      // caught by their 'home'/'car'-style keywords first.
+      if (has(['loan', 'emi', 'installment', 'instalment', 'mortgage', 'repayment'])) return '🏦 Loans & EMI';
       if (has(['rent', 'housing', 'maintenance', 'repair', 'plumber', 'electrician', 'society', 'house', 'home'])) return '🏠 Housing';
       if (has(['school', 'college', 'course', 'book', 'tuition', 'fee', 'exam', 'education', 'study', 'learning', 'coaching'])) return '📚 Education';
       if (has(['electric', 'internet', 'wifi', 'utility', 'gas', 'recharge', 'broadband', 'dth'])) return '💡 Bills';
       if (has(['subscription', 'membership', 'renewal'])) return '📺 Subscription';
       if (has(['shirt', 'pant', 'dress', 'cloth', 'fashion', 'jeans', 'kurta', 'saree', 'outfit', 'wear', 'footwear', 'shoes'])) return '👕 Clothing';
-      if (has(['gift', 'present', 'birthday', 'anniversary', 'wedding', 'festival', 'diwali'])) return '🎁 Gifts';
+      if (has(['gift', 'present', 'birthday', 'anniversary', 'wedding', 'festival', 'diwali',
+               'moi', 'shagun', 'neg', 'salami', 'kaanuka', 'kanuka', 'kaanike', 'kanike']))
+        return '🎁 Gifts';
       if (has(['gym', 'yoga', 'workout', 'fitness', 'cycling', 'swim', 'run', 'zumba', 'pilates'])) return '🏋️ Fitness';
       if (has(['vacation', 'holiday', 'trip', 'tour', 'hotel', 'resort', 'beach', 'hill', 'trek', 'outing'])) return '✈️ Vacation';
     }
