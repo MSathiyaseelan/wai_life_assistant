@@ -15,6 +15,7 @@ import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/shared/utils/overlay_toast.dart';
 import '../../widgets/life_widgets.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -702,6 +703,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               familyName,
               isPlanned,
               icon,
+              gifts,
             ) async {
               final svc = FunctionsService.instance;
               try {
@@ -737,6 +739,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       familyName: familyName,
                       date: date,
                       venue: venue,
+                      gifts: gifts,
                     ).toJson(),
                     personalWalletId: widget.personalWalletId.isNotEmpty
                         ? widget.personalWalletId
@@ -770,13 +773,13 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 if (ctx.mounted) Navigator.pop(ctx);
               } catch (e, stack) {
                 ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
+                // The sheet is still open on failure (Navigator.pop only
+                // runs on success above) — an Overlay toast (not a
+                // ScaffoldMessenger SnackBar) is used so the message is
+                // actually visible above the still-open sheet instead of
+                // stacking invisibly behind it.
                 if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to save: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  showOverlayToast(ctx, 'Failed to save: $e', backgroundColor: Colors.red);
                 }
               }
             },
@@ -10170,9 +10173,10 @@ class _FunctionAddSheet extends StatefulWidget {
     String?,
     bool,
     String,
+    List<PlannedGiftItem>,
   )
   onSave;
-  // (title, type, customType, venue, date, personName, familyName, isPlanned, icon)
+  // (title, type, customType, venue, date, personName, familyName, isPlanned, icon, gifts)
 
   final bool isPlannedDefault;
 
@@ -10210,6 +10214,10 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
   late bool _isFunctionPlanned;
   String _icon = '🎊';
   String? _photoPath;
+
+  // Attended-only: gift(s) given at the function, entered manually regardless
+  // of whether title/venue/date came from the AI parser or manual fields.
+  final List<PlannedGiftItem> _gifts = [];
 
   @override
   void initState() {
@@ -10258,6 +10266,11 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
       _familyNameCtrl.text = result.familyName ?? '';
       _type = result.type;
       _date = result.date;
+      // Pre-fill the gift editor from the AI's extracted gift (if any) —
+      // only when the user hasn't already entered one manually.
+      if (result.gift != null && _gifts.isEmpty) {
+        _gifts.add(result.gift!);
+      }
     });
   }
 
@@ -10298,6 +10311,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
           : null,
       _isFunctionPlanned,
       icon,
+      _gifts,
     );
   }
 
@@ -10439,10 +10453,17 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
         ? 'Record Attended'
         : 'Add Function';
 
-    return ListView(
+    // A plain Column (not ListView) — this sheet's own scrolling is already
+    // provided by showPlanSheet's outer SingleChildScrollView; nesting a
+    // second scrollable here caused the inner ListView's gesture recognizer
+    // to swallow drags, freezing the sheet once content (e.g. the gift
+    // editor) grew taller than the visible area, hiding the Save button.
+    return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-      shrinkWrap: true,
-      children: [
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
         Text(
           sheetTitle,
           style: const TextStyle(
@@ -10793,6 +10814,14 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
                 ],
               ),
             ),
+            if (widget.tabIdx == 1) ...[
+              const SizedBox(height: 12),
+              _GiftEntryEditor(
+                gifts: _gifts,
+                funcColor: _funcColor,
+                onChanged: () => setState(() {}),
+              ),
+            ],
             const SizedBox(height: 16),
             SaveButton(label: 'Save →', color: _funcColor, onTap: _save),
           ],
@@ -10979,9 +11008,18 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
               if (d != null) setState(() => _date = d);
             },
           ),
+          if (widget.tabIdx == 1) ...[
+            const SizedBox(height: 8),
+            _GiftEntryEditor(
+              gifts: _gifts,
+              funcColor: _funcColor,
+              onChanged: () => setState(() {}),
+            ),
+          ],
           SaveButton(label: 'Save', color: _funcColor, onTap: _save),
         ],
       ],
+      ),
     );
   }
 }
@@ -11082,6 +11120,9 @@ class _ParsedFunction {
   final FunctionType type;
   final String? venue, personName, familyName;
   final DateTime? date;
+  /// Gift given at the function, extracted from the AI response (attended_function
+  /// prompt returns cash_amount/gold_grams/gift_type/etc.) — null if none found.
+  final PlannedGiftItem? gift;
   const _ParsedFunction({
     required this.title,
     required this.type,
@@ -11089,6 +11130,7 @@ class _ParsedFunction {
     this.date,
     this.personName,
     this.familyName,
+    this.gift,
   });
 }
 
@@ -11178,7 +11220,65 @@ class _FunctionAIParser {
       date: date,
       personName: personName,
       familyName: familyName,
+      gift: _giftFromAiData(data),
     );
+  }
+
+  /// Maps the attended_function prompt's gift fields (gift_type, cash_amount,
+  /// gold_grams, gold_approx_value, gift_description, saree_count,
+  /// vessel_description, total_estimated_value, note) onto a PlannedGiftItem.
+  /// Returns null when nothing gift-related was actually extracted.
+  static PlannedGiftItem? _giftFromAiData(Map<String, dynamic> data) {
+    final giftType = (data['gift_type'] as String?)?.toLowerCase();
+    final cashAmount = (data['cash_amount'] as num?)?.toDouble();
+    final goldGrams = (data['gold_grams'] as num?)?.toDouble();
+    final goldValue = (data['gold_approx_value'] as num?)?.toDouble();
+    final totalValue = (data['total_estimated_value'] as num?)?.toDouble();
+    final giftDescription = data['gift_description'] as String?;
+    final sareeCount = (data['saree_count'] as num?)?.toInt();
+    final vesselDescription = data['vessel_description'] as String?;
+    final note = data['note'] as String?;
+
+    final hasAnyGiftData = cashAmount != null ||
+        goldGrams != null ||
+        goldValue != null ||
+        totalValue != null ||
+        (giftDescription != null && giftDescription.isNotEmpty) ||
+        sareeCount != null ||
+        (vesselDescription != null && vesselDescription.isNotEmpty);
+    if (!hasAnyGiftData) return null;
+
+    String category;
+    double? amount;
+    String? notes;
+    switch (giftType) {
+      case 'gold':
+        category = 'Gold';
+        amount = goldValue ?? totalValue;
+        notes = goldGrams != null ? '${goldGrams}g gold' : note;
+      case 'silver':
+        category = 'Silver';
+        amount = totalValue;
+        notes = note;
+      case 'saree':
+      case 'clothes':
+      case 'vessel_utensil':
+      case 'electronics':
+      case 'mixed':
+      case 'other':
+        category = 'Gift Item';
+        amount = totalValue;
+        notes = giftDescription ??
+            vesselDescription ??
+            (sareeCount != null ? '$sareeCount saree(s)' : note);
+      case 'cash':
+      default:
+        category = 'Cash';
+        amount = cashAmount ?? totalValue;
+        notes = note;
+    }
+
+    return PlannedGiftItem(category: category, amount: amount, notes: notes);
   }
 }
 

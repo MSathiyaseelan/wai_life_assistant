@@ -3711,19 +3711,11 @@ class _AddExpenseSheet extends StatefulWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
-      // render inside this modal route instead of bubbling up to the page
-      // underneath, where they'd stay hidden behind the sheet.
-      builder: (_) => ScaffoldMessenger(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: _AddExpenseSheet(
-            group: group,
-            isDark: isDark,
-            onSave: onSave,
-            existing: existing,
-          ),
-        ),
+      builder: (_) => _AddExpenseSheet(
+        group: group,
+        isDark: isDark,
+        onSave: onSave,
+        existing: existing,
       ),
     );
   }

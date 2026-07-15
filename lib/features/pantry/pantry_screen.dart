@@ -2328,13 +2328,7 @@ class _PantryScreenState extends State<PantryScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
-      // render inside this modal route instead of bubbling up to the page
-      // underneath, where they'd stay hidden behind the sheet.
-      builder: (_) => ScaffoldMessenger(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: _AddBasketSheet(
+      builder: (_) => _AddBasketSheet(
         isDark: isDark,
         walletId: widget.activeWalletId,
         onItemAdded: (item) {
@@ -2355,8 +2349,6 @@ class _PantryScreenState extends State<PantryScreen>
           _showMultiBasketConfirm(items);
         },
         mapBasketItems: _mapBasketItems,
-          ),
-        ),
       ),
     );
   }

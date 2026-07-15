@@ -33,6 +33,7 @@ class FunctionsService {
     required String functionName,
     String? personName,
     String? familyName,
+    String? functionDate,
   }) async {
     final total = _giftsTotal(gifts);
     if (total <= 0) return null;
@@ -45,6 +46,7 @@ class FunctionsService {
         category: '🎁 Gifts',
         title: functionName,
         note: who != null ? 'Gift given at $functionName for $who' : 'Gift given at $functionName',
+        date: functionDate != null ? DateTime.tryParse(functionDate) : null,
       );
       return row['id'] as String?;
     } catch (e) {
@@ -145,6 +147,7 @@ class FunctionsService {
         functionName: row['function_name'] as String? ?? '',
         personName: row['person_name'] as String?,
         familyName: row['family_name'] as String?,
+        functionDate: row['date'] as String?,
       );
       if (txId != null) {
         row = await _db
@@ -170,7 +173,7 @@ class FunctionsService {
     if (personalWalletId != null && updates.containsKey('gifts')) {
       final existing = await _db
           .from('functions_attended')
-          .select('wallet_tx_id, function_name, person_name, family_name')
+          .select('wallet_tx_id, function_name, person_name, family_name, date')
           .eq('id', id)
           .maybeSingle();
       if (existing != null && existing['wallet_tx_id'] == null) {
@@ -180,6 +183,7 @@ class FunctionsService {
           functionName: (existing['function_name'] as String?) ?? '',
           personName: existing['person_name'] as String?,
           familyName: existing['family_name'] as String?,
+          functionDate: existing['date'] as String?,
         );
         if (txId != null) updates = {...updates, 'wallet_tx_id': txId};
       }

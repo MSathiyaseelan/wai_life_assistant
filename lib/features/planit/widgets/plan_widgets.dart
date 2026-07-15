@@ -25,36 +25,26 @@ void showPlanSheet(
           constraints: BoxConstraints(
             maxHeight: screenHeight - topPadding - 24 - keyboardHeight,
           ),
-          // A dedicated ScaffoldMessenger + Scaffold so any SnackBar shown from
-          // within the sheet (e.g. ScaffoldMessenger.of(context).showSnackBar)
-          // renders inside this modal route instead of bubbling up to the
-          // page underneath, where it would be stacked below the sheet and
-          // stay hidden behind it.
-          child: ScaffoldMessenger(
-            child: Scaffold(
-              backgroundColor: Colors.transparent,
-              body: Container(
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.cardDark : AppColors.cardLight,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.cardDark : AppColors.cardLight,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 12, bottom: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Handle
-                    Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 12, bottom: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Flexible(child: SingleChildScrollView(child: child)),
-                  ],
-                ),
-              ),
+                Flexible(child: SingleChildScrollView(child: child)),
+              ],
             ),
           ),
         ),

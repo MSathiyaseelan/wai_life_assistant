@@ -35,19 +35,11 @@ class SplitGroupSheet extends StatefulWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      // ScaffoldMessenger + Scaffold so SnackBars shown from within the sheet
-      // render inside this modal route instead of bubbling up to the page
-      // underneath, where they'd stay hidden behind the sheet.
-      builder: (_) => ScaffoldMessenger(
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: SplitGroupSheet(
-            existing: existing,
-            walletId: walletId,
-            onSave: onSave,
-            onDelete: onDelete,
-          ),
-        ),
+      builder: (_) => SplitGroupSheet(
+        existing: existing,
+        walletId: walletId,
+        onSave: onSave,
+        onDelete: onDelete,
       ),
     );
   }

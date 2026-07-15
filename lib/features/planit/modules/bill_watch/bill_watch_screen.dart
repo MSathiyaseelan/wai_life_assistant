@@ -880,7 +880,12 @@ class _BillDetailSheetState extends State<_BillDetailSheet> {
     final history = _buildHistory(b);
     final display = _showAll ? history : history.take(4).toList();
 
-    return SingleChildScrollView(
+    // Padding (not SingleChildScrollView) — showPlanSheet already wraps this
+    // in its own SingleChildScrollView; nesting a second scrollable here
+    // causes the inner one's gesture recognizer to swallow drags, freezing
+    // the sheet once content overflows the visible area (see the same fix
+    // applied to _FunctionAddSheet in my_functions_screen.dart).
+    return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
