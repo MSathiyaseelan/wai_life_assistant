@@ -55,5 +55,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Lets firebase_messaging / flutter_local_notifications receive and
+	     process push notifications (including silent/background ones) while
+	     the app isn't in the foreground. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

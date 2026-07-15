@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
@@ -806,12 +808,16 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                     label: _smsLoading ? 'Reading…' : 'Paste bank SMS',
                     onTap: _smsLoading ? null : _pasteSms,
                   ),
-                  const SizedBox(width: 8),
-                  _ActionChip(
-                    icon: Icons.history_rounded,
-                    label: 'Import transactions',
-                    onTap: _openImport,
-                  ),
+                  // Import-from-SMS-history is Android only (iOS apps can't
+                  // read the device's SMS inbox).
+                  if (Platform.isAndroid) ...[
+                    const SizedBox(width: 8),
+                    _ActionChip(
+                      icon: Icons.history_rounded,
+                      label: 'Import transactions',
+                      onTap: _openImport,
+                    ),
+                  ],
                 ],
               ),
             ],

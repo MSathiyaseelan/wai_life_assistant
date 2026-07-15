@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -75,9 +77,26 @@ class _SmsHistoryImportScreenState extends State<SmsHistoryImportScreen> {
   List<SmsHistoryItem> _items   = [];
   Set<int>             _checked = {};
 
+  @override
+  void initState() {
+    super.initState();
+    if (!Platform.isAndroid) {
+      _error = 'Importing from SMS history is only available on Android — '
+          'iOS does not allow apps to read the device\'s SMS inbox.';
+    }
+  }
+
   // ── Scan ──────────────────────────────────────────────────────────────────
 
   Future<void> _scan() async {
+    if (!Platform.isAndroid) {
+      setState(() {
+        _error = 'Importing from SMS history is only available on Android — '
+            'iOS does not allow apps to read the device\'s SMS inbox.';
+      });
+      return;
+    }
+
     setState(() { _loading = true; _error = null; _items = []; _checked = {}; });
 
     // Check SMS permission first — READ_SMS must be in the manifest and granted.

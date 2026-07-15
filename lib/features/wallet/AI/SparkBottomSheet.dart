@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard;
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
@@ -490,32 +492,33 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
                 ),
               ),
 
-        // Import past SMS button
-        TextButton.icon(
-          onPressed: (_isLoading || _isListening || _isSmsLoading)
-              ? null
-              : () async {
-                  // Capture navigator before popping — context becomes invalid after pop.
-                  final nav = Navigator.of(context);
-                  nav.pop();
-                  await SmsHistoryImportScreen.show(
-                    nav.context,
-                    walletId: widget.walletId,
-                    onImported: () {},
-                  );
-                },
-          icon: const Icon(Icons.history_rounded, size: 18),
-          label: const Text(
-            'Import past transactions',
-            style: TextStyle(
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w700,
+        // Import past SMS button — Android only (iOS apps can't read the SMS inbox)
+        if (Platform.isAndroid)
+          TextButton.icon(
+            onPressed: (_isLoading || _isListening || _isSmsLoading)
+                ? null
+                : () async {
+                    // Capture navigator before popping — context becomes invalid after pop.
+                    final nav = Navigator.of(context);
+                    nav.pop();
+                    await SmsHistoryImportScreen.show(
+                      nav.context,
+                      walletId: widget.walletId,
+                      onImported: () {},
+                    );
+                  },
+            icon: const Icon(Icons.history_rounded, size: 18),
+            label: const Text(
+              'Import past transactions',
+              style: TextStyle(
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF6366F1),
             ),
           ),
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF6366F1),
-          ),
-        ),
 
         // Error message + manual entry fallback
         if (_errorMsg != null) ...[
