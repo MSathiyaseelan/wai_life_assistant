@@ -957,6 +957,26 @@ class _WalletScreenState extends State<WalletScreen>
     }
 
     final isSplit = _looksLikeSplit(text);
+
+    // Same deterministic local-parse short-circuit the Dashboard WAI
+    // Assistant uses: high-confidence matches (amount + category keyword +
+    // payment-mode keyword — e.g. "Coffee 15 gpay", "Tea 25 gpay", "Spend 15
+    // gpay for Coffee") never need an AI call at all. Skipped for split-like
+    // text, since NlpParser only understands single expense/income entries.
+    if (!isSplit) {
+      final localIntent = NlpParser.parse(text);
+      if (localIntent.confidence >= 0.75) {
+        IntentConfirmSheet.show(
+          context,
+          intent: localIntent,
+          walletId: widget.activeWalletId,
+          onSave: _onTransactionSaved,
+          onOpenFlow: () => _openConversation(localIntent.flowType),
+        );
+        return;
+      }
+    }
+
     final subFeature = isSplit ? 'split' : 'expense';
 
     // Show parsing indicator

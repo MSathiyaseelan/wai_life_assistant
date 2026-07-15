@@ -161,10 +161,12 @@ class FunctionsService {
     return row;
   }
 
-  /// Same [personalWalletId] contract as [addAttended] — only actually syncs
-  /// when [updates] touches `gifts` and this function doesn't already have
-  /// a linked transaction (checked via a lightweight lookup first), so
-  /// editing unrelated fields (venue, notes, ...) never creates a duplicate.
+  /// Same [personalWalletId] contract as [addAttended] — only touches the
+  /// wallet when [updates] touches `gifts`. If this function has no linked
+  /// transaction yet, one is created (as before). If it's already linked,
+  /// the existing transaction's amount is kept in sync with the edited gift
+  /// total instead of going stale — and if every gift is removed, the
+  /// now-pointless transaction is deleted and unlinked.
   Future<void> updateAttended(
     String id,
     Map<String, dynamic> updates, {
@@ -176,7 +178,8 @@ class FunctionsService {
           .select('wallet_tx_id, function_name, person_name, family_name, date')
           .eq('id', id)
           .maybeSingle();
-      if (existing != null && existing['wallet_tx_id'] == null) {
+      final existingTxId = existing?['wallet_tx_id'] as String?;
+      if (existing != null && existingTxId == null) {
         final txId = await _syncGiftToWallet(
           personalWalletId: personalWalletId,
           gifts: updates['gifts'],
@@ -186,6 +189,19 @@ class FunctionsService {
           functionDate: existing['date'] as String?,
         );
         if (txId != null) updates = {...updates, 'wallet_tx_id': txId};
+      } else if (existingTxId != null) {
+        final newTotal = _giftsTotal(updates['gifts']);
+        try {
+          if (newTotal > 0) {
+            await WalletService.instance.updateTransaction(existingTxId, {'amount': newTotal});
+          } else {
+            // All gifts removed — the linked expense no longer applies.
+            await WalletService.instance.deleteTransaction(existingTxId);
+            updates = {...updates, 'wallet_tx_id': null};
+          }
+        } catch (e) {
+          ErrorLogger.warning(e, action: 'sync_attended_gift_to_wallet_update');
+        }
       }
     }
     await _db.from('functions_attended').update(updates).eq('id', id);
