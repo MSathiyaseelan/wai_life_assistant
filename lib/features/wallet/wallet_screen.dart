@@ -244,14 +244,18 @@ class _WalletScreenState extends State<WalletScreen>
       final month = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
       final usageRow = await client.from('feature_usage').select('count')
           .eq('user_id', userId).eq('feature', 'ai_parser').eq('month', month).maybeSingle();
-      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
+      // Honors a family wallet's paid plan (if higher) instead of always
+      // assuming the personal_free cap — see 096_effective_feature_limit_for_display.sql.
+      final limit = await client.rpc(
+        AppRpc.getEffectiveFeatureLimit,
+        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+      ) as int? ?? 30;
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
-      final limit = (planLimits?['ai_parser_calls_month'] as int?) ?? 30;
       setState(() {
         _aiMonthlyUsed  = count;
         _aiMonthlyLimit = limit;
-        _aiLimitReached = count >= limit;
+        _aiLimitReached = limit != -1 && count >= limit;
         _aiLimitChecking = false;
       });
     } catch (_) {
@@ -1476,7 +1480,9 @@ class _WalletScreenState extends State<WalletScreen>
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    '$_aiMonthlyUsed/$_aiMonthlyLimit AI parses',
+                    _aiMonthlyLimit == -1
+                        ? '$_aiMonthlyUsed AI parses'
+                        : '$_aiMonthlyUsed/$_aiMonthlyLimit AI parses',
                     style: TextStyle(
                       fontSize: 10,
                       fontFamily: 'Nunito',

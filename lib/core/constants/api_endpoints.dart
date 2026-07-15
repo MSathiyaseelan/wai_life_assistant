@@ -2,6 +2,7 @@ abstract final class AppRpc {
   // ── Plan / usage ───────────────────────────────────────────────────────────
   static const String getPlanLimits      = 'get_plan_limits';
   static const String checkFeatureLimit  = 'check_feature_limit';
+  static const String getEffectiveFeatureLimit = 'get_effective_feature_limit';
 
   // ── Profile / account ──────────────────────────────────────────────────────
   static const String bootstrapNewUser      = 'bootstrap_new_user';

@@ -908,18 +908,21 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
             .eq('feature', 'ai_parser')
             .eq('month', month)
             .maybeSingle(),
-        client.rpc(AppRpc.getPlanLimits),
+        // Honors a family wallet's paid plan (if higher) instead of always
+        // assuming the personal_free cap — see 096_effective_feature_limit_for_display.sql.
+        client.rpc(
+          AppRpc.getEffectiveFeatureLimit,
+          params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+        ),
       ]);
       final usageRow = results[0] as Map<String, dynamic>?;
-      final planLimits = results[1] as Map<String, dynamic>?;
+      final limit = results[1] as int? ?? 30;
 
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
-      // bill_scan shares the ai_parser monthly limit
-      final limit = (planLimits?['ai_parser_calls_month'] as int?) ?? 30;
       setState(() {
         _monthlyLimit = limit;
-        _limitReached = count >= limit;
+        _limitReached = limit != -1 && count >= limit;
         _limitChecking = false;
       });
     } catch (e) {

@@ -138,14 +138,18 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
           .eq('feature', 'ai_assistant')
           .eq('month', month)
           .maybeSingle();
-      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
+      // Honors a family wallet's paid plan (if higher) instead of always
+      // assuming the personal_free cap — see 096_effective_feature_limit_for_display.sql.
+      final limit = await client.rpc(
+        AppRpc.getEffectiveFeatureLimit,
+        params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
+      ) as int? ?? 20;
       if (!mounted) return;
       final count = (usageRow?['count'] as int?) ?? 0;
-      final limit = (planLimits?['ai_assistant_calls_month'] as int?) ?? 20;
       setState(() {
         _monthlyUsed = count;
         _monthlyLimit = limit;
-        _limitReached = count >= limit;
+        _limitReached = limit != -1 && count >= limit;
         _limitChecking = false;
       });
     } catch (e) {
@@ -245,7 +249,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     // Local pre-flight guard: if we already know the count is at/over the limit
     // (e.g. another device used up the remaining calls since app open), block here
     // before wasting an AI request.
-    if (!_limitChecking && _monthlyUsed >= _monthlyLimit) {
+    if (!_limitChecking && _monthlyLimit != -1 && _monthlyUsed >= _monthlyLimit) {
       setState(() => _limitReached = true);
       return;
     }
@@ -552,7 +556,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                   )
                 else if (!_limitChecking)
                   Text(
-                    '$_monthlyUsed/$_monthlyLimit',
+                    _monthlyLimit == -1 ? '$_monthlyUsed' : '$_monthlyUsed/$_monthlyLimit',
                     style: TextStyle(
                       fontSize: 10,
                       fontFamily: 'Nunito',
