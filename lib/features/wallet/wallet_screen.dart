@@ -482,6 +482,38 @@ class _WalletScreenState extends State<WalletScreen>
   List<TxGroup> get _activeWalletTxGroups =>
       _txGroups.where((g) => g.walletId == widget.activeWalletId).toList();
 
+  /// True when [range] ends within the current month, last month, or the
+  /// month before that.
+  bool _isRecentGroupWindow(MonthRange range) {
+    final now = DateTime.now();
+    final nowIdx = now.year * 12 + now.month;
+    final endIdx = range.end.year * 12 + range.end.month;
+    final diff = nowIdx - endIdx;
+    return diff >= 0 && diff <= 2;
+  }
+
+  /// Which date (if any) should place this group's card into the currently
+  /// browsed [range]. Within the last 2 months, matches on ANY of the
+  /// group's transactions falling in range — so a group whose latest
+  /// transaction is this month, but which also has an older transaction
+  /// from last month, still shows up when browsing last month too. Further
+  /// back than that, only the group's single latest transaction counts, so
+  /// browsing far into the past doesn't resurrect a group card in every
+  /// month it ever touched.
+  DateTime? _groupDateInRange(TxGroup g, MonthRange range) {
+    if (g.transactions.isEmpty) return null;
+    if (_isRecentGroupWindow(range)) {
+      TxModel? match;
+      for (final t in g.transactions) {
+        if (range.contains(t.date) && (match == null || t.date.isAfter(match.date))) {
+          match = t;
+        }
+      }
+      return match?.date;
+    }
+    return range.contains(g.latestDate) ? g.latestDate : null;
+  }
+
   String _monthName(int m) => const [
     '',
     'Jan',
@@ -2086,17 +2118,17 @@ class _WalletScreenState extends State<WalletScreen>
     }
     // Ensure date-sections hosting only TxGroupCards also appear
     for (final g in _activeWalletTxGroups) {
-      if (g.transactions.isEmpty) continue;
-      if (!_selectedRange.contains(g.latestDate)) continue;
-      final gDate = DateTime(g.latestDate.year, g.latestDate.month, g.latestDate.day);
-      final diff = todayDate.difference(gDate).inDays;
+      final gDate = _groupDateInRange(g, _selectedRange);
+      if (gDate == null) continue;
+      final gd = DateTime(gDate.year, gDate.month, gDate.day);
+      final diff = todayDate.difference(gd).inDays;
       final label = diff == 0
           ? 'Today'
           : diff == 1
           ? 'Yesterday'
-          : '${g.latestDate.day} ${_monthName(g.latestDate.month)}';
+          : '${gDate.day} ${_monthName(gDate.month)}';
       grouped.putIfAbsent(label, () => []);
-      sectionDates.putIfAbsent(label, () => g.latestDate);
+      sectionDates.putIfAbsent(label, () => gDate);
     }
 
     // Sort sections newest-first so group-only date sections (e.g. a group
@@ -2225,9 +2257,15 @@ class _WalletScreenState extends State<WalletScreen>
                   periodOnlineIn: ps.onlineIn,
                   periodOnlineOut: ps.onlineOut,
                   periodLabel: periodLabel,
-                  budgetAlerts: (_budgetsMap[wallets[0].id] ?? [])
-                      .where((b) => b.isAlert)
-                      .toList(),
+                  // Budgets track the live current month only (see
+                  // WalletService.computeMonthlySpent) — showing this banner
+                  // while browsing a different month would be misleading, so
+                  // only surface it when the current month is actually in view.
+                  budgetAlerts: _rangeIsAutoThisMonth
+                      ? (_budgetsMap[wallets[0].id] ?? [])
+                          .where((b) => b.isAlert)
+                          .toList()
+                      : const [],
                   onTap: () {},
                   onBudget: () => BudgetSheet.show(
                     context,
@@ -2274,9 +2312,14 @@ class _WalletScreenState extends State<WalletScreen>
                       periodOnlineIn: ps.onlineIn,
                       periodOnlineOut: ps.onlineOut,
                       periodLabel: periodLabel,
-                      budgetAlerts: (_budgetsMap[wallets[i].id] ?? [])
-                          .where((b) => b.isAlert)
-                          .toList(),
+                      // See matching comment above — budgets are always
+                      // computed for the live current month, so only show
+                      // the banner while that month is actually in view.
+                      budgetAlerts: _rangeIsAutoThisMonth
+                          ? (_budgetsMap[wallets[i].id] ?? [])
+                              .where((b) => b.isAlert)
+                              .toList()
+                          : const [],
                       onTap: wallets[i].id == widget.activeWalletId
                           ? () {}
                           : () => widget.onWalletChange(wallets[i].id),
@@ -2612,19 +2655,21 @@ class _WalletScreenState extends State<WalletScreen>
 
   // ── Transaction date-section ────────────────────────────────────────────────
   Widget _buildGroup(MapEntry<String, List<TxModel>> entry, bool isDark) {
-    // Groups whose latest tx falls in this date-label section
+    // Groups with a transaction that falls in this date-label section
+    // (see _groupDateInRange for how far back this reaches).
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     final sectionGroups = _activeWalletTxGroups
         .where((g) {
-          if (g.transactions.isEmpty) return false;
-          final gDate = DateTime(g.latestDate.year, g.latestDate.month, g.latestDate.day);
-          final diff = todayDate.difference(gDate).inDays;
+          final gDate = _groupDateInRange(g, _selectedRange);
+          if (gDate == null) return false;
+          final gd = DateTime(gDate.year, gDate.month, gDate.day);
+          final diff = todayDate.difference(gd).inDays;
           final label = diff == 0
               ? 'Today'
               : diff == 1
               ? 'Yesterday'
-              : '${g.latestDate.day} ${_monthName(g.latestDate.month)}';
+              : '${gDate.day} ${_monthName(gDate.month)}';
           return label == entry.key;
         })
         .toList();

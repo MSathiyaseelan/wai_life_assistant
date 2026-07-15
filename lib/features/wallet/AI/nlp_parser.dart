@@ -234,6 +234,7 @@ class NlpParser {
 
     // ── 1. Amount extraction ──────────────────────────────────────────────
     double? amount;
+    String? amountToken; // matched substring, stripped later when building title
 
     // "5k" / "2.5k" / "1L" / "50k"
     final shortMatch = RegExp(r'(\d+(?:\.\d+)?)\s*[kK]').firstMatch(lower);
@@ -245,13 +246,36 @@ class NlpParser {
 
     if (lakhMatch != null) {
       amount = double.parse(lakhMatch.group(1)!) * 100000;
+      amountToken = lakhMatch.group(0);
     } else if (shortMatch != null) {
       amount = double.parse(shortMatch.group(1)!) * 1000;
+      amountToken = shortMatch.group(0);
     } else if (numMatch != null) {
       amount = double.parse(numMatch.group(1)!);
+      amountToken = numMatch.group(0);
     } else {
       // Try word numbers  "five hundred"
       amount = _parseWordNumber(lower);
+    }
+
+    // ── 1b. Relative date extraction ──────────────────────────────────────
+    // AI prompts resolve "yesterday"/"today" against the real date; the local
+    // parser previously ignored these words entirely, always leaving date
+    // null (→ confirm sheet defaults to DateTime.now()) even when the text
+    // explicitly said otherwise.
+    DateTime? date;
+    String? dateToken;
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    if (lower.contains('day before yesterday')) {
+      date = todayMidnight.subtract(const Duration(days: 2));
+      dateToken = 'day before yesterday';
+    } else if (lower.contains('yesterday')) {
+      date = todayMidnight.subtract(const Duration(days: 1));
+      dateToken = 'yesterday';
+    } else if (lower.contains('today') || lower.contains('tonight')) {
+      dateToken = lower.contains('today') ? 'today' : 'tonight';
+      date = todayMidnight;
     }
 
     // ── 2. Flow type detection ────────────────────────────────────────────
@@ -280,9 +304,11 @@ class NlpParser {
 
     // ── 3. Category detection ─────────────────────────────────────────────
     String? category;
+    String? categoryToken;
     for (final entry in _catMap.entries) {
       if (lower.contains(entry.key)) {
         category = entry.value;
+        categoryToken = entry.key;
         break;
       }
     }
@@ -308,9 +334,11 @@ class NlpParser {
 
     // ── 5. PayMode ────────────────────────────────────────────────────────
     PayMode? payMode;
+    String? payModeToken;
     for (final w in _onlineWords) {
       if (lower.contains(w)) {
         payMode = PayMode.online;
+        payModeToken = w;
         break;
       }
     }
@@ -318,14 +346,54 @@ class NlpParser {
       for (final w in _cashWords) {
         if (lower.contains(w)) {
           payMode = PayMode.cash;
+          payModeToken = w;
           break;
         }
       }
     }
 
-    // ── 6. Note — strip matched tokens, keep rest as note ─────────────────
-    // Simple approach: use original text as note if it has useful info
-    final noteText = text.length > 4 ? text : null;
+    // ── 6. Title — whatever's left after stripping every matched token,
+    // e.g. "oil 220 yesterday in gpay" → "Oil". Falls back to null (blank
+    // title, user fills it in) rather than ever dumping the raw input into
+    // note like this used to.
+    var remaining = ' $lower ';
+    void strip(String? token) {
+      if (token == null || token.isEmpty) return;
+      remaining = remaining.replaceAll(' $token ', '  ');
+    }
+
+    strip(amountToken);
+    strip(dateToken);
+    strip(categoryToken);
+    strip(payModeToken);
+    if (person != null) {
+      remaining = remaining.replaceAll(
+        RegExp(
+          r'\b(?:to|from|with|lent to|borrowed from|gave to|split with|for)\s+' +
+              RegExp.escape(person.toLowerCase()) +
+              r'\b',
+        ),
+        ' ',
+      );
+    }
+    const fillerWords = [
+      'in', 'on', 'at', 'via', 'using', 'through', 'with', 'for',
+      'the', 'a', 'an', 'rs', 'rs.', 'inr', 'and',
+    ];
+    for (final f in fillerWords) {
+      strip(f);
+    }
+
+    final titleWords = remaining
+        .split(RegExp(r'\s+'))
+        .map((w) => w.trim())
+        .where((w) => w.isNotEmpty && double.tryParse(w) == null)
+        .toList();
+    final title = titleWords.isEmpty
+        ? null
+        : titleWords
+            .map((w) => w[0].toUpperCase() + (w.length > 1 ? w.substring(1) : ''))
+            .join(' ');
 
     // ── 7. Confidence score ───────────────────────────────────────────────
     double confidence = 0.0;
@@ -338,9 +406,10 @@ class NlpParser {
       flowType: flowType,
       amount: amount,
       category: category,
+      title: title,
       person: person,
       payMode: payMode,
-      note: noteText,
+      date: date,
       confidence: confidence.clamp(0.0, 1.0),
     );
   }
