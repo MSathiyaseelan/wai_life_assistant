@@ -37,7 +37,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                   const Color(0xFF4F46E5),
                   [
                     _para(
-                      'WAI Life Assistant ("WAI", "we", "us") is the Data Fiduciary as defined under the Digital Personal Data Protection Act, 2023 (DPDP Act). WAI is operated by an independent developer based in India.',
+                      'RiyasHome Life Assistance ("RiyasHome", "we", "us") is the Data Fiduciary as defined under the Digital Personal Data Protection Act, 2023 (DPDP Act). RiyasHome is operated by an independent developer based in India.',
                     ),
                     _para('Contact: successsathiya@gmail.com'),
                   ],
@@ -74,7 +74,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                   const Color(0xFF10B981),
                   [
                     _para(
-                      'Your data is used solely to provide and improve the WAI app\'s features:',
+                      'Your data is used solely to provide and improve the RiyasHome app\'s features:',
                     ),
                     _bullet('Authenticating your identity via OTP'),
                     _bullet(
@@ -157,7 +157,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                   Icons.extension_rounded,
                   const Color(0xFF64748B),
                   [
-                    _para('WAI uses these third-party services:'),
+                    _para('RiyasHome uses these third-party services:'),
                     _bullet(
                       'Firebase (Google) — OTP authentication and push notifications. Privacy policy: firebase.google.com/support/privacy',
                     ),
@@ -178,7 +178,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                   const Color(0xFFEF4444),
                   [
                     _para(
-                      'WAI is not intended for children under 18. We do not knowingly collect personal data from minors. If you believe a minor has provided data, contact us immediately.',
+                      'RiyasHome is not intended for children under 18. We do not knowingly collect personal data from minors. If you believe a minor has provided data, contact us immediately.',
                     ),
                   ],
                 ),

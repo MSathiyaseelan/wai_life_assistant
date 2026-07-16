@@ -75,7 +75,7 @@ class AboutWaiSheet extends StatelessWidget {
                   child: const Text('✦', style: TextStyle(fontSize: 34)),
                 ),
                 const SizedBox(height: 12),
-                Text('WAI Life Assistant',
+                Text('RiyasHome Life Assistance',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
@@ -150,7 +150,7 @@ class AboutWaiSheet extends StatelessWidget {
                 tc: _tc,
                 onTap: () => showLicensePage(
                   context: context,
-                  applicationName: 'WAI Life Assistant',
+                  applicationName: 'RiyasHome Life Assistance',
                   applicationVersion: '1.0.0',
                 ),
               ),

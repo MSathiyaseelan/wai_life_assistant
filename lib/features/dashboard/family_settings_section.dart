@@ -175,17 +175,17 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
 
       // Always share the invite link so the invitee receives it via
       // WhatsApp, SMS, or any messaging app â€” regardless of whether
-      // they already have a WAI account.
+      // they already have a RiyasHome account.
       await Share.share(
-        'Hey! You\'re invited to join "${family.name}" on WAI Life Assistant.\n'
+        'Hey! You\'re invited to join "${family.name}" on RiyasHome Life Assistance.\n'
         'Use this invite code to join: $token\n'
         '(Code expires in 7 days)\n\n'
-        'Download WAI: https://play.google.com/store/apps/details?id=com.wai.lifeassistant',
+        'Download RiyasHome: https://play.google.com/store/apps/details?id=com.wai.lifeassistant',
       );
 
       if (!mounted) return;
       final msg = userFound
-          ? 'Invite sent! They\'ll also see it in their WAI notifications.'
+          ? 'Invite sent! They\'ll also see it in their RiyasHome notifications.'
           : 'Invite shared! Ask them to enter the code after signing up.';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg),
@@ -212,7 +212,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       final token = result['token'] as String? ?? '';
       if (!mounted) return;
       await Share.share(
-        'Join "${family.name}" on WAI Life Assistant!\n'
+        'Join "${family.name}" on RiyasHome Life Assistance!\n'
         'Use invite code: $token\n'
         '(Code expires in 7 days)',
       );

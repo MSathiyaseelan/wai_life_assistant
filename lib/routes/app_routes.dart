@@ -26,8 +26,8 @@ class AppRoutes {
     dashboard:    (context) => const DashboardScreen(),
     login:        (context) => const LoginScreen(),
     otp: (context) {
-      final phone = ModalRoute.of(context)!.settings.arguments as String;
-      return OtpScreen(phone: phone);
+      final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>;
+      return OtpScreen(phone: args['phone']!, name: args['name'] ?? '');
     },
     profileSetup: (context) => const ProfileSetupScreen(),
     bottomNav:    (context) => const BottomNavScreen(),

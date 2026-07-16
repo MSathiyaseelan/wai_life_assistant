@@ -28,11 +28,11 @@ class TermsOfServiceSheet extends StatelessWidget {
                 _lastUpdated(),
                 const SizedBox(height: 20),
                 _section('1. Acceptance of Terms', Icons.handshake_rounded, const Color(0xFF4F46E5), [
-                  _para('By downloading, installing, or using WAI Life Assistant ("WAI", "the App"), you agree to be bound by these Terms of Service. If you do not agree, do not use the App.'),
+                  _para('By downloading, installing, or using RiyasHome Life Assistance ("RiyasHome", "the App"), you agree to be bound by these Terms of Service. If you do not agree, do not use the App.'),
                   _para('These terms are governed by the laws of India.'),
                 ]),
                 _section('2. Use of the App', Icons.apps_rounded, const Color(0xFF0EA5E9), [
-                  _para('WAI is a personal life management tool. You may use the App for lawful, personal, non-commercial purposes only. You must not:'),
+                  _para('RiyasHome is a personal life management tool. You may use the App for lawful, personal, non-commercial purposes only. You must not:'),
                   _bullet('Use the App for any illegal or unauthorised purpose'),
                   _bullet('Attempt to gain unauthorised access to any part of the App or its infrastructure'),
                   _bullet('Reverse-engineer, decompile, or disassemble the App'),
@@ -50,7 +50,7 @@ class TermsOfServiceSheet extends StatelessWidget {
                   _para('All your personal data is stored securely on Supabase infrastructure in the Mumbai (ap-south-1) region and is subject to Row Level Security — only you can access your records.'),
                 ]),
                 _section('5. Intellectual Property', Icons.copyright_rounded, const Color(0xFFF59E0B), [
-                  _para('The App and all its content, features, and functionality are owned by the WAI team and are protected by applicable intellectual property laws.'),
+                  _para('The App and all its content, features, and functionality are owned by the RiyasHome team and are protected by applicable intellectual property laws.'),
                   _para('You are granted a limited, non-exclusive, non-transferable licence to use the App for personal purposes only. No ownership rights are transferred.'),
                 ]),
                 _section('6. Third-Party Services', Icons.hub_rounded, const Color(0xFFEC4899), [
@@ -62,10 +62,10 @@ class TermsOfServiceSheet extends StatelessWidget {
                 ]),
                 _section('7. Disclaimer of Warranties', Icons.warning_amber_rounded, const Color(0xFFEF4444), [
                   _para('The App is provided "as is" without warranty of any kind. We do not warrant that the App will be error-free, uninterrupted, or free of harmful components.'),
-                  _para('Financial figures, health data, and reminders displayed in the App are based solely on data you enter. WAI does not provide financial, medical, or legal advice.'),
+                  _para('Financial figures, health data, and reminders displayed in the App are based solely on data you enter. RiyasHome does not provide financial, medical, or legal advice.'),
                 ]),
                 _section('8. Limitation of Liability', Icons.gavel_rounded, const Color(0xFF6B7280), [
-                  _para('To the maximum extent permitted by law, the WAI team shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the App.'),
+                  _para('To the maximum extent permitted by law, the RiyasHome team shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the App.'),
                   _para('Our total liability for any claim arising from these terms shall not exceed the amount you paid for the App in the 12 months preceding the claim.'),
                 ]),
                 _section('9. Termination', Icons.cancel_rounded, const Color(0xFF64748B), [

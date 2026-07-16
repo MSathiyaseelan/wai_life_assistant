@@ -13,6 +13,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _nameCtrl   = TextEditingController();
+  final _nameFocus  = FocusNode();
   final _phoneCtrl  = TextEditingController();
   final _phoneFocus = FocusNode();
 
@@ -22,20 +24,29 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _nameFocus.addListener(() => setState(() {}));
     _phoneFocus.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
+    _nameFocus.dispose();
     _phoneCtrl.dispose();
     _phoneFocus.dispose();
     super.dispose();
   }
 
-  bool get _isValid => _phoneCtrl.text.trim().length == 10;
+  bool get _isValid =>
+      _nameCtrl.text.trim().isNotEmpty && _phoneCtrl.text.trim().length == 10;
 
   Future<void> _sendOtp() async {
+    final name = _nameCtrl.text.trim();
     final phone = _phoneCtrl.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Please enter your name');
+      return;
+    }
     if (phone.length != 10) {
       setState(() => _error = 'Please enter a valid 10-digit mobile number');
       return;
@@ -44,7 +55,11 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await AuthCoordinator.instance.sendOtp('+91$phone');
       if (!mounted) return;
-      Navigator.pushNamed(context, AppRoutes.otp, arguments: '+91$phone');
+      Navigator.pushNamed(
+        context,
+        AppRoutes.otp,
+        arguments: {'phone': '+91$phone', 'name': name},
+      );
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);
@@ -107,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 Center(
                   child: Text(
-                    'WAI Life Assistant',
+                    'RiyasHome Life Assistance',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
@@ -119,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 6),
                 Center(
                   child: Text(
-                    'Enter your mobile number to continue',
+                    'Enter your name and mobile number to continue',
                     style: TextStyle(
                       fontSize: 14,
                       fontFamily: 'Nunito',
@@ -148,11 +163,53 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      _FieldLabel('Your Name', sub),
+                      const SizedBox(height: 8),
+                      _InputBox(
+                        hasFocus: _nameFocus.hasFocus,
+                        hasError: _error != null && _nameCtrl.text.trim().isEmpty,
+                        fieldBg: fieldBg,
+                        child: TextField(
+                          controller: _nameCtrl,
+                          focusNode: _nameFocus,
+                          keyboardType: TextInputType.name,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() => _error = null),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 14),
+                            hintText: 'e.g. Sathiyaseelan',
+                            hintStyle: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
+                              fontFamily: 'Nunito',
+                              color: sub.withValues(alpha: 0.5),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.person_rounded,
+                              size: 20,
+                              color: _nameFocus.hasFocus
+                                  ? AppColors.primary
+                                  : sub.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
                       _FieldLabel('Mobile Number', sub),
                       const SizedBox(height: 8),
                       _InputBox(
                         hasFocus: _phoneFocus.hasFocus,
-                        hasError: _error != null,
+                        hasError: _error != null && _phoneCtrl.text.trim().length != 10,
                         fieldBg: fieldBg,
                         child: Row(
                           children: [

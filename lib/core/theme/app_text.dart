@@ -1,8 +1,8 @@
 class AppText {
   AppText._();
 
-  static const String appName = 'WAI Life Assistant';
-  static const String appTitle = 'WAI';
+  static const String appName = 'RiyasHome Life Assistance';
+  static const String appTitle = 'RiyasHome';
   static const String dashboardTitle = 'Dashboard';
   static const String walletTitle = 'Wallet';
   static const String pantryTitle = 'Pantry';

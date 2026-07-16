@@ -60,7 +60,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'WAI Life Assistant',
+      title: 'RiyasHome Life Assistance',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

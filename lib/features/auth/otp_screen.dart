@@ -10,7 +10,10 @@ import 'auth_coordinator.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phone;
-  const OtpScreen({super.key, required this.phone});
+  /// Name collected on the Login screen — saved to the profile immediately
+  /// on first verification so new users don't need a separate name prompt.
+  final String name;
+  const OtpScreen({super.key, required this.phone, this.name = ''});
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -95,8 +98,26 @@ class _OtpScreenState extends State<OtpScreen> {
     try {
       await AuthCoordinator.instance.verifyOtp(widget.phone, _otp);
       if (!mounted) return;
-      final profile = await ProfileService.instance.fetchProfile();
+      var profile = await ProfileService.instance.fetchProfile();
       if (!mounted) return;
+      final nameFromLogin = widget.name.trim();
+      if (profile == null) {
+        // First-time sign-in — create the profile now with the name already
+        // collected on the Login screen, alongside the verified mobile number.
+        await ProfileService.instance.bootstrapNewUser(name: nameFromLogin);
+        if (!mounted) return;
+        profile = await ProfileService.instance.fetchProfile();
+        if (!mounted) return;
+      } else if (nameFromLogin.isNotEmpty &&
+          (profile['name'] as String?)?.trim().isEmpty != false) {
+        // Profile row already exists (e.g. an older account created before
+        // Login collected a name) but has none set yet — apply what was just
+        // typed instead of silently discarding it.
+        await ProfileService.instance.updateProfile(name: nameFromLogin);
+        if (!mounted) return;
+        profile = await ProfileService.instance.fetchProfile();
+        if (!mounted) return;
+      }
       final hasName = (profile?['name'] as String?)?.trim().isNotEmpty == true;
       if (!hasName) {
         // New user or profile has no name — go to profile setup.

@@ -24,7 +24,7 @@ AndroidNotificationDetails _alarmAndroidDetails({required String body, String? p
     AndroidNotificationDetails(
       'wai_alarms',
       'WAI Alarms',
-      channelDescription: 'Alarm-style alerts from WAI Life Assistant',
+      channelDescription: 'Alarm-style alerts from RiyasHome Life Assistance',
       importance: Importance.max,
       priority: fln.Priority.max,
       icon: '@mipmap/ic_launcher',
@@ -215,7 +215,7 @@ class NotificationService {
       AndroidNotificationChannel(
         'wai_alarms',
         'WAI Alarms',
-        description: 'Alarm-style alerts from WAI Life Assistant',
+        description: 'Alarm-style alerts from RiyasHome Life Assistance',
         importance: Importance.max,
         sound: const UriAndroidNotificationSound(
           'content://settings/system/alarm_alert',
