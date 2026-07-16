@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/utils/amount_format.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WALLET REPORTS SHEET
@@ -16,12 +17,19 @@ class WalletReportsSheet extends StatefulWidget {
   final WalletModel wallet;
   /// userId → 'emoji name' — non-null only for family wallets
   final Map<String, String> memberNames;
+  /// When set to a specific single month (not "this month"), Reports opens
+  /// scoped to that month: transactions are filtered to it, Daily shows each
+  /// day of that month instead of the last 7 days trailing from today, and
+  /// the Weekly/Monthly/Yearly trend tabs (which don't make sense pinned to
+  /// one month) are hidden, leaving Daily + Category.
+  final MonthRange? scopeRange;
 
   const WalletReportsSheet({
     super.key,
     required this.transactions,
     required this.wallet,
     this.memberNames = const {},
+    this.scopeRange,
   });
 
   static Future<void> show(
@@ -29,6 +37,7 @@ class WalletReportsSheet extends StatefulWidget {
     required List<TxModel> transactions,
     required WalletModel wallet,
     Map<String, String> memberNames = const {},
+    MonthRange? scopeRange,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -38,6 +47,7 @@ class WalletReportsSheet extends StatefulWidget {
         transactions: transactions,
         wallet: wallet,
         memberNames: memberNames,
+        scopeRange: scopeRange,
       ),
     );
   }
@@ -118,13 +128,36 @@ String _catEmoji(String cat) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WalletReportsSheetState extends State<WalletReportsSheet> {
-  _Period _period = _Period.monthly;
+  late _Period _period;
   bool _catExpense = true;
   String? _memberFilter; // null = all members
 
-  List<TxModel> get _filtered => _memberFilter == null
-      ? widget.transactions
-      : widget.transactions.where((t) => t.userId == _memberFilter).toList();
+  /// True when opened scoped to one specific (non-"this month") month —
+  /// e.g. from the Wallet screen's month picker while browsing the past.
+  bool get _isScoped =>
+      widget.scopeRange != null && widget.scopeRange!.isSingleMonth;
+
+  static const _scopedPeriods = [_Period.daily, _Period.category];
+  List<_Period> get _visiblePeriods =>
+      _isScoped ? _scopedPeriods : _Period.values;
+
+  @override
+  void initState() {
+    super.initState();
+    _period = _isScoped ? _Period.daily : _Period.monthly;
+  }
+
+  List<TxModel> get _filtered {
+    var txs = widget.transactions;
+    final scope = widget.scopeRange;
+    if (scope != null) {
+      txs = txs.where((t) => scope.contains(t.date)).toList();
+    }
+    if (_memberFilter != null) {
+      txs = txs.where((t) => t.userId == _memberFilter).toList();
+    }
+    return txs;
+  }
 
   List<TxModel> get _ie => _filtered
       .where((t) => t.type == TxType.income || t.type == TxType.expense)
@@ -133,6 +166,20 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   // ── Data builders ─────────────────────────────────────────────────────────
 
   List<_Bucket> _daily() {
+    if (_isScoped) {
+      final scope = widget.scopeRange!;
+      final monthStart = DateTime(scope.start.year, scope.start.month);
+      final daysInMonth = DateTime(scope.start.year, scope.start.month + 1, 0).day;
+      return List.generate(daysInMonth, (i) {
+        final day = DateTime(monthStart.year, monthStart.month, i + 1);
+        final b = _Bucket('${day.day}');
+        for (final t in _ie) {
+          final td = DateTime(t.date.year, t.date.month, t.date.day);
+          if (td == day) _add(b, t);
+        }
+        return b;
+      });
+    }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return List.generate(7, (i) {
@@ -272,6 +319,7 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
 
             // ── Period tabs ───────────────────────────────────────────────
             _PeriodTabBar(
+              periods: _visiblePeriods,
               selected: _period,
               accentColor: accentColor,
               surfBg: surfBg,
@@ -434,10 +482,12 @@ class _HeroHeader extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PeriodTabBar extends StatelessWidget {
+  final List<_Period> periods;
   final _Period selected;
   final Color accentColor, surfBg, sub;
   final void Function(_Period) onSelect;
   const _PeriodTabBar({
+    required this.periods,
     required this.selected,
     required this.accentColor,
     required this.surfBg,
@@ -451,7 +501,7 @@ class _PeriodTabBar extends StatelessWidget {
         child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          children: _Period.values.map((p) {
+          children: periods.map((p) {
             final active = selected == p;
             return GestureDetector(
               onTap: () => onSelect(p),

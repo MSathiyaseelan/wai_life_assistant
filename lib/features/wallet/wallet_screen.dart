@@ -2283,6 +2283,7 @@ class _WalletScreenState extends State<WalletScreen>
                         .toList(),
                     wallet: wallets[0],
                     memberNames: _activeMemberNames,
+                    scopeRange: _rangeIsAutoThisMonth ? null : _selectedRange,
                   ),
                 );
               },
@@ -2339,6 +2340,7 @@ class _WalletScreenState extends State<WalletScreen>
                             .toList(),
                         wallet: wallets[i],
                         memberNames: _activeMemberNames,
+                        scopeRange: _rangeIsAutoThisMonth ? null : _selectedRange,
                       ),
                     );
                   },
