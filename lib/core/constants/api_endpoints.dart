@@ -8,6 +8,7 @@ abstract final class AppRpc {
   static const String bootstrapNewUser      = 'bootstrap_new_user';
   static const String deleteMyAccount       = 'delete_my_account';
   static const String devLinkProfileByPhone = 'dev_link_profile_by_phone';
+  static const String markOnboarded         = 'mark_onboarded';
 
   // ── Family ─────────────────────────────────────────────────────────────────
   static const String createFamilyWithWallet = 'create_family_with_wallet';

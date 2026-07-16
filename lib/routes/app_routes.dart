@@ -4,6 +4,7 @@ import '../features/dashboard/dashboard_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/otp_screen.dart';
 import '../features/auth/profile_setup_screen.dart';
+import '../features/auth/onboarding_screen.dart';
 import 'package:wai_life_assistant/navigation/bottom_nav_screen.dart';
 
 class AppRoutes {
@@ -12,6 +13,7 @@ class AppRoutes {
   static const String login        = '/login';
   static const String otp          = '/otp';
   static const String profileSetup = '/profileSetup';
+  static const String onboarding   = '/onboarding';
   static const String bottomNav    = '/bottomNav';
 
   // Feature screens (not in the route table — pushed imperatively)
@@ -30,6 +32,7 @@ class AppRoutes {
       return OtpScreen(phone: args['phone']!, name: args['name'] ?? '');
     },
     profileSetup: (context) => const ProfileSetupScreen(),
+    onboarding:   (context) => const OnboardingScreen(),
     bottomNav:    (context) => const BottomNavScreen(),
   };
 }

@@ -55,6 +55,12 @@ class ProfileService {
     return row?['onboarded'] == true;
   }
 
+  /// Marks the current user as having completed (or skipped) the onboarding
+  /// slides, so it's never shown again.
+  Future<void> markOnboarded() async {
+    await _db.rpc(AppRpc.markOnboarded);
+  }
+
   // ── Profile ───────────────────────────────────────────────────────────────
 
   /// Fetch the current user's profile row.

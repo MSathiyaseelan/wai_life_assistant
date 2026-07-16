@@ -6,6 +6,7 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../features/auth/auth_coordinator.dart';
+import '../../data/services/profile_service.dart';
 
 // Sessions inactive for longer than this are expired and force re-login.
 const _kInactivityDays = 30;
@@ -47,10 +48,21 @@ class _SplashScreenState extends State<SplashScreen> {
     if (loggedIn) await recordActivity();
     if (!mounted) return;
 
-    Navigator.pushReplacementNamed(
-      context,
-      loggedIn ? AppRoutes.bottomNav : AppRoutes.login,
-    );
+    String destination = AppRoutes.login;
+    if (loggedIn) {
+      destination = AppRoutes.bottomNav;
+      try {
+        if (!await ProfileService.instance.isOnboarded()) {
+          destination = AppRoutes.onboarding;
+        }
+      } catch (_) {
+        // If this check fails (e.g. transient network issue), don't block
+        // a returning user from reaching the app — fall back to bottomNav.
+      }
+    }
+    if (!mounted) return;
+
+    Navigator.pushReplacementNamed(context, destination);
   }
 
   Future<bool> _isSessionExpired() async {
@@ -73,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
             children: [
               // App Name
               Text(
-                'WAI Life Assistance',
+                'RiyasHome Life Assistance',
                 style: AppTextStyles.title.copyWith(color: AppColors.primary),
                 textAlign: TextAlign.center,
               ),

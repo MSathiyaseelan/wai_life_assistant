@@ -83,7 +83,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.bottomNav,
+        AppRoutes.onboarding,
         (route) => false,
       );
     } on AuthException catch (e) {
@@ -367,7 +367,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   void _skip() {
     Navigator.pushNamedAndRemoveUntil(
       context,
-      AppRoutes.bottomNav,
+      AppRoutes.onboarding,
       (route) => false,
     );
   }

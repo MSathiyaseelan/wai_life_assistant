@@ -126,8 +126,15 @@ class _OtpScreenState extends State<OtpScreen> {
           AppRoutes.profileSetup,
           (route) => false,
         );
+      } else if (profile?['onboarded'] != true) {
+        // Has a name already, but hasn't seen the onboarding slides yet.
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.onboarding,
+          (route) => false,
+        );
       } else {
-        // Returning user — go straight to dashboard.
+        // Returning, onboarded user — go straight to dashboard.
         Navigator.pushNamedAndRemoveUntil(
           context,
           AppRoutes.bottomNav,
