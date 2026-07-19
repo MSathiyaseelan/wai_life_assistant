@@ -1,5 +1,6 @@
 {
   "ENV": "qa",
   "SUPABASE_URL": "https://<qa-project-ref>.supabase.co",
-  "SUPABASE_ANON_KEY": "<qa-anon-key>"
+  "SUPABASE_ANON_KEY": "<qa-anon-key>",
+  "REVENUECAT_API_KEY": "<qa-revenuecat-android-public-key>"
 }

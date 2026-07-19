@@ -1,5 +1,6 @@
 {
   "ENV": "prod",
   "SUPABASE_URL": "https://<prod-project-ref>.supabase.co",
-  "SUPABASE_ANON_KEY": "<prod-anon-key>"
+  "SUPABASE_ANON_KEY": "<prod-anon-key>",
+  "REVENUECAT_API_KEY": "<prod-revenuecat-android-public-key>"
 }

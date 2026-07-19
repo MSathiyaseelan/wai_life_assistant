@@ -11,6 +11,7 @@ import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/network_service.dart';
 import 'core/services/realtime_sync_service.dart';
+import 'data/services/subscription_service.dart';
 // import 'features/wallet/services/sms_parser_service.dart'; // re-enable with auto-scan
 import 'firebase_options.dart';
 import 'main.dart';
@@ -48,6 +49,7 @@ Future<void> bootstrapApp(String env) async {
     NotificationService.instance.init(),
     NetworkService.instance.init(),
     SharedPreferences.getInstance(),
+    SubscriptionService.instance.init(),
   ]);
   // Must run after NetworkService.init() so the isOnline listener is ready.
   RealtimeSyncService.instance.init();

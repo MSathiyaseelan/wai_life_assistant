@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../routes/app_routes.dart';
@@ -7,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../features/auth/auth_coordinator.dart';
 import '../../data/services/profile_service.dart';
+import '../../data/services/subscription_service.dart';
 
 // Sessions inactive for longer than this are expired and force re-login.
 const _kInactivityDays = 30;
@@ -51,6 +54,14 @@ class _SplashScreenState extends State<SplashScreen> {
     String destination = AppRoutes.login;
     if (loggedIn) {
       destination = AppRoutes.bottomNav;
+      final uid = AuthCoordinator.instance.currentUser?.id;
+      if (uid != null) {
+        // Re-links the RevenueCat subscriber on every cold start with an
+        // already-persisted session (not just right after fresh OTP
+        // verification) — otherwise purchases here would tie to a fresh
+        // anonymous RevenueCat id instead of the real account.
+        unawaited(SubscriptionService.instance.login(uid));
+      }
       try {
         if (!await ProfileService.instance.isOnboarded()) {
           destination = AppRoutes.onboarding;

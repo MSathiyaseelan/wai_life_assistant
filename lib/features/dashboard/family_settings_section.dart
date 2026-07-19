@@ -10,6 +10,7 @@ import 'package:wai_life_assistant/data/services/invite_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
+import 'package:wai_life_assistant/features/subscription/paywall_screen.dart';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FAMILY SETTINGS SECTION
@@ -322,6 +323,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           // â”€â”€ My Family card (only when family exists) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (family != null) ...[
             _buildMyFamilyCard(context, family),
+            const SizedBox(height: 8),
+            _buildUpgradePlanCard(context, family),
             const SizedBox(height: 8),
             _buildPermissionsCard(context),
             const SizedBox(height: 8),
@@ -988,6 +991,57 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // FAMILY PERMISSIONS CARD
   // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+  // ── Upgrade Plan card ────────────────────────────────────────────────────
+  Widget _buildUpgradePlanCard(BuildContext context, FamilyModel family) {
+    final sub = _sub;
+    final isAdmin = family.isAdmin;
+
+    return Material(
+      color: _surfBg,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => PaywallScreen.show(
+          context,
+          isAdmin: isAdmin,
+          familyName: family.name,
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          leading: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            alignment: Alignment.center,
+            child: const Text('✨', style: TextStyle(fontSize: 18)),
+          ),
+          title: const Text(
+            'Upgrade Plan',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Nunito',
+            ),
+          ),
+          subtitle: Text(
+            isAdmin
+                ? 'Unlock higher limits for the whole family'
+                : 'Only admins can upgrade the plan',
+            style: TextStyle(
+              fontSize: 10,
+              fontFamily: 'Nunito',
+              color: sub,
+            ),
+          ),
+          trailing: Icon(Icons.chevron_right_rounded, size: 20, color: sub),
+        ),
+      ),
+    );
+  }
 
   Widget _buildPermissionsCard(BuildContext context) {
     final sub = _sub;

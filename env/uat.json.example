@@ -1,5 +1,6 @@
 {
   "ENV": "uat",
   "SUPABASE_URL": "https://<uat-project-ref>.supabase.co",
-  "SUPABASE_ANON_KEY": "<uat-anon-key>"
+  "SUPABASE_ANON_KEY": "<uat-anon-key>",
+  "REVENUECAT_API_KEY": "<uat-revenuecat-android-public-key>"
 }

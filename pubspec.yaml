@@ -63,6 +63,7 @@ dependencies:
   local_auth: ^2.3.0
   flutter_sms_inbox: ^1.0.4
   cached_network_image: ^3.4.1
+  purchases_flutter: ^10.4.1
 
 dev_dependencies:
   flutter_test:
