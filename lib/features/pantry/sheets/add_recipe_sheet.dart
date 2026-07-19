@@ -625,25 +625,13 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
   }
 
   void _quickAdd(BuildContext ctx, MasterRecipe r) {
+    // onSave is fire-and-forget (void, not a Future) — this sheet has no way
+    // to know whether the save actually succeeds, so it must not claim
+    // success itself. The real outcome (success or "Failed to save recipe")
+    // is shown by the caller (pantry_screen.dart's _addRecipe), which does
+    // know the result.
     widget.onSave(r.toRecipeModel());
-    final messenger = ScaffoldMessenger.of(ctx);
     Navigator.pop(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          '${r.emoji} ${r.name} added to Recipe Box!',
-          style: const TextStyle(
-            fontFamily: 'Nunito',
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: AppColors.lend,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   void _showPreview(BuildContext ctx, MasterRecipe r) {

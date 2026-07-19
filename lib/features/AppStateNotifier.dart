@@ -64,33 +64,49 @@ class AppStateNotifier extends ChangeNotifier {
   bool get isPersonal => activeWallet.isPersonal;
 
   /// Load wallets and families from Supabase (or fall back to mock data).
+  ///
+  /// Retries a few times before falling back to the placeholder wallet: a
+  /// logged-in user reaching this point always has a profile row already
+  /// (login/onboarding only hands off to the app shell after that's set up),
+  /// so a null/failed fetch here is most likely a transient hiccup — e.g.
+  /// cold DNS/TLS on a brand-new install, or a race with Firebase/Supabase
+  /// still finishing initialization — not a genuinely missing account. Without
+  /// this, a single bad first request left every screen stuck on the
+  /// 'personal' placeholder wallet id for the rest of the session (surfacing
+  /// as "Failed to load PlanIt data" / "Account still loading" everywhere).
   Future<void> init() async {
     _loading = true;
     notifyListeners();
 
-    try {
-      final loggedIn = AuthCoordinator.instance.isLoggedIn;
-      debugPrint('[AppState] init — isLoggedIn=$loggedIn');
+    const maxAttempts = 3;
+    var repairAttempted = false;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      final isLastAttempt = attempt == maxAttempts;
+      try {
+        final loggedIn = AuthCoordinator.instance.isLoggedIn;
+        debugPrint('[AppState] init (attempt $attempt) — isLoggedIn=$loggedIn');
 
-      // Fetch config and profile data in parallel — they are independent calls.
-      final fetched = await Future.wait([
-        AppConfigService.instance.fetchMaxFamilyGroups(),
-        if (loggedIn) ProfileService.instance.fetchSwitcherData()
-        else Future.value(null),
-        if (loggedIn) ProfileService.instance.fetchMaxFamilyMembers()
-        else Future.value(0),
-      ]);
-      _maxFamilyGroups = fetched[0] as int;
-      if (loggedIn) _maxFamilyMembers = fetched[2] as int;
+        // Fetch config and profile data in parallel — they are independent calls.
+        final fetched = await Future.wait([
+          AppConfigService.instance.fetchMaxFamilyGroups(),
+          if (loggedIn) ProfileService.instance.fetchSwitcherData()
+          else Future.value(null),
+          if (loggedIn) ProfileService.instance.fetchMaxFamilyMembers()
+          else Future.value(0),
+        ]);
+        _maxFamilyGroups = fetched[0] as int;
+        if (loggedIn) _maxFamilyMembers = fetched[2] as int;
 
-      if (!loggedIn) {
-        RealtimeSyncService.instance.unsubscribeAll();
-        _wallets = [personalWallet];
-        _families = [];
-        if (_activeWalletId.isEmpty || !_wallets.any((w) => w.id == _activeWalletId)) {
-          _activeWalletId = personalWallet.id;
+        if (!loggedIn) {
+          RealtimeSyncService.instance.unsubscribeAll();
+          _wallets = [personalWallet];
+          _families = [];
+          if (_activeWalletId.isEmpty || !_wallets.any((w) => w.id == _activeWalletId)) {
+            _activeWalletId = personalWallet.id;
+          }
+          break;
         }
-      } else {
+
         final row = fetched[1] as Map<String, dynamic>?;
         debugPrint('[AppState] fetchSwitcherData row=${row != null ? 'found' : 'null'}');
         if (row != null) {
@@ -105,28 +121,57 @@ class AppStateNotifier extends ChangeNotifier {
           RealtimeSyncService.instance.subscribeAll(parsed.personal.id);
           // Load all members (incl. removed) for name display — fire and forget
           _loadAllMemberNames(parsed.families);
-        } else {
-          // Profile not set up yet (e.g. bypass login with cache-cleared state).
+          break;
+        }
+
+        debugPrint('[AppState] fetchSwitcherData returned null (attempt $attempt)');
+        if (!repairAttempted) {
+          // A logged-in user with a profile but no matching wallet row means
+          // bootstrap never finished (e.g. a profile created during a
+          // migration gap before the wallets table/RLS was in sync) — the
+          // client only calls bootstrapNewUser once, when the profile row is
+          // first created, so this account would otherwise be stuck forever.
+          // Self-heal by re-running the idempotent RPC: it only creates the
+          // personal wallet if one doesn't already exist and preserves the
+          // existing profile fields.
+          repairAttempted = true;
+          try {
+            await ProfileService.instance.bootstrapNewUser();
+            debugPrint('[AppState] bootstrapNewUser repair attempted');
+          } catch (e) {
+            debugPrint('[AppState] bootstrapNewUser repair failed: $e');
+          }
+          continue;
+        }
+        if (isLastAttempt) {
           // Fall back to a placeholder so screens don't hang on empty walletId.
-          debugPrint('[AppState] fetchSwitcherData returned null — using placeholder wallet');
           if (_wallets.isEmpty) {
             _wallets = [personalWallet];
             _activeWalletId = personalWallet.id;
           }
+        } else {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+          continue;
+        }
+      } catch (e, stack) {
+        debugPrint('[AppState] init error (attempt $attempt): $e');
+        if (isLastAttempt) {
+          ErrorLogger.log(e, stackTrace: stack, action: 'app_state_init', severity: ErrorSeverity.critical);
+          if (_wallets.isEmpty) {
+            _wallets = [personalWallet];
+            _families = [];
+            _activeWalletId = personalWallet.id;
+          }
+        } else {
+          await Future.delayed(Duration(milliseconds: 500 * attempt));
+          continue;
         }
       }
-    } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'app_state_init', severity: ErrorSeverity.critical);
-      debugPrint('[AppState] init error: $e');
-      if (_wallets.isEmpty) {
-        _wallets = [personalWallet];
-        _families = [];
-        _activeWalletId = personalWallet.id;
-      }
-    } finally {
-      _loading = false;
-      notifyListeners();
+      break;
     }
+
+    _loading = false;
+    notifyListeners();
   }
 
   Future<void> _loadAllMemberNames(List<FamilyModel> families) async {

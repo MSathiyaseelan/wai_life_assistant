@@ -1411,6 +1411,7 @@ class _PantryScreenState extends State<PantryScreen>
         final idx = _recipes.indexWhere((e) => e.id == r.id);
         if (idx >= 0) _recipes[idx] = saved;
       });
+      _showSavedSnack('${saved.emoji} ${saved.name} added to Recipe Box!', AppColors.lend);
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_recipe');
       if (!mounted) return;
