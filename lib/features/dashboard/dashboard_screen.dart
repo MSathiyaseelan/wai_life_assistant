@@ -22,6 +22,7 @@ import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/features/wallet/category_detector.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_detail_sheet.dart';
 import 'package:wai_life_assistant/features/pantry/sheets/add_meal_sheet.dart';
@@ -197,14 +198,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
     final parsed = await SMSParserService.parseSMSText(text);
     if (!mounted) return;
-    if (parsed == null || !parsed.isTransaction) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not read a transaction from the clipboard text.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+    maybeShowAiLimitSnackbar(context, parsed.aiError);
+    if (parsed.tx == null || !parsed.tx!.isTransaction) {
+      if (!isAiLimitError(parsed.aiError)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not read a transaction from the clipboard text.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
       return;
     }
-    final intent = parsed.toParsedIntent();
+    final intent = parsed.tx!.toParsedIntent();
     await IntentConfirmSheet.show(
       context,
       intent: intent,

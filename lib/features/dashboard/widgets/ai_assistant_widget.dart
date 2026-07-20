@@ -461,14 +461,17 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     final parsed = await SMSParserService.parseSMSText(text);
     if (!mounted) return;
     setState(() => _smsLoading = false);
-    if (parsed == null || !parsed.isTransaction) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Could not read a transaction from the clipboard text.'),
-        behavior: SnackBarBehavior.floating,
-      ));
+    maybeShowAiLimitSnackbar(context, parsed.aiError);
+    if (parsed.tx == null || !parsed.tx!.isTransaction) {
+      if (!isAiLimitError(parsed.aiError)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not read a transaction from the clipboard text.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
       return;
     }
-    final intent = parsed.toParsedIntent();
+    final intent = parsed.tx!.toParsedIntent();
     await IntentConfirmSheet.show(
       context,
       intent:     intent,

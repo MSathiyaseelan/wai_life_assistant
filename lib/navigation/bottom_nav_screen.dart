@@ -16,6 +16,7 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/auth/app_lock_screen.dart';
+import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 
 const _kThemePrefKey = 'theme_mode';
 
@@ -176,11 +177,13 @@ class _AppShellState extends State<AppShell> {
 
     // Parse (regex first, AI fallback) then show confirm sheet
     final parsed = await SMSParserService.parseSMSText(smsBody);
-    if (!mounted || parsed == null) return;
+    if (!mounted) return;
+    maybeShowAiLimitSnackbar(context, parsed.aiError);
+    if (parsed.tx == null) return;
 
     await IntentConfirmSheet.show(
       context,
-      intent:     parsed.toParsedIntent(),
+      intent:     parsed.tx!.toParsedIntent(),
       walletId:   _appState.activeWalletId,
       onSave:     (_) => setState(() => _dashboardRefreshCount++),
       onOpenFlow: () {},

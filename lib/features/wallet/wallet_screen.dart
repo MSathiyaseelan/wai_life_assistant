@@ -438,7 +438,14 @@ class _WalletScreenState extends State<WalletScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refreshMonthIfAuto();
+    if (state == AppLifecycleState.resumed) {
+      _refreshMonthIfAuto();
+      // The monthly AI-parses quota is shared across every AI feature in the
+      // app (Dashboard WAI Assistant, My Functions, SMS parsing, etc.), not
+      // just this tab — refresh so the counter/gate reflect usage from
+      // elsewhere instead of the snapshot cached when this tab last loaded.
+      _loadAiLimit();
+    }
   }
 
   // Updates _selectedRange to the current month when the user hasn't manually
@@ -977,6 +984,14 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   Future<void> _onChatSubmit(String text) async {
+    // Re-check against the server right before gating — the same monthly
+    // 'ai_parser' quota is shared with every other AI feature in the app, so
+    // the cached count/limit from when this tab last loaded can be stale by
+    // the time the user actually submits (e.g. they used AI parsing
+    // elsewhere in between). Keeps the block message and the counter above
+    // the input bar consistent with what actually gets enforced.
+    await _loadAiLimit();
+    if (!mounted) return;
     if (_aiLimitReached) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

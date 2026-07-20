@@ -183,13 +183,15 @@ class _SparkBottomSheetState extends State<SparkBottomSheet> {
 
     if (!mounted) return;
     setState(() => _isSmsLoading = false);
+    maybeShowAiLimitSnackbar(context, parsed.aiError);
 
-    if (parsed == null || !parsed.isTransaction) {
-      setState(() => _errorMsg = 'Could not read a transaction from the clipboard text.');
+    if (parsed.tx == null || !parsed.tx!.isTransaction) {
+      setState(() => _errorMsg = parsed.aiError ??
+          'Could not read a transaction from the clipboard text.');
       return;
     }
 
-    final intent = parsed.toParsedIntent();
+    final intent = parsed.tx!.toParsedIntent();
     if (!mounted) return;
     Navigator.pop(context);
     await IntentConfirmSheet.show(

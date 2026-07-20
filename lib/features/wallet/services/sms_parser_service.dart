@@ -154,17 +154,20 @@ class SMSParserService {
 
   // ── Approach 2: parse a raw SMS string ───────────────────────────────────
 
-  static Future<SMSTransaction?> parseSMSText(String text) async {
+  /// [aiError] is set when the AI layer failed with a surfaced reason (e.g.
+  /// the monthly AI usage limit) so callers can show that instead of a
+  /// generic "could not read a transaction" message.
+  static Future<({SMSTransaction? tx, String? aiError})> parseSMSText(String text) async {
     // Layer 1: regex (free, instant)
     final regexResult = SMSRegexParser.tryParse(text);
     if (regexResult != null && regexResult.isHighConfidence) {
       if (kDebugMode) debugPrint('[SMS] regex parsed successfully');
-      return regexResult;
+      return (tx: regexResult, aiError: null);
     }
 
     // Layer 2: AI via Supabase edge function; fall back to regex if AI fails
-    final aiResult = await _parseWithAI(text, '');
-    return aiResult ?? regexResult;
+    final aiOutcome = await _parseWithAI(text, '');
+    return (tx: aiOutcome.tx ?? regexResult, aiError: aiOutcome.error);
   }
 
   /// Scans the SMS inbox for bank messages in [from]..[to] and parses them
@@ -229,7 +232,7 @@ class SMSParserService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  static Future<SMSTransaction?> _parseWithAI(
+  static Future<({SMSTransaction? tx, String? error})> _parseWithAI(
       String body, String sender) async {
     try {
       final result = await AIParser.parseText(
@@ -241,12 +244,14 @@ class SMSParserService {
           'today':  DateTime.now().toIso8601String().split('T')[0],
         },
       );
-      if (!result.success || result.data == null) return null;
-      if (result.data!['is_transaction'] != true) return null;
-      return SMSTransaction.fromJson(result.data!);
+      if (!result.success || result.data == null) {
+        return (tx: null, error: result.error);
+      }
+      if (result.data!['is_transaction'] != true) return (tx: null, error: null);
+      return (tx: SMSTransaction.fromJson(result.data!), error: null);
     } catch (e) {
       debugPrint('[SMS] AI parse error: $e');
-      return null;
+      return (tx: null, error: null);
     }
   }
 
