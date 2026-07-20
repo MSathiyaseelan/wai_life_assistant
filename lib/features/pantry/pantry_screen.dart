@@ -1390,6 +1390,13 @@ class _PantryScreenState extends State<PantryScreen>
       _showSavedSnack('Account still loading. Please try again in a moment.', AppColors.subLight);
       return;
     }
+    final duplicate = r.libraryRecipeId != null
+        ? _recipes.any((e) => e.libraryRecipeId == r.libraryRecipeId)
+        : _recipes.any((e) => e.name.trim().toLowerCase() == r.name.trim().toLowerCase());
+    if (duplicate) {
+      _showSavedSnack('${r.name} is already in your Recipe Box', AppColors.subLight);
+      return;
+    }
     setState(() => _recipes.add(r)); // optimistic
     try {
       final row = await PantryService.instance.addRecipe(

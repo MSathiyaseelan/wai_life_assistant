@@ -993,10 +993,17 @@ class RecipeDetailSheet extends StatefulWidget {
 class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
   late List<String> _ingredients;
   late List<TextEditingController> _qtyCtrl;
+  // Local mutable copy of widget.groceries — the parent only rebuilds this
+  // sheet's snapshot when it's reopened, so items added to To Buy from
+  // within this still-open sheet must also be reflected here, or a repeat
+  // "Check Stock" tap keeps showing them as missing until the sheet is
+  // closed and reopened.
+  late List<GroceryItem> _groceries;
 
   @override
   void initState() {
     super.initState();
+    _groceries = List.from(widget.groceries);
     _ingredients = List.from(widget.recipe.ingredients);
     _qtyCtrl = _ingredients
         .map((ing) => TextEditingController(text: _parseIng(ing).qtyUnit))
@@ -1045,8 +1052,8 @@ class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
   }
 
   void _checkAvailability(BuildContext context) {
-    final inStock = widget.groceries.where((g) => g.inStock).toList();
-    final inToBuy = widget.groceries.where((g) => g.toBuy).toList();
+    final inStock = _groceries.where((g) => g.inStock).toList();
+    final inToBuy = _groceries.where((g) => g.toBuy).toList();
     final checked = <_IngredientStatus>[];
 
     for (final ingredient in _ingredients) {
@@ -1072,7 +1079,24 @@ class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
         recipeName: widget.recipe.name,
         items: checked,
         isDark: isDark,
-        onAddToBasket: widget.onAddMissingToBasket,
+        onAddToBasket: (labels) {
+          widget.onAddMissingToBasket?.call(labels);
+          setState(() {
+            for (final label in labels) {
+              final parsed = _parseIng(label);
+              _groceries.add(GroceryItem(
+                id: 'pending_${DateTime.now().microsecondsSinceEpoch}_$label',
+                name: parsed.name,
+                category: GroceryCategory.other,
+                quantity: 1,
+                unit: 'pcs',
+                walletId: widget.recipe.walletId,
+                inStock: false,
+                toBuy: true,
+              ));
+            }
+          });
+        },
       ),
     );
   }
