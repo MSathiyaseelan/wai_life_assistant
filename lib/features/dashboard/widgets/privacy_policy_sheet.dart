@@ -39,7 +39,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                     _para(
                       'RiyasHome Life Assistance ("RiyasHome", "we", "us") is the Data Fiduciary as defined under the Digital Personal Data Protection Act, 2023 (DPDP Act). RiyasHome is operated by an independent developer based in India.',
                     ),
-                    _para('Contact: successsathiya@gmail.com'),
+                    _para('Contact: riyasailabs@gmail.com'),
                   ],
                 ),
                 _section(
@@ -125,7 +125,7 @@ class PrivacyPolicySheet extends StatelessWidget {
                       'Right to Erasure: Request full account deletion — your data is deleted within 30 days',
                     ),
                     _bullet(
-                      'Right to Grievance Redressal: Contact us at successsathiya@gmail.com — we respond within 7 days',
+                      'Right to Grievance Redressal: Contact us at riyasailabs@gmail.com — we respond within 7 days',
                     ),
                     _bullet(
                       'Right to Withdraw Consent: Delete your account at any time from Privacy & Security settings',
