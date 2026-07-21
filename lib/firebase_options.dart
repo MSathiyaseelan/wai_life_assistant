@@ -41,46 +41,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCy5BN2K-yBv7GkqP0n3JF5V82XW2V2u1E',
-    appId: '1:471788972864:web:41dae58dfdbb18ca1568a5',
-    messagingSenderId: '471788972864',
-    projectId: 'waiapp-4edaf',
-    authDomain: 'waiapp-4edaf.firebaseapp.com',
-    storageBucket: 'waiapp-4edaf.firebasestorage.app',
+    apiKey: 'AIzaSyD2IDw9ZYDFsQUhiYmpWCu6VRBsYgOZqg4',
+    appId: '1:793319730662:web:a7a7a5673977e5bb15fa27',
+    messagingSenderId: '793319730662',
+    projectId: 'riyashome-863ea',
+    authDomain: 'riyashome-863ea.firebaseapp.com',
+    storageBucket: 'riyashome-863ea.firebasestorage.app',
+    measurementId: 'G-90FTJ2DVVE',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8',
-    appId: '1:471788972864:android:1c3eab606dfb1af91568a5',
-    messagingSenderId: '471788972864',
-    projectId: 'waiapp-4edaf',
-    storageBucket: 'waiapp-4edaf.firebasestorage.app',
+    apiKey: 'AIzaSyA1RHH8lt5odK5nA6-wiiK0E24PD6bnbh4',
+    appId: '1:793319730662:android:35544556ec68c22915fa27',
+    messagingSenderId: '793319730662',
+    projectId: 'riyashome-863ea',
+    storageBucket: 'riyashome-863ea.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDfgbyRneWK91zS2IKzOdPliKtIGRXbSXk',
-    appId: '1:471788972864:ios:902277d09e79614b1568a5',
-    messagingSenderId: '471788972864',
-    projectId: 'waiapp-4edaf',
-    storageBucket: 'waiapp-4edaf.firebasestorage.app',
-    iosBundleId: 'com.wai.lifeassistant',
+    apiKey: 'AIzaSyCrC0n2sZ7MdMBG_BGOwEzXXEB5IRfyxCQ',
+    appId: '1:793319730662:ios:4a916d670aab41be15fa27',
+    messagingSenderId: '793319730662',
+    projectId: 'riyashome-863ea',
+    storageBucket: 'riyashome-863ea.firebasestorage.app',
+    iosBundleId: 'com.example.waiLifeAssistant',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDfgbyRneWK91zS2IKzOdPliKtIGRXbSXk',
-    appId: '1:471788972864:ios:902277d09e79614b1568a5',
-    messagingSenderId: '471788972864',
-    projectId: 'waiapp-4edaf',
-    storageBucket: 'waiapp-4edaf.firebasestorage.app',
-    iosBundleId: 'com.wai.lifeassistant',
+    apiKey: 'AIzaSyCrC0n2sZ7MdMBG_BGOwEzXXEB5IRfyxCQ',
+    appId: '1:793319730662:ios:4a916d670aab41be15fa27',
+    messagingSenderId: '793319730662',
+    projectId: 'riyashome-863ea',
+    storageBucket: 'riyashome-863ea.firebasestorage.app',
+    iosBundleId: 'com.example.waiLifeAssistant',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCy5BN2K-yBv7GkqP0n3JF5V82XW2V2u1E',
-    appId: '1:471788972864:web:eee3ed71d8b762791568a5',
-    messagingSenderId: '471788972864',
-    projectId: 'waiapp-4edaf',
-    authDomain: 'waiapp-4edaf.firebaseapp.com',
-    storageBucket: 'waiapp-4edaf.firebasestorage.app',
+    apiKey: 'AIzaSyD2IDw9ZYDFsQUhiYmpWCu6VRBsYgOZqg4',
+    appId: '1:793319730662:web:bcd09bc4eb5674a215fa27',
+    messagingSenderId: '793319730662',
+    projectId: 'riyashome-863ea',
+    authDomain: 'riyashome-863ea.firebaseapp.com',
+    storageBucket: 'riyashome-863ea.firebasestorage.app',
+    measurementId: 'G-GG3DF5LSXQ',
   );
 }

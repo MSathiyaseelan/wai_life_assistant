@@ -1,51 +1,13 @@
 {
   "project_info": {
-    "project_number": "471788972864",
-    "project_id": "waiapp-4edaf",
-    "storage_bucket": "waiapp-4edaf.firebasestorage.app"
+    "project_number": "793319730662",
+    "project_id": "riyashome-863ea",
+    "storage_bucket": "riyashome-863ea.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:471788972864:android:2be4fd35d43e144a1568a5",
-        "android_client_info": {
-          "package_name": "com.example.wai_life_assistant"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:471788972864:android:8523cd788a9bc8271568a5",
-        "android_client_info": {
-          "package_name": "com.example.waiapp"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:471788972864:android:1c3eab606dfb1af91568a5",
+        "mobilesdk_app_id": "1:793319730662:android:35544556ec68c22915fa27",
         "android_client_info": {
           "package_name": "com.wai.lifeassistant"
         }
@@ -53,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+          "current_key": "AIzaSyA1RHH8lt5odK5nA6-wiiK0E24PD6bnbh4"
         }
       ],
       "services": {
@@ -64,7 +26,7 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:471788972864:android:79d72b790cbc5ac61568a5",
+        "mobilesdk_app_id": "1:793319730662:android:d69dcd4c21ba543c15fa27",
         "android_client_info": {
           "package_name": "com.wai.lifeassistant.dev"
         }
@@ -72,7 +34,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+          "current_key": "AIzaSyA1RHH8lt5odK5nA6-wiiK0E24PD6bnbh4"
         }
       ],
       "services": {
@@ -83,7 +45,7 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:471788972864:android:179b26d5de571a771568a5",
+        "mobilesdk_app_id": "1:793319730662:android:8fbca76854497d2715fa27",
         "android_client_info": {
           "package_name": "com.wai.lifeassistant.qa"
         }
@@ -91,7 +53,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+          "current_key": "AIzaSyA1RHH8lt5odK5nA6-wiiK0E24PD6bnbh4"
         }
       ],
       "services": {
@@ -102,7 +64,7 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:471788972864:android:4b940cb2478a9e6c1568a5",
+        "mobilesdk_app_id": "1:793319730662:android:224ea8f851d5cc2815fa27",
         "android_client_info": {
           "package_name": "com.wai.lifeassistant.uat"
         }
@@ -110,7 +72,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB0ZGxD0GEiQTTK_JVsXO_c7b7GWO6Mql8"
+          "current_key": "AIzaSyA1RHH8lt5odK5nA6-wiiK0E24PD6bnbh4"
         }
       ],
       "services": {

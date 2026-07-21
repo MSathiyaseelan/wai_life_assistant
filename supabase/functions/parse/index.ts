@@ -50,7 +50,7 @@ const GEMINI_BASE =
   "https://generativelanguage.googleapis.com/v1beta/models/";
 
 // Default model for text tasks; image-heavy tasks use a lighter vision model
-const GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"; //gemini-flash-latest
+const GEMINI_DEFAULT_MODEL = "gemini-flash-latest";
 const GEMINI_VISION_MODEL   = "gemini-2.0-flash";
 
 function geminiUrl(model: string): string {

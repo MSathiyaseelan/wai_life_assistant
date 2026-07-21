@@ -5,6 +5,7 @@ plugins {
     // separate kotlin-android plugin required (and applying it causes KGP warnings).
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 android {
