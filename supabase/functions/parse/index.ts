@@ -49,9 +49,11 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_BASE =
   "https://generativelanguage.googleapis.com/v1beta/models/";
 
-// Default model for text tasks; image-heavy tasks use a lighter vision model
+// gemini-flash-latest is natively multimodal (accepts image input), so the
+// same stable alias covers both text and vision tasks — avoids pinning to a
+// dated model name that may not be enabled for every API key/account tier.
 const GEMINI_DEFAULT_MODEL = "gemini-flash-latest";
-const GEMINI_VISION_MODEL   = "gemini-2.0-flash";
+const GEMINI_VISION_MODEL   = "gemini-flash-latest";
 
 function geminiUrl(model: string): string {
   return `${GEMINI_BASE}${model}:generateContent`;

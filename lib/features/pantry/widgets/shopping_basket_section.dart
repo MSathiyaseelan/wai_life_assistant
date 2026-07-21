@@ -984,6 +984,17 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       await _checkLimitOnOpen();
       if (!mounted) return;
 
+      if (result.data?['is_grocery_bill'] == false) {
+        final guess = result.data?['bill_type_guess'] as String?;
+        setState(() {
+          _error = guess != null && guess != 'unknown'
+              ? "This looks like a $guess bill, not a grocery bill — nothing was added."
+              : "This doesn't look like a grocery bill — nothing was added.";
+          _phase = 'pick';
+        });
+        return;
+      }
+
       final rawItems =
           (result.data?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
