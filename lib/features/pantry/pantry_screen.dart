@@ -378,6 +378,7 @@ class _PantryScreenState extends State<PantryScreen>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.activeWalletId != widget.activeWalletId) {
       _clearClipboard();
+      _loadPlanLimits();
       _loadMeals();
       _loadRecipes();
       _loadGroceries();
@@ -412,7 +413,15 @@ class _PantryScreenState extends State<PantryScreen>
   Future<void> _loadPlanLimits() async {
     try {
       final client = Supabase.instance.client;
-      final planLimits = await client.rpc(AppRpc.getPlanLimits) as Map<String, dynamic>?;
+      // Pass the active wallet so a family wallet's own plan is honored —
+      // get_plan_limits(NULL) always resolves the personal_free plan, which
+      // was capping family_plus/pro members at 1 week ahead regardless of
+      // their actual plan.
+      final walletId = _isPlaceholder(widget.activeWalletId) ? null : widget.activeWalletId;
+      final planLimits = await client.rpc(
+        AppRpc.getPlanLimits,
+        params: {'p_wallet_id': walletId},
+      ) as Map<String, dynamic>?;
       if (!mounted) return;
       final weeks = (planLimits?['pantry_meal_weeks_ahead'] as int?) ?? 1;
       setState(() => _mealWeeksAhead = weeks);
@@ -1396,6 +1405,27 @@ class _PantryScreenState extends State<PantryScreen>
     if (duplicate) {
       _showSavedSnack('${r.name} is already in your Recipe Box', AppColors.subLight);
       return;
+    }
+    // Standing count cap (plan_limits.pantry_recipes_max), not a monthly
+    // usage counter — deleting a recipe frees up a slot for another.
+    try {
+      final limit = await Supabase.instance.client.rpc(
+        AppRpc.getEffectiveFeatureLimit,
+        params: {
+          'p_user_id': Supabase.instance.client.auth.currentUser?.id,
+          'p_feature': 'saved_recipe',
+        },
+      ) as int? ?? 10;
+      if (limit != -1 && _recipes.length >= limit) {
+        _showSavedSnack(
+          "You've reached the $limit saved recipes on your plan. Remove one or upgrade to add more.",
+          AppColors.expense,
+        );
+        return;
+      }
+    } catch (e) {
+      // If the limit check itself fails, don't block saving a recipe over it.
+      debugPrint('[Pantry] saved_recipe limit check failed: $e');
     }
     setState(() => _recipes.add(r)); // optimistic
     try {
