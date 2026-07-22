@@ -129,23 +129,15 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
       if (userId == null) { setState(() => _limitChecking = false); return; }
-      final month =
-          '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
-      final usageRow = await client
-          .from('feature_usage')
-          .select('count')
-          .eq('user_id', userId)
-          .eq('feature', 'ai_assistant')
-          .eq('month', month)
-          .maybeSingle();
-      // Honors a family wallet's paid plan (if higher) instead of always
-      // assuming the personal_free cap — see 096_effective_feature_limit_for_display.sql.
-      final limit = await client.rpc(
-        AppRpc.getEffectiveFeatureLimit,
+      // Reads whichever scope (shared family wallet or personal) the usage is
+      // actually tracked against — see 100_shared_family_ai_usage_pool.sql.
+      final usage = await client.rpc(
+        AppRpc.getEffectiveFeatureUsage,
         params: {'p_user_id': userId, 'p_feature': 'ai_assistant'},
-      ) as int? ?? 20;
+      ) as Map<String, dynamic>;
+      final count = usage['used'] as int? ?? 0;
+      final limit = usage['quota'] as int? ?? 20;
       if (!mounted) return;
-      final count = (usageRow?['count'] as int?) ?? 0;
       setState(() {
         _monthlyUsed = count;
         _monthlyLimit = limit;

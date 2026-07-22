@@ -888,8 +888,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
   }
 
   Future<void> _checkLimitOnOpen() async {
-    // Peek at current usage without incrementing — query feature_usage directly.
-    // Also fetch the configured limit from feature_limits.
+    // Peek at current usage without incrementing.
     try {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
@@ -897,29 +896,18 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
         setState(() => _limitChecking = false);
         return;
       }
-      final month =
-          '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}';
 
-      final results = await Future.wait<dynamic>([
-        client
-            .from('feature_usage')
-            .select('count')
-            .eq('user_id', userId)
-            .eq('feature', 'ai_parser')
-            .eq('month', month)
-            .maybeSingle(),
-        // Honors a family wallet's paid plan (if higher) instead of always
-        // assuming the personal_free cap — see 096_effective_feature_limit_for_display.sql.
-        client.rpc(
-          AppRpc.getEffectiveFeatureLimit,
-          params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
-        ),
-      ]);
-      final usageRow = results[0] as Map<String, dynamic>?;
-      final limit = results[1] as int? ?? 30;
+      // Reads whichever scope (shared family wallet or personal) the usage is
+      // actually tracked against — see 100_shared_family_ai_usage_pool.sql —
+      // so this always matches what check_feature_limit will enforce.
+      final usage = await client.rpc(
+        AppRpc.getEffectiveFeatureUsage,
+        params: {'p_user_id': userId, 'p_feature': 'ai_parser'},
+      ) as Map<String, dynamic>;
+      final count = usage['used'] as int? ?? 0;
+      final limit = usage['quota'] as int? ?? 30;
 
       if (!mounted) return;
-      final count = (usageRow?['count'] as int?) ?? 0;
       setState(() {
         _monthlyLimit = limit;
         _limitReached = limit != -1 && count >= limit;
