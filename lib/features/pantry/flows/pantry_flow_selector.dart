@@ -100,7 +100,10 @@ class PantryFlowSelector extends StatelessWidget {
                 label: 'Meal Map',
                 subtitle: 'Log a meal\nfor any day',
                 color: AppColors.income,
-                onTap: () { Navigator.pop(context); onMeal(); },
+                onTap: () {
+                  Navigator.pop(context);
+                  onMeal();
+                },
               ),
               const SizedBox(width: 12),
               _PantryFlowTile(
@@ -108,7 +111,10 @@ class PantryFlowSelector extends StatelessWidget {
                 label: 'Recipe Box',
                 subtitle: 'Save a new\nrecipe',
                 color: AppColors.lend,
-                onTap: () { Navigator.pop(context); onRecipe(); },
+                onTap: () {
+                  Navigator.pop(context);
+                  onRecipe();
+                },
               ),
               const SizedBox(width: 12),
               _PantryFlowTile(
@@ -116,7 +122,10 @@ class PantryFlowSelector extends StatelessWidget {
                 label: 'Basket',
                 subtitle: 'Add items\nto buy',
                 color: AppColors.expense,
-                onTap: () { Navigator.pop(context); onBasket(); },
+                onTap: () {
+                  Navigator.pop(context);
+                  onBasket();
+                },
               ),
             ],
           ),
@@ -126,10 +135,13 @@ class PantryFlowSelector extends StatelessWidget {
             children: [
               _PantryFlowTile(
                 emoji: '🧾',
-                label: 'Scan Bill',
-                subtitle: 'Scan a receipt\nto add items',
+                label: 'Scan Grocery',
+                subtitle: 'Add items\nto your stock',
                 color: AppColors.primary,
-                onTap: () { Navigator.pop(context); onScanBill(); },
+                onTap: () {
+                  Navigator.pop(context);
+                  onScanBill();
+                },
               ),
               const SizedBox(width: 12),
               _PantryFlowTile(
@@ -137,7 +149,10 @@ class PantryFlowSelector extends StatelessWidget {
                 label: 'Create List',
                 subtitle: 'Share your\nTo-Buy list',
                 color: AppColors.lend,
-                onTap: () { Navigator.pop(context); onCreateList(); },
+                onTap: () {
+                  Navigator.pop(context);
+                  onCreateList();
+                },
               ),
               const SizedBox(width: 12),
               _PantryFlowTile(
@@ -145,7 +160,10 @@ class PantryFlowSelector extends StatelessWidget {
                 label: 'List History',
                 subtitle: 'View past lists\n& mark bought',
                 color: AppColors.income,
-                onTap: () { Navigator.pop(context); onListHistory(); },
+                onTap: () {
+                  Navigator.pop(context);
+                  onListHistory();
+                },
               ),
             ],
           ),

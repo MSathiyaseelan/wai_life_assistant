@@ -1156,7 +1156,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           const Text('📸', style: TextStyle(fontSize: 48)),
           const SizedBox(height: 12),
           Text(
-            'Scan Bill',
+            'Scan Grocery Bill',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w900,
@@ -1166,7 +1166,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Pick a screenshot or photo of a bill/receipt.\nAI will extract the items for you.',
+            'Pick a photo of a grocery/supermarket bill.\nAI will add the items to your stock.',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
           ),

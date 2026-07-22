@@ -576,9 +576,26 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _openFlowSelector() {
+    // Same wallet-resolution as _openConversation — Scan Bill inserts
+    // transactions directly (no ConversationScreen step), so it needs a
+    // real wallet id up front rather than resolving one after the fact.
+    final readyWallets = _allWallets.where((w) => !_isPlaceholderWalletId(w.id)).toList();
+    final activeId = readyWallets.isNotEmpty
+        ? (readyWallets.any((w) => w.id == widget.activeWalletId)
+            ? widget.activeWalletId
+            : readyWallets.first.id)
+        : (_allWallets.isNotEmpty ? _allWallets.first.id : 'personal');
+
     FlowSelectorSheet.show(
       context,
       onSelect: (flowType) => _openConversation(flowType),
+      walletId: activeId,
+      onScanBillSaved: (txs) {
+        for (final tx in txs) {
+          _onTransactionSaved(tx);
+        }
+        _loadTxGroups();
+      },
     );
   }
 
