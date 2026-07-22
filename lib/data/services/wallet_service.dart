@@ -192,6 +192,22 @@ class WalletService {
     final key = _normalize(cat);
     if (categoriesFor(catType).any((c) => _normalize(c) == key)) return;
     try {
+      // Standing count cap (plan_limits.wallet_custom_categories_max), not a
+      // monthly usage counter — the transaction itself still saves fine with
+      // this category as free text either way; being at the cap only means
+      // it won't be remembered as a reusable chip for next time.
+      final limit = await _db.rpc(AppRpc.getEffectiveFeatureLimit, params: {
+        'p_user_id': _uid,
+        'p_feature': 'custom_category',
+      }) as int? ?? 10;
+      if (limit != -1) {
+        final existing = await _db
+            .from('user_tx_categories')
+            .select('id')
+            .eq('user_id', _uid);
+        if ((existing as List).length >= limit) return;
+      }
+
       await _db.from('user_tx_categories').upsert(
         {'user_id': _uid, 'name': cat, 'tx_type': catType, 'normalized_name': key},
         onConflict: 'user_id,name,tx_type',
