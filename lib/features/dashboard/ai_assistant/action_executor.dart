@@ -244,10 +244,12 @@ class ActionExecutor {
     if (kDebugMode) debugPrint('[ActionExecutor] ${action.actionType.name} executed');
     return null;
     } catch (e, stack) {
-      ErrorLogger.log(e,
-          stackTrace: stack,
-          severity: ErrorSeverity.error,
-          action: 'ai_action_${action.actionType.name}');
+      if (e is! TransactionLimitExceededException) {
+        ErrorLogger.log(e,
+            stackTrace: stack,
+            severity: ErrorSeverity.error,
+            action: 'ai_action_${action.actionType.name}');
+      }
       rethrow;
     }
   }

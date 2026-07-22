@@ -1066,7 +1066,13 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
                 'Bill scan — ${selected.length} item${selected.length == 1 ? '' : 's'}',
           );
         } catch (e) {
-          ErrorLogger.warning(e, action: 'basket_push_to_wallet');
+          // Items are already added to stock regardless — this is just the
+          // optional "also log as a wallet expense" toggle, so a limit block
+          // here fails soft (logged, no extra snackbar to avoid colliding
+          // with the stock-added confirmation shown right after).
+          if (e is! TransactionLimitExceededException) {
+            ErrorLogger.warning(e, action: 'basket_push_to_wallet');
+          }
         }
       }
     }

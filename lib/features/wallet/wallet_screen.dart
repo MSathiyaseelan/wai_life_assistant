@@ -737,6 +737,18 @@ class _WalletScreenState extends State<WalletScreen>
           .where((w) => w.id != saved.walletId)
           .toList();
       _showTxSnackBar(saved, otherWallets);
+    } on TransactionLimitExceededException catch (e) {
+      if (mounted) {
+        setState(() => _transactions.removeWhere((t) => t.id == tx.id)); // undo optimistic add
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'add_transaction');
       if (mounted) {
@@ -843,7 +855,10 @@ class _WalletScreenState extends State<WalletScreen>
       }
     } catch (e, stack) {
       debugPrint('[Wallet] moveTx failed: $e');
-      ErrorLogger.log(e, stackTrace: stack, action: 'move_tx_to_wallet');
+      final isLimitError = e is TransactionLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'move_tx_to_wallet');
+      }
       if (deleted) {
         // The delete succeeded but the re-add failed — undelete the
         // original so the transaction isn't silently lost.
@@ -856,7 +871,9 @@ class _WalletScreenState extends State<WalletScreen>
       if (!mounted) return;
       setState(() => _transactions.insert(0, tx)); // revert
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to move transaction. Please try again.')),
+        SnackBar(content: Text(isLimitError
+            ? e.toString()
+            : 'Failed to move transaction. Please try again.')),
       );
     }
   }

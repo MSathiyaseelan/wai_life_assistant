@@ -6,6 +6,15 @@ import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
+/// Thrown by [WalletService.addTransaction] when the caller's monthly
+/// wallet-transaction quota (personal or shared family pool) is exhausted.
+class TransactionLimitExceededException implements Exception {
+  const TransactionLimitExceededException();
+  @override
+  String toString() =>
+      "You've reached this month's transaction limit on your current plan. Upgrade to add more.";
+}
+
 /// Thin service layer between the wallet UI and Supabase.
 /// All methods throw [PostgrestException] on failure — callers should catch.
 class WalletService {
@@ -326,6 +335,12 @@ class WalletService {
     DateTime? date,
     String? groupId,
   }) async {
+    final allowed = await _db.rpc(AppRpc.checkFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': 'wallet_transaction',
+    }) as bool? ?? true;
+    if (!allowed) throw const TransactionLimitExceededException();
+
     final row = await _db.from('transactions').insert({
       'wallet_id': walletId,
       'user_id': _uid,

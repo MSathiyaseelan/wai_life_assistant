@@ -51,7 +51,9 @@ class FunctionsService {
       return row['id'] as String?;
     } catch (e) {
       // Never let the wallet sync block saving the attended function itself.
-      ErrorLogger.warning(e, action: 'sync_attended_gift_to_wallet');
+      if (e is! TransactionLimitExceededException) {
+        ErrorLogger.warning(e, action: 'sync_attended_gift_to_wallet');
+      }
       return null;
     }
   }

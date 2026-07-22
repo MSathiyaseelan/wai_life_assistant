@@ -232,7 +232,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save: $e'),
+          content: Text(e is TransactionLimitExceededException ? e.toString() : 'Failed to save: $e'),
           behavior: SnackBarBehavior.floating,
         ),
       );

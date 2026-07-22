@@ -2169,7 +2169,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
                       } catch (e, stack) {
                         debugPrint('[Dashboard] quickAdd error: $e');
-                        ErrorLogger.log(e, stackTrace: stack, action: 'quick_add_transaction');
+                        if (e is! TransactionLimitExceededException) {
+                          ErrorLogger.log(e, stackTrace: stack, action: 'quick_add_transaction');
+                        }
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(e is TransactionLimitExceededException
+                                ? e.toString()
+                                : 'Failed to save transaction. Please try again.'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
                       }
                     },
                     style: FilledButton.styleFrom(

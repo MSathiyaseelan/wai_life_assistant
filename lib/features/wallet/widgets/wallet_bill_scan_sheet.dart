@@ -213,21 +213,29 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
     setState(() => _saving = true);
     try {
       final saved = <TxModel>[];
+      // If the quota runs out partway through a multi-item bill, stop there
+      // rather than losing track of the items that already saved.
+      TransactionLimitExceededException? limitError;
       for (final item in selected) {
         final amount = double.tryParse(item.amountCtrl.text) ?? item.amount;
         final title = item.titleCtrl.text.trim().isEmpty
             ? item.title
             : item.titleCtrl.text.trim();
-        final row = await WalletService.instance.addTransaction(
-          walletId: widget.walletId,
-          type: item.isIncome ? 'income' : 'expense',
-          amount: amount,
-          category: item.category,
-          title: title,
-          note: 'Scanned from bill',
-          date: DateTime.now(),
-        );
-        saved.add(TxModel.fromRow(row));
+        try {
+          final row = await WalletService.instance.addTransaction(
+            walletId: widget.walletId,
+            type: item.isIncome ? 'income' : 'expense',
+            amount: amount,
+            category: item.category,
+            title: title,
+            note: 'Scanned from bill',
+            date: DateTime.now(),
+          );
+          saved.add(TxModel.fromRow(row));
+        } on TransactionLimitExceededException catch (e) {
+          limitError = e;
+          break;
+        }
       }
 
       // Multiple line items from one bill → group them together, same as
@@ -267,9 +275,32 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
       }
 
       if (!mounted) return;
-      widget.onSaved(finalTxs);
       final messenger = ScaffoldMessenger.of(context);
       final count = finalTxs.length;
+
+      if (limitError != null) {
+        if (finalTxs.isEmpty) {
+          // Nothing saved at all — stay open so the user can deselect items
+          // (or wait for next month) instead of losing their scan entirely.
+          setState(() => _saving = false);
+          messenger.showSnackBar(SnackBar(
+            content: Text(limitError.toString()),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ));
+          return;
+        }
+        widget.onSaved(finalTxs);
+        Navigator.pop(context);
+        messenger.showSnackBar(SnackBar(
+          content: Text('$count of ${selected.length} added — ${limitError.toString()}'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+
+      widget.onSaved(finalTxs);
       Navigator.pop(context);
       messenger.showSnackBar(
         SnackBar(

@@ -138,6 +138,7 @@ class _SmsHistoryImportScreenState extends State<SmsHistoryImportScreen> {
 
     final service = WalletService.instance;
     int saved = 0;
+    var limitHit = false;
 
     for (final i in _checked) {
       final item = _items[i];
@@ -159,6 +160,11 @@ class _SmsHistoryImportScreenState extends State<SmsHistoryImportScreen> {
           date:     DateTime.tryParse(tx.transactionDate),
         );
         saved++;
+      } on TransactionLimitExceededException {
+        // Every remaining item would fail the same way this month — stop
+        // instead of burning a round-trip per remaining item.
+        limitHit = true;
+        break;
       } catch (e) {
         debugPrint('[SmsImport] failed to save item $i: $e');
       }
@@ -168,7 +174,9 @@ class _SmsHistoryImportScreenState extends State<SmsHistoryImportScreen> {
     setState(() => _saving = false);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$saved transaction${saved == 1 ? '' : 's'} imported')),
+      SnackBar(content: Text(limitHit
+          ? '$saved transaction${saved == 1 ? '' : 's'} imported — monthly transaction limit reached, rest skipped'
+          : '$saved transaction${saved == 1 ? '' : 's'} imported')),
     );
     widget.onImported?.call();
     Navigator.pop(context);

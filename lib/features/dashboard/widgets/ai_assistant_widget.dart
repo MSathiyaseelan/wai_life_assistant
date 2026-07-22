@@ -11,6 +11,7 @@ import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
@@ -369,13 +370,18 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         if (mounted) _clear();
       });
     } catch (e, stack) {
-      await ErrorLogger.log(e, stackTrace: stack, action: 'wai_action_execute');
+      final isLimitError = e is TransactionLimitExceededException;
+      if (!isLimitError) {
+        await ErrorLogger.log(e, stackTrace: stack, action: 'wai_action_execute');
+      }
       debugPrint('[WAI Action] execute failed: $e');
       if (!mounted) return;
       setState(() {
         _confirmingAction = false;
         _response = AssistantResponse(
-          answer: 'Sorry, something went wrong saving that. Please try again.',
+          answer: isLimitError
+              ? e.toString()
+              : 'Sorry, something went wrong saving that. Please try again.',
           action: action,
         );
       });
