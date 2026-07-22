@@ -15,6 +15,15 @@ class TransactionLimitExceededException implements Exception {
       "You've reached this month's transaction limit on your current plan. Upgrade to add more.";
 }
 
+/// Thrown by [WalletService.createSplitGroup] when the caller's monthly
+/// split-group quota (personal or shared family pool) is exhausted.
+class SplitGroupLimitExceededException implements Exception {
+  const SplitGroupLimitExceededException();
+  @override
+  String toString() =>
+      "You've reached this month's split group limit on your current plan. Upgrade to create more.";
+}
+
 /// Thin service layer between the wallet UI and Supabase.
 /// All methods throw [PostgrestException] on failure — callers should catch.
 class WalletService {
@@ -505,6 +514,12 @@ class WalletService {
     required String emoji,
     required List<({String name, String emoji, String? phone, bool isMe})> participants,
   }) async {
+    final allowed = await _db.rpc(AppRpc.checkFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': 'split_group',
+    }) as bool? ?? true;
+    if (!allowed) throw const SplitGroupLimitExceededException();
+
     // 1. Insert group
     final group = await _db.from('split_groups').insert({
       'wallet_id': walletId,

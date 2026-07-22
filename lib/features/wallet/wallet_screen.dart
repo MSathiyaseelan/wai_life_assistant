@@ -1436,10 +1436,14 @@ class _WalletScreenState extends State<WalletScreen>
       });
     } catch (e) {
       debugPrint('[WalletScreen] createSplitGroup failed: $e');
+      final isLimitError = e is SplitGroupLimitExceededException;
       if (mounted) {
+        // The save genuinely failed — undo the optimistic insert so a
+        // never-persisted, placeholder-id group doesn't linger in the list.
+        setState(() => _splitGroups.removeWhere((g) => g.id == group.id));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save group: $e'),
+            content: Text(isLimitError ? e.toString() : 'Failed to save group: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
