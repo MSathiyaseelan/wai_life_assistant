@@ -34,8 +34,8 @@ class SmsHistoryItem {
 //   pendingSmsBody for the UI to confirm.  No background receiver needed,
 //   no Google Play policy issues.
 //
-// Approach 2 (manual): parseSMSText() — called directly by SparkBottomSheet
-//   when the user pastes a bank SMS.
+// Approach 2 (manual): parseSMSText() — called when the user pastes a bank
+//   SMS (Dashboard WAI Assistant, Wallet chat bar, etc.).
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SMSParserService {
