@@ -1,7 +1,19 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+
+/// Thrown by [WardrobeService.addItem] when the caller's standing wardrobe
+/// item count cap (personal or shared family pool) is exhausted — deleting
+/// an existing item frees up a slot for another.
+class WardrobeLimitExceededException implements Exception {
+  final int limit;
+  const WardrobeLimitExceededException(this.limit);
+  @override
+  String toString() =>
+      "You've reached the $limit wardrobe items on your plan. Remove one or upgrade to add more.";
+}
 
 class WardrobeService {
   WardrobeService._();
@@ -70,6 +82,21 @@ class WardrobeService {
   }
 
   Future<Map<String, dynamic>> addItem(Map<String, dynamic> data) async {
+    final limit = await _db.rpc(AppRpc.getEffectiveFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': 'wardrobe_item',
+    }) as int? ?? 30;
+    if (limit != -1) {
+      final walletId = data['wallet_id'] as String;
+      final existing = await _db
+          .from('wardrobe_items')
+          .select('id')
+          .eq('wallet_id', walletId)
+          .isFilter('deleted_at', null);
+      if ((existing as List).length >= limit) {
+        throw WardrobeLimitExceededException(limit);
+      }
+    }
     final row = await _db
         .from('wardrobe_items')
         .insert({...data, 'user_id': _uid})
@@ -92,12 +119,25 @@ class WardrobeService {
 
   // ── Outfit Logs ─────────────────────────────────────────────────────────────
 
+  /// Logging today's outfit always works regardless of plan — this only
+  /// limits how far back history is *viewable*; older entries stay in the
+  /// DB untouched and become visible again on upgrade.
   Future<List<Map<String, dynamic>>> fetchOutfitLogs(String walletId) async {
-    final rows = await _db
+    final months = await _db.rpc(AppRpc.getEffectiveFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': 'wardrobe_outfit_history',
+    }) as int? ?? 1;
+
+    var query = _db
         .from('wardrobe_outfit_logs')
         .select()
-        .eq('wallet_id', walletId)
-        .order('date', ascending: false);
+        .eq('wallet_id', walletId);
+    if (months != -1) {
+      final now = DateTime.now();
+      final cutoff = DateTime(now.year, now.month - months, now.day);
+      query = query.gte('date', cutoff.toIso8601String().split('T')[0]);
+    }
+    final rows = await query.order('date', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
   }
 

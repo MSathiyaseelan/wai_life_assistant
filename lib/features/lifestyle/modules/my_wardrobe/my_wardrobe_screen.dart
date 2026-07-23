@@ -834,9 +834,12 @@ class _AddClothingSheetState extends State<AddClothingSheet>
         final saved = ClothingItem.fromJson(row);
         widget.onItemAdded?.call(saved);
       } catch (e) {
-        ErrorLogger.warning(e, action: 'wardrobe_add_item');
+        final isLimitError = e is WardrobeLimitExceededException;
+        if (!isLimitError) {
+          ErrorLogger.warning(e, action: 'wardrobe_add_item');
+        }
         messenger.showSnackBar(
-          const SnackBar(content: Text('Failed to add item')),
+          SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to add item')),
         );
       }
     }();
