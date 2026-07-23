@@ -27,6 +27,7 @@ class SubscriptionPlanData {
 
   // ── Functions ───────────────────────────────────────────────────────────────
   final int functionsUpcomingMax;
+  final int functionsAttendedMax;
   final int functionsMyMax;
 
   // ── Item Locator ────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ class SubscriptionPlanData {
     required this.pantryMealWeeksAhead,
     required this.pantryRecipesMax,
     required this.functionsUpcomingMax,
+    required this.functionsAttendedMax,
     required this.functionsMyMax,
     required this.itemLocatorContainersMax,
     required this.itemLocatorItemsMax,
@@ -114,6 +116,7 @@ class SubscriptionPlanData {
       pantryMealWeeksAhead:      i('pantry_meal_weeks_ahead',   1),
       pantryRecipesMax:          i('pantry_recipes_max',        10),
       functionsUpcomingMax:      i('functions_upcoming_max',    15),
+      functionsAttendedMax:      i('functions_attended_max',    30),
       functionsMyMax:            i('functions_my_max',          5),
       itemLocatorContainersMax:  i('item_locator_containers_max', 5),
       itemLocatorItemsMax:       i('item_locator_items_max',    50),
