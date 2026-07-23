@@ -772,14 +772,17 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
               } catch (e, stack) {
-                ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
+                final isLimitError = e is FunctionLimitExceededException;
+                if (!isLimitError) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
+                }
                 // The sheet is still open on failure (Navigator.pop only
                 // runs on success above) — an Overlay toast (not a
                 // ScaffoldMessenger SnackBar) is used so the message is
                 // actually visible above the still-open sheet instead of
                 // stacking invisibly behind it.
                 if (ctx.mounted) {
-                  showOverlayToast(ctx, 'Failed to save: $e', backgroundColor: Colors.red);
+                  showOverlayToast(ctx, isLimitError ? e.toString() : 'Failed to save: $e', backgroundColor: Colors.red);
                 }
               }
             },
@@ -1115,6 +1118,19 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           })
                           .catchError((e) {
                             debugPrint('[Functions] addUpcoming failed: $e');
+                            if (!mounted) return;
+                            // Never actually persisted — undo the optimistic
+                            // move so the UI doesn't show it in Upcoming while
+                            // the DB still has it in Attended.
+                            setState(() {
+                              _upcoming.remove(localUpcoming);
+                              _attended.add(item);
+                            });
+                            showOverlayToast(
+                              context,
+                              e is FunctionLimitExceededException ? e.toString() : 'Failed to reschedule. Please try again.',
+                              backgroundColor: Colors.red,
+                            );
                           });
                     } else {
                       await FunctionsService.instance.updateAttended(
@@ -1277,8 +1293,20 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           _attended.insert(0, AttendedFunction.fromJson(row));
                         });
                       }
-                    } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_convert_error');
+                    } catch (e, stack) {
                       debugPrint('[Functions] convert error: $e');
+                      final isLimitError = e is FunctionLimitExceededException;
+                      if (!isLimitError) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_convert_error');
+                      }
+                      if (ctx.mounted) {
+                        showOverlayToast(
+                          ctx,
+                          isLimitError ? e.toString() : 'Failed to convert. Please try again.',
+                          backgroundColor: Colors.red,
+                        );
+                      }
+                      return; // keep the sheet open so the user knows it didn't save
                     }
                     if (ctx.mounted) Navigator.pop(ctx);
                   },

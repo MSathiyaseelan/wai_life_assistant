@@ -1,6 +1,19 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
+
+/// Thrown by [FunctionsService]'s add methods when the caller's standing
+/// count cap for that Functions list (personal or shared family pool) is
+/// exhausted — deleting an existing entry frees up a slot for another.
+class FunctionLimitExceededException implements Exception {
+  final int limit;
+  final String label;
+  const FunctionLimitExceededException(this.limit, this.label);
+  @override
+  String toString() =>
+      "You've reached the $limit $label on your plan. Remove one or upgrade to add more.";
+}
 
 class FunctionsService {
   FunctionsService._();
@@ -11,6 +24,27 @@ class FunctionsService {
     final uid = _db.auth.currentUser?.id;
     if (uid == null) throw StateError('Not authenticated');
     return uid;
+  }
+
+  Future<void> _enforceCountLimit({
+    required String table,
+    required String walletId,
+    required String feature,
+    required String label,
+  }) async {
+    final limit = await _db.rpc(AppRpc.getEffectiveFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': feature,
+    }) as int? ?? 10;
+    if (limit == -1) return;
+    final rows = await _db
+        .from(table)
+        .select('id')
+        .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null);
+    if ((rows as List).length >= limit) {
+      throw FunctionLimitExceededException(limit, label);
+    }
   }
 
   /// Sum of `amount` across a function's `gifts` JSONB list (same shape as
@@ -71,6 +105,12 @@ class FunctionsService {
   }
 
   Future<Map<String, dynamic>> addMyFunction(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'functions_my',
+      walletId: data['wallet_id'] as String,
+      feature: 'my_function',
+      label: 'My Functions',
+    );
     final row = await _db
         .from('functions_my')
         .insert({...data, 'user_id': _uid})
@@ -101,6 +141,12 @@ class FunctionsService {
   }
 
   Future<Map<String, dynamic>> addUpcoming(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'functions_upcoming',
+      walletId: data['wallet_id'] as String,
+      feature: 'upcoming_function',
+      label: 'Upcoming Functions',
+    );
     final row = await _db
         .from('functions_upcoming')
         .insert({...data, 'user_id': _uid})
@@ -136,6 +182,12 @@ class FunctionsService {
     Map<String, dynamic> data, {
     String? personalWalletId,
   }) async {
+    await _enforceCountLimit(
+      table: 'functions_attended',
+      walletId: data['wallet_id'] as String,
+      feature: 'attended_function',
+      label: 'Attended Functions',
+    );
     var row = await _db
         .from('functions_attended')
         .insert({...data, 'user_id': _uid})

@@ -12,6 +12,7 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
+import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
@@ -370,7 +371,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         if (mounted) _clear();
       });
     } catch (e, stack) {
-      final isLimitError = e is TransactionLimitExceededException;
+      final isLimitError = e is TransactionLimitExceededException || e is FunctionLimitExceededException;
       if (!isLimitError) {
         await ErrorLogger.log(e, stackTrace: stack, action: 'wai_action_execute');
       }
