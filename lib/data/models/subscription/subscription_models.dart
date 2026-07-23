@@ -41,6 +41,10 @@ class SubscriptionPlanData {
   final int healthMedicationsMax;
   final int healthAppointmentsMax;
   final int healthVitalLogsMonth;
+  final int healthVaccinesMax;
+  final int healthDoctorsMax;
+  final int healthInsuranceMax;
+  final int healthDocumentsMax;
 
   // ── PlanIt ──────────────────────────────────────────────────────────────────
   final int planItTasksMax;
@@ -74,6 +78,10 @@ class SubscriptionPlanData {
     required this.healthMedicationsMax,
     required this.healthAppointmentsMax,
     required this.healthVitalLogsMonth,
+    required this.healthVaccinesMax,
+    required this.healthDoctorsMax,
+    required this.healthInsuranceMax,
+    required this.healthDocumentsMax,
     required this.planItTasksMax,
     required this.planItRemindersMax,
     required this.planItSpecialDaysMax,
@@ -110,6 +118,10 @@ class SubscriptionPlanData {
       healthMedicationsMax:      i('health_medications_max',    15),
       healthAppointmentsMax:     i('health_appointments_max',   20),
       healthVitalLogsMonth:      i('health_vital_logs_month',   60),
+      healthVaccinesMax:         i('health_vaccines_max',       20),
+      healthDoctorsMax:          i('health_doctors_max',        10),
+      healthInsuranceMax:        i('health_insurance_max',      5),
+      healthDocumentsMax:        i('health_documents_max',      10),
       planItTasksMax:            i('planit_tasks_max',          50),
       planItRemindersMax:        i('planit_reminders_max',      30),
       planItSpecialDaysMax:      i('planit_special_days_max',   30),

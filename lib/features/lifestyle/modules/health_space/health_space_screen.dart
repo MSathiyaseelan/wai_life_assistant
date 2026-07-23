@@ -28,7 +28,9 @@ Future<DateTime?> _pickDate(BuildContext ctx, {DateTime? initial}) => showDatePi
       lastDate: DateTime(2100),
     );
 
-Future<String?> _pickPhoto(BuildContext ctx) async {
+/// Returns the picked attachment path(s) — camera always yields at most one,
+/// gallery supports picking several at once. Empty list means cancelled.
+Future<List<String>> _pickPhoto(BuildContext ctx) async {
   ImageSource? src;
   await showModalBottomSheet<void>(
     context: ctx,
@@ -50,9 +52,13 @@ Future<String?> _pickPhoto(BuildContext ctx) async {
       );
     },
   );
-  if (src == null) return null;
+  if (src == null) return const [];
+  if (src == ImageSource.gallery) {
+    final imgs = await ImagePicker().pickMultiImage(imageQuality: 75);
+    return imgs.map((i) => i.path).toList();
+  }
   final img = await ImagePicker().pickImage(source: src!, imageQuality: 75);
-  return img?.path;
+  return img == null ? const [] : [img.path];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1317,7 +1323,7 @@ class _MedicationsTab extends StatelessWidget {
                   await HealthService.instance.updateMedication(existing.id, updates);
                   onUpdate(Medication(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, dosage: dosage, frequency: freq, scheduleTimes: scheduleTimes, mealTiming: mealTiming, notes: notes, isActive: existing.isActive, startDate: start, endDate: end, refillDate: refill));
                 }
-              } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_save_med'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save medication'))); }
+              } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_save_med'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save medication'))); }
             }();
           }),
         ]),
@@ -1750,7 +1756,7 @@ class _DoctorsTab extends StatelessWidget {
           Navigator.pop(ctx2);
           if (existing == null) {
             final data = DoctorRecord(id: '', walletId: walletId, memberId: memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes);
-            () async { try { final row = await HealthService.instance.addDoctor(data.toJson()); onAdd(DoctorRecord.fromJson(row)); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_add_doctor'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save doctor'))); } }();
+            () async { try { final row = await HealthService.instance.addDoctor(data.toJson()); onAdd(DoctorRecord.fromJson(row)); } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_add_doctor'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save doctor'))); } }();
           } else {
             final updates = {'name': name, 'specialty': specialty, 'hospital': hospital, 'phone': phone, 'notes': notes};
             () async { try { await HealthService.instance.updateDoctor(existing.id, updates); onUpdate(DoctorRecord(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, name: name, specialty: specialty, hospital: hospital, phone: phone, notes: notes)); } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_update_doctor'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save doctor'))); } }();
@@ -1946,8 +1952,8 @@ class _DocumentsTab extends StatelessWidget {
           // Add attachment button
           GestureDetector(
             onTap: () async {
-              final p = await _pickPhoto(ctx2);
-              if (p != null) ss(() => newLocalPaths.add(p));
+              final paths = await _pickPhoto(ctx2);
+              if (paths.isNotEmpty) ss(() => newLocalPaths.addAll(paths));
             },
             child: Container(
               height: 56,
@@ -1995,7 +2001,7 @@ class _DocumentsTab extends StatelessWidget {
                   await svc.updateDocument(existing.id, updates);
                   onUpdate(MedicalDocument(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, title: title, docType: type, fileUrls: allUrls, notes: notes, docDate: date));
                 }
-              } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_save_doc'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save document'))); }
+              } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_save_doc'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save document'))); }
             }();
           }),
         ]),
@@ -2221,7 +2227,7 @@ class _AppointmentsTab extends StatelessWidget {
                 final data = Appointment(id: '', walletId: walletId, memberId: memberId, doctorName: doctor, apptDate: date, apptTime: time, location: location, notes: notes);
                 final row = await HealthService.instance.addAppointment(data.toJson());
                 onAdd(Appointment.fromJson(row));
-              } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_add_appt'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save appointment'))); }
+              } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_add_appt'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save appointment'))); }
             }();
           } else {
             final updates = {'doctor_name': doctor, 'appt_date': date.toIso8601String().substring(0, 10), 'appt_time': time, 'location': location, 'notes': notes};
@@ -2587,7 +2593,7 @@ class _VitalsTabState extends State<_VitalsTab> {
                 final data = HealthVital(id: '', walletId: widget.walletId, memberId: widget.memberId, type: type, value: v1, value2: v2, subType: sub, notes: notes);
                 final row = await HealthService.instance.addVital(data.toJson());
                 widget.onAdd(HealthVital.fromJson(row));
-              } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_add_vital'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save vital'))); }
+              } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_add_vital'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save vital'))); }
             }();
           } else {
             final updates = {'value': v1, if (v2 != null) 'value2': v2, 'sub_type': sub, 'notes': notes};
@@ -2742,7 +2748,7 @@ class _VaccinesTab extends StatelessWidget {
                 await HealthService.instance.updateVaccination(existing.id, updates);
                 onUpdate(Vaccination(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, vaccineName: name, dateGiven: given, nextDue: due, doseNumber: dose, notes: notes));
               }
-            } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_save_vaccine'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save vaccination'))); }
+            } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_save_vaccine'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save vaccination'))); }
           }();
         }),
       ]),
@@ -3047,7 +3053,7 @@ class _InsuranceTab extends StatelessWidget {
                 await HealthService.instance.updateInsurance(existing.id, updates);
                 onUpdate(InsurancePolicy(id: existing.id, walletId: existing.walletId, memberId: existing.memberId, policyName: policyName, policyNumber: policyNumber, provider: provider, coverageAmount: coverageAmount, expiryDate: expiry, notes: notes));
               }
-            } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_save_insurance'); messenger.showSnackBar(const SnackBar(content: Text('Failed to save insurance policy'))); }
+            } catch (e, stack) { final isLimitError = e is HealthLimitExceededException; if (!isLimitError) ErrorLogger.log(e, stackTrace: stack, action: 'health_save_insurance'); messenger.showSnackBar(SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save insurance policy'))); }
           }();
         }),
       ]),

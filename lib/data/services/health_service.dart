@@ -2,7 +2,17 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/health/health_models.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+
+/// Thrown by [HealthService]'s add methods when the caller's plan limit
+/// (personal or shared family pool) is exhausted for that record type.
+class HealthLimitExceededException implements Exception {
+  final String message;
+  const HealthLimitExceededException(this.message);
+  @override
+  String toString() => message;
+}
 
 class HealthService {
   HealthService._();
@@ -18,6 +28,30 @@ class HealthService {
   }
 
   static const _bucket = 'health-docs';
+
+  /// Standing count cap (personal or shared family pool) — deleting a
+  /// record frees up a slot for another.
+  Future<void> _enforceCountLimit({
+    required String table,
+    required String walletId,
+    required String feature,
+    required String label,
+  }) async {
+    final limit = await _db.rpc(AppRpc.getEffectiveFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': feature,
+    }) as int? ?? 10;
+    if (limit == -1) return;
+    final rows = await _db
+        .from(table)
+        .select('id')
+        .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null);
+    if ((rows as List).length >= limit) {
+      throw HealthLimitExceededException(
+          "You've reached the $limit $label on your plan. Remove one or upgrade to add more.");
+    }
+  }
 
   // ── Document Storage ─────────────────────────────────────────────────────────
 
@@ -98,6 +132,12 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addMedication(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'health_medications',
+      walletId: data['wallet_id'] as String,
+      feature: 'health_medication',
+      label: 'medications',
+    );
     final row = await _db
         .from('health_medications')
         .insert({...data, 'user_id': _uid})
@@ -130,6 +170,12 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addDoctor(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'health_doctors',
+      walletId: data['wallet_id'] as String,
+      feature: 'health_doctor',
+      label: 'doctors',
+    );
     final row = await _db
         .from('health_doctors')
         .insert({...data, 'user_id': _uid})
@@ -159,6 +205,12 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addDocument(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'health_documents',
+      walletId: data['wallet_id'] as String,
+      feature: 'health_document',
+      label: 'documents',
+    );
     final row = await _db
         .from('health_documents')
         .insert({...data, 'user_id': _uid})
@@ -194,6 +246,12 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addAppointment(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'health_appointments',
+      walletId: data['wallet_id'] as String,
+      feature: 'health_appointment',
+      label: 'appointments',
+    );
     final row = await _db
         .from('health_appointments')
         .insert({...data, 'user_id': _uid})
@@ -223,6 +281,14 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addVital(Map<String, dynamic> data) async {
+    final allowed = await _db.rpc(AppRpc.checkFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': 'health_vital_log',
+    }) as bool? ?? true;
+    if (!allowed) {
+      throw const HealthLimitExceededException(
+          "You've reached this month's vital log limit on your plan. Upgrade to add more.");
+    }
     final row = await _db
         .from('health_vitals')
         .insert({...data, 'user_id': _uid})
@@ -252,6 +318,12 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addVaccination(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'health_vaccinations',
+      walletId: data['wallet_id'] as String,
+      feature: 'health_vaccine',
+      label: 'vaccinations',
+    );
     final row = await _db
         .from('health_vaccinations')
         .insert({...data, 'user_id': _uid})
@@ -281,6 +353,12 @@ class HealthService {
   }
 
   Future<Map<String, dynamic>> addInsurance(Map<String, dynamic> data) async {
+    await _enforceCountLimit(
+      table: 'health_insurance',
+      walletId: data['wallet_id'] as String,
+      feature: 'health_insurance',
+      label: 'insurance policies',
+    );
     final row = await _db
         .from('health_insurance')
         .insert({...data, 'user_id': _uid})
