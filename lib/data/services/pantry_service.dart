@@ -198,6 +198,40 @@ class PantryService {
     return row;
   }
 
+  /// Add several meal entries in one round trip (e.g. paste-day/paste-week).
+  /// Returns the inserted rows in the same order as [entries].
+  Future<List<Map<String, dynamic>>> addMealEntries(
+    List<
+        ({
+          String walletId,
+          String name,
+          String emoji,
+          String mealTime,
+          DateTime date,
+          List<String> recipeIds,
+          String? note,
+          List<String> ingredients,
+        })> entries,
+  ) async {
+    if (entries.isEmpty) return [];
+    final rows = await _db.from('meal_entries').insert(entries.map((e) {
+      final dateStr = '${e.date.year}-${e.date.month.toString().padLeft(2, '0')}-${e.date.day.toString().padLeft(2, '0')}';
+      return {
+        'wallet_id':   e.walletId,
+        'created_by':  _uid,
+        'name':        e.name,
+        'emoji':       e.emoji,
+        'meal_time':   e.mealTime,
+        'date':        dateStr,
+        'recipe_id':   e.recipeIds.firstOrNull,
+        'recipe_ids':  e.recipeIds,
+        'note':        e.note,
+        'ingredients': e.ingredients,
+      };
+    }).toList()).select();
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   /// Update the preparation status and serving count of a meal entry.
   Future<void> updateMealStatus(
     String id, {
@@ -262,10 +296,6 @@ class PantryService {
   /// Delete a reaction (soft delete).
   Future<void> deleteReaction(String id) async {
     await _db.from('meal_reactions').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
-  }
-
-  Future<void> restore(String table, String id) async {
-    await _db.from(table).update({'deleted_at': null}).eq('id', id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

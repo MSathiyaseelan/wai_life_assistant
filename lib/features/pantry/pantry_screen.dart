@@ -121,7 +121,33 @@ class _PantryScreenState extends State<PantryScreen>
     return [PantryMember(id: uid.isEmpty ? 'me' : uid, name: name, emoji: '👤')];
   }
 
+  /// Whether the current user can edit/delete content in [walletId] —
+  /// always true for personal wallets; for family wallets, governed by
+  /// that family's perm_edit/perm_delete setting unless the user is an
+  /// admin (mirrors the same check added for Wallet transactions).
+  (bool canEdit, bool canDelete) _pantryPerms(String walletId) {
+    for (final family in AppStateScope.of(context).families) {
+      if (family.walletId == walletId) {
+        return (family.canEdit, family.canDelete);
+      }
+    }
+    return (true, true);
+  }
+
+  /// Shows a denial snackbar and returns true if [allowed] is false —
+  /// call sites should `if (_denyIfNoPerm(...)) return;` before mutating.
+  bool _denyIfNoPerm(bool allowed, String action) {
+    if (allowed) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Only admins can $action in this family.')),
+    );
+    return true;
+  }
+
   Future<void> _saveFoodPrefs(MemberFoodPrefs updated) async {
+    if (_denyIfNoPerm(_pantryPerms(widget.activeWalletId).$1, 'edit food preferences')) {
+      return;
+    }
     // Optimistic update
     setState(() {
       final idx = _foodPrefs.indexWhere((p) => p.memberId == updated.memberId);
@@ -229,21 +255,20 @@ class _PantryScreenState extends State<PantryScreen>
     _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} to ${_shortDay(targetDay)}');
 
     try {
-      for (int i = 0; i < toInsert.length; i++) {
-        final m = toInsert[i];
-        final row = await PantryService.instance.addMealEntry(
-          walletId: widget.activeWalletId,
-          name: m.name, emoji: m.emoji, mealTime: m.mealTime.name,
-          date: targetDate, recipeIds: m.recipeIds, note: m.note,
-          ingredients: m.ingredients,
-        );
-        if (!mounted) return;
-        final saved = MealEntry.fromMap(row);
-        setState(() {
-          final idx = _meals.indexWhere((e) => e.id == temps[i].id);
-          if (idx >= 0) _meals[idx] = saved;
-        });
-      }
+      await PantryService.instance.addMealEntries(toInsert
+          .map((m) => (
+                walletId: widget.activeWalletId,
+                name: m.name,
+                emoji: m.emoji,
+                mealTime: m.mealTime.name,
+                date: targetDate,
+                recipeIds: m.recipeIds,
+                note: m.note,
+                ingredients: m.ingredients,
+              ))
+          .toList());
+      if (!mounted) return;
+      await _loadMeals(force: true); // replace optimistic temps with real rows
     } catch (e) {
       if (!mounted) return;
       _showSavedSnack('Failed to paste some meals', AppColors.expense);
@@ -286,22 +311,20 @@ class _PantryScreenState extends State<PantryScreen>
     _showCopiedSnack('Pasted ${temps.length} meal${temps.length == 1 ? '' : 's'} into this week');
 
     try {
-      for (int i = 0; i < toInsert.length; i++) {
-        final item = toInsert[i];
-        final row = await PantryService.instance.addMealEntry(
-          walletId: widget.activeWalletId,
-          name: item.meal.name, emoji: item.meal.emoji,
-          mealTime: item.meal.mealTime.name, date: item.targetDate,
-          recipeIds: item.meal.recipeIds, note: item.meal.note,
-          ingredients: item.meal.ingredients,
-        );
-        if (!mounted) return;
-        final saved = MealEntry.fromMap(row);
-        setState(() {
-          final idx = _meals.indexWhere((e) => e.id == temps[i].id);
-          if (idx >= 0) _meals[idx] = saved;
-        });
-      }
+      await PantryService.instance.addMealEntries(toInsert
+          .map((item) => (
+                walletId: widget.activeWalletId,
+                name: item.meal.name,
+                emoji: item.meal.emoji,
+                mealTime: item.meal.mealTime.name,
+                date: item.targetDate,
+                recipeIds: item.meal.recipeIds,
+                note: item.meal.note,
+                ingredients: item.meal.ingredients,
+              ))
+          .toList());
+      if (!mounted) return;
+      await _loadMeals(force: true); // replace optimistic temps with real rows
     } catch (e) {
       if (!mounted) return;
       _showSavedSnack('Failed to paste some meals', AppColors.expense);
@@ -989,6 +1012,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _updateMeal(MealEntry updated) async {
+    if (_denyIfNoPerm(_pantryPerms(updated.walletId).$1, 'edit meals')) return;
     final original = _meals.firstWhere(
       (e) => e.id == updated.id,
       orElse: () => updated,
@@ -1278,6 +1302,7 @@ class _PantryScreenState extends State<PantryScreen>
           );
         },
         onDelete: () async {
+          if (_denyIfNoPerm(_pantryPerms(m.walletId).$2, 'delete meals')) return;
           setState(() => _meals.remove(m)); // optimistic
           Navigator.pop(context);
           try {
@@ -1460,6 +1485,7 @@ class _PantryScreenState extends State<PantryScreen>
   Future<void> _updateRecipe(RecipeModel updated) async {
     final idx = _recipes.indexWhere((r) => r.id == updated.id);
     if (idx < 0) return;
+    if (_denyIfNoPerm(_pantryPerms(updated.walletId).$1, 'edit recipes')) return;
     final old = _recipes[idx];
     setState(() => _recipes[idx] = updated); // optimistic
     try {
@@ -1483,6 +1509,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _deleteRecipe(RecipeModel r) async {
+    if (_denyIfNoPerm(_pantryPerms(r.walletId).$2, 'delete recipes')) return;
     setState(() => _recipes.remove(r));
     try {
       await PantryService.instance.deleteRecipe(r.id);
@@ -1585,7 +1612,18 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  void _toggleStock(GroceryItem i) => setState(() => i.inStock = !i.inStock);
+  Future<void> _toggleStock(GroceryItem i) async {
+    final newInStock = !i.inStock;
+    setState(() => i.inStock = newInStock);
+    try {
+      await PantryService.instance.updateGroceryItem(i.id, {'in_stock': newInStock});
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_toggle_stock');
+      if (!mounted) return;
+      setState(() => i.inStock = !newInStock);
+      _showSavedSnack('Failed to update item', AppColors.expense);
+    }
+  }
 
   /// Mark a To-Buy item as purchased: move it to In Stock, off the shopping list.
   Future<void> _markBought(GroceryItem i) async {
@@ -1642,11 +1680,13 @@ class _PantryScreenState extends State<PantryScreen>
         updates['quantity'] = i.quantity;
         updates['unit'] = i.unit;
       }
-      await _updateGrocery(existing, updates);
-      _showSavedSnack(
-        '${displayCase(existing.name)} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
-        AppColors.income,
-      );
+      final ok = await _updateGrocery(existing, updates);
+      if (ok && mounted) {
+        _showSavedSnack(
+          '${displayCase(existing.name)} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
+          AppColors.income,
+        );
+      }
       return;
     }
 
@@ -1697,6 +1737,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _deleteGrocery(GroceryItem i) async {
+    if (_denyIfNoPerm(_pantryPerms(i.walletId).$2, 'delete basket items')) return;
     setState(() => _groceries.remove(i));
     try {
       await PantryService.instance.deleteGroceryItem(i.id);
@@ -1708,7 +1749,10 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _updateGrocery(GroceryItem i, Map<String, dynamic> updates) async {
+  /// Returns true on success — callers that show their own follow-up
+  /// success message should check this first, since failure is already
+  /// reported here and shouldn't also be reported as success.
+  Future<bool> _updateGrocery(GroceryItem i, Map<String, dynamic> updates) async {
     // Apply optimistically
     setState(() {
       if (updates.containsKey('name')) {
@@ -1727,10 +1771,12 @@ class _PantryScreenState extends State<PantryScreen>
     });
     try {
       await PantryService.instance.updateGroceryItem(i.id, updates);
+      return true;
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_update_grocery');
-      if (!mounted) return;
+      if (!mounted) return false;
       _showSavedSnack('Failed to update item', AppColors.expense);
+      return false;
     }
   }
 
