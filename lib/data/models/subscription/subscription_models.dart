@@ -29,6 +29,10 @@ class SubscriptionPlanData {
   final int functionsUpcomingMax;
   final int functionsMyMax;
 
+  // ── Item Locator ────────────────────────────────────────────────────────────
+  final int itemLocatorContainersMax;
+  final int itemLocatorItemsMax;
+
   // ── Wardrobe ────────────────────────────────────────────────────────────────
   final int wardrobeItemsMax;
   final int wardrobeOutfitLogMonths;
@@ -63,6 +67,8 @@ class SubscriptionPlanData {
     required this.pantryRecipesMax,
     required this.functionsUpcomingMax,
     required this.functionsMyMax,
+    required this.itemLocatorContainersMax,
+    required this.itemLocatorItemsMax,
     required this.wardrobeItemsMax,
     required this.wardrobeOutfitLogMonths,
     required this.healthMedicationsMax,
@@ -97,6 +103,8 @@ class SubscriptionPlanData {
       pantryRecipesMax:          i('pantry_recipes_max',        10),
       functionsUpcomingMax:      i('functions_upcoming_max',    15),
       functionsMyMax:            i('functions_my_max',          5),
+      itemLocatorContainersMax:  i('item_locator_containers_max', 5),
+      itemLocatorItemsMax:       i('item_locator_items_max',    50),
       wardrobeItemsMax:          i('wardrobe_items_max',        30),
       wardrobeOutfitLogMonths:   i('wardrobe_outfit_log_months',1),
       healthMedicationsMax:      i('health_medications_max',    15),

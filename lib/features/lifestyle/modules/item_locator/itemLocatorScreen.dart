@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/shared/utils/overlay_toast.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import '../../widgets/life_widgets.dart';
 
@@ -786,8 +787,18 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                       final row = await ItemLocatorService.instance.addContainer(data.toJson());
                       if (mounted) setState(() => _containers.add(StorageContainer.fromJson(row)));
                     } catch (e, stack) {
-                      ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_container');
                       debugPrint('[ItemLocator] addContainer error: $e');
+                      final isLimitError = e is ItemLocatorLimitExceededException;
+                      if (!isLimitError) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_container');
+                      }
+                      if (mounted) {
+                        showOverlayToast(
+                          context,
+                          isLimitError ? e.toString() : 'Failed to add container. Please try again.',
+                          backgroundColor: Colors.red,
+                        );
+                      }
                     }
                   }();
                 },
@@ -1126,7 +1137,12 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
               newCid = created.id;
               aiContainerNote = 'Created container "${created.name}"';
             } catch (e, stack) {
-              ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_ai_create_container');
+              // Incidental auto-create as a side effect of parsing the item —
+              // fail soft and keep the previously selected container so the
+              // main "add item" flow below still proceeds.
+              if (e is! ItemLocatorLimitExceededException) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_ai_create_container');
+              }
               debugPrint('[ItemLocator] auto-create container error: $e');
             }
           }
@@ -1578,8 +1594,18 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                           }
                         }
                       } catch (e, stack) {
-                        ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_item');
                         debugPrint('[ItemLocator] addItem error: $e');
+                        final isLimitError = e is ItemLocatorLimitExceededException;
+                        if (!isLimitError) {
+                          ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_item');
+                        }
+                        if (mounted) {
+                          showOverlayToast(
+                            context,
+                            isLimitError ? e.toString() : 'Failed to add item. Please try again.',
+                            backgroundColor: Colors.red,
+                          );
+                        }
                       }
                     }();
                   }

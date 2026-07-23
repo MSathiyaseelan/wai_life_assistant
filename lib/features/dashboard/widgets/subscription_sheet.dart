@@ -151,6 +151,15 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
        personal: lim(p.functionsMyMax),
        plus: pl != null ? lim(pl.functionsMyMax) : '—',
        pro:  pr != null ? lim(pr.functionsMyMax) : '—'),
+      // ── Item Locator ──────────────────────────────────────────────────────
+      (name: 'Item Locator containers', emoji: '📦',
+       personal: lim(p.itemLocatorContainersMax),
+       plus: pl != null ? lim(pl.itemLocatorContainersMax) : '—',
+       pro:  pr != null ? lim(pr.itemLocatorContainersMax) : '—'),
+      (name: 'Item Locator items',   emoji: '🔍',
+       personal: lim(p.itemLocatorItemsMax),
+       plus: pl != null ? lim(pl.itemLocatorItemsMax) : '—',
+       pro:  pr != null ? lim(pr.itemLocatorItemsMax) : '—'),
       // ── Wardrobe ──────────────────────────────────────────────────────────
       (name: 'Wardrobe items',       emoji: '👗',
        personal: lim(p.wardrobeItemsMax),
