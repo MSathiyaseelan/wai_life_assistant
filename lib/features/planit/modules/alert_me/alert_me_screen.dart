@@ -186,10 +186,13 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       if (mounted) setState(() => _reminders.add(saved));
       NotificationService.instance.schedule(saved);
     } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'reminder_add');
+      final isLimitError = e is ReminderLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'reminder_add');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save reminder')),
+          SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save reminder')),
         );
       }
     }

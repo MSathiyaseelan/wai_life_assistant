@@ -154,10 +154,13 @@ class _WishListScreenState extends State<WishListScreen>
       final saved = WishModel.fromRow(row);
       if (mounted) setState(() => _wishes.add(saved));
     } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'wish_add');
+      final isLimitError = e is WishLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'wish_add');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save wish')),
+          SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save wish')),
         );
       }
     }

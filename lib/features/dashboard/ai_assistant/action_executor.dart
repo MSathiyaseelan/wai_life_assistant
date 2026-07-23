@@ -244,7 +244,12 @@ class ActionExecutor {
     if (kDebugMode) debugPrint('[ActionExecutor] ${action.actionType.name} executed');
     return null;
     } catch (e, stack) {
-      if (e is! TransactionLimitExceededException && e is! FunctionLimitExceededException) {
+      final isLimitError = e is TransactionLimitExceededException ||
+          e is FunctionLimitExceededException ||
+          e is TaskLimitExceededException ||
+          e is ReminderLimitExceededException ||
+          e is SpecialDayLimitExceededException;
+      if (!isLimitError) {
         ErrorLogger.log(e,
             stackTrace: stack,
             severity: ErrorSeverity.error,

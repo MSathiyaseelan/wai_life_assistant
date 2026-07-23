@@ -429,10 +429,13 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       final saved = SpecialDayModel.fromRow(row);
       if (mounted) setState(() => _days.add(saved));
     } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'special_day_add');
+      final isLimitError = e is SpecialDayLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'special_day_add');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save special day')),
+          SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save special day')),
         );
       }
     }

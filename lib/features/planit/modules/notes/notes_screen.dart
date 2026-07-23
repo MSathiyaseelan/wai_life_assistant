@@ -299,10 +299,13 @@ class _NotesScreenState extends State<NotesScreen> {
           });
         }
       } catch (e, stack) {
-        ErrorLogger.log(e, stackTrace: stack, action: 'note_add');
+        final isLimitError = e is NoteLimitExceededException;
+        if (!isLimitError) {
+          ErrorLogger.log(e, stackTrace: stack, action: 'note_add');
+        }
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save note')),
+            SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save note')),
           );
         }
       }

@@ -160,10 +160,13 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       final saved = TaskModel.fromRow(row);
       if (mounted) setState(() => _tasks.add(saved));
     } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'task_add');
+      final isLimitError = e is TaskLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'task_add');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save task')),
+          SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to save task')),
         );
       }
     }

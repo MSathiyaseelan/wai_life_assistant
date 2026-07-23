@@ -13,6 +13,9 @@ import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
+import 'package:wai_life_assistant/data/services/task_service.dart';
+import 'package:wai_life_assistant/data/services/reminder_service.dart';
+import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_response.dart';
@@ -371,7 +374,11 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         if (mounted) _clear();
       });
     } catch (e, stack) {
-      final isLimitError = e is TransactionLimitExceededException || e is FunctionLimitExceededException;
+      final isLimitError = e is TransactionLimitExceededException ||
+          e is FunctionLimitExceededException ||
+          e is TaskLimitExceededException ||
+          e is ReminderLimitExceededException ||
+          e is SpecialDayLimitExceededException;
       if (!isLimitError) {
         await ErrorLogger.log(e, stackTrace: stack, action: 'wai_action_execute');
       }

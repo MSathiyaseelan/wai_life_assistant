@@ -49,7 +49,9 @@ class SubscriptionPlanData {
   // ── PlanIt ──────────────────────────────────────────────────────────────────
   final int planItTasksMax;
   final int planItRemindersMax;
+  final int planItNotesMax;
   final int planItSpecialDaysMax;
+  final int planItWishlistMax;
 
   // ── Notifications ────────────────────────────────────────────────────────────
   final bool notifPushEnabled;
@@ -84,7 +86,9 @@ class SubscriptionPlanData {
     required this.healthDocumentsMax,
     required this.planItTasksMax,
     required this.planItRemindersMax,
+    required this.planItNotesMax,
     required this.planItSpecialDaysMax,
+    required this.planItWishlistMax,
     required this.notifPushEnabled,
     required this.notifCustomAlerts,
   });
@@ -124,7 +128,9 @@ class SubscriptionPlanData {
       healthDocumentsMax:        i('health_documents_max',      10),
       planItTasksMax:            i('planit_tasks_max',          50),
       planItRemindersMax:        i('planit_reminders_max',      30),
+      planItNotesMax:            i('planit_notes_max',          20),
       planItSpecialDaysMax:      i('planit_special_days_max',   30),
+      planItWishlistMax:         i('planit_wishlist_max',       25),
       notifPushEnabled:          b('notif_push_enabled'),
       notifCustomAlerts:         b('notif_custom_alerts'),
     );

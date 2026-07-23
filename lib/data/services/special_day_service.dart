@@ -1,5 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+
+/// Thrown by [SpecialDayService.addDay] when the caller's standing special
+/// day count cap (personal or shared family pool) is exhausted — deleting
+/// one frees up a slot for another.
+class SpecialDayLimitExceededException implements Exception {
+  final int limit;
+  const SpecialDayLimitExceededException(this.limit);
+  @override
+  String toString() =>
+      "You've reached the $limit special days on your plan. Remove one or upgrade to add more.";
+}
 
 /// Thin Supabase layer for PlanIt special days.
 class SpecialDayService {
@@ -11,6 +23,11 @@ class SpecialDayService {
   static final changeSignal = ValueNotifier<int>(0);
 
   SupabaseClient get _db => Supabase.instance.client;
+  String get _uid {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not authenticated');
+    return uid;
+  }
 
   /// Per-wallet cache — whichever screen (PlanIt or Dashboard) asks first
   /// does the real query; the other reuses this instead of re-fetching.
@@ -36,6 +53,21 @@ class SpecialDayService {
   }
 
   Future<Map<String, dynamic>> addDay(Map<String, dynamic> data) async {
+    final limit = await _db.rpc(AppRpc.getEffectiveFeatureLimit, params: {
+      'p_user_id': _uid,
+      'p_feature': 'planit_special_day',
+    }) as int? ?? 30;
+    if (limit != -1) {
+      final walletId = data['wallet_id'] as String;
+      final existing = await _db
+          .from('special_days')
+          .select('id')
+          .eq('wallet_id', walletId)
+          .isFilter('deleted_at', null);
+      if ((existing as List).length >= limit) {
+        throw SpecialDayLimitExceededException(limit);
+      }
+    }
     final row = await _db.from('special_days').insert(data).select().single();
     _invalidate();
     return row;
