@@ -28,6 +28,12 @@ class TxDetailSheet extends StatelessWidget {
   /// Called when user removes this tx from its current group.
   final VoidCallback? onRemoveFromGroup;
 
+  /// Whether the current user is allowed to edit/delete this transaction —
+  /// false when it's in a family wallet with "Admin only" permission and the
+  /// current user isn't an admin. Defaults to true (personal wallets).
+  final bool canEdit;
+  final bool canDelete;
+
   const TxDetailSheet({
     super.key,
     required this.tx,
@@ -39,6 +45,8 @@ class TxDetailSheet extends StatelessWidget {
     this.groups = const [],
     this.onAddToGroup,
     this.onRemoveFromGroup,
+    this.canEdit = true,
+    this.canDelete = true,
   });
 
   @override
@@ -69,7 +77,9 @@ class TxDetailSheet extends StatelessWidget {
           const SizedBox(height: 20),
 
           // ── Move to wallet ──────────────────────────────────────────────
-          if (otherWallets.isNotEmpty) ...[
+          // Moving deletes the tx from its source wallet, so it needs the
+          // same permission as Delete.
+          if (otherWallets.isNotEmpty && canDelete) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -138,20 +148,22 @@ class TxDetailSheet extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      isScrollControlled: true,
-                      builder: (_) =>
-                          TxEditSheet(tx: tx, isDark: isDark, onSave: onEdit),
-                    );
-                  },
+                  onPressed: canEdit
+                      ? () {
+                          Navigator.pop(context);
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.transparent,
+                            isScrollControlled: true,
+                            builder: (_) => TxEditSheet(
+                                tx: tx, isDark: isDark, onSave: onEdit),
+                          );
+                        }
+                      : null,
                   icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text(
-                    'Edit',
-                    style: TextStyle(
+                  label: Text(
+                    canEdit ? 'Edit' : 'Edit (admin only)',
+                    style: const TextStyle(
                       fontFamily: 'Nunito',
                       fontWeight: FontWeight.w700,
                     ),
@@ -167,14 +179,16 @@ class TxDetailSheet extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    onDelete();
-                    Navigator.pop(context);
-                  },
+                  onPressed: canDelete
+                      ? () {
+                          onDelete();
+                          Navigator.pop(context);
+                        }
+                      : null,
                   icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text(
-                    'Delete',
-                    style: TextStyle(
+                  label: Text(
+                    canDelete ? 'Delete' : 'Delete (admin only)',
+                    style: const TextStyle(
                       fontFamily: 'Nunito',
                       fontWeight: FontWeight.w700,
                     ),

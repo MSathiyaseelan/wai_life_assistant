@@ -3034,10 +3034,23 @@ class _WalletScreenState extends State<WalletScreen>
     return map;
   }
 
+  /// Whether the current user can edit/delete transactions in [walletId] —
+  /// always true for personal wallets; for family wallets, governed by that
+  /// family's perm_edit/perm_delete setting unless the user is an admin.
+  (bool canEdit, bool canDelete) _txPermsForWallet(String walletId) {
+    for (final family in _appState.families) {
+      if (family.walletId == walletId) {
+        return (family.canEdit, family.canDelete);
+      }
+    }
+    return (true, true);
+  }
+
   void _showDetail(TxModel tx) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final otherWallets = _allWallets.where((w) => w.id != tx.walletId).toList();
     final walletGroups = _activeWalletTxGroups;
+    final (canEdit, canDelete) = _txPermsForWallet(tx.walletId);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3046,6 +3059,8 @@ class _WalletScreenState extends State<WalletScreen>
         isDark: isDark,
         otherWallets: otherWallets,
         groups: walletGroups,
+        canEdit: canEdit,
+        canDelete: canDelete,
         onMove: (target) {
           Navigator.pop(context);
           _moveTxToWallet(tx, target);

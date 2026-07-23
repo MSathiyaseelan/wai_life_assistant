@@ -1216,15 +1216,16 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         date: tx.date,
         paymentMode: tx.paymentMode,
       );
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[SplitGroupDetail] updateSplitTransaction failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'update_split_transaction');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save changes: $e'),
+          const SnackBar(
+            content: Text('Failed to save changes. Please try again.'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
+            margin: EdgeInsets.all(16),
           ),
         );
       }
@@ -1273,15 +1274,16 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         _recomputeGroupCache();
       });
       _notifyFamilyOfSplit(tx);
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[SplitGroupDetail] addSplitTransaction failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'add_split_transaction');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save expense: $e'),
+          const SnackBar(
+            content: Text('Failed to save expense. Please try again.'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(16),
+            margin: EdgeInsets.all(16),
           ),
         );
       }
@@ -1330,8 +1332,22 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       setState(() => _group.messages.add(SplitGroupMsg.fromRow(row)));
       widget.onGroupUpdated(_group);
       _scrollToBottom();
-    } catch (_) {
-      // Realtime subscription will deliver the message if DB write eventually succeeds
+    } catch (e) {
+      debugPrint('[SplitGroupDetail] postMessage failed: $e');
+      if (!mounted) return;
+      // The insert never committed, so there's nothing for realtime to
+      // deliver — restore the text so the message isn't silently lost.
+      _chatCtrl.text = text;
+      _chatCtrl.selection =
+          TextSelection.collapsed(offset: _chatCtrl.text.length);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message not sent. Please try again.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+        ),
+      );
     }
   }
 

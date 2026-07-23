@@ -366,23 +366,33 @@ class WalletService {
     }) as bool? ?? true;
     if (!allowed) throw const TransactionLimitExceededException();
 
-    final row = await _db.from('transactions').insert({
-      'wallet_id': walletId,
-      'user_id': _uid,
-      'type': type,
-      'pay_mode': payMode,
-      'amount': amount,
-      'category': resolveCategoryName(category, type),
-      'title': title,
-      'note': note,
-      'person': person,
-      'persons': persons,
-      'status': status,
-      'due_date': dueDate,
-      'date': (date ?? DateTime.now()).toIso8601String(),
-      if (groupId != null) 'group_id': groupId,
-    }).select().single();
-    return row;
+    try {
+      final row = await _db.from('transactions').insert({
+        'wallet_id': walletId,
+        'user_id': _uid,
+        'type': type,
+        'pay_mode': payMode,
+        'amount': amount,
+        'category': resolveCategoryName(category, type),
+        'title': title,
+        'note': note,
+        'person': person,
+        'persons': persons,
+        'status': status,
+        'due_date': dueDate,
+        'date': (date ?? DateTime.now()).toIso8601String(),
+        if (groupId != null) 'group_id': groupId,
+      }).select().single();
+      return row;
+    } catch (_) {
+      // The quota slot was already consumed by check_feature_limit above;
+      // give it back since nothing was actually saved.
+      await _db.rpc(AppRpc.releaseFeatureUsage, params: {
+        'p_user_id': _uid,
+        'p_feature': 'wallet_transaction',
+      });
+      rethrow;
+    }
   }
 
   /// Soft-delete a transaction (balance trigger rolls back the wallet amounts).
@@ -536,32 +546,42 @@ class WalletService {
     }) as bool? ?? true;
     if (!allowed) throw const SplitGroupLimitExceededException();
 
-    // 1. Insert group
-    final group = await _db.from('split_groups').insert({
-      'wallet_id': walletId,
-      'created_by': _uid,
-      'name': name,
-      'emoji': emoji,
-    }).select().single();
+    try {
+      // 1. Insert group
+      final group = await _db.from('split_groups').insert({
+        'wallet_id': walletId,
+        'created_by': _uid,
+        'name': name,
+        'emoji': emoji,
+      }).select().single();
 
-    // 2. Insert participants and return them with real DB ids
-    final rows = participants.map((p) => {
-      'group_id': group['id'],
-      'user_id': p.isMe ? _uid : null,
-      'name': p.name,
-      'emoji': p.emoji,
-      'phone': p.phone,
-      'is_me': p.isMe,
-    }).toList();
-    final insertedParticipants = await _db
-        .from('split_participants')
-        .insert(rows)
-        .select();
+      // 2. Insert participants and return them with real DB ids
+      final rows = participants.map((p) => {
+        'group_id': group['id'],
+        'user_id': p.isMe ? _uid : null,
+        'name': p.name,
+        'emoji': p.emoji,
+        'phone': p.phone,
+        'is_me': p.isMe,
+      }).toList();
+      final insertedParticipants = await _db
+          .from('split_participants')
+          .insert(rows)
+          .select();
 
-    return {
-      ...group,
-      'split_participants': insertedParticipants,
-    };
+      return {
+        ...group,
+        'split_participants': insertedParticipants,
+      };
+    } catch (_) {
+      // The quota slot was already consumed by check_feature_limit above;
+      // give it back since nothing was actually saved.
+      await _db.rpc(AppRpc.releaseFeatureUsage, params: {
+        'p_user_id': _uid,
+        'p_feature': 'split_group',
+      });
+      rethrow;
+    }
   }
 
   /// Add a split transaction with per-participant shares.

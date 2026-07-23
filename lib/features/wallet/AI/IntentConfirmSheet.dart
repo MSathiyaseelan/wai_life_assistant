@@ -231,11 +231,15 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
       Navigator.pop(context);
     } catch (e, st) {
       debugPrint('[IntentConfirmSheet] save error: $e\n$st');
+      final isLimitError = e is TransactionLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.log(e, stackTrace: st, action: 'intent_confirm_save');
+      }
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e is TransactionLimitExceededException ? e.toString() : 'Failed to save: $e'),
+          content: Text(isLimitError ? e.toString() : 'Failed to save. Please try again.'),
           behavior: SnackBarBehavior.floating,
         ),
       );

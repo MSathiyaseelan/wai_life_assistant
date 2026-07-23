@@ -2,6 +2,7 @@ abstract final class AppRpc {
   // ── Plan / usage ───────────────────────────────────────────────────────────
   static const String getPlanLimits      = 'get_plan_limits';
   static const String checkFeatureLimit  = 'check_feature_limit';
+  static const String releaseFeatureUsage = 'release_feature_usage';
   static const String getEffectiveFeatureLimit = 'get_effective_feature_limit';
   static const String getEffectiveFeatureUsage = 'get_effective_feature_usage';
 
