@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:wai_life_assistant/core/services/fcm_service.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 
 // ── Top-level constants & helpers ─────────────────────────────────────────────
@@ -57,6 +58,46 @@ const _alarmIosDetails = DarwinNotificationDetails(
   presentSound: true,
   categoryIdentifier: 'alarm',
   interruptionLevel: InterruptionLevel.timeSensitive,
+);
+
+// Android channel settings (sound/vibration/importance) are locked in at
+// channel-creation time and can't be overridden per-notification — so a
+// reminder that lands inside quiet hours needs a genuinely separate,
+// silent channel rather than just different per-call details.
+AndroidNotificationDetails _alarmAndroidDetailsQuiet() =>
+    AndroidNotificationDetails(
+      'wai_alarms_quiet',
+      'WAI Reminders (Quiet Hours)',
+      channelDescription: 'Silent reminders during your configured quiet hours',
+      importance: Importance.low,
+      priority: fln.Priority.low,
+      icon: '@mipmap/ic_launcher',
+      playSound: false,
+      enableVibration: false,
+      fullScreenIntent: false,
+      category: AndroidNotificationCategory.reminder,
+      visibility: NotificationVisibility.public,
+      autoCancel: false,
+      actions: const [
+        AndroidNotificationAction(
+          'snooze',
+          'Snooze 10 min',
+          showsUserInterface: true,
+        ),
+        AndroidNotificationAction(
+          'stop',
+          'Stop',
+          showsUserInterface: false,
+        ),
+      ],
+    );
+
+const _alarmIosDetailsQuiet = DarwinNotificationDetails(
+  presentAlert: true,
+  presentBadge: true,
+  presentSound: false,
+  categoryIdentifier: 'alarm',
+  interruptionLevel: InterruptionLevel.passive,
 );
 
 // ── Background notification action handler ────────────────────────────────────
@@ -225,6 +266,16 @@ class NotificationService {
         playSound: true,
       ),
     );
+    await androidImpl?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'wai_alarms_quiet',
+        'WAI Reminders (Quiet Hours)',
+        description: 'Silent reminders during your configured quiet hours',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+      ),
+    );
 
     _initialized = true;
   }
@@ -242,7 +293,21 @@ class NotificationService {
 
   // ── Schedule ───────────────────────────────────────────────────────────────
   Future<void> schedule(ReminderModel r) async {
+    // Respect the master switch and the Alert Me category toggle — without
+    // this, turning either off in Notification Settings had no actual
+    // effect on whether reminders alarmed.
+    if (!NotificationPrefs.instance.masterOn || !NotificationPrefs.instance.planItAlertMe) {
+      debugPrint('[Notifications] schedule "${r.title}" SKIPPED — disabled in settings');
+      return;
+    }
     await init();
+
+    // A reminder's time-of-day is fixed across all its occurrences (bounded
+    // or repeating), so whether it lands in quiet hours can be decided once
+    // up front rather than per-occurrence.
+    final isQuiet = NotificationPrefs.instance.isHourQuiet(r.dueTime.hour);
+    final androidDetails = isQuiet ? _alarmAndroidDetailsQuiet() : _alarmAndroidDetails(body: r.note ?? _priorityLabel(r.priority));
+    final iosDetails = isQuiet ? _alarmIosDetailsQuiet : _alarmIosDetails;
 
     final tzName   = (await FlutterTimezone.getLocalTimezone()).identifier;
     final location = tz.getLocation(tzName);
@@ -288,8 +353,8 @@ class NotificationService {
             body,
             current,
             NotificationDetails(
-              android: _alarmAndroidDetails(body: body),
-              iOS: _alarmIosDetails,
+              android: androidDetails,
+              iOS: iosDetails,
             ),
             androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
             uiLocalNotificationDateInterpretation:
@@ -316,8 +381,8 @@ class NotificationService {
       body,
       scheduledDate,
       NotificationDetails(
-        android: _alarmAndroidDetails(body: body),
-        iOS: _alarmIosDetails,
+        android: androidDetails,
+        iOS: iosDetails,
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:

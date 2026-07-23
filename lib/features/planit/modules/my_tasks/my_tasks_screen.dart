@@ -7,6 +7,9 @@ import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
@@ -159,6 +162,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       final row = await TaskService.instance.addTask(t.toRow());
       final saved = TaskModel.fromRow(row);
       if (mounted) setState(() => _tasks.add(saved));
+      _notifyFamilyOfTask(saved);
     } catch (e, stack) {
       final isLimitError = e is TaskLimitExceededException;
       if (!isLimitError) {
@@ -200,10 +204,34 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     setState(() => t.status = s);
     try {
       await TaskService.instance.updateTask(t.id, {'status': s.name});
+      if (s == TaskStatus.done && original != TaskStatus.done) {
+        _notifyFamilyOfTask(t, eventType: 'planit.task_completed');
+      }
     } catch (e) {
       ErrorLogger.log(e, action: 'task_update_status');
       if (mounted) setState(() => t.status = original);
     }
+  }
+
+  /// Fire-and-forget push to other family members for a task add/complete,
+  /// if this task's wallet belongs to a family.
+  void _notifyFamilyOfTask(TaskModel t, {String eventType = 'planit.task_added'}) {
+    final appState = AppStateScope.read(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == t.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+    FamilyNotificationTrigger.notify(
+      eventType: eventType,
+      familyId: family.id,
+      eventData: {
+        'member_name': memberName,
+        'task_title': t.title,
+        'assignee': t.assignedTo,
+      },
+    );
   }
 
   Future<void> _toggleSubtask(SubTask st) async {

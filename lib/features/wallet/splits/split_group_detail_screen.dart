@@ -6,7 +6,9 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show RealtimeChannel;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart' show MemberRole;
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
@@ -1270,6 +1272,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         }
         _recomputeGroupCache();
       });
+      _notifyFamilyOfSplit(tx);
     } catch (e) {
       debugPrint('[SplitGroupDetail] addSplitTransaction failed: $e');
       if (mounted) {
@@ -1283,6 +1286,30 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         );
       }
     }
+  }
+
+  /// Fire-and-forget push to other family members when a split expense is
+  /// added, if this split group's wallet belongs to a family. Note: the
+  /// underlying template broadcasts one "you owe" figure to every recipient,
+  /// so it can't show each participant their own actual share — an even
+  /// split across all shares is used as an approximation.
+  void _notifyFamilyOfSplit(SplitGroupTx tx) {
+    if (!NotificationPrefs.instance.walletFamilyExpense) return;
+    final appState = AppStateScope.read(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == _group.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final approxShare = tx.shares.isEmpty ? tx.totalAmount : tx.totalAmount / tx.shares.length;
+    FamilyNotificationTrigger.notify(
+      eventType: 'wallet.split_added',
+      familyId: family.id,
+      eventData: {
+        'member_name': _participantName(tx.addedById),
+        'amount': tx.totalAmount.toStringAsFixed(0),
+        'your_share': approxShare.toStringAsFixed(0),
+      },
+    );
   }
 
   // ── Send chat message ──────────────────────────────────────────────────────

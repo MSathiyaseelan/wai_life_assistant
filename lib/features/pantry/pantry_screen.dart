@@ -1670,12 +1670,30 @@ class _PantryScreenState extends State<PantryScreen>
         final idx = _groceries.indexWhere((g) => g.id == i.id);
         if (idx >= 0) _groceries[idx] = saved;
       });
+      if (saved.toBuy) _notifyFamilyOfBasketItem(saved);
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_grocery');
       if (!mounted) return;
       setState(() => _groceries.remove(i));
       _showSavedSnack('Failed to save item', AppColors.expense);
     }
+  }
+
+  /// Fire-and-forget push to other family members when an item is added to
+  /// the shared ToBuy list, if the active wallet belongs to a family.
+  void _notifyFamilyOfBasketItem(GroceryItem i) {
+    final appState = AppStateScope.of(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == widget.activeWalletId);
+    final family = matches.isNotEmpty ? matches.first : appState.families.first;
+    FamilyNotificationTrigger.notify(
+      eventType: 'pantry.basket_item_added',
+      familyId: family.id,
+      eventData: {
+        'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
+        'item_name': i.name,
+      },
+    );
   }
 
   Future<void> _deleteGrocery(GroceryItem i) async {

@@ -8,6 +8,10 @@ import 'package:wai_life_assistant/core/services/notification_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
@@ -185,6 +189,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       final saved = ReminderModel.fromRow(row);
       if (mounted) setState(() => _reminders.add(saved));
       NotificationService.instance.schedule(saved);
+      _notifyFamilyOfReminder(saved);
     } catch (e, stack) {
       final isLimitError = e is ReminderLimitExceededException;
       if (!isLimitError) {
@@ -196,6 +201,28 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         );
       }
     }
+  }
+
+  /// Fire-and-forget push to other family members when a reminder is added,
+  /// if this reminder's wallet belongs to a family.
+  void _notifyFamilyOfReminder(ReminderModel r) {
+    if (!NotificationPrefs.instance.planItAlertMe) return;
+    final appState = AppStateScope.read(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == r.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+    FamilyNotificationTrigger.notify(
+      eventType: 'planit.reminder_added',
+      familyId: family.id,
+      eventData: {
+        'member_name': memberName,
+        'reminder_title': r.title,
+        'time': '${r.dueTime.hour.toString().padLeft(2, '0')}:${r.dueTime.minute.toString().padLeft(2, '0')}',
+      },
+    );
   }
 
   Future<void> _delete(ReminderModel r) async {

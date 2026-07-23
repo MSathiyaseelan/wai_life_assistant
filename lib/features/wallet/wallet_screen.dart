@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -716,6 +718,7 @@ class _WalletScreenState extends State<WalletScreen>
       if (saved.type == TxType.expense) {
         _checkBudgetsAfterExpense(saved.walletId);
       }
+      _notifyFamilyOfTx(saved);
       // ConversationScreen may still be on top (it pops after a 1800ms delay).
       // Wait until WalletScreen's route is active before starting the snackbar
       // timer — otherwise the timer expires while the screen is hidden and the
@@ -765,6 +768,46 @@ class _WalletScreenState extends State<WalletScreen>
         );
       }
     }
+  }
+
+  /// Fire-and-forget push to other family members when a transaction lands
+  /// in a shared (non-personal) wallet. No-op for personal wallets or when
+  /// the wallet isn't tied to a family the user belongs to.
+  void _notifyFamilyOfTx(TxModel tx) {
+    if (_appState.isPersonal || _appState.families.isEmpty) return;
+    final matches = _appState.families.where((f) => f.walletId == tx.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final memberName = (uid != null ? _appState.allMemberNames[uid] : null) ?? 'Someone';
+
+    String? eventType;
+    final data = <String, dynamic>{
+      'member_name': memberName,
+      'amount': tx.amount.toStringAsFixed(0),
+      'category': tx.category,
+      'title': tx.title ?? tx.category,
+      'person': tx.person ?? '',
+    };
+    switch (tx.type) {
+      case TxType.expense:
+        if (!NotificationPrefs.instance.walletFamilyExpense) return;
+        eventType = 'wallet.expense_added';
+      case TxType.income:
+        if (!NotificationPrefs.instance.walletFamilyExpense) return;
+        eventType = 'wallet.income_added';
+      case TxType.lend:
+        if (!NotificationPrefs.instance.walletLendBorrow) return;
+        eventType = 'wallet.lend_added';
+      default:
+        eventType = null; // borrow/request/split/returned — not templated
+    }
+    if (eventType == null) return;
+    FamilyNotificationTrigger.notify(
+      eventType: eventType,
+      familyId: family.id,
+      eventData: data,
+    );
   }
 
   void _showTxSnackBar(TxModel tx, List<WalletModel> otherWallets) {

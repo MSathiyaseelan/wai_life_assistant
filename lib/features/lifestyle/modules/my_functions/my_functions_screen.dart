@@ -19,6 +19,10 @@ import 'package:wai_life_assistant/shared/utils/overlay_toast.dart';
 import '../../widgets/life_widgets.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _funcColor = Color(0xFF6C63FF);
 
@@ -727,6 +731,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       () => _upcoming.insert(0, UpcomingFunction.fromJson(row)),
                     );
                   }
+                  _notifyFamilyOfUpcomingFunction(title, date);
                 } else if (tabIdx == 1) {
                   // ATTENDED tab
                   final row = await svc.addAttended(
@@ -787,6 +792,28 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               }
             },
       ),
+    );
+  }
+
+  /// Fire-and-forget push to other family members when an upcoming function
+  /// is added, if this function's wallet belongs to a family.
+  void _notifyFamilyOfUpcomingFunction(String title, DateTime? date) {
+    if (!NotificationPrefs.instance.functionsUpcoming) return;
+    final appState = AppStateScope.read(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == widget.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+    FamilyNotificationTrigger.notify(
+      eventType: 'functions.upcoming_added',
+      familyId: family.id,
+      eventData: {
+        'member_name': memberName,
+        'function_name': title,
+        'date': date != null ? date.toIso8601String().split('T').first : '',
+      },
     );
   }
 

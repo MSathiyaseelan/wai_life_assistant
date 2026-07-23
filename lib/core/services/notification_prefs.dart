@@ -123,9 +123,14 @@ class NotificationPrefs extends ChangeNotifier {
   set quietEnd(int v) => _setI('quiet_end', v);
 
   /// Returns true if the current local time is inside the quiet window.
-  bool get isQuietNow {
+  bool get isQuietNow => isHourQuiet(DateTime.now().hour);
+
+  /// Same check as [isQuietNow] but for an arbitrary hour — used to decide
+  /// whether a *future* scheduled local notification (e.g. a reminder alarm)
+  /// will land inside quiet hours at fire time, since it can't be evaluated
+  /// against "now" ahead of time.
+  bool isHourQuiet(int hour) {
     if (!quietHoursEnabled) return false;
-    final hour = DateTime.now().hour;
     final start = quietStart;
     final end   = quietEnd;
     // Handles overnight window (e.g. 22 → 07)

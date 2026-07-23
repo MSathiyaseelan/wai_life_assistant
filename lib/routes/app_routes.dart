@@ -29,7 +29,7 @@ class AppRoutes {
     login:        (context) => const LoginScreen(),
     otp: (context) {
       final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>;
-      return OtpScreen(phone: args['phone']!, name: args['name'] ?? '');
+      return OtpScreen(phone: args['phone']!);
     },
     profileSetup: (context) => const ProfileSetupScreen(),
     onboarding:   (context) => const OnboardingScreen(),

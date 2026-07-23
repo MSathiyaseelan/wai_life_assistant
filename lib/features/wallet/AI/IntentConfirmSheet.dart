@@ -11,6 +11,8 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTENT CONFIRM SHEET
@@ -224,6 +226,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
 
       if (!mounted) return;
       final saved = TxModel.fromRow(row);
+      _notifyFamilyOfTx(saved);
       widget.onSave(saved);
       Navigator.pop(context);
     } catch (e, st) {
@@ -237,6 +240,45 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
         ),
       );
     }
+  }
+
+  /// Fire-and-forget push to other family members when a transaction lands
+  /// in a shared (non-personal) wallet.
+  void _notifyFamilyOfTx(TxModel tx) {
+    final appState = AppStateScope.read(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == tx.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+
+    String? eventType;
+    switch (tx.type) {
+      case TxType.expense:
+        if (!NotificationPrefs.instance.walletFamilyExpense) return;
+        eventType = 'wallet.expense_added';
+      case TxType.income:
+        if (!NotificationPrefs.instance.walletFamilyExpense) return;
+        eventType = 'wallet.income_added';
+      case TxType.lend:
+        if (!NotificationPrefs.instance.walletLendBorrow) return;
+        eventType = 'wallet.lend_added';
+      default:
+        eventType = null; // borrow/request/split/returned — not templated
+    }
+    if (eventType == null) return;
+    FamilyNotificationTrigger.notify(
+      eventType: eventType,
+      familyId: family.id,
+      eventData: {
+        'member_name': memberName,
+        'amount': tx.amount.toStringAsFixed(0),
+        'category': tx.category,
+        'title': tx.title ?? tx.category,
+        'person': tx.person ?? '',
+      },
+    );
   }
 
   /// If this intent came from Gemini, compares what the user actually saved

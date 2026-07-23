@@ -8,6 +8,9 @@ import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ── Note color palette ────────────────────────────────────────────────────────
 
@@ -298,6 +301,7 @@ class _NotesScreenState extends State<NotesScreen> {
             }
           });
         }
+        _notifyFamilyOfNote(saved);
       } catch (e, stack) {
         final isLimitError = e is NoteLimitExceededException;
         if (!isLimitError) {
@@ -327,6 +331,26 @@ class _NotesScreenState extends State<NotesScreen> {
         }
       }
     }
+  }
+
+  /// Fire-and-forget push to other family members when a note is added, if
+  /// this note's wallet belongs to a family.
+  void _notifyFamilyOfNote(NoteModel note) {
+    final appState = AppStateScope.read(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == note.walletId);
+    if (matches.isEmpty) return;
+    final family = matches.first;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+    FamilyNotificationTrigger.notify(
+      eventType: 'planit.note_added',
+      familyId: family.id,
+      eventData: {
+        'member_name': memberName,
+        'note_title': note.title,
+      },
+    );
   }
 
   Future<void> _deleteNote(NoteModel note) async {
