@@ -79,6 +79,7 @@ class ReminderService {
     }
     final row = await _db.from('reminders').insert({
       'wallet_id':   walletId,
+      'created_by':  _uid,
       'title':       title,
       'emoji':       emoji,
       'due_date':    dueDate.toIso8601String().split('T').first,

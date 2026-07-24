@@ -191,7 +191,24 @@ class _RecycleBinSheetState extends State<RecycleBinSheet> {
     final key = '${item.table}:${item.id}';
     setState(() => _restoring.add(key));
     try {
-      await _db.from(item.table).update({'deleted_at': null}).eq('id', item.id);
+      // A plain `.update()` never throws when RLS blocks it — an UPDATE
+      // whose WHERE (== RLS USING) clause matches 0 rows still "succeeds"
+      // with an empty result. `.select('id')` lets us tell "restored" apart
+      // from "silently denied" (e.g. a non-admin member on an admin-only
+      // family wallet) instead of removing the item from the list either way.
+      final rows = await _db
+          .from(item.table)
+          .update({'deleted_at': null})
+          .eq('id', item.id)
+          .select('id');
+      if ((rows as List).isEmpty) {
+        if (!mounted) return;
+        setState(() => _restoring.remove(key));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("You don't have permission to restore this item.")),
+        );
+        return;
+      }
       if (mounted) setState(() { _items.removeWhere((i) => i.table == item.table && i.id == item.id); _restoring.remove(key); });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'recycle_bin_restore');

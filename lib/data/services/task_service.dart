@@ -68,7 +68,7 @@ class TaskService {
         throw TaskLimitExceededException(limit);
       }
     }
-    final row = await _db.from('tasks').insert(data).select().single();
+    final row = await _db.from('tasks').insert({...data, 'created_by': _uid}).select().single();
     _invalidate();
     return row;
   }

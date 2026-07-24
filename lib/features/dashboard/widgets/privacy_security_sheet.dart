@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/data/services/data_export_service.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/privacy_policy_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,6 +22,7 @@ class PrivacySecuritySheet extends StatefulWidget {
 class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
   final _prefs = PrivacyPrefs.instance;
   bool _loading = true;
+  bool _exporting = false;
 
   @override
   void initState() {
@@ -132,30 +136,13 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
                         _sectionLabel('Export My Data'),
                         _card([
                           _arrowTile(
-                            icon: Icons.picture_as_pdf_rounded,
-                            iconColor: const Color(0xFFFF5C7A),
-                            iconBg: const Color(0xFFFF5C7A).withAlpha(20),
-                            title: 'Export as PDF',
-                            subtitle: 'Download a PDF copy of your data',
-                            onTap: () => _showComingSoon(context, 'Export as PDF'),
-                          ),
-                          _divider(),
-                          _arrowTile(
-                            icon: Icons.table_chart_rounded,
-                            iconColor: const Color(0xFF00C897),
-                            iconBg: const Color(0xFF00C897).withAlpha(20),
-                            title: 'Export as Excel',
-                            subtitle: 'Download an Excel spreadsheet of your data',
-                            onTap: () => _showComingSoon(context, 'Export as Excel'),
-                          ),
-                          _divider(),
-                          _arrowTile(
-                            icon: Icons.email_rounded,
+                            icon: Icons.download_rounded,
                             iconColor: const Color(0xFF4A9EFF),
                             iconBg: const Color(0xFF4A9EFF).withAlpha(20),
-                            title: 'Send to Email',
-                            subtitle: 'Receive your exported data via email',
-                            onTap: () => _showComingSoon(context, 'Send to Email'),
+                            title: _exporting ? 'Preparing export…' : 'Export My Data',
+                            subtitle: 'Download a JSON copy of your personal wallet data — '
+                                'share, save, or email it from the share sheet',
+                            onTap: () => _exportData(context),
                           ),
                         ]),
 
@@ -554,15 +541,30 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
     );
   }
 
-  // ── Coming Soon snackbar ───────────────────────────────────────────────────
+  // ── Export My Data ─────────────────────────────────────────────────────────
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature — coming soon'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _exportData(BuildContext context) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final file = await DataExportService.instance.writeExportFile();
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject: 'My WAI data export',
+          text: 'Here is your exported WAI Life Assistant data.',
+        ),
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'export_my_data');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Export failed. Please try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   // ── Privacy Policy sheet ──────────────────────────────────────────────────

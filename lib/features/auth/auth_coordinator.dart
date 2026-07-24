@@ -95,6 +95,43 @@ class AuthCoordinator {
     }
   }
 
+  /// Verifies [otp] for a NEW phone number and renames the *currently
+  /// logged-in* account to it, via the change-phone edge function.
+  ///
+  /// Deliberately does NOT reuse [verifyOtp] — that flow exchanges the
+  /// Firebase credential for a Supabase session via firebase-verify, which
+  /// signs into (or creates) whichever account owns that phone number. For
+  /// changing your own number that's wrong: it would switch you to a
+  /// different account instead of renaming this one. Call [sendOtp] first
+  /// to trigger the SMS to the new number, same as login.
+  Future<void> verifyAndChangePhone(String otp) async {
+    try {
+      final credential = _autoCredential ??
+          fb.PhoneAuthProvider.credential(
+            verificationId: _verificationId,
+            smsCode: otp,
+          );
+      _autoCredential = null;
+
+      final userCred = await _firebaseAuth.signInWithCredential(credential);
+      final idToken = await userCred.user!.getIdToken();
+
+      final res = await _client.functions.invoke(
+        'change-phone',
+        body: {'id_token': idToken},
+      );
+
+      final data = res.data as Map<String, dynamic>?;
+      if (res.status != 200 || data?['success'] != true) {
+        throw AuthException(
+          data?['error'] as String? ?? 'Failed to change phone number',
+        );
+      }
+    } on fb.FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseError(e.code));
+    }
+  }
+
   String _mapFirebaseError(String code) {
     switch (code) {
       case 'invalid-verification-code':

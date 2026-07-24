@@ -68,7 +68,7 @@ class SpecialDayService {
         throw SpecialDayLimitExceededException(limit);
       }
     }
-    final row = await _db.from('special_days').insert(data).select().single();
+    final row = await _db.from('special_days').insert({...data, 'created_by': _uid}).select().single();
     _invalidate();
     return row;
   }

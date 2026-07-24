@@ -3,7 +3,10 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/subscription/subscription_models.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/features/subscription/paywall_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUBSCRIPTION SHEET
@@ -688,7 +691,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => _showComingSoon(context, 'Upgrade to WAI $title'),
+                onPressed: () => _goToPaywall(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: color,
                   foregroundColor: Colors.white,
@@ -746,7 +749,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
                         ? 'Downgrade to Family Plus'
                         : 'Upgrade to Family Pro',
                     color: _planColor,
-                    onTap: () => _showComingSoon(context, 'Change Plan')),
+                    onTap: () => _goToPaywall(context)),
                 Divider(height: 1, color: _div, indent: 56),
                 _manageRow(context,
                     icon: Icons.cancel_outlined,
@@ -823,6 +826,25 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  /// Routes to the real purchase flow (PaywallScreen) for the family the
+  /// user already belongs to. Family Plus/Pro subscriptions attach to a
+  /// family wallet, so a user with no family yet has nothing to attach one
+  /// to — direct them to create one first instead of a false "coming soon".
+  void _goToPaywall(BuildContext context) {
+    final families = AppStateScope.of(context).families;
+    if (families.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Create a family first — Family plans attach to a family wallet.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final FamilyModel family = families.first;
+    PaywallScreen.show(context, isAdmin: family.isAdmin, familyName: family.name);
   }
 
   void _confirmCancel(BuildContext context) {

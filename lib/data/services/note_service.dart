@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 
@@ -15,6 +16,10 @@ class NoteLimitExceededException implements Exception {
 class NoteService {
   NoteService._();
   static final NoteService instance = NoteService._();
+
+  /// Fires whenever a note is added, updated, or deleted — lets any screen
+  /// (PlanIt, Dashboard) know its cached list is stale.
+  static final changeSignal = ValueNotifier<int>(0);
 
   SupabaseClient get _db => Supabase.instance.client;
   String get _uid {
@@ -50,16 +55,19 @@ class NoteService {
         throw NoteLimitExceededException(limit);
       }
     }
-    final row = await _db.from('notes').insert(data).select().single();
+    final row = await _db.from('notes').insert({...data, 'created_by': _uid}).select().single();
+    changeSignal.value++;
     return row;
   }
 
   Future<void> updateNote(String id, Map<String, dynamic> updates) async {
     await _db.from('notes').update(updates).eq('id', id);
+    changeSignal.value++;
   }
 
   Future<void> deleteNote(String id) async {
     await _db.from('notes').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+    changeSignal.value++;
   }
 
   Future<void> restore(String table, String id) async {

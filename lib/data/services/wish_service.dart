@@ -67,7 +67,7 @@ class WishService {
         throw WishLimitExceededException(limit);
       }
     }
-    final row = await _db.from('wishes').insert(data).select().single();
+    final row = await _db.from('wishes').insert({...data, 'created_by': _uid}).select().single();
     _invalidate();
     return row;
   }

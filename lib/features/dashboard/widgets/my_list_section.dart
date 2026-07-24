@@ -138,7 +138,7 @@ class MyListSection extends StatelessWidget {
                       item: item,
                       isDark: isDark,
                       sub: sub,
-                      onDone: () => _markGroceryDone(item),
+                      onDone: () => _markGroceryDone(context, item),
                       onGoToPantry: onGoToPantry,
                     ),
                   ),
@@ -174,8 +174,8 @@ class MyListSection extends StatelessWidget {
                       item: item,
                       isDark: isDark,
                       sub: sub,
-                      onDone: () => _deleteItem(item),
-                      onMoveToGrocery: () => _moveToGrocery(item),
+                      onDone: () => _deleteItem(context, item),
+                      onMoveToGrocery: () => _moveToGrocery(context, item),
                     ),
                   ),
                 ],
@@ -239,7 +239,7 @@ class MyListSection extends StatelessWidget {
     );
   }
 
-  Future<void> _markGroceryDone(GroceryItem item) async {
+  Future<void> _markGroceryDone(BuildContext context, GroceryItem item) async {
     try {
       await PantryService.instance.updateGroceryItem(item.id, {
         'to_buy':       false,
@@ -250,20 +250,28 @@ class MyListSection extends StatelessWidget {
       onItemsChanged();
     } catch (e) {
       ErrorLogger.warning(e, action: 'list_mark_in_stock');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update item. Please try again.')),
+      );
     }
   }
 
-  Future<void> _deleteItem(GroceryItem item) async {
+  Future<void> _deleteItem(BuildContext context, GroceryItem item) async {
     try {
       await PantryService.instance.deleteGroceryItem(item.id);
       PantryService.listChangeSignal.value++;
       onItemsChanged();
     } catch (e) {
       ErrorLogger.warning(e, action: 'list_delete_item');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete item. Please try again.')),
+      );
     }
   }
 
-  Future<void> _moveToGrocery(GroceryItem item) async {
+  Future<void> _moveToGrocery(BuildContext context, GroceryItem item) async {
     try {
       await PantryService.instance.updateGroceryItem(item.id, {
         'is_grocery': true,
@@ -273,6 +281,10 @@ class MyListSection extends StatelessWidget {
       onItemsChanged();
     } catch (e) {
       ErrorLogger.warning(e, action: 'list_move_to_grocery');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to move item. Please try again.')),
+      );
     }
   }
 
