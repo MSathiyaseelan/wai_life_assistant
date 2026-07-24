@@ -112,15 +112,10 @@ class HealthService {
   // ── Medications ───────────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchMedications(String walletId) async {
-    final today = DateTime.now().toIso8601String().substring(0, 10);
-    await _db
-        .from('health_medications')
-        .update({'is_active': false})
-        .eq('wallet_id', walletId)
-        .eq('is_active', true)
-        .not('end_date', 'is', null)
-        .lt('end_date', today);
-
+    // Expired medications are auto-deactivated server-side by a daily
+    // pg_cron job (see 115_deactivate_expired_medications.sql) instead of
+    // as a write side-effect of this read — a plain fetch shouldn't also
+    // mutate data (and previously required edit permission just to view).
     final rows = await _db
         .from('health_medications')
         .select()

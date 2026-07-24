@@ -135,7 +135,14 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'health_load_data');
       debugPrint('[HealthSpace] loadData error: $e');
-      if (mounted) setState(() => _loading = false);
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Failed to load Health Space data'),
+          action: SnackBarAction(label: 'Retry', onPressed: _loadData),
+        ),
+      );
     }
   }
 
