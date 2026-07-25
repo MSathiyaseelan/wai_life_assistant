@@ -179,7 +179,7 @@ class _VehicleBasicDetailsScreenState extends State<VehicleBasicDetailsScreen> {
   }
 
   void _save() {
-    // TODO: update Vehicle / LifestyleController here
+    // TODO: persist to a real backend once My Garage has one (currently mock/local-only).
     setState(() => _isEditing = false);
   }
 

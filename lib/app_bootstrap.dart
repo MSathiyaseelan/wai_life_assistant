@@ -17,7 +17,6 @@ import 'firebase_options.dart';
 import 'main.dart';
 import 'core/env/env.dart';
 import 'package:provider/provider.dart';
-import 'package:wai_life_assistant/features/lifestyle/widgets/lifestyle_controller.dart';
 
 Future<void> bootstrapApp(String env) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,8 +76,7 @@ Future<void> bootstrapApp(String env) async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => LifestyleController()),
-        // add more controllers when needed
+        // add controllers when needed
       ],
       child: LifeAssistanceApp(config: envConfig),
     ),
