@@ -844,7 +844,14 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
       return;
     }
     final FamilyModel family = families.first;
-    PaywallScreen.show(context, isAdmin: family.isAdmin, familyName: family.name);
+    final walletId = family.walletId;
+    if (walletId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This family has no wallet yet — try again in a moment.')),
+      );
+      return;
+    }
+    PaywallScreen.show(context, isAdmin: family.isAdmin, familyName: family.name, walletId: walletId);
   }
 
   void _confirmCancel(BuildContext context) {

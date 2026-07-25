@@ -3,6 +3,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/subscription/revenuecat_config.dart';
 import '../../data/services/subscription_service.dart';
+import '../AppStateNotifier.dart';
 
 /// Upgrade-plan paywall for a family's wallet. Only the family admin can
 /// actually purchase — members can still see plans/pricing, with an
@@ -10,22 +11,25 @@ import '../../data/services/subscription_service.dart';
 class PaywallScreen extends StatefulWidget {
   final bool isAdmin;
   final String familyName;
+  final String walletId;
 
   const PaywallScreen({
     super.key,
     required this.isAdmin,
     required this.familyName,
+    required this.walletId,
   });
 
   static Future<void> show(
     BuildContext context, {
     required bool isAdmin,
     required String familyName,
+    required String walletId,
   }) {
     return Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PaywallScreen(isAdmin: isAdmin, familyName: familyName),
+        builder: (_) => PaywallScreen(isAdmin: isAdmin, familyName: familyName, walletId: walletId),
       ),
     );
   }
@@ -69,19 +73,31 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (!widget.isAdmin || _purchasingPackage != null) return;
     setState(() => _purchasingPackage = package);
     try {
-      final info = await SubscriptionService.instance.purchasePackage(package);
+      final info = await SubscriptionService.instance.purchasePackage(
+        package,
+        walletId: widget.walletId,
+      );
       if (!mounted) return;
       if (info != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Plan upgraded! Enjoy the new limits.')),
+          const SnackBar(
+            content: Text(
+              "Payment confirmed! Your plan updates within a few seconds "
+              "as RevenueCat notifies us — pull to refresh if it hasn't yet.",
+            ),
+          ),
         );
+        // Best-effort reconciliation — the actual plan update happens via
+        // the revenuecat-webhook edge function, which may not have finished
+        // processing yet. This just refreshes local state in case it has.
+        AppStateScope.read(context).reload();
         Navigator.pop(context);
       }
       // info == null means the user cancelled — no message needed.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Purchase failed: $e')),
+        SnackBar(content: Text(SubscriptionService.friendlyErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _purchasingPackage = null);
@@ -95,6 +111,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
       final info = await SubscriptionService.instance.restorePurchases();
       if (!mounted) return;
       final hasEntitlement = info?.entitlements.active.isNotEmpty == true;
+      if (hasEntitlement) AppStateScope.read(context).reload();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -107,7 +124,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Restore failed: $e')),
+        SnackBar(content: Text(SubscriptionService.friendlyErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _restoring = false);

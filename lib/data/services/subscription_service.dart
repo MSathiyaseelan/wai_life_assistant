@@ -60,11 +60,16 @@ class SubscriptionService {
     }
   }
 
-  /// Starts a purchase for [package]. Returns the updated CustomerInfo on
-  /// success, null if the user cancelled the purchase flow, and rethrows
-  /// any other error so the caller can show a real error message.
-  Future<CustomerInfo?> purchasePackage(Package package) async {
+  /// Starts a purchase for [package], attaching [walletId] as a RevenueCat
+  /// subscriber attribute first so the revenuecat-webhook edge function
+  /// knows unambiguously which family wallet this purchase applies to —
+  /// app_user_id alone isn't enough since a user can belong to more than
+  /// one family. Returns the updated CustomerInfo on success, null if the
+  /// user cancelled the purchase flow, and rethrows any other error so the
+  /// caller can show a real error message.
+  Future<CustomerInfo?> purchasePackage(Package package, {required String walletId}) async {
     try {
+      await Purchases.setAttributes({'wai_wallet_id': walletId});
       final result = await Purchases.purchase(PurchaseParams.package(package));
       return result.customerInfo;
     } on PlatformException catch (e) {
@@ -81,6 +86,32 @@ class SubscriptionService {
   Future<CustomerInfo?> restorePurchases() async {
     if (!_configured) return null;
     return Purchases.restorePurchases();
+  }
+
+  /// Maps a purchase/restore failure to a short, user-facing message
+  /// instead of the raw platform exception text (e.g. Play Billing error
+  /// codes). Falls back to a generic message for anything unrecognized.
+  static String friendlyErrorMessage(Object error) {
+    if (error is PlatformException) {
+      switch (PurchasesErrorHelper.getErrorCode(error)) {
+        case PurchasesErrorCode.networkError:
+          return 'No internet connection. Please check your network and try again.';
+        case PurchasesErrorCode.storeProblemError:
+          return 'The app store is having issues right now. Please try again later.';
+        case PurchasesErrorCode.purchaseNotAllowedError:
+          return "Purchases aren't allowed on this device (parental controls or restrictions).";
+        case PurchasesErrorCode.purchaseInvalidError:
+        case PurchasesErrorCode.productNotAvailableForPurchaseError:
+          return 'This plan is not available for purchase right now. Please try again later.';
+        case PurchasesErrorCode.receiptAlreadyInUseError:
+          return 'This subscription is already linked to a different account.';
+        case PurchasesErrorCode.paymentPendingError:
+          return 'Your payment is pending approval. This can take a moment to complete.';
+        default:
+          return 'Something went wrong. Please try again.';
+      }
+    }
+    return 'Something went wrong. Please try again.';
   }
 
   /// Whether the current subscriber has an active [entitlementId]

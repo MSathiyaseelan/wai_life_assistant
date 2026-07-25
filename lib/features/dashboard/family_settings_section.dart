@@ -1002,11 +1002,21 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => PaywallScreen.show(
-          context,
-          isAdmin: isAdmin,
-          familyName: family.name,
-        ),
+        onTap: () {
+          final walletId = family.walletId;
+          if (walletId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('This family has no wallet yet — try again in a moment.')),
+            );
+            return;
+          }
+          PaywallScreen.show(
+            context,
+            isAdmin: isAdmin,
+            familyName: family.name,
+            walletId: walletId,
+          );
+        },
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           leading: Container(
