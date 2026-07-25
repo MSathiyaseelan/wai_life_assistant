@@ -166,7 +166,6 @@ serve(async (req) => {
   let body: {
     event_type: string;
     family_id: string;
-    triggered_by: string;
     event_data: TemplateData;
   };
 
@@ -178,7 +177,7 @@ serve(async (req) => {
     });
   }
 
-  const { event_type, family_id, triggered_by, event_data } = body;
+  const { event_type, family_id, event_data } = body;
 
   const template = TEMPLATES[event_type];
   if (!template) {
@@ -186,12 +185,57 @@ serve(async (req) => {
       status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
+  if (!family_id) {
+    return new Response(JSON.stringify({ error: "family_id is required" }), {
+      status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  // ── Authorization ────────────────────────────────────────────────────────
+  // This function used to trust client-supplied family_id/triggered_by with
+  // no verification at all — any logged-in user could push notifications to
+  // any family in the system. Resolve the caller from their own Supabase
+  // session instead, and require they're actually a member of family_id.
+  // triggered_by is no longer taken from the request body — it's always the
+  // verified caller, closing the spoofing gap along with it.
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+      status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+  const { data: { user: caller }, error: callerErr } =
+    await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+  if (callerErr || !caller) {
+    return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
+      status: 401, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+  const triggered_by = caller.id;
+
+  const { data: callerMembership, error: callerMembershipErr } = await supabase
+    .from("family_members")
+    .select("id")
+    .eq("family_id", family_id)
+    .eq("user_id", triggered_by)
+    .maybeSingle();
+  if (callerMembershipErr) {
+    console.error("[notify] caller membership check failed:", callerMembershipErr);
+    return new Response(JSON.stringify({ error: "Membership check failed" }), {
+      status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
+  if (!callerMembership) {
+    return new Response(JSON.stringify({ error: "Not a member of this family" }), {
+      status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
+  }
 
   const { title, body: notifBody, route } = template(event_data);
 
   console.log(`[notify] event=${event_type} family=${family_id} triggered_by=${triggered_by}`);
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   // Get linked family members (user_id NOT NULL) excluding the triggering user.
   // Note: family_members has no status column — filter by user_id IS NOT NULL.

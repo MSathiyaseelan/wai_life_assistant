@@ -154,6 +154,33 @@ class FcmService {
     }
   }
 
+  // ── Remove FCM token on sign-out ────────────────────────────────────────────
+
+  /// Deletes this device's FCM token row for the currently logged-in user.
+  /// Must be called BEFORE actually signing out — user_fcm_tokens RLS scopes
+  /// rows to auth.uid(), so once the session is gone this delete would be
+  /// blocked. Without this, logging a second account into the same device
+  /// leaves the first account's token row behind (rows are keyed on
+  /// (user_id, platform, fcm_token), not just the token), and that account
+  /// keeps receiving its family's push notifications on a device it's no
+  /// longer logged into.
+  static Future<void> deleteFcmToken() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final token = await _messaging.getToken();
+      if (token == null) return;
+      await Supabase.instance.client
+          .from('user_fcm_tokens')
+          .delete()
+          .eq('user_id', userId)
+          .eq('fcm_token', token);
+      debugPrint('[FCM] token removed on sign-out');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'fcm_delete_token');
+    }
+  }
+
   // ── Navigation on tap ──────────────────────────────────────────────────────
 
   static void _handleTap(RemoteMessage message) {

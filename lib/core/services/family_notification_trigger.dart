@@ -29,13 +29,16 @@ class FamilyNotificationTrigger {
     if (userId == null) return;
     if (familyId.isEmpty) return;
 
-    // Fire and forget — never await, never block the UI
+    // Fire and forget — never await, never block the UI. Note: the edge
+    // function resolves "who's triggering this" from the caller's own
+    // session (the Authorization header supabase_flutter attaches
+    // automatically), not from a client-supplied field — it also verifies
+    // the caller is actually a member of familyId before sending anything.
     _supabase.functions.invoke(
       'send-notification',
       body: {
         'event_type': eventType,
         'family_id': familyId,
-        'triggered_by': userId,
         'event_data': eventData,
       },
     ).then((_) {

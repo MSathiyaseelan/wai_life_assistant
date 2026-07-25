@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/services/subscription_service.dart';
+import 'package:wai_life_assistant/core/services/fcm_service.dart';
 
 class AuthCoordinator {
   AuthCoordinator._();
@@ -194,6 +195,15 @@ class AuthCoordinator {
   /// Signs the user out of Firebase and Supabase.
   /// Pass [allDevices: true] to revoke all refresh tokens (logout everywhere).
   Future<void> signOut({bool allDevices = true}) async {
+    // Must happen BEFORE auth.signOut() — user_fcm_tokens RLS scopes rows to
+    // auth.uid(), so this device's token can only be removed while still
+    // authenticated. Otherwise a different account logging in on this same
+    // device later would leave this account's token behind and keep
+    // receiving its notifications.
+    try {
+      await FcmService.deleteFcmToken();
+    } catch (_) {}
+
     // Run both sign-outs independently — Firebase may have no active user
     // (anonymous / bypass sessions never sign into Firebase).
     await _client.auth.signOut(
