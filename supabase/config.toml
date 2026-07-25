@@ -1,0 +1,27 @@
+[functions.send-notification]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.firebase-verify]
+verify_jwt = true
+
+[functions.change-phone]
+verify_jwt = true
+
+[functions.parse]
+verify_jwt = true
+
+# Called by pg_cron via the internal x-cron-secret header, never by an
+# authenticated app session — must stay unverified at the gateway level.
+[functions.notify-trial-expiry]
+verify_jwt = false
+
+[functions.check-scheduled-notifications]
+verify_jwt = false
+
+# Called by RevenueCat's servers with their own shared-secret Authorization
+# header, never a Supabase session JWT.
+[functions.revenuecat-webhook]
+verify_jwt = false

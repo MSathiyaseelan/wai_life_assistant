@@ -117,9 +117,18 @@ class _PlanItScreenState extends State<PlanItScreen> {
     }
   }
 
+  // Mirrors AppStateNotifier._isPlaceholder — prevents loading with fake wallet
+  // ID on first launch (e.g. a fresh install where AppStateNotifier.init()'s
+  // retries haven't resolved a real wallet UUID yet, and it fell back to the
+  // 'personal' placeholder). Every other tab (Dashboard/Pantry/Wallet/
+  // Wardrobe) already guards against this; PlanIt didn't, so a brand-new
+  // account could hit tasks/reminders/etc. with wallet_id='personal' against
+  // a uuid column and get "Failed to load PlanIt data".
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   Future<void> _loadAllData({bool force = false}) async {
     final wid = widget.activeWalletId;
-    if (wid.isEmpty) return;
+    if (_isPlaceholder(wid)) return;
     // When viewing Personal, also fetch data from all family wallets so they
     // appear in Personal view with a family indicator.
     final walletIds = _currentWallet.isPersonal
