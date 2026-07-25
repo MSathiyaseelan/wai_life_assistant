@@ -8,10 +8,10 @@ Supabase is the core backend platform. It provides five services simultaneously:
 
 | Service | What WAI uses it for |
 |---|---|
-| **Auth** | JWT sessions — accounts created by the `verify-otp` edge function, not native Supabase phone auth |
+| **Auth** | JWT sessions — accounts created by the `firebase-verify` edge function (Firebase Phone Auth OTP + Supabase session), not native Supabase phone auth. `send-otp`/`verify-otp` (MSG91-based) are deprecated and were undeployed — see [MSG91](msg91.md). |
 | **Database** | All application data (41 tables) with RLS on every table |
 | **Storage** | Bill/receipt images (pantry bill scan), wardrobe photos |
-| **Edge Functions** | `parse`, `send-otp`, `verify-otp`, `send-notification` — all server-side logic |
+| **Edge Functions** | `parse`, `firebase-verify`, `change-phone`, `send-notification`, and others — all server-side logic |
 | **Realtime** | Live push of notification inserts to connected clients |
 
 ---
@@ -58,14 +58,21 @@ final _db = Supabase.instance.client;
 
 ## Edge Functions
 
-Four edge functions deployed at `https://oeclczbamrnouuzooitx.supabase.co/functions/v1/`:
+Edge functions deployed at `https://oeclczbamrnouuzooitx.supabase.co/functions/v1/`
+(current list — run `supabase functions list --project-ref oeclczbamrnouuzooitx`
+for the authoritative, up-to-date set):
 
 | Function | Purpose |
 |---|---|
 | `parse` | AI parsing via Gemini — all text and image requests |
-| `send-otp` | Sends OTP via MSG91 |
-| `verify-otp` | Verifies OTP with MSG91, creates/signs in user |
+| `firebase-verify` | Verifies a Firebase Phone Auth ID token, mints/reuses the Supabase session for login |
+| `change-phone` | Renames the *currently logged-in* account's phone number (separate from login — see [architecture.md](../architecture.md#authentication-flow)) |
 | `send-notification` | Sends FCM push notifications to family members |
+| `delete-account` | Full account deletion (DPDP compliance) |
+| `notify-trial-expiry`, `check-scheduled-notifications` | Scheduled (pg_cron) push notification jobs |
+
+`send-otp`/`verify-otp` (MSG91-based login) are **deprecated and removed** —
+see [MSG91](msg91.md).
 
 ### Invoking from Flutter
 
@@ -91,8 +98,7 @@ All secrets are stored as Supabase edge function environment variables:
 | Secret | Service | Set manually? |
 |---|---|---|
 | `GEMINI_API_KEY` | Google Gemini | Yes |
-| `MSG91_AUTH_KEY` | MSG91 | Yes |
-| `MSG91_TEMPLATE_ID` | MSG91 | Yes |
+| `FIREBASE_PROJECT_ID` | Firebase Phone Auth | Yes (`firebase-verify`, `change-phone`) |
 | `WAI_INTERNAL_AUTH_PASS` | Internal auth | Yes |
 | `FCM_SERVICE_ACCOUNT` | Firebase FCM | Yes |
 | `SUPABASE_URL` | Supabase | Auto-injected |
@@ -169,15 +175,14 @@ supabase db push
 
 # 5. Set secrets
 supabase secrets set GEMINI_API_KEY=<your-key>
-supabase secrets set MSG91_AUTH_KEY=<your-key>
-supabase secrets set MSG91_TEMPLATE_ID=<your-template-id>
+supabase secrets set FIREBASE_PROJECT_ID=<your-firebase-project-id>
 supabase secrets set WAI_INTERNAL_AUTH_PASS=<strong-password>
 supabase secrets set FCM_SERVICE_ACCOUNT='<json-content>'
 
 # 6. Deploy edge functions
 supabase functions deploy parse
-supabase functions deploy send-otp
-supabase functions deploy verify-otp
+supabase functions deploy firebase-verify
+supabase functions deploy change-phone
 supabase functions deploy send-notification
 
 # 7. No client code changes needed — SupabaseConfig.dart has the real URL/key
@@ -189,5 +194,6 @@ supabase functions deploy send-notification
 
 - [Database Schema](../database.md) — all 41 tables with RLS policies
 - [Gemini AI](gemini.md) — the `parse` edge function
-- [MSG91](msg91.md) — the `send-otp` and `verify-otp` functions
+- [Firebase](firebase.md) — the `firebase-verify` and `change-phone` functions
+- [MSG91](msg91.md) — deprecated, historical reference only
 - [Firebase FCM](firebase.md) — the `send-notification` function

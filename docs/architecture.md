@@ -44,11 +44,11 @@ graph TD
         AUTH["Auth\n(JWT sessions)"]
         DB["Postgres\n(RLS on every table)"]
         STOR["Storage\n(profile photos, icons)"]
-        EDGE["Edge Functions\nsend-otp / verify-otp\nparse / send-notification"]
+        EDGE["Edge Functions\nfirebase-verify / change-phone\nparse / send-notification"]
     end
 
     subgraph External["External Services"]
-        MSG91["MSG91\nSMS OTP delivery"]
+        FBAUTH["Firebase Phone Auth\nSMS OTP delivery + verification"]
         FCM["Firebase FCM\nPush notifications"]
         GEM["Google Gemini AI\nNLP parsing"]
     end
@@ -57,7 +57,7 @@ graph TD
     NAV --> Tabs
     NAV --> ASN
     ASN --> DB
-    EDGE --> MSG91
+    EDGE --> FBAUTH
     AUTH --> EDGE
     FCM --> NAV
     D & W & P & PL --> GEM
@@ -240,23 +240,37 @@ Every service method accepts `walletId` and passes it directly to Supabase. The 
 
 ## Authentication Flow
 
-OTP is handled through Supabase Edge Functions, not Supabase built-in OTP:
+OTP is handled via Firebase Phone Auth + a Supabase Edge Function, not
+Supabase's built-in phone OTP and not MSG91 (deprecated/removed — see
+[`docs/integrations/msg91.md`](integrations/msg91.md)):
 
 ```
-LoginScreen  →  /send-otp  →  MSG91  →  SMS delivered
+LoginScreen (phone number only)
                    │
-              requestId returned
-
+AuthCoordinator.sendOtp()  →  Firebase Phone Auth  →  SMS delivered
+                   │
 User enters OTP
                    │
-OtpScreen  →  /verify-otp  →  validates with MSG91
+AuthCoordinator.verifyOtp()  →  Firebase sign-in  →  ID token
+                   │
+              /firebase-verify edge function
+              (verifies ID token against Firebase JWKS,
+               mints/reuses phone_<digits>@waiapp.internal Supabase user)
                    │
               returns access_token + refresh_token
                    │
               _client.auth.setSession()
                    │
-              Navigator.pushReplacementNamed('/bottomNav')
+   existing user w/ name  →  onboarding done  →  /bottomNav
+   existing user w/o name  →  /profileSetup
+   new user                →  bootstrap profile  →  /profileSetup
 ```
+
+Changing the phone number on an already-logged-in account is a separate
+flow (`AuthCoordinator.verifyAndChangePhone()` → `/change-phone` edge
+function) — it renames the caller's existing Supabase user in place rather
+than minting a new session, so it doesn't accidentally switch the device
+to a different account.
 
 > Security note: `AuthCoordinator.bypassVerify()` signs in anonymously — development only, must be removed before production release.
 

@@ -36,8 +36,8 @@
 |---|---|
 | [Supabase](integrations/supabase.md) | Auth, Postgres, Realtime, Storage, Edge Functions |
 | [Gemini AI](integrations/gemini.md) | Text and image parsing via Edge Function |
-| [Firebase FCM](integrations/firebase.md) | Push notifications |
-| [MSG91](integrations/msg91.md) | OTP-based phone authentication |
+| [Firebase](integrations/firebase.md) | Push notifications + OTP-based phone authentication |
+| [MSG91](integrations/msg91.md) | Deprecated — historical reference only |
 
 ---
 

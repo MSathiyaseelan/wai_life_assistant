@@ -84,15 +84,14 @@ supabase db push
 
 ```bash
 supabase secrets set GEMINI_API_KEY=<get-from-aistudio.google.com>
-supabase secrets set MSG91_AUTH_KEY=<get-from-msg91.com>
-supabase secrets set MSG91_TEMPLATE_ID=<your-dlt-flow-id>
+supabase secrets set FIREBASE_PROJECT_ID=<your-firebase-project-id>
 supabase secrets set WAI_INTERNAL_AUTH_PASS=<any-strong-password>
 supabase secrets set FCM_SERVICE_ACCOUNT='<json-from-firebase-service-account>'
 ```
 
 You can skip secrets for services you don't need:
 - Skip `GEMINI_*` → AI parsing returns "Setup incomplete" messages
-- Skip `MSG91_*` → phone login won't work (use `AuthCoordinator.bypassVerify()` in dev)
+- Skip `FIREBASE_PROJECT_ID` → phone login won't work (use `AuthCoordinator.bypassVerify()` in dev)
 - Skip `FCM_SERVICE_ACCOUNT` → push notifications disabled
 
 ---
@@ -101,8 +100,8 @@ You can skip secrets for services you don't need:
 
 ```bash
 supabase functions deploy parse
-supabase functions deploy send-otp
-supabase functions deploy verify-otp
+supabase functions deploy firebase-verify
+supabase functions deploy change-phone
 supabase functions deploy send-notification
 ```
 
@@ -121,7 +120,7 @@ flutter run -d <device-id>
 flutter devices
 ```
 
-The app will start on the login screen. It requires a real Indian phone number to receive an OTP via MSG91.
+The app will start on the login screen. It requires a real Indian phone number to receive an OTP via Firebase Phone Auth.
 
 ### Dev bypass (no OTP needed)
 
@@ -159,8 +158,8 @@ lib/
 supabase/
 ├── functions/               ← Edge functions (Deno/TypeScript)
 │   ├── parse/               ← AI parsing via Gemini
-│   ├── send-otp/            ← MSG91 OTP delivery
-│   ├── verify-otp/          ← MSG91 OTP verification + session creation
+│   ├── firebase-verify/     ← Firebase Phone Auth OTP verification + session creation
+│   ├── change-phone/        ← Renames an existing account's phone number
 │   └── send-notification/   ← FCM push notifications
 └── migrations/              ← 001–041 SQL migrations + seed files
 ```
@@ -234,8 +233,7 @@ See [integrations/firebase.md → Notification Templates](integrations/firebase.
 | Secret | Required for | Where to get |
 |---|---|---|
 | `GEMINI_API_KEY` | AI parsing | aistudio.google.com |
-| `MSG91_AUTH_KEY` | Phone OTP | msg91.com dashboard |
-| `MSG91_TEMPLATE_ID` | Phone OTP | msg91.com → SMS → OTP Flow |
+| `FIREBASE_PROJECT_ID` | Phone OTP (`firebase-verify`, `change-phone`) | Firebase Console → Project Settings |
 | `WAI_INTERNAL_AUTH_PASS` | User auth | generate any strong password |
 | `FCM_SERVICE_ACCOUNT` | Push notifications | Firebase Console → Service Accounts |
 
@@ -251,8 +249,8 @@ See [integrations/firebase.md → Notification Templates](integrations/firebase.
 - [Functions Tracker](features/functions.md) — MOI system
 - [Supabase](integrations/supabase.md) — backend platform setup
 - [Gemini AI](integrations/gemini.md) — AI API details
-- [Firebase FCM](integrations/firebase.md) — push notifications
-- [MSG91](integrations/msg91.md) — phone OTP
+- [Firebase](integrations/firebase.md) — push notifications + phone OTP (`firebase-verify`, `change-phone`)
+- [MSG91](integrations/msg91.md) — deprecated, historical reference only
 - [Smart Parser](ai/smart-parser.md) — two-layer NLP architecture
 - [Prompts Reference](ai/prompts-reference.md) — all 28 AI prompts
 - [Error Tracking](operations/error-tracking.md) — debugging production issues

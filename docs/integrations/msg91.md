@@ -1,5 +1,15 @@
 # MSG91 SendOTP Integration
 
+> **⚠️ DEPRECATED — REMOVED FROM PRODUCTION.** The app's OTP login now goes
+> through Firebase Phone Auth + the `firebase-verify` edge function (see
+> `supabase/functions/firebase-verify/index.ts` and
+> [`docs/integrations/firebase.md`](firebase.md)), not MSG91. The `send-otp`
+> and `verify-otp` edge functions described below were undeployed and
+> deleted from the repo — they had no server-side rate limiting and a
+> hardcoded password fallback if `WAI_INTERNAL_AUTH_PASS` was unset, which
+> made them a live abuse/security risk once the client stopped using them.
+> Do not redeploy them. This page is kept only as historical reference.
+
 ---
 
 ## Purpose

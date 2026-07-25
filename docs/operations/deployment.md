@@ -59,8 +59,7 @@ Follow this in order whenever standing up a new environment (QA, UAT, or a futur
 - [ ] **Set every required secret** for this environment (see the secrets table under [Edge Functions Deployment](#edge-functions-deployment) for the full list and which function needs which). At minimum:
   ```bash
   supabase secrets set GEMINI_API_KEY=<value> --project-ref <project-ref>
-  supabase secrets set MSG91_AUTH_KEY=<value> --project-ref <project-ref>
-  supabase secrets set MSG91_TEMPLATE_ID=<value> --project-ref <project-ref>
+  supabase secrets set FIREBASE_PROJECT_ID=<value> --project-ref <project-ref>
   supabase secrets set WAI_INTERNAL_AUTH_PASS=<new-strong-random-value> --project-ref <project-ref>
   supabase secrets set FCM_SERVICE_ACCOUNT='<firebase-service-account-json>' --project-ref <project-ref>
   ```
@@ -152,38 +151,43 @@ The following usage descriptions must be set (they already exist but verify befo
 
 ## Edge Functions Deployment
 
-Seven edge functions live in `supabase/functions/`. Deploy one or all — always pass `--project-ref` explicitly rather than relying on whatever the CLI happens to be linked to, so you don't accidentally deploy to the wrong environment:
+`send-otp`/`verify-otp` (MSG91-based login) are **deprecated, undeployed, and
+removed from the repo** — see [MSG91](../integrations/msg91.md). Login now
+goes entirely through `firebase-verify`. Deploy one or all — always pass
+`--project-ref` explicitly rather than relying on whatever the CLI happens
+to be linked to, so you don't accidentally deploy to the wrong environment:
 
 ```bash
 # Deploy a single function
-supabase functions deploy parse               --project-ref <project-ref>
-supabase functions deploy send-otp            --project-ref <project-ref>
-supabase functions deploy verify-otp          --project-ref <project-ref>
-supabase functions deploy firebase-verify     --project-ref <project-ref>
-supabase functions deploy send-notification   --project-ref <project-ref>
-supabase functions deploy delete-account      --project-ref <project-ref>
-supabase functions deploy notify-trial-expiry --project-ref <project-ref>
+supabase functions deploy parse                        --project-ref <project-ref>
+supabase functions deploy firebase-verify               --project-ref <project-ref>
+supabase functions deploy change-phone                  --project-ref <project-ref>
+supabase functions deploy send-notification              --project-ref <project-ref>
+supabase functions deploy delete-account                 --project-ref <project-ref>
+supabase functions deploy notify-trial-expiry            --project-ref <project-ref>
+supabase functions deploy check-scheduled-notifications   --project-ref <project-ref>
 
 # Deploy all functions at once
 supabase functions deploy --project-ref <project-ref>
 
-# Check deployment status
+# Check deployment status (also the authoritative source of truth for
+# what's actually live — docs can drift, this can't)
 supabase functions list --project-ref <project-ref>
 ```
 
 | Function | Purpose | Required secrets |
 |---|---|---|
 | `parse` | AI parsing (Gemini) for all natural-language/image inputs across the app | `GEMINI_API_KEY`, `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\* |
-| `send-otp` | Sends OTP via MSG91 for phone login | `MSG91_AUTH_KEY`, `MSG91_TEMPLATE_ID` |
-| `verify-otp` | Verifies MSG91 OTP, signs in/creates the Supabase user | `MSG91_AUTH_KEY`, `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\*, `WAI_INTERNAL_AUTH_PASS` (has a dev fallback, but set it explicitly) |
-| `firebase-verify` | Verifies Firebase Phone Auth ID token, signs in/creates the Supabase user | `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\*, `WAI_INTERNAL_AUTH_PASS` **(hard-fails at startup if unset — no fallback)**, `FIREBASE_PROJECT_ID` (has a fallback) |
+| `firebase-verify` | Verifies Firebase Phone Auth ID token, signs in/creates the Supabase user (login) | `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\*, `WAI_INTERNAL_AUTH_PASS` **(hard-fails at startup if unset — no fallback)**, `FIREBASE_PROJECT_ID` (has a fallback) |
+| `change-phone` | Renames the *currently logged-in* caller's account to a new, OTP-verified phone number | `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\*, `FIREBASE_PROJECT_ID` (has a fallback) |
 | `send-notification` | Sends FCM push notifications after family events | `FCM_SERVICE_ACCOUNT`, `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\* |
 | `delete-account` | Account deletion flow | `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\* |
 | `notify-trial-expiry` | Scheduled job notifying users of trial expiry | `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\*, `FCM_SERVICE_ACCOUNT`, `CRON_SECRET` (has a fallback) |
+| `check-scheduled-notifications` | Scheduled job for special-day/expiry-alert pushes | `SUPABASE_URL`\*, `SUPABASE_SERVICE_ROLE_KEY`\*, `FCM_SERVICE_ACCOUNT`, `CRON_SECRET` (has a fallback) |
 
 \* `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected by Supabase per-project — never set these manually.
 
-> **`WAI_INTERNAL_AUTH_PASS` is used as the literal Supabase Auth password** for every phone-auth user (`phone_<digits>@waiapp.internal`), shared across `verify-otp` and `firebase-verify`. Supabase secrets are project-wide, so setting it once makes both functions agree. It does **not** need to match the value used in other environments — each environment has its own separate `auth.users` table — it just needs to be set once per environment and never changed afterward (rotating it breaks sign-in for existing users on that environment; see [Secret Rotation](#secret-rotation)).
+> **`WAI_INTERNAL_AUTH_PASS` is used as the literal Supabase Auth password** for every phone-auth user (`phone_<digits>@waiapp.internal`), used by `firebase-verify`. It does **not** need to match the value used in other environments — each environment has its own separate `auth.users` table — it just needs to be set once per environment and never changed afterward (rotating it breaks sign-in for existing users on that environment; see [Secret Rotation](#secret-rotation)).
 
 ### Verifying a deployment
 

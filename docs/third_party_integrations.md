@@ -26,10 +26,10 @@ Supabase is the core backend platform. It provides five services used simultaneo
 
 | Service | What WAI uses it for |
 |---|---|
-| **Auth** | Manages user sessions (JWT tokens, refresh) — accounts are created by the `verify-otp` edge function, not native Supabase phone auth |
+| **Auth** | Manages user sessions (JWT tokens, refresh) — accounts are created by the `firebase-verify` edge function (Firebase Phone Auth + Supabase session), not native Supabase phone auth. See §5.4 for the deprecated MSG91-based predecessor. |
 | **Database** | All application data: wallets, transactions, tasks, reminders, groceries, functions/MOI, notifications, AI logs, FCM tokens |
 | **Storage** | Bill/receipt images (pantry bill scan), wardrobe photos |
-| **Edge Functions** | `parse`, `send-otp`, `verify-otp`, `send-notification` — all server-side logic |
+| **Edge Functions** | `parse`, `firebase-verify`, `change-phone`, `send-notification`, and others — all server-side logic |
 | **Realtime** | Live push of notification inserts to connected clients |
 
 ### Authentication Method
@@ -172,17 +172,16 @@ supabase link --project-ref oeclczbamrnouuzooitx
 # 4. Run migrations (creates all tables, RLS, and seed prompts)
 supabase db push
 
-# 5. Set edge function secrets (see Section 5.2, 5.3, 5.4 for values)
+# 5. Set edge function secrets (see Section 5.1 auth note, 5.2, 5.3 for values)
 supabase secrets set GEMINI_API_KEY=<your-key>
-supabase secrets set MSG91_AUTH_KEY=<your-key>
-supabase secrets set MSG91_TEMPLATE_ID=<your-template-id>
+supabase secrets set FIREBASE_PROJECT_ID=<your-firebase-project-id>
 supabase secrets set WAI_INTERNAL_AUTH_PASS=<strong-password>
 supabase secrets set FCM_SERVICE_ACCOUNT='<json-content>'
 
 # 6. Deploy edge functions
 supabase functions deploy parse
-supabase functions deploy send-otp
-supabase functions deploy verify-otp
+supabase functions deploy firebase-verify
+supabase functions deploy change-phone
 supabase functions deploy send-notification
 
 # 7. No client code changes needed — SupabaseConfig.dart has the real project URL/key
@@ -549,6 +548,16 @@ supabase functions deploy send-notification
 ---
 
 ## 5.4 MSG91 SendOTP
+
+> **⚠️ DEPRECATED — REMOVED FROM PRODUCTION.** Login now goes through
+> Firebase Phone Auth + the `firebase-verify` edge function instead (see
+> §5.1 above and [`docs/integrations/firebase.md`](integrations/firebase.md)).
+> The `send-otp`/`verify-otp` edge functions this section describes were
+> undeployed and deleted from the repo — they had no server-side rate
+> limiting and a hardcoded password fallback if `WAI_INTERNAL_AUTH_PASS`
+> was unset, which made them a live abuse/security risk once the client
+> stopped calling them. Do not redeploy them or follow the setup steps
+> below for a new environment. Kept only as historical reference.
 
 ### Purpose
 
@@ -1009,8 +1018,7 @@ All secrets are stored as Supabase edge function environment variables. Client c
 | Secret Name | Service | Where set |
 |---|---|---|
 | `GEMINI_API_KEY` | Google Gemini | Supabase secrets |
-| `MSG91_AUTH_KEY` | MSG91 | Supabase secrets |
-| `MSG91_TEMPLATE_ID` | MSG91 | Supabase secrets |
+| `FIREBASE_PROJECT_ID` | Firebase Phone Auth (`firebase-verify`, `change-phone`) | Supabase secrets |
 | `WAI_INTERNAL_AUTH_PASS` | Supabase Auth (internal) | Supabase secrets |
 | `FCM_SERVICE_ACCOUNT` | Firebase FCM | Supabase secrets (JSON string) |
 | `SUPABASE_URL` | Supabase | Auto-injected by Supabase runtime |
