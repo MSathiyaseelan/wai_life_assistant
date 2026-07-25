@@ -79,13 +79,20 @@ async function getFCMAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+interface SendResult {
+  ok: boolean;
+  /** True when FCM reports this specific token as permanently dead
+   * (UNREGISTERED/INVALID_ARGUMENT) — caller should delete the row. */
+  deadToken: boolean;
+}
+
 async function sendFCM(
   fcmToken: string,
   title: string,
   body: string,
   data: Record<string, string>,
   accessToken: string,
-): Promise<boolean> {
+): Promise<SendResult> {
   const projectId = FCM_SERVICE_ACCOUNT.project_id;
   const resp = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -108,8 +115,38 @@ async function sendFCM(
       }),
     },
   );
-  if (!resp.ok) console.error("[scheduled-notif] FCM send failed:", await resp.text());
-  return resp.ok;
+  if (resp.ok) return { ok: true, deadToken: false };
+
+  const errText = await resp.text();
+  console.error("[scheduled-notif] FCM send failed:", errText);
+  return { ok: false, deadToken: isDeadTokenError(errText) };
+}
+
+/** See send-notification/index.ts for the full explanation — mirrors that
+ * function's dead-token detection (only UNREGISTERED/INVALID_ARGUMENT). */
+function isDeadTokenError(errText: string): boolean {
+  try {
+    const parsed = JSON.parse(errText);
+    const errorCode = parsed?.error?.details?.find(
+      (d: { errorCode?: string }) => d?.errorCode,
+    )?.errorCode;
+    return errorCode === "UNREGISTERED" || errorCode === "INVALID_ARGUMENT";
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupDeadTokens(
+  supabase: ReturnType<typeof createClient>,
+  deadTokens: string[],
+): Promise<void> {
+  if (!deadTokens.length) return;
+  const { error } = await supabase.from("user_fcm_tokens").delete().in("fcm_token", deadTokens);
+  if (error) {
+    console.error("[scheduled-notif] dead token cleanup failed:", error);
+  } else {
+    console.log(`[scheduled-notif] removed ${deadTokens.length} dead token(s)`);
+  }
 }
 
 // ── Date helpers ────────────────────────────────────────────────────────────
@@ -184,8 +221,16 @@ async function sendGrouped(
       ),
     );
     sent += results.filter(
-      (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<boolean>).value,
+      (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.ok,
     ).length;
+
+    const deadTokens = tokens
+      .filter((_: unknown, i: number) => {
+        const r = results[i];
+        return r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.deadToken;
+      })
+      .map((t: { fcm_token: string }) => t.fcm_token);
+    await cleanupDeadTokens(supabase, deadTokens);
   }
   return sent;
 }

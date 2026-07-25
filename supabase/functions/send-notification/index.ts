@@ -21,6 +21,30 @@ const CORS_HEADERS = {
 type TemplateData = Record<string, string>;
 type Template = (d: TemplateData) => { title: string; body: string; route: string };
 
+const EVENT_DATA_MAX_KEYS       = 20;
+const EVENT_DATA_VALUE_MAX_CHARS = 200;
+
+/** event_data comes straight from the request body with no runtime shape
+ * guarantee beyond the TypeScript type (which is compile-time only) — a
+ * caller could send non-string values, oversized strings, or control
+ * characters that end up concatenated directly into the notification
+ * title/body via the templates above. Coerces everything to a bounded,
+ * printable string and drops anything beyond a reasonable key count. */
+function sanitizeEventData(raw: unknown): TemplateData {
+  const out: TemplateData = {};
+  if (typeof raw !== "object" || raw === null) return out;
+  let count = 0;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (count >= EVENT_DATA_MAX_KEYS) break;
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") continue;
+    // deno-lint-ignore no-control-regex
+    const cleaned = String(value).replace(/[\x00-\x1F\x7F]/g, "").slice(0, EVENT_DATA_VALUE_MAX_CHARS);
+    out[key] = cleaned;
+    count++;
+  }
+  return out;
+}
+
 const TEMPLATES: Record<string, Template> = {
   // Wallet
   "wallet.expense_added":  (d) => ({ title: `💸 ${d.member_name} added expense`,  body: `₹${d.amount} for ${d.category}`,                route: "wallet" }),
@@ -113,13 +137,21 @@ function pemToBuffer(pem: string): ArrayBuffer {
 
 // ── Send single FCM message ───────────────────────────────────────────────────
 
+interface SendResult {
+  ok: boolean;
+  /** True when FCM reports this specific token as permanently dead
+   * (UNREGISTERED/INVALID_ARGUMENT) — caller should delete the row, not
+   * just log and move on, or dead tokens accumulate forever. */
+  deadToken: boolean;
+}
+
 async function sendFCM(
   fcmToken: string,
   title: string,
   body: string,
   data: Record<string, string>,
   accessToken: string,
-): Promise<boolean> {
+): Promise<SendResult> {
   const projectId = FCM_SERVICE_ACCOUNT.project_id;
   const resp = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -149,11 +181,44 @@ async function sendFCM(
     },
   );
 
-  if (!resp.ok) {
-    const err = await resp.text();
-    console.error("[FCM] send failed:", err);
+  if (resp.ok) return { ok: true, deadToken: false };
+
+  const errText = await resp.text();
+  console.error("[FCM] send failed:", errText);
+  return { ok: false, deadToken: isDeadTokenError(errText) };
+}
+
+/** FCM v1 reports a dead/unregistered token (uninstalled app, cleared data,
+ * revoked) via error.details[].errorCode === "UNREGISTERED" (occasionally
+ * "INVALID_ARGUMENT" for a malformed/expired token). A transient 5xx or
+ * quota error is a different errorCode and must NOT be treated as dead —
+ * that would delete a token that's still good. */
+function isDeadTokenError(errText: string): boolean {
+  try {
+    const parsed = JSON.parse(errText);
+    const errorCode = parsed?.error?.details?.find(
+      (d: { errorCode?: string }) => d?.errorCode,
+    )?.errorCode;
+    return errorCode === "UNREGISTERED" || errorCode === "INVALID_ARGUMENT";
+  } catch {
+    return false;
   }
-  return resp.ok;
+}
+
+/** Deletes rows for tokens FCM reported as permanently dead. Best-effort —
+ * a cleanup failure shouldn't affect the notification send outcome. */
+async function cleanupDeadTokens(
+  supabase: ReturnType<typeof createClient>,
+  deadTokens: string[],
+  logPrefix: string,
+): Promise<void> {
+  if (!deadTokens.length) return;
+  const { error } = await supabase.from("user_fcm_tokens").delete().in("fcm_token", deadTokens);
+  if (error) {
+    console.error(`${logPrefix} dead token cleanup failed:`, error);
+  } else {
+    console.log(`${logPrefix} removed ${deadTokens.length} dead token(s)`);
+  }
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -177,7 +242,8 @@ serve(async (req) => {
     });
   }
 
-  const { event_type, family_id, event_data } = body;
+  const { event_type, family_id } = body;
+  const event_data = sanitizeEventData(body.event_data);
 
   const template = TEMPLATES[event_type];
   if (!template) {
@@ -289,8 +355,18 @@ serve(async (req) => {
     ),
   );
 
-  const sent = results.filter((r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<boolean>).value).length;
+  const sent = results.filter(
+    (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.ok,
+  ).length;
   console.log(`[notify] sent=${sent}/${tokens.length}`);
+
+  const deadTokens = tokens
+    .filter((_: unknown, i: number) => {
+      const r = results[i];
+      return r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.deadToken;
+    })
+    .map((t: { fcm_token: string }) => t.fcm_token);
+  await cleanupDeadTokens(supabase, deadTokens, "[notify]");
 
   return new Response(JSON.stringify({ sent, total: tokens.length }), {
     status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },

@@ -66,13 +66,20 @@ async function getFCMAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+interface SendResult {
+  ok: boolean;
+  /** True when FCM reports this specific token as permanently dead
+   * (UNREGISTERED/INVALID_ARGUMENT) — caller should delete the row. */
+  deadToken: boolean;
+}
+
 async function sendFCM(
   fcmToken: string,
   title: string,
   body: string,
   data: Record<string, string>,
   accessToken: string,
-): Promise<boolean> {
+): Promise<SendResult> {
   const projectId = FCM_SERVICE_ACCOUNT.project_id;
   const resp = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
@@ -95,8 +102,38 @@ async function sendFCM(
       }),
     },
   );
-  if (!resp.ok) console.error("[trial-expiry] FCM send failed:", await resp.text());
-  return resp.ok;
+  if (resp.ok) return { ok: true, deadToken: false };
+
+  const errText = await resp.text();
+  console.error("[trial-expiry] FCM send failed:", errText);
+  return { ok: false, deadToken: isDeadTokenError(errText) };
+}
+
+/** See send-notification/index.ts for the full explanation — mirrors that
+ * function's dead-token detection (only UNREGISTERED/INVALID_ARGUMENT). */
+function isDeadTokenError(errText: string): boolean {
+  try {
+    const parsed = JSON.parse(errText);
+    const errorCode = parsed?.error?.details?.find(
+      (d: { errorCode?: string }) => d?.errorCode,
+    )?.errorCode;
+    return errorCode === "UNREGISTERED" || errorCode === "INVALID_ARGUMENT";
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupDeadTokens(
+  supabase: ReturnType<typeof createClient>,
+  deadTokens: string[],
+): Promise<void> {
+  if (!deadTokens.length) return;
+  const { error } = await supabase.from("user_fcm_tokens").delete().in("fcm_token", deadTokens);
+  if (error) {
+    console.error("[trial-expiry] dead token cleanup failed:", error);
+  } else {
+    console.log(`[trial-expiry] removed ${deadTokens.length} dead token(s)`);
+  }
 }
 
 // ── Notification copy per days-remaining ─────────────────────────────────────
@@ -165,35 +202,48 @@ serve(async (req) => {
 
     const walletIds = subs.map((s: { wallet_id: string }) => s.wallet_id);
 
-    // 2. Get family_id for these wallets
+    // 2. Get owner_id/family_id for these wallets. Family wallets normally
+    // hold the only wallet_subscriptions rows (054_subscription_system.sql:
+    // "Personal wallets are always 'personal_free' — no row needed"), but
+    // this doesn't filter personal wallets out — if one ever does end up
+    // with a trial row (e.g. a future personal-trial feature), its owner
+    // still gets notified below instead of silently dropped.
     const { data: wallets } = await supabase
       .from("wallets")
-      .select("id, family_id")
-      .in("id", walletIds)
-      .not("family_id", "is", null);
+      .select("id, family_id, owner_id")
+      .in("id", walletIds);
 
     if (!wallets?.length) continue;
 
-    const familyIds = wallets.map((w: { family_id: string }) => w.family_id);
+    const familyIds = wallets
+      .map((w: { family_id: string | null }) => w.family_id)
+      .filter((id: string | null): id is string => id !== null);
+    const personalOwnerIds = wallets
+      .map((w: { family_id: string | null; owner_id: string | null }) =>
+        w.family_id === null ? w.owner_id : null)
+      .filter((id: string | null): id is string => id !== null);
 
-    // 3. Find admin users for those families
-    const { data: admins } = await supabase
-      .from("family_members")
-      .select("user_id")
-      .in("family_id", familyIds)
-      .eq("role", "admin")
-      .not("user_id", "is", null)
-      .is("deleted_at", null);
+    // 3. Recipients: family admins for family wallets, the owner directly
+    // for personal wallets.
+    const recipientIds = new Set<string>(personalOwnerIds);
+    if (familyIds.length) {
+      const { data: admins } = await supabase
+        .from("family_members")
+        .select("user_id")
+        .in("family_id", familyIds)
+        .eq("role", "admin")
+        .not("user_id", "is", null)
+        .is("deleted_at", null);
+      for (const a of admins ?? []) recipientIds.add((a as { user_id: string }).user_id);
+    }
 
-    if (!admins?.length) continue;
+    if (!recipientIds.size) continue;
 
-    const adminIds = admins.map((a: { user_id: string }) => a.user_id);
-
-    // 4. Get FCM tokens for those admins
+    // 4. Get FCM tokens for those recipients
     const { data: tokens } = await supabase
       .from("user_fcm_tokens")
       .select("fcm_token")
-      .in("user_id", adminIds);
+      .in("user_id", [...recipientIds]);
 
     if (!tokens?.length) continue;
 
@@ -221,8 +271,16 @@ serve(async (req) => {
     );
 
     const sent = results.filter(
-      (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<boolean>).value,
+      (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.ok,
     ).length;
+
+    const deadTokens = tokens
+      .filter((_: unknown, i: number) => {
+        const r = results[i];
+        return r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.deadToken;
+      })
+      .map((t: { fcm_token: string }) => t.fcm_token);
+    await cleanupDeadTokens(supabase, deadTokens);
 
     console.log(`[trial-expiry] days=${daysAhead} sent=${sent}/${tokens.length}`);
     totalSent += sent;

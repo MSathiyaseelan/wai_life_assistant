@@ -38,6 +38,18 @@ class NotifDeepLink {
 // Background handler — top-level, runs in a separate Dart isolate.
 // Must not reference any Flutter UI or singletons; quiet hours are NOT checked
 // here because SharedPreferences is unavailable in the background isolate.
+//
+// KNOWN LIMITATION: every server-side send (send-notification,
+// notify-trial-expiry, check-scheduled-notifications) sends a `notification`
+// payload, which Android/iOS auto-display immediately regardless of quiet
+// hours whenever the app is backgrounded or terminated — the common case.
+// Quiet Hours as currently implemented only suppresses display while the app
+// is in the foreground (see _showWith's checkQuiet param below). Genuinely
+// silencing pushes in every app state would require switching all three
+// edge functions to data-only messages and always rendering client-side —
+// a deliberately deferred, larger change. Settings copy in
+// notification_prefs_sheet.dart is worded to reflect this (foreground-only),
+// not overclaim full silence.
 // ─────────────────────────────────────────────────────────────────────────────
 
 @pragma('vm:entry-point')

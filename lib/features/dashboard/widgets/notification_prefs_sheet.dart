@@ -545,8 +545,8 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                     color: _tc)),
                             Text(
                               _prefs.quietHoursEnabled
-                                  ? 'No alerts ${_hourLabel(_prefs.quietStart)} – ${_hourLabel(_prefs.quietEnd)}'
-                                  : 'Silence notifications during specific hours',
+                                  ? 'Silenced ${_hourLabel(_prefs.quietStart)} – ${_hourLabel(_prefs.quietEnd)} while the app is open'
+                                  : 'Silence notifications during specific hours while the app is open',
                               style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _sub),
                             ),
                           ],
