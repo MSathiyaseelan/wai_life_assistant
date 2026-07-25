@@ -119,6 +119,27 @@ function errorResponse(status: number, message: string): Response {
   );
 }
 
+// ── In-memory rate limiter ────────────────────────────────────────────────────
+// Keyed by caller uid (this endpoint requires an authenticated session, so
+// uid is a more meaningful key than IP) — resets on cold start, blocks rapid
+// burst abuse. Same pattern as firebase-verify's IP-based limiter.
+
+const _rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_CALLS = 5;      // max 5 phone-change attempts per user per minute
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const entry = _rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    _rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT_MAX_CALLS) return true;
+  entry.count++;
+  return false;
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -137,6 +158,10 @@ serve(async (req) => {
       await supabaseAdmin.auth.getUser(callerToken);
     if (callerErr || !caller) {
       return errorResponse(401, "Invalid or expired session");
+    }
+
+    if (isRateLimited(caller.id)) {
+      return errorResponse(429, "Too many attempts. Please try again later.");
     }
 
     // ── 2. Verify the new-phone Firebase ID token ───────────────────────────

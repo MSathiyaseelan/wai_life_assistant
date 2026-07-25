@@ -18,6 +18,15 @@ class AuthCoordinator {
   /// True when Firebase auto-verified the phone on Android (no OTP entry needed).
   bool get isAutoVerified => _autoCredential != null;
 
+  /// Optional hook OtpScreen can set to react if SMS auto-read succeeds
+  /// *after* sendOtp() has already returned — the common case, since
+  /// codeSent normally fires (and completes sendOtp) before Android
+  /// finishes auto-reading the SMS, right up until the 60s timeout. Without
+  /// this, an OtpScreen that only checked isAutoVerified once in initState
+  /// would miss a late auto-verify and leave the user typing a code that's
+  /// already been handled.
+  void Function()? onAutoVerified;
+
   /// Sends OTP to [phone] via Firebase Phone Auth.
   /// [phone] must include country code, e.g. "+919876543210".
   Future<void> sendOtp(String phone) async {
@@ -31,6 +40,7 @@ class AuthCoordinator {
       verificationCompleted: (fb.PhoneAuthCredential credential) {
         // Android only: SMS auto-read succeeded — store credential for instant sign-in.
         _autoCredential = credential;
+        onAutoVerified?.call();
         if (!completer.isCompleted) completer.complete();
       },
       verificationFailed: (fb.FirebaseAuthException e) {
@@ -56,6 +66,7 @@ class AuthCoordinator {
   /// Verifies [otp] entered by the user (or auto-credential on Android).
   /// On success, exchanges the Firebase ID token for a Supabase session.
   Future<void> verifyOtp(String phone, String otp) async {
+    final fb.UserCredential userCred;
     try {
       final credential = _autoCredential ??
           fb.PhoneAuthProvider.credential(
@@ -63,9 +74,19 @@ class AuthCoordinator {
             smsCode: otp,
           );
       _autoCredential = null;
+      userCred = await _firebaseAuth.signInWithCredential(credential);
+    } on fb.FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseError(e.code));
+    }
 
-      final userCred = await _firebaseAuth.signInWithCredential(credential);
-      final idToken  = await userCred.user!.getIdToken();
+    // Firebase has now confirmed the OTP is correct and consumed it — a
+    // Firebase phone credential can't be reused. So any failure past this
+    // point means retyping the *same* code will never work; the user needs
+    // a fresh OTP. Wrap failures here with a message steering them to
+    // Resend instead of the generic "verification failed" (which reads as
+    // "the code was wrong" and invites a pointless retry).
+    try {
+      final idToken = await userCred.user!.getIdToken();
 
       // Exchange Firebase ID token for a Supabase session via edge function.
       final res = await _client.functions.invoke(
@@ -76,7 +97,7 @@ class AuthCoordinator {
       final data = res.data as Map<String, dynamic>?;
       if (res.status != 200 || data == null) {
         throw AuthException(
-          data?['error'] as String? ?? 'Authentication failed',
+          data?['error'] as String? ?? 'Sign-in failed after verification.',
         );
       }
 
@@ -90,8 +111,11 @@ class AuthCoordinator {
       if (kDebugMode) debugPrint('[Auth] Firebase OTP verified');
       final uid = _client.auth.currentUser?.id;
       if (uid != null) await SubscriptionService.instance.login(uid);
-    } on fb.FirebaseAuthException catch (e) {
-      throw AuthException(_mapFirebaseError(e.code));
+    } catch (_) {
+      throw AuthException(
+        "Your code was verified, but sign-in couldn't finish. "
+        'Please tap Resend to get a new code and try again.',
+      );
     }
   }
 
@@ -150,8 +174,14 @@ class AuthCoordinator {
   /// Resend OTP to [phone] — reuses the resend token for faster delivery.
   Future<void> resendOtp(String phone) => sendOtp(phone);
 
-  /// Dev-only bypass: signs in anonymously without OTP.
+  /// Dev-only bypass: signs in anonymously without OTP. Not currently wired
+  /// to any UI. Hard-gated on kDebugMode (not just "nothing calls it today")
+  /// so it can never activate in a release build even if someone wires it
+  /// into a debug menu later without noticing the build mode.
   Future<void> bypassVerify() async {
+    if (!kDebugMode) {
+      throw AuthException('Bypass sign-in is only available in debug builds.');
+    }
     final res = await _client.auth.signInAnonymously();
     if (res.session == null) {
       throw AuthException('Anonymous sign-in failed — enable it in Supabase dashboard.');

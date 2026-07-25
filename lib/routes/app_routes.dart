@@ -28,8 +28,18 @@ class AppRoutes {
     dashboard:    (context) => const DashboardScreen(),
     login:        (context) => const LoginScreen(),
     otp: (context) {
-      final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>;
-      return OtpScreen(phone: args['phone']!);
+      final args = ModalRoute.of(context)!.settings.arguments;
+      final phone = args is Map ? args['phone'] as String? : null;
+      if (phone == null || phone.isEmpty) {
+        // Malformed/missing nav arguments (bad deep link, restored nav
+        // stack, etc.) — redirect to login instead of an unhandled cast
+        // exception crashing the app.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(context).pushNamedAndRemoveUntil(login, (route) => false);
+        });
+        return const SizedBox.shrink();
+      }
+      return OtpScreen(phone: phone);
     },
     profileSetup: (context) => const ProfileSetupScreen(),
     onboarding:   (context) => const OnboardingScreen(),

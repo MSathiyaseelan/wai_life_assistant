@@ -28,10 +28,17 @@ class _OtpScreenState extends State<OtpScreen> {
   int _resendCount = 0;
   static const int _maxResends = 3;
 
+  void _onAutoVerifiedHook() {
+    if (mounted && !_loading) _verify();
+  }
+
   @override
   void initState() {
     super.initState();
     _startResendTimer();
+    // Covers auto-verify completing *after* this initial check — see
+    // AuthCoordinator.onAutoVerified doc comment.
+    AuthCoordinator.instance.onAutoVerified = _onAutoVerifiedHook;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (AuthCoordinator.instance.isAutoVerified) {
         // Android auto-read the SMS — skip manual OTP entry
@@ -64,6 +71,9 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   void dispose() {
+    if (identical(AuthCoordinator.instance.onAutoVerified, _onAutoVerifiedHook)) {
+      AuthCoordinator.instance.onAutoVerified = null;
+    }
     for (final c in _ctrls) { c.dispose(); }
     for (final n in _nodes) { n.dispose(); }
     super.dispose();
