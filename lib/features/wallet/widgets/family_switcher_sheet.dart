@@ -463,8 +463,9 @@ Future<String?> showAddFamilySheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) =>
-        _FamilyFormSheet(isDark: isDark, existing: null, appState: appState),
+    builder: (_) => ScaffoldMessenger(
+      child: _FamilyFormSheet(isDark: isDark, existing: null, appState: appState),
+    ),
   );
 }
 
@@ -488,11 +489,13 @@ Future<void> showEditFamilySheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _FamilyFormSheet(
-      isDark: isDark,
-      existing: family,
-      wallet: wallet,
-      appState: appState,
+    builder: (_) => ScaffoldMessenger(
+      child: _FamilyFormSheet(
+        isDark: isDark,
+        existing: family,
+        wallet: wallet,
+        appState: appState,
+      ),
     ),
   );
 }
@@ -1024,6 +1027,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     // Supabase mode
     // Collect non-fatal photo upload errors to surface after save
     final photoErrors = <String>[];
+    var invitedCount = 0;
 
     Future<String> tryUpload({
       required String localPath,
@@ -1122,7 +1126,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
               fallback: added.emoji,
             );
           }
-          await ProfileService.instance.addMember(
+          final addResult = await ProfileService.instance.addMember(
             familyId: widget.existing!.id,
             name: added.name,
             emoji: addedEmoji,
@@ -1130,12 +1134,14 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             relation: added.relation,
             phone: added.phone,
           );
+          if (addResult['invited'] == true) invitedCount++;
         }
 
         if (mounted) {
           await widget.appState.reload();
           if (!mounted) return;
           _showPhotoErrors(photoErrors);
+          _showInvitesSentMessage(invitedCount);
           Navigator.pop(context);
         }
       } else {
@@ -1168,7 +1174,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
               fallback: m.emoji,
             );
           }
-          await ProfileService.instance.addMember(
+          final addResult = await ProfileService.instance.addMember(
             familyId: familyId,
             name: m.name,
             emoji: memberEmoji,
@@ -1176,12 +1182,14 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             relation: m.relation,
             phone: m.phone,
           );
+          if (addResult['invited'] == true) invitedCount++;
         }
 
         if (mounted) {
           await widget.appState.reload();
           if (!mounted) return;
           _showPhotoErrors(photoErrors);
+          _showInvitesSentMessage(invitedCount);
           // onSelect expects a wallet ID, not a family ID
           Navigator.pop(context, result['wallet_id'] as String?);
         }
@@ -1214,6 +1222,22 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         );
       }
     }
+  }
+
+  void _showInvitesSentMessage(int invitedCount) {
+    if (invitedCount == 0 || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          invitedCount == 1
+              ? 'Invite sent — they\'ll join once they accept it.'
+              : '$invitedCount invites sent — they\'ll join once they accept.',
+        ),
+        backgroundColor: AppColors.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   void _showPhotoErrors(List<String> errors) {

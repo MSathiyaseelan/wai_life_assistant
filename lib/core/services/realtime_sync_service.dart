@@ -58,6 +58,30 @@ class RealtimeSyncService {
     }
   }
 
+  /// Live-refresh family details (name/emoji/photo/permissions) for every
+  /// family the user belongs to, so an admin's edit (e.g. the group photo)
+  /// reaches other members immediately instead of waiting for their next
+  /// natural refetch (app restart / manual pull-to-refresh).
+  void subscribeFamilies(List<String> familyIds, VoidCallback onChange) {
+    for (final familyId in familyIds) {
+      final channel = _db
+          .channel('family:$familyId')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'families',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: familyId,
+            ),
+            callback: (_) => onChange(),
+          )
+          .subscribe();
+      _channels.add(channel);
+    }
+  }
+
   void unsubscribeAll() {
     for (final channel in _channels) {
       _db.removeChannel(channel);

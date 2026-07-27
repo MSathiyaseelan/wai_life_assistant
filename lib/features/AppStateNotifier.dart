@@ -119,6 +119,10 @@ class AppStateNotifier extends ChangeNotifier {
             _activeWalletId = parsed.personal.id;
           }
           RealtimeSyncService.instance.subscribeAll(parsed.personal.id);
+          RealtimeSyncService.instance.subscribeFamilies(
+            _families.map((f) => f.id).toList(),
+            () => reload(),
+          );
           // Load all members (incl. removed) for name display — fire and forget
           _loadAllMemberNames(parsed.families);
           break;

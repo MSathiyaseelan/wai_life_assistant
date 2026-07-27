@@ -236,7 +236,13 @@ class ProfileService {
   // ── Member CRUD ───────────────────────────────────────────────────────────
 
   /// Add a member to a family via RPC (SECURITY DEFINER bypasses RLS).
-  Future<void> addMember({
+  ///
+  /// Returns `{ 'invited': true, ... }` when the phone matched an existing
+  /// WAI account — that person must accept the invite before they actually
+  /// join, so no family_members row is created yet. Returns
+  /// `{ 'invited': false, 'member_id': ... }` for a placeholder member
+  /// (no matching account, added directly).
+  Future<Map<String, dynamic>> addMember({
     required String familyId,
     required String name,
     required String emoji,
@@ -244,7 +250,7 @@ class ProfileService {
     String? relation,
     String? phone,
   }) async {
-    await _db.rpc(AppRpc.addFamilyMember, params: {
+    final result = await _db.rpc(AppRpc.addFamilyMember, params: {
       'p_family_id': familyId,
       'p_name':      name,
       'p_emoji':     emoji,
@@ -252,6 +258,7 @@ class ProfileService {
       'p_relation':  relation,
       'p_phone':     phone,
     });
+    return Map<String, dynamic>.from(result as Map);
   }
 
   /// Update a member's editable fields via SECURITY DEFINER RPC (bypasses RLS).
