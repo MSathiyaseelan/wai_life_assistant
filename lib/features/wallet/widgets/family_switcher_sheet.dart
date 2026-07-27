@@ -420,9 +420,8 @@ class _MemberAvatarStack extends StatelessWidget {
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  e.value.emoji,
-                  style: const TextStyle(fontSize: 12),
+                child: ClipOval(
+                  child: EmojiOrImage(value: e.value.emoji, size: 24),
                 ),
               ),
             ),

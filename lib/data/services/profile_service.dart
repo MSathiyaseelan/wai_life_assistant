@@ -386,10 +386,11 @@ class ProfileService {
   /// Returns 0 for personal_free (no family groups allowed).
   Future<int> fetchMaxFamilyMembers() async {
     try {
+      final uid = _uid;
       final profile = await _db
           .from('profiles')
           .select('plan')
-          .eq('id', _uid)
+          .eq('id', uid)
           .maybeSingle();
       final planKey = (profile?['plan'] as String?) ?? 'personal_free';
       final planRow = await _db
@@ -397,8 +398,11 @@ class ProfileService {
           .select('plan_limits!inner(family_max_members)')
           .eq('plan_key', planKey)
           .maybeSingle();
-      return (planRow?['plan_limits']?['family_max_members'] as int?) ?? 0;
-    } catch (_) {
+      final result = (planRow?['plan_limits']?['family_max_members'] as int?) ?? 0;
+      debugPrint('[fetchMaxFamilyMembers] uid=$uid planKey=$planKey planRow=$planRow result=$result');
+      return result;
+    } catch (e, st) {
+      debugPrint('[fetchMaxFamilyMembers] ERROR: $e\n$st');
       return 0;
     }
   }

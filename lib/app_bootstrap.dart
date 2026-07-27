@@ -16,7 +16,6 @@ import 'data/services/subscription_service.dart';
 import 'firebase_options.dart';
 import 'main.dart';
 import 'core/env/env.dart';
-import 'package:provider/provider.dart';
 
 Future<void> bootstrapApp(String env) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,14 +72,7 @@ Future<void> bootstrapApp(String env) async {
   // try { await SMSParserService.initialize(); } catch (e) { debugPrint('[Bootstrap] SMS init failed: $e'); }
   // await SMSParserService.checkPending();
 
-  runApp(
-    MultiProvider(
-      providers: [
-        // add controllers when needed
-      ],
-      child: LifeAssistanceApp(config: envConfig),
-    ),
-  );
+  runApp(LifeAssistanceApp(config: envConfig));
 }
 
 // void bootstrapApp(String env) {

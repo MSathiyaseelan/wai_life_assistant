@@ -1,5 +1,4 @@
-﻿import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,6 +10,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/features/subscription/paywall_screen.dart';
+import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // FAMILY SETTINGS SECTION
@@ -428,8 +428,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,
-              child: Text(family.emoji,
-                  style: const TextStyle(fontSize: 20)),
+              child: EmojiOrImage(value: family.emoji, size: 20),
             ),
             title: Text(
               family.name,
@@ -548,20 +547,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
-                          child: family.photoPath != null &&
-                                  family.photoPath!.isNotEmpty
-                              ? ClipOval(
-                                  child: CachedNetworkImage(
-                                    imageUrl: family.photoPath!,
-                                    width: 52,
-                                    height: 52,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Text(
-                                  family.emoji,
-                                  style: const TextStyle(fontSize: 24),
-                                ),
+                          child: ClipOval(
+                            child: EmojiOrImage(value: family.emoji, size: 52),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Text(
@@ -888,13 +876,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
-              child: m.photoPath != null && m.photoPath!.isNotEmpty
-                  ? ClipOval(
-                      child: CachedNetworkImage(imageUrl: m.photoPath!,
-                          width: 36, height: 36, fit: BoxFit.cover),
-                    )
-                  : Text(m.emoji,
-                      style: const TextStyle(fontSize: 16)),
+              child: ClipOval(
+                child: EmojiOrImage(value: m.emoji, size: 36),
+              ),
             ),
             const SizedBox(width: 10),
             // Name + role
@@ -1775,7 +1759,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             ),
             const SizedBox(height: 8),
             ...otherMembers.map((m) => ListTile(
-                  leading: Text(m.emoji, style: const TextStyle(fontSize: 18)),
+                  leading: EmojiOrImage(value: m.emoji, size: 18),
                   title: Text(m.name, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito')),
                   onTap: () async {
                     Navigator.pop(context);
