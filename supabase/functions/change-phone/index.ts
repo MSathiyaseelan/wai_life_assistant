@@ -208,6 +208,19 @@ serve(async (req) => {
       // profiles.phone separately if needed.
     }
 
+    // ── 6. Keep family_members.phone in sync too ────────────────────────────
+    // Every family_members row the caller holds (across every family they're
+    // in) stores a copy of their phone for invite-matching purposes — it
+    // would otherwise keep showing the old number after this rename.
+    const { error: membersErr } = await supabaseAdmin
+      .from("family_members")
+      .update({ phone: newPhone })
+      .eq("user_id", caller.id);
+    if (membersErr) {
+      console.error("[change-phone] family_members update failed:", membersErr);
+      // Same best-effort treatment as the profiles update above.
+    }
+
     return new Response(JSON.stringify({ success: true, phone: newPhone }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
