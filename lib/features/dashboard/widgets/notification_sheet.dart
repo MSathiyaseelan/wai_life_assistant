@@ -69,6 +69,17 @@ class _NotificationSheetState extends State<NotificationSheet> {
   // redundant changeSignal fires for a list that can have up to 50 items.
   Future<void> _markNonInviteRead() => NotificationService.instance.markAllRead();
 
+  Future<void> _clearAll() async {
+    final cleared = _items;
+    setState(() => _items = []);
+    try {
+      await NotificationService.instance.clearAll();
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'clear_all_notifications');
+      if (mounted) setState(() => _items = cleared);
+    }
+  }
+
   void _removeItem(String id) {
     setState(() => _items.removeWhere((n) => n.id == id));
   }
@@ -136,6 +147,19 @@ class _NotificationSheetState extends State<NotificationSheet> {
                       ),
                     ),
                   ),
+                if (_items.isNotEmpty) ...[
+                  const SizedBox(width: 14),
+                  GestureDetector(
+                    onTap: _clearAll,
+                    child: Text(
+                      'Clear all',
+                      style: TextStyle(
+                        fontSize: 12, fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700, color: AppColors.expense,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -259,9 +283,10 @@ class _InviteTileState extends State<_InviteTile> {
       final ok = await InviteService.instance.acceptInvite(inviteId);
       if (!mounted) return;
       if (ok) {
-        // Belt-and-suspenders: ensure the notification row is marked read
-        // regardless of whether the accept RPC already does it server-side.
-        NotificationService.instance.markRead(widget.n.id);
+        // Remove the notification outright (not just mark it read) — a
+        // resolved invite shouldn't reappear after the next realtime-
+        // triggered refresh, since fetchAll() returns read rows too.
+        NotificationService.instance.dismiss(widget.n.id);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('You joined ${widget.n.txTitle ?? 'the family'}!'),
           backgroundColor: AppColors.income,
@@ -284,9 +309,8 @@ class _InviteTileState extends State<_InviteTile> {
     setState(() => _loading = true);
     try {
       await InviteService.instance.declineInvite(inviteId);
-      // Belt-and-suspenders: ensure the notification row is marked read
-      // regardless of whether the decline RPC already does it server-side.
-      NotificationService.instance.markRead(widget.n.id);
+      // Remove the notification outright — see _accept() for why.
+      NotificationService.instance.dismiss(widget.n.id);
       if (mounted) widget.onDeclined();
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'decline_family_invite');

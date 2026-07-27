@@ -73,6 +73,30 @@ class NotificationService {
     _bump();
   }
 
+  // ── Dismiss / clear ──────────────────────────────────────────────────────────
+
+  /// Permanently removes a single notification (unlike [markRead], which
+  /// keeps it around read-only forever — this is what backs swipe-to-dismiss
+  /// and the post-accept/decline cleanup).
+  Future<void> dismiss(String notificationId) async {
+    final uid = _uid;
+    if (uid == null) return;
+    await _db
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId)
+        .eq('user_id', uid);
+    _bump();
+  }
+
+  /// Permanently removes every notification for the current user.
+  Future<void> clearAll() async {
+    final uid = _uid;
+    if (uid == null) return;
+    await _db.from('notifications').delete().eq('user_id', uid);
+    _bump();
+  }
+
   // ── Realtime subscription ────────────────────────────────────────────────────
 
   /// Subscribe to INSERT events on the notifications table for the current user.
