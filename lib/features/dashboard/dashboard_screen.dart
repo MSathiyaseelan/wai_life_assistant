@@ -1689,6 +1689,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                 itemBuilder: (ctx, idx) {
                                   final w = allCards[idx];
                                   final allItems = _myListMap[w.id] ?? [];
+                                  final label = w.isPersonal
+                                      ? 'Personal'
+                                      : (appState.families
+                                                .where((f) => f.walletId == w.id)
+                                                .firstOrNull
+                                                ?.name ??
+                                            w.name);
                                   return Padding(
                                     padding: EdgeInsets.only(
                                       right: idx < allCards.length - 1 ? 8.0 : 0,
@@ -1700,6 +1707,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                       cardBg: cardBg,
                                       sub: sub,
                                       isPersonal: w.isPersonal,
+                                      label: label,
                                       onItemsChanged: () => _loadMyList(w.id),
                                       onGoToPantry: () {
                                         DashNavService.pantry.value = 'basket:tobuy:${w.id}';
@@ -2844,7 +2852,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ),
                     children: [
                       // ── PROFILE CARD ──────────────────────────────────────
-                      sLabel('PROFILE'),
+                      sLabel('PROFILE & ACCOUNT'),
                       Container(
                         decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(18)),
                         clipBehavior: Clip.hardEdge,
@@ -3235,6 +3243,31 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(height: 8),
+                                    // Change Phone Number
+                                    sCard([
+                                      sRow(
+                                        emoji: '📱', bg: const Color(0xFFE0EEFF),
+                                        title: 'Change Phone Number', subtitle: 'OTP verification required',
+                                        onTap: () => _showChangePhoneDialog(context),
+                                      ),
+                                    ]),
+                                    const SizedBox(height: 8),
+                                    // Account session
+                                    sCard([
+                                      sRow(
+                                        emoji: '🚪', bg: const Color(0xFFFFEDD5),
+                                        title: 'Logout',
+                                        subtitle: 'Sign out from this device',
+                                        onTap: () => _confirmLogout(ctx2, allDevices: false),
+                                      ),
+                                      sRow(
+                                        emoji: '📵', bg: const Color(0xFFFFE0E0),
+                                        title: 'Logout from all devices',
+                                        subtitle: 'Revoke all active sessions',
+                                        onTap: () => _confirmLogout(ctx2, allDevices: true),
+                                      ),
+                                    ]),
                                   ],
                                 ),
                               ),
@@ -3242,16 +3275,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           ],
                         ),
                       ),
-
-                      const SizedBox(height: 8),
-                      // Change Phone Number
-                      sCard([
-                        sRow(
-                          emoji: '📱', bg: const Color(0xFFE0EEFF),
-                          title: 'Change Phone Number', subtitle: 'OTP verification required',
-                          onTap: () => _showChangePhoneDialog(context),
-                        ),
-                      ]),
 
                       // ── FAMILY ────────────────────────────────────────────
                       const SizedBox(height: 24),
@@ -3326,24 +3349,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         sRow(emoji: '🐛', bg: const Color(0xFFFFE8E8), title: 'Report Issue',
                           subtitle: 'Report bugs, crashes or suggestions', value: '',
                           onTap: _prefsTap(ctx, isDark, 'Report Issue')),
-                      ]),
-
-                      // ── ACCOUNT SESSION ───────────────────────────────────
-                      const SizedBox(height: 24),
-                      sLabel('ACCOUNT'),
-                      sCard([
-                        sRow(
-                          emoji: '🚪', bg: const Color(0xFFFFEDD5),
-                          title: 'Logout',
-                          subtitle: 'Sign out from this device',
-                          onTap: () => _confirmLogout(ctx2, allDevices: false),
-                        ),
-                        sRow(
-                          emoji: '📵', bg: const Color(0xFFFFE0E0),
-                          title: 'Logout from all devices',
-                          subtitle: 'Revoke all active sessions',
-                          onTap: () => _confirmLogout(ctx2, allDevices: true),
-                        ),
                       ]),
 
                       // ── SUBSCRIPTION ──────────────────────────────────────

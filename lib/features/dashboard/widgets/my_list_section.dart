@@ -16,6 +16,7 @@ class MyListSection extends StatelessWidget {
   final VoidCallback onItemsChanged;
   final VoidCallback onGoToPantry;
   final bool isPersonal;
+  final String label;
 
   const MyListSection({
     super.key,
@@ -27,6 +28,7 @@ class MyListSection extends StatelessWidget {
     required this.onItemsChanged,
     required this.onGoToPantry,
     this.isPersonal = true,
+    this.label = 'Personal',
   });
 
   List<GroceryItem> get _groceryItems  => items.where((i) => i.isGrocery).toList();
@@ -57,6 +59,23 @@ class MyListSection extends StatelessWidget {
                 fontWeight: FontWeight.w900,
                 fontFamily: 'Nunito',
                 color: tc,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                  color: AppColors.primary,
+                ),
               ),
             ),
             const Spacer(),
