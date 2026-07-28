@@ -586,6 +586,13 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    // Adding/editing/removing members is admin-only server-side
+    // (add_family_member/update_family_member RPCs, and the
+    // "family_members: admin can manage" RLS policy) — a non-admin member
+    // must not see affordances the server will silently reject. Creating a
+    // brand-new family has no server round-trip for this yet, so the
+    // creator (always the future admin) can freely stage members.
+    final isAdmin = !_isEdit || widget.existing!.myRole == MemberRole.admin;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -814,20 +821,23 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                             surfBg: surfBg,
                             tc: tc,
                             sub: sub,
-                            onEdit: () => _editMember(
-                              context,
-                              entry.value,
-                              isDark,
-                              surfBg,
-                            ),
+                            onEdit: !isAdmin
+                                ? null
+                                : () => _editMember(
+                                    context,
+                                    entry.value,
+                                    isDark,
+                                    surfBg,
+                                  ),
                             onRemove:
-                                entry.value.role == MemberRole.admin &&
+                                !isAdmin ||
+                                    (entry.value.role == MemberRole.admin &&
                                     _members
                                             .where(
                                               (m) => m.role == MemberRole.admin,
                                             )
                                             .length ==
-                                        1
+                                        1)
                                 ? null
                                 : () => setState(
                                     () => _members.remove(entry.value),
@@ -838,6 +848,26 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
 
                     const SizedBox(height: 8),
                     Builder(builder: (_) {
+                      if (!isAdmin) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: sub.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.lock_outline_rounded, size: 15, color: sub),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Only the admin can add or manage members',
+                                style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
                       final max = widget.appState.maxFamilyMembers;
                       final atCap = max > 0 && _members.length >= max;
                       if (atCap) {
@@ -1784,7 +1814,7 @@ class _MemberRow extends StatelessWidget {
   final FamilyMember member;
   final bool isDark;
   final Color surfBg, tc, sub;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
   final VoidCallback? onRemove;
   const _MemberRow({
     required this.member,
@@ -1894,21 +1924,22 @@ class _MemberRow extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              GestureDetector(
-                onTap: onEdit,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.edit_rounded,
-                    size: 15,
-                    color: AppColors.primary,
+              if (onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.edit_rounded,
+                      size: 15,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
-              ),
               if (onRemove != null) ...[
                 const SizedBox(width: 6),
                 GestureDetector(
