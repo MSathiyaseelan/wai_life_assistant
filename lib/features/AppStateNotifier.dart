@@ -74,7 +74,24 @@ class AppStateNotifier extends ChangeNotifier {
   /// this, a single bad first request left every screen stuck on the
   /// 'personal' placeholder wallet id for the rest of the session (surfacing
   /// as "Failed to load PlanIt data" / "Account still loading" everywhere).
-  Future<void> init() async {
+  Future<void>? _inFlightInit;
+
+  /// Guards against overlapping calls (e.g. the realtime family-change
+  /// listener firing at the same moment a caller explicitly awaits
+  /// reload(), such as right after deleting a family) — both would
+  /// otherwise run concurrent, unguarded fetches that stomp on each
+  /// other's results and can leave a caller's awaited call hanging on
+  /// state a different in-flight call already moved past.
+  Future<void> init() {
+    final existing = _inFlightInit;
+    if (existing != null) return existing;
+    final future = _initInternal();
+    _inFlightInit = future;
+    future.whenComplete(() => _inFlightInit = null);
+    return future;
+  }
+
+  Future<void> _initInternal() async {
     _loading = true;
     notifyListeners();
 

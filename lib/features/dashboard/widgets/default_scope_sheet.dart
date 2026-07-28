@@ -32,6 +32,7 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
       walletScope: _p.walletScope,
       pantryScope: _p.pantryScope,
       planItScope: _p.planItScope,
+      hubScope: _p.hubScope,
     ).catchError((e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'persist_default_scopes');
       if (mounted) {
@@ -112,6 +113,16 @@ class _DefaultScopeSheetState extends State<DefaultScopeSheet> {
                 value: _p.planItScope,
                 hasFamily: hasFamily,
                 onChanged: (v) { setState(() => _p.planItScope = v); _persist(); },
+              ),
+              const SizedBox(height: 16),
+
+              // MyHub / FamilyHub
+              PrefsSectionLabel('MyHub / FamilyHub', isDark: isDark),
+              _ScopePicker(
+                isDark: isDark, surf: surf, tc: tc,
+                value: _p.hubScope,
+                hasFamily: hasFamily,
+                onChanged: (v) { setState(() => _p.hubScope = v); _persist(); },
               ),
             ],
           );

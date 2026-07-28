@@ -13,6 +13,7 @@ import 'package:wai_life_assistant/features/myhub/my_hub_screen.dart';
 import 'package:wai_life_assistant/features/lifestyle/lifestyle_screen.dart';
 import 'package:wai_life_assistant/features/dashboard/dashboard_screen.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/auth/app_lock_screen.dart';
@@ -250,13 +251,23 @@ class _AppShellState extends State<AppShell> {
     if (storedWalletId == null) return;
     final wallets = _appState.wallets;
     if (wallets.isEmpty) return;
-    // Look up the exact wallet by id (covers any of the user's families).
-    // Falls back to the personal wallet if it's stale/no longer accessible
-    // (e.g. removed from that family) or on first launch (default 'personal').
-    final target = wallets.firstWhere(
-      (w) => w.id == storedWalletId,
-      orElse: () => wallets.firstWhere((w) => w.isPersonal, orElse: () => wallets.first),
-    );
+    final personal = wallets.firstWhere((w) => w.isPersonal, orElse: () => wallets.first);
+
+    // storedWalletId is either a real wallet id (set by the wallet-switcher
+    // pill, to restore the exact same wallet/family) or one of the semantic
+    // labels the Default Scope settings sheet writes ('personal'/'family',
+    // which don't correspond to any real wallet id and must be resolved
+    // here instead of matched directly).
+    final WalletModel target;
+    if (storedWalletId == 'family') {
+      target = wallets.firstWhere((w) => !w.isPersonal, orElse: () => personal);
+    } else if (storedWalletId == 'personal') {
+      target = personal;
+    } else {
+      // Falls back to the personal wallet if it's stale/no longer accessible
+      // (e.g. removed from that family).
+      target = wallets.firstWhere((w) => w.id == storedWalletId, orElse: () => personal);
+    }
     _appState.switchWallet(target.id);
   }
 

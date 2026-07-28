@@ -92,11 +92,13 @@ class ProfileService {
     required String walletScope,
     required String pantryScope,
     required String planItScope,
+    required String hubScope,
   }) async {
     await _db.from('profiles').update({
       'wallet_scope': walletScope,
       'pantry_scope': pantryScope,
       'planit_scope': planItScope,
+      'hub_scope': hubScope,
     }).eq('id', _uid);
   }
 

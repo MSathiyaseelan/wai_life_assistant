@@ -264,9 +264,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         final ws = (profile['wallet_scope'] as String?) ?? 'personal';
         final ps = (profile['pantry_scope'] as String?) ?? 'personal';
         final ls = (profile['planit_scope'] as String?) ?? 'personal';
+        final hs = (profile['hub_scope'] as String?) ?? 'personal';
         if (prefs.walletScope != ws) prefs.walletScope = ws;
         if (prefs.pantryScope != ps) prefs.pantryScope = ps;
         if (prefs.planItScope != ls) prefs.planItScope = ls;
+        if (prefs.hubScope != hs) prefs.hubScope = hs;
       }
     } catch (e, stack) {
       debugPrint('[Dashboard] _loadProfile error: $e');
@@ -2265,7 +2267,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               return GestureDetector(
                 onTap: () {
                   widget.onSetTheme?.call(mode);
+                  // Close the picker AND the settings sheet, then reopen it
+                  // fresh — the sheet's colors (surfBg/tc/sub and everything
+                  // derived from them) are computed once when it's first
+                  // shown, not reactively, so without this it stays stuck
+                  // showing the old theme until manually closed and reopened.
                   Navigator.pop(ctx);
+                  Navigator.pop(ctx);
+                  final newIsDark = mode == ThemeMode.dark ||
+                      (mode == ThemeMode.system &&
+                          MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+                  _showSettings(context, newIsDark);
                 },
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 8),
