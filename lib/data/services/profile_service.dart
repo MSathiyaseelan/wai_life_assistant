@@ -102,6 +102,27 @@ class ProfileService {
     }).eq('id', _uid);
   }
 
+  /// Persist the subset of NotificationPrefs the server-side scheduled-
+  /// notification cron needs to know about (per-user, since a shared family
+  /// wallet's members can each have their own on/off + day-count settings).
+  Future<void> updateNotificationPrefs({
+    required bool master,
+    required bool pantryExpiry,
+    required int pantryExpiryDays,
+    required bool planItSpecialDay,
+    required bool functionsUpcoming,
+    required int functionsUpcomingDays,
+  }) async {
+    await _db.from('profiles').update({
+      'notif_master': master,
+      'notif_pantry_expiry': pantryExpiry,
+      'notif_pantry_expiry_days': pantryExpiryDays,
+      'notif_planit_special_day': planItSpecialDay,
+      'notif_functions_upcoming': functionsUpcoming,
+      'notif_functions_upcoming_days': functionsUpcomingDays,
+    }).eq('id', _uid);
+  }
+
   // ── FamilySwitcher seed data ──────────────────────────────────────────────
 
   /// Loads everything the FamilySwitcherSheet needs in a single round-trip:

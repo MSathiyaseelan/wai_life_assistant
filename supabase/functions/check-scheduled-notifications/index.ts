@@ -1,18 +1,19 @@
 // ============================================================
 // Supabase Edge Function: /check-scheduled-notifications
 // Called daily by pg_cron to send FCM push notifications for
-// the two "days before X" event types that can't be triggered
-// by a simple insert:
+// "days before X" event types that can't be triggered by a simple insert:
 //   - planit.special_day_approaching
 //   - pantry.expiry_alert
+//   - functions.upcoming_reminder
 //
-// special_days.alert_days_before is per-record (set by the user
-// when creating the special day), so that threshold is respected
-// exactly. Grocery expiry has no per-item threshold column, so a
-// fixed default (2 days) is used, matching NotificationPrefs'
-// pantryExpiryDays default — the app-side per-user customization
-// of that number is local-only (SharedPreferences) and never
-// synced to the DB, so it can't be honored server-side yet.
+// Each family member can have their own on/off toggle (and, for pantry
+// expiry / functions upcoming, their own "days before" count) via
+// profiles.notif_* columns — synced from the app's local NotificationPrefs
+// (see ProfileService.updateNotificationPrefs). special_days already has
+// its own per-record alert_days_before, so only the on/off toggle applies
+// there; pantry expiry and functions upcoming have no per-record
+// threshold, so each member's own day-count is used to decide eligibility
+// individually rather than sending one blanket push to the whole family.
 //
 // Authorization: service role key OR x-cron-secret header.
 // ============================================================
@@ -24,9 +25,6 @@ const SUPABASE_URL         = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const FCM_SERVICE_ACCOUNT  = JSON.parse(Deno.env.get("FCM_SERVICE_ACCOUNT")!);
 const CRON_SECRET          = Deno.env.get("CRON_SECRET") ?? "";
-
-// Server-side default for grocery expiry alerts — see file header note.
-const DEFAULT_PANTRY_EXPIRY_ALERT_DAYS = 2;
 
 // ── FCM helpers (mirrors send-notification / notify-trial-expiry) ─────────────
 
@@ -173,10 +171,13 @@ function nextOccurrence(dateStr: string, yearlyRecur: boolean, today: Date): Dat
   return next;
 }
 
-// ── Sender: groups eligible rows by family, sends one push per family ────────
+// ── Sender: one push per already-resolved recipient ──────────────────────────
+// Unlike a blanket per-family send, each job here already carries the exact
+// set of user_ids eligible for it (resolved per-member against their own
+// profiles.notif_* toggle/day-count before the job was ever created).
 
 interface PushJob {
-  familyId: string;
+  userIds: string[];
   eventType: string;
   title: string;
   body: string;
@@ -200,18 +201,12 @@ async function sendGrouped(
 
   let sent = 0;
   for (const job of jobs) {
-    const { data: members } = await supabase
-      .from("family_members")
-      .select("user_id")
-      .eq("family_id", job.familyId)
-      .not("user_id", "is", null);
-    if (!members?.length) continue;
+    if (!job.userIds.length) continue;
 
-    const memberIds = members.map((m: { user_id: string }) => m.user_id);
     const { data: tokens } = await supabase
       .from("user_fcm_tokens")
       .select("fcm_token")
-      .in("user_id", memberIds);
+      .in("user_id", job.userIds);
     if (!tokens?.length) continue;
 
     const fcmData = { route: job.route, event_type: job.eventType, ...job.data };
@@ -235,6 +230,46 @@ async function sendGrouped(
   return sent;
 }
 
+interface MemberNotifPrefs {
+  notif_master: boolean;
+  notif_pantry_expiry: boolean;
+  notif_pantry_expiry_days: number;
+  notif_planit_special_day: boolean;
+  notif_functions_upcoming: boolean;
+  notif_functions_upcoming_days: number;
+}
+
+/** Every member of [familyId] together with their own notification prefs. */
+async function familyMembersWithPrefs(
+  supabase: ReturnType<typeof createClient>,
+  familyId: string,
+): Promise<Array<{ user_id: string } & MemberNotifPrefs>> {
+  const { data: members } = await supabase
+    .from("family_members")
+    .select("user_id")
+    .eq("family_id", familyId)
+    .not("user_id", "is", null);
+  if (!members?.length) return [];
+
+  const memberIds = members.map((m: { user_id: string }) => m.user_id);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select(
+      "id, notif_master, notif_pantry_expiry, notif_pantry_expiry_days, notif_planit_special_day, notif_functions_upcoming, notif_functions_upcoming_days",
+    )
+    .in("id", memberIds);
+
+  return (profiles ?? []).map((p: MemberNotifPrefs & { id: string }) => ({
+    user_id: p.id,
+    notif_master: p.notif_master,
+    notif_pantry_expiry: p.notif_pantry_expiry,
+    notif_pantry_expiry_days: p.notif_pantry_expiry_days,
+    notif_planit_special_day: p.notif_planit_special_day,
+    notif_functions_upcoming: p.notif_functions_upcoming,
+    notif_functions_upcoming_days: p.notif_functions_upcoming_days,
+  }));
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -251,8 +286,21 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const today = todayUTC();
   const jobs: PushJob[] = [];
+  // Caches familyMembersWithPrefs() per family across all three sections
+  // below, since the same family often recurs across multiple items.
+  const memberCache = new Map<string, Awaited<ReturnType<typeof familyMembersWithPrefs>>>();
+  async function membersFor(familyId: string) {
+    let m = memberCache.get(familyId);
+    if (!m) {
+      m = await familyMembersWithPrefs(supabase, familyId);
+      memberCache.set(familyId, m);
+    }
+    return m;
+  }
 
   // ── 1. Special days approaching ─────────────────────────────────────────────
+  // alert_days_before is per-record (set by the user on each special day) —
+  // only the on/off toggle is a per-member preference here.
   {
     const { data: days, error } = await supabase
       .from("special_days")
@@ -283,8 +331,14 @@ serve(async (req) => {
         const daysLeft = daysBetween(today, occurrence);
         if (daysLeft !== day.alert_days_before) continue;
 
+        const members = await membersFor(familyId);
+        const userIds = members
+          .filter((m) => m.notif_master && m.notif_planit_special_day)
+          .map((m) => m.user_id);
+        if (!userIds.length) continue;
+
         jobs.push({
-          familyId,
+          userIds,
           eventType: "planit.special_day_approaching",
           route: "planit",
           title: `🎉 ${daysLeft} day${daysLeft === 1 ? "" : "s"} to ${day.title}`,
@@ -296,10 +350,14 @@ serve(async (req) => {
   }
 
   // ── 2. Grocery items expiring soon ──────────────────────────────────────────
+  // No per-item threshold column, so each member's own "days before" pick
+  // decides eligibility individually — query a broad window covering every
+  // possible chip option (1/2/3/7) and match per member below.
   {
-    const cutoff = new Date(today);
-    cutoff.setUTCDate(cutoff.getUTCDate() + DEFAULT_PANTRY_EXPIRY_ALERT_DAYS);
-    const cutoffStr = cutoff.toISOString().split("T")[0];
+    const maxWindow = new Date(today);
+    maxWindow.setUTCDate(maxWindow.getUTCDate() + 7);
+    const maxWindowStr = maxWindow.toISOString().split("T")[0];
+    const todayStr = today.toISOString().split("T")[0];
 
     const { data: items, error } = await supabase
       .from("grocery_items")
@@ -307,7 +365,8 @@ serve(async (req) => {
       .eq("in_stock", true)
       .is("deleted_at", null)
       .not("expiry_date", "is", null)
-      .eq("expiry_date", cutoffStr); // exactly N days out — fires once per item
+      .gte("expiry_date", todayStr)
+      .lte("expiry_date", maxWindowStr);
 
     if (error) {
       console.error("[scheduled-notif] grocery_items query error:", error.message);
@@ -326,13 +385,73 @@ serve(async (req) => {
         const familyId = familyByWallet.get(item.wallet_id);
         if (!familyId) continue;
 
+        const daysLeft = daysBetween(today, new Date(item.expiry_date + "T00:00:00Z"));
+        const members = await membersFor(familyId);
+        const userIds = members
+          .filter((m) => m.notif_master && m.notif_pantry_expiry && m.notif_pantry_expiry_days === daysLeft)
+          .map((m) => m.user_id);
+        if (!userIds.length) continue;
+
         jobs.push({
-          familyId,
+          userIds,
           eventType: "pantry.expiry_alert",
           route: "pantry",
           title: "🔴 Expiry Alert",
-          body: `${item.name} expires in ${DEFAULT_PANTRY_EXPIRY_ALERT_DAYS} days`,
-          data: { item_name: item.name, expiry_text: `in ${DEFAULT_PANTRY_EXPIRY_ALERT_DAYS} days` },
+          body: `${item.name} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+          data: { item_name: item.name, expiry_text: `in ${daysLeft} day${daysLeft === 1 ? "" : "s"}` },
+        });
+      }
+    }
+  }
+
+  // ── 3. Functions/events approaching ─────────────────────────────────────────
+  // Same per-member "days before" matching as pantry expiry — this reminder
+  // never existed before (only an immediate "someone added this" notify did).
+  {
+    const maxWindow = new Date(today);
+    maxWindow.setUTCDate(maxWindow.getUTCDate() + 14);
+    const maxWindowStr = maxWindow.toISOString().split("T")[0];
+    const todayStr = today.toISOString().split("T")[0];
+
+    const { data: fns, error } = await supabase
+      .from("functions_upcoming")
+      .select("wallet_id, function_title, date")
+      .is("deleted_at", null)
+      .not("date", "is", null)
+      .gte("date", todayStr)
+      .lte("date", maxWindowStr);
+
+    if (error) {
+      console.error("[scheduled-notif] functions_upcoming query error:", error.message);
+    } else if (fns?.length) {
+      const walletIds = [...new Set(fns.map((f: { wallet_id: string }) => f.wallet_id))];
+      const { data: wallets } = await supabase
+        .from("wallets")
+        .select("id, family_id")
+        .in("id", walletIds)
+        .not("family_id", "is", null);
+      const familyByWallet = new Map<string, string>(
+        (wallets ?? []).map((w: { id: string; family_id: string }) => [w.id, w.family_id]),
+      );
+
+      for (const fn of fns as Array<{ wallet_id: string; function_title: string; date: string }>) {
+        const familyId = familyByWallet.get(fn.wallet_id);
+        if (!familyId) continue;
+
+        const daysLeft = daysBetween(today, new Date(fn.date + "T00:00:00Z"));
+        const members = await membersFor(familyId);
+        const userIds = members
+          .filter((m) => m.notif_master && m.notif_functions_upcoming && m.notif_functions_upcoming_days === daysLeft)
+          .map((m) => m.user_id);
+        if (!userIds.length) continue;
+
+        jobs.push({
+          userIds,
+          eventType: "functions.upcoming_reminder",
+          route: "myhub",
+          title: `📅 ${daysLeft} day${daysLeft === 1 ? "" : "s"} to ${fn.function_title}`,
+          body: "Don't forget to prepare!",
+          data: { days_left: String(daysLeft), function_name: fn.function_title },
         });
       }
     }

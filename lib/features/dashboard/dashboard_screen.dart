@@ -269,6 +269,24 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         if (prefs.pantryScope != ps) prefs.pantryScope = ps;
         if (prefs.planItScope != ls) prefs.planItScope = ls;
         if (prefs.hubScope != hs) prefs.hubScope = hs;
+
+        // Same cross-device sync for the subset of NotificationPrefs the
+        // server-side scheduled-notification cron also needs (see
+        // ProfileService.updateNotificationPrefs).
+        final notifPrefs = NotificationPrefs.instance;
+        await notifPrefs.init();
+        final nMaster = (profile['notif_master'] as bool?) ?? true;
+        final nPantryExpiry = (profile['notif_pantry_expiry'] as bool?) ?? true;
+        final nPantryExpiryDays = (profile['notif_pantry_expiry_days'] as int?) ?? 2;
+        final nSpecialDay = (profile['notif_planit_special_day'] as bool?) ?? true;
+        final nFunctionsUpcoming = (profile['notif_functions_upcoming'] as bool?) ?? true;
+        final nFunctionsUpcomingDays = (profile['notif_functions_upcoming_days'] as int?) ?? 7;
+        if (notifPrefs.masterOn != nMaster) notifPrefs.masterOn = nMaster;
+        if (notifPrefs.pantryExpiry != nPantryExpiry) notifPrefs.pantryExpiry = nPantryExpiry;
+        if (notifPrefs.pantryExpiryDays != nPantryExpiryDays) notifPrefs.pantryExpiryDays = nPantryExpiryDays;
+        if (notifPrefs.planItSpecialDay != nSpecialDay) notifPrefs.planItSpecialDay = nSpecialDay;
+        if (notifPrefs.functionsUpcoming != nFunctionsUpcoming) notifPrefs.functionsUpcoming = nFunctionsUpcoming;
+        if (notifPrefs.functionsUpcomingDays != nFunctionsUpcomingDays) notifPrefs.functionsUpcomingDays = nFunctionsUpcomingDays;
       }
     } catch (e, stack) {
       debugPrint('[Dashboard] _loadProfile error: $e');

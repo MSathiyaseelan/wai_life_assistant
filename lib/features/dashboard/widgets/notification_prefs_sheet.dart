@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/core/services/notification_service.dart';
+import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATION PREFERENCES SHEET
@@ -25,6 +27,24 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
     super.initState();
     _prefs.init().then((_) {
       if (mounted) setState(() => _loading = false);
+    });
+  }
+
+  // A handful of these settings also drive the server-side scheduled-
+  // notification cron (pantry expiry, special day, functions upcoming),
+  // which has no access to this device's local SharedPreferences — so
+  // those specific fields get pushed to the profile row on every change,
+  // same pattern as Default Scope's _persist().
+  void _persistServerSynced() {
+    ProfileService.instance.updateNotificationPrefs(
+      master: _prefs.masterOn,
+      pantryExpiry: _prefs.pantryExpiry,
+      pantryExpiryDays: _prefs.pantryExpiryDays,
+      planItSpecialDay: _prefs.planItSpecialDay,
+      functionsUpcoming: _prefs.functionsUpcoming,
+      functionsUpcomingDays: _prefs.functionsUpcomingDays,
+    ).catchError((e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'persist_notification_prefs');
     });
   }
 
@@ -92,13 +112,19 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                               'Expiry alerts',
                               'Alert before items expire',
                               _prefs.pantryExpiry,
-                              (v) => setState(() => _prefs.pantryExpiry = v),
+                              (v) {
+                                setState(() => _prefs.pantryExpiry = v);
+                                _persistServerSynced();
+                              },
                               child: _prefs.pantryExpiry
                                   ? _chipPicker(
                                       label: 'Alert days before expiry',
                                       options: const [1, 2, 3, 7],
                                       selected: _prefs.pantryExpiryDays,
-                                      onSelect: (v) => setState(() => _prefs.pantryExpiryDays = v),
+                                      onSelect: (v) {
+                                        setState(() => _prefs.pantryExpiryDays = v);
+                                        _persistServerSynced();
+                                      },
                                       suffix: 'd',
                                     )
                                   : null,
@@ -143,7 +169,10 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                               'Special day countdowns',
                               'Remind you before birthdays and anniversaries',
                               _prefs.planItSpecialDay,
-                              (v) => setState(() => _prefs.planItSpecialDay = v),
+                              (v) {
+                                setState(() => _prefs.planItSpecialDay = v);
+                                _persistServerSynced();
+                              },
                               child: _prefs.planItSpecialDay
                                   ? _chipPicker(
                                       label: 'Remind days before',
@@ -176,13 +205,19 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                               'Upcoming function reminders',
                               'Remind you before events and functions',
                               _prefs.functionsUpcoming,
-                              (v) => setState(() => _prefs.functionsUpcoming = v),
+                              (v) {
+                                setState(() => _prefs.functionsUpcoming = v);
+                                _persistServerSynced();
+                              },
                               child: _prefs.functionsUpcoming
                                   ? _chipPicker(
                                       label: 'Remind days before',
                                       options: const [3, 7, 14],
                                       selected: _prefs.functionsUpcomingDays,
-                                      onSelect: (v) => setState(() => _prefs.functionsUpcomingDays = v),
+                                      onSelect: (v) {
+                                        setState(() => _prefs.functionsUpcomingDays = v);
+                                        _persistServerSynced();
+                                      },
                                       suffix: 'd',
                                     )
                                   : null,
@@ -303,6 +338,7 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                 // deliver anything — request the platform permission so a
                 // switch shown "On" isn't silently blocked by the OS.
                 if (v) NotificationService.instance.requestPermissions();
+                _persistServerSynced();
               },
               activeTrackColor: AppColors.primary,
             ),
