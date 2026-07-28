@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
 
 class WeekCalendarStrip extends StatefulWidget {
@@ -42,12 +43,16 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
   @override
   void initState() {
     super.initState();
-    _weekStart = _mondayOf(widget.selectedDate);
+    _weekStart = _startOfWeek(widget.selectedDate);
   }
 
-  // Monday of the week containing [date]
-  DateTime _mondayOf(DateTime date) {
-    final diff = date.weekday - 1; // Mon=1 → diff=0, Sun=7 → diff=6
+  // Start of the week containing [date], honouring the user's "Week Starts
+  // On" preference (Settings > Appearance > Date & Time) — must match
+  // MealMapSection's week-start logic so both stay in sync.
+  DateTime _startOfWeek(DateTime date) {
+    final diff = AppPrefs.instance.weekStartsOn == 'sunday'
+        ? date.weekday % 7
+        : date.weekday - 1;
     return DateTime(date.year, date.month, date.day - diff);
   }
 
@@ -122,7 +127,7 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
                         ),
                       );
                       if (picked != null) {
-                        setState(() => _weekStart = _mondayOf(picked.start));
+                        setState(() => _weekStart = _startOfWeek(picked.start));
                         widget.onDateSelected(picked.start);
                       }
                     },

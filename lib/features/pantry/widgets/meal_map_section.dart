@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import '../sheets/add_meal_sheet.dart';
 
@@ -68,10 +69,16 @@ class _MealMapSectionState extends State<MealMapSection> {
     super.dispose();
   }
 
+  // Days-from-week-start for a given date, honouring the user's "Week
+  // Starts On" preference (Settings > Appearance > Date & Time). Dart's
+  // weekday is Mon=1…Sun=7; for a Sunday-start week that's `weekday % 7`
+  // (Sunday itself → 0), for Monday-start it's the existing `weekday - 1`.
+  int _offsetFromWeekStart(DateTime d) =>
+      AppPrefs.instance.weekStartsOn == 'sunday' ? d.weekday % 7 : d.weekday - 1;
+
   void _scrollToToday() {
     if (!_scrollCtrl.hasClients) return;
-    // weekday: Mon=1 … Sun=7 → index 0…6
-    final todayIndex = widget.selectedDate.weekday - 1;
+    final todayIndex = _offsetFromWeekStart(widget.selectedDate);
     final offset = (todayIndex * _columnWidth).clamp(
       0.0,
       _scrollCtrl.position.maxScrollExtent,
@@ -83,11 +90,11 @@ class _MealMapSectionState extends State<MealMapSection> {
     );
   }
 
-  // Get 7-day window starting from Monday of selectedDate's week
+  // Get 7-day window starting from selectedDate's week-start day.
   List<DateTime> get _weekDays {
     final start = widget.selectedDate.subtract(
-      Duration(days: widget.selectedDate.weekday - 1),
-    ); // Monday
+      Duration(days: _offsetFromWeekStart(widget.selectedDate)),
+    );
     return List.generate(7, (i) => start.add(Duration(days: i)));
   }
 
@@ -123,7 +130,10 @@ class _MealMapSectionState extends State<MealMapSection> {
     return weeksAhead > widget.mealWeeksAhead;
   }
 
-  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _mondayFirstDayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  List<String> get _dayNames => AppPrefs.instance.weekStartsOn == 'sunday'
+      ? ['Sun', ..._mondayFirstDayNames.take(6)]
+      : _mondayFirstDayNames;
 
   bool get _hasClipboard =>
       widget.clipboardMeals != null && widget.clipboardMeals!.isNotEmpty;

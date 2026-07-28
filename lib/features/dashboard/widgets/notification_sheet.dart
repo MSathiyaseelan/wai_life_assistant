@@ -272,7 +272,7 @@ class _InviteTileState extends State<_InviteTile> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24)   return '${diff.inHours}h ago';
     if (diff.inDays < 7)     return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    return AppPrefs.instance.formatDate(dt);
   }
 
   Future<void> _accept() async {
@@ -497,7 +497,7 @@ class _BudgetAlertTile extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24)   return '${diff.inHours}h ago';
     if (diff.inDays < 7)     return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    return AppPrefs.instance.formatDate(dt);
   }
 
   @override
@@ -620,7 +620,7 @@ class _NotifTile extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24)   return '${diff.inHours}h ago';
     if (diff.inDays < 7)     return '${diff.inDays}d ago';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    return AppPrefs.instance.formatDate(dt);
   }
 
   @override

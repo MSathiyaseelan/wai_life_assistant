@@ -332,7 +332,7 @@ class FlowData {
       rows.add(
         MapEntry(
           'Date',
-          '${pickedDate!.day}/${pickedDate!.month}/${pickedDate!.year}',
+          AppPrefs.instance.formatDate(pickedDate!),
         ),
       );
     } else if (date != null) {

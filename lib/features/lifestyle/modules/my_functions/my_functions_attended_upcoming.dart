@@ -163,7 +163,7 @@ class _AttendedCard extends StatelessWidget {
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
-                                      '${item.date!.day}/${item.date!.month}/${item.date!.year}',
+                                      AppPrefs.instance.formatDate(item.date!),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontFamily: 'Nunito',

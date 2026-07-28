@@ -124,6 +124,21 @@ class AppPrefs extends ChangeNotifier {
     (key: 'ymd', label: 'YYYY-MM-DD', example: '2026-04-08'),
   ];
 
+  /// Formats a numeric date according to the user's [dateFormat] preference.
+  /// Use this instead of hand-rolling '${d.day}/${d.month}/${d.year}' —
+  /// those always render DD/MM regardless of what the user picked in
+  /// Settings > Appearance > Date & Time.
+  String formatDate(DateTime d) {
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yyyy = d.year.toString();
+    return switch (dateFormat) {
+      'mdy' => '$mm/$dd/$yyyy',
+      'ymd' => '$yyyy-$mm-$dd',
+      _     => '$dd/$mm/$yyyy',
+    };
+  }
+
   /// 'sunday' | 'monday'
   String get weekStartsOn    => _s('week_starts_on',  def: 'sunday');
   set weekStartsOn(String v) => _setS('week_starts_on', v);

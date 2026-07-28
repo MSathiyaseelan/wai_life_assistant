@@ -727,8 +727,7 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
                       if (_aiPreview!.date != null)
                         _FuncPreviewChip(
                           icon: Icons.calendar_today_rounded,
-                          label:
-                              '${_aiPreview!.date!.day}/${_aiPreview!.date!.month}/${_aiPreview!.date!.year}',
+                          label: AppPrefs.instance.formatDate(_aiPreview!.date!),
                           color: AppColors.income,
                         ),
                       if (_aiPreview!.venue != null)

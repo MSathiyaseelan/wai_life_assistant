@@ -464,8 +464,7 @@ class _DateStepState extends State<DateStep> {
       lastDate: now,
     );
     if (picked != null) {
-      final label =
-          '${picked.day}/${picked.month}/${picked.year}';
+      final label = AppPrefs.instance.formatDate(picked);
       widget.onSelect(label, picked);
     }
   }
