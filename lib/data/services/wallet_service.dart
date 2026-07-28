@@ -366,6 +366,7 @@ class WalletService {
     }) as bool? ?? true;
     if (!allowed) throw const TransactionLimitExceededException();
 
+    final resolvedCategory = resolveCategoryName(category, type);
     try {
       final row = await _db.from('transactions').insert({
         'wallet_id': walletId,
@@ -373,7 +374,7 @@ class WalletService {
         'type': type,
         'pay_mode': payMode,
         'amount': amount,
-        'category': resolveCategoryName(category, type),
+        'category': resolvedCategory,
         'title': title,
         'note': note,
         'person': person,
@@ -384,9 +385,36 @@ class WalletService {
         if (groupId != null) 'group_id': groupId,
       }).select().single();
       return row;
-    } catch (_) {
-      // The quota slot was already consumed by check_feature_limit above;
-      // give it back since nothing was actually saved.
+    } catch (e) {
+      // The insert itself can succeed on the server while the client never
+      // sees the response (dropped/timed-out connection) — the exception
+      // here doesn't necessarily mean nothing was saved. Check for a
+      // just-inserted row matching this exact request before assuming
+      // failure; otherwise a flaky connection both shows a false "failed to
+      // save" error AND lets the user create a real duplicate by retrying.
+      try {
+        final recent = await _db
+            .from('transactions')
+            .select()
+            .eq('wallet_id', walletId)
+            .eq('user_id', _uid)
+            .eq('type', type)
+            .eq('amount', amount)
+            .eq('category', resolvedCategory)
+            .filter('deleted_at', 'is', null)
+            .gte('created_at', DateTime.now().toUtc().subtract(const Duration(seconds: 20)).toIso8601String())
+            .order('created_at', ascending: false)
+            .limit(1);
+        if (recent.isNotEmpty) {
+          return Map<String, dynamic>.from(recent.first as Map);
+        }
+      } catch (_) {
+        // Verification query itself failed — fall through to the original
+        // error below, which is the best information we have at this point.
+      }
+
+      // Genuinely didn't save — the quota slot was already consumed by
+      // check_feature_limit above; give it back.
       await _db.rpc(AppRpc.releaseFeatureUsage, params: {
         'p_user_id': _uid,
         'p_feature': 'wallet_transaction',

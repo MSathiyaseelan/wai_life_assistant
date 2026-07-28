@@ -90,8 +90,18 @@ class NlpParser {
     'amazon': 'Shopping',
     'flipkart': 'Shopping',
     'clothes': 'Shopping',
+    'clothing': 'Shopping',
+    'dress': 'Shopping',
+    'saree': 'Shopping',
+    'kurti': 'Shopping',
     'shirt': 'Shopping',
+    'trouser': 'Shopping',
+    'jeans': 'Shopping',
+    'footwear': 'Shopping',
     'shoes': 'Shopping',
+    'gift': 'Shopping',
+    'gifts': 'Shopping',
+    'festival': 'Shopping',
     // Entertainment
     'movie': 'Entertainment',
     'netflix': 'Subscription',
@@ -276,6 +286,24 @@ class NlpParser {
     } else if (lower.contains('today') || lower.contains('tonight')) {
       dateToken = lower.contains('today') ? 'today' : 'tonight';
       date = todayMidnight;
+    } else {
+      // Explicit day-of-month, e.g. "on 26th" / "26th" / "on the 3rd".
+      // Assumes the current month/year; if that lands in the future
+      // (the day hasn't happened yet this month), it almost certainly
+      // means last month instead — expenses are logged after the fact,
+      // not scheduled ahead.
+      final domMatch = RegExp(r'\b(\d{1,2})(st|nd|rd|th)\b').firstMatch(lower);
+      if (domMatch != null) {
+        final day = int.parse(domMatch.group(1)!);
+        if (day >= 1 && day <= 31) {
+          var candidate = DateTime(todayMidnight.year, todayMidnight.month, day);
+          if (candidate.isAfter(todayMidnight)) {
+            candidate = DateTime(todayMidnight.year, todayMidnight.month - 1, day);
+          }
+          date = candidate;
+          dateToken = domMatch.group(0);
+        }
+      }
     }
 
     // ── 2. Flow type detection ────────────────────────────────────────────

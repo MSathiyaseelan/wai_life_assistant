@@ -57,13 +57,15 @@ class IntentConfirmSheet extends StatefulWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => IntentConfirmSheet(
-        intent: intent,
-        walletId: walletId,
-        onSave: onSave,
-        onOpenFlow: onOpenFlow,
-        existingId: existingId,
-        pendingError: pendingError,
+      builder: (_) => ScaffoldMessenger(
+        child: IntentConfirmSheet(
+          intent: intent,
+          walletId: walletId,
+          onSave: onSave,
+          onOpenFlow: onOpenFlow,
+          existingId: existingId,
+          pendingError: pendingError,
+        ),
       ),
     );
   }
