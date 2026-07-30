@@ -25,6 +25,9 @@ class FamilyNotificationTrigger {
     required String eventType,
     required String familyId,
     required Map<String, dynamic> eventData,
+    // Sends only to this user instead of every family_members row — needed
+    // for invites, since the invitee isn't a member of familyId yet.
+    String? targetUserId,
   }) {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
@@ -46,6 +49,7 @@ class FamilyNotificationTrigger {
         'event_type': eventType,
         'family_id': familyId,
         'event_data': eventData,
+        if (targetUserId != null) 'target_user_id': targetUserId,
       },
     ).then((_) {
       debugPrint('[FCM] notified: $eventType');

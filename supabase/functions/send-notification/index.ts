@@ -67,6 +67,9 @@ const TEMPLATES: Record<string, Template> = {
 
   // Functions
   "functions.upcoming_added": (d) => ({ title: `🎊 Upcoming function added`, body: `${d.member_name}: ${d.function_name} on ${d.date}`, route: "planit" }),
+
+  // Family
+  "family.invite_received": (d) => ({ title: `👨‍👩‍👧 Family Invite`, body: `${d.inviter_name} invited you to join "${d.family_name}"`, route: "dashboard" }),
 };
 
 // ── Base64url helpers ─────────────────────────────────────────────────────────
@@ -232,6 +235,10 @@ serve(async (req) => {
     event_type: string;
     family_id: string;
     event_data: TemplateData;
+    // When set, sends only to this user instead of resolving recipients
+    // from family_members — needed for invites, since the invitee isn't a
+    // member of family_id yet (that only happens once they accept).
+    target_user_id?: string;
   };
 
   try {
@@ -242,7 +249,7 @@ serve(async (req) => {
     });
   }
 
-  const { event_type, family_id } = body;
+  const { event_type, family_id, target_user_id } = body;
   const event_data = sanitizeEventData(body.event_data);
 
   const template = TEMPLATES[event_type];
@@ -303,24 +310,33 @@ serve(async (req) => {
 
   console.log(`[notify] event=${event_type} family=${family_id} triggered_by=${triggered_by}`);
 
-  // Get linked family members (user_id NOT NULL) excluding the triggering user.
-  // Note: family_members has no status column — filter by user_id IS NOT NULL.
-  const { data: members, error: membersErr } = await supabase
-    .from("family_members")
-    .select("user_id")
-    .eq("family_id", family_id)
-    .not("user_id", "is", null)
-    .neq("user_id", triggered_by);
+  let memberIds: string[];
 
-  console.log(`[notify] members found=${members?.length ?? 0} error=${membersErr?.message ?? "none"}`);
+  if (target_user_id) {
+    // Direct-target mode (invites): the recipient isn't a family_members
+    // row yet, so there's nothing to resolve from that table — just send
+    // straight to them.
+    memberIds = [target_user_id];
+  } else {
+    // Get linked family members (user_id NOT NULL) excluding the triggering user.
+    // Note: family_members has no status column — filter by user_id IS NOT NULL.
+    const { data: members, error: membersErr } = await supabase
+      .from("family_members")
+      .select("user_id")
+      .eq("family_id", family_id)
+      .not("user_id", "is", null)
+      .neq("user_id", triggered_by);
 
-  if (!members?.length) {
-    return new Response(JSON.stringify({ sent: 0, reason: "no members" }), {
-      status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    });
+    console.log(`[notify] members found=${members?.length ?? 0} error=${membersErr?.message ?? "none"}`);
+
+    if (!members?.length) {
+      return new Response(JSON.stringify({ sent: 0, reason: "no members" }), {
+        status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    memberIds = members.map((m: { user_id: string }) => m.user_id);
   }
-
-  const memberIds = members.map((m: { user_id: string }) => m.user_id);
 
   // Get FCM tokens for all members
   const { data: tokens, error: tokensErr } = await supabase

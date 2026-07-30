@@ -77,6 +77,21 @@ class RealtimeSyncService {
             ),
             callback: (_) => onChange(),
           )
+          // family_members has no row for a not-yet-accepted invitee, so this
+          // only fires once accept_family_invite actually inserts/removes a
+          // row — that's exactly the "member joined/left" event the admin
+          // and other members need to see reflected live.
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'family_members',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'family_id',
+              value: familyId,
+            ),
+            callback: (_) => onChange(),
+          )
           .subscribe();
       _channels.add(channel);
     }

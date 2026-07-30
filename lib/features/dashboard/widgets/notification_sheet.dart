@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
@@ -5,6 +6,7 @@ import 'package:wai_life_assistant/data/services/notification_service.dart';
 import 'package:wai_life_assistant/data/services/invite_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/notification/notification_models.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATION SHEET
@@ -287,6 +289,11 @@ class _InviteTileState extends State<_InviteTile> {
         // resolved invite shouldn't reappear after the next realtime-
         // triggered refresh, since fetchAll() returns read rows too.
         NotificationService.instance.dismiss(widget.n.id);
+        // The join only happens once this RPC inserts the family_members
+        // row — nothing else refetches families/wallets afterwards, so
+        // without this the new membership wouldn't show up until the next
+        // app restart or manual pull-to-refresh.
+        unawaited(AppStateScope.of(context).reload());
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('You joined ${widget.n.txTitle ?? 'the family'}!'),
           backgroundColor: AppColors.income,

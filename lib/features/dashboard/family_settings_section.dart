@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:wai_life_assistant/data/services/invite_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
@@ -173,6 +174,19 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       _inviteCtrl.clear();
       final userFound = result['user_found'] as bool? ?? false;
       final token = result['token'] as String? ?? '';
+      final invitedUserId = result['invited_user_id'] as String?;
+
+      if (userFound && invitedUserId != null) {
+        FamilyNotificationTrigger.notify(
+          eventType: 'family.invite_received',
+          familyId: family.id,
+          eventData: {
+            'inviter_name': result['inviter_name'] as String? ?? 'Someone',
+            'family_name': result['family_name'] as String? ?? family.name,
+          },
+          targetUserId: invitedUserId,
+        );
+      }
 
       // Always share the invite link so the invitee receives it via
       // WhatsApp, SMS, or any messaging app â€” regardless of whether

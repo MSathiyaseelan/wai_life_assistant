@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 
 /// Locally-unique id for a not-yet-persisted member/family draft. Combines
 /// microsecond timestamp with a random suffix so rapid successive calls
@@ -1164,7 +1165,10 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             relation: added.relation,
             phone: added.phone,
           );
-          if (addResult['invited'] == true) invitedCount++;
+          if (addResult['invited'] == true) {
+            invitedCount++;
+            _notifyInvitee(widget.existing!.id, addResult);
+          }
         }
 
         if (mounted) {
@@ -1212,7 +1216,10 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             relation: m.relation,
             phone: m.phone,
           );
-          if (addResult['invited'] == true) invitedCount++;
+          if (addResult['invited'] == true) {
+            invitedCount++;
+            _notifyInvitee(familyId, addResult);
+          }
         }
 
         if (mounted) {
@@ -1252,6 +1259,20 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         );
       }
     }
+  }
+
+  void _notifyInvitee(String familyId, Map<String, dynamic> addResult) {
+    final invitedUserId = addResult['invited_user_id'] as String?;
+    if (invitedUserId == null) return;
+    FamilyNotificationTrigger.notify(
+      eventType: 'family.invite_received',
+      familyId: familyId,
+      eventData: {
+        'inviter_name': addResult['inviter_name'] as String? ?? 'Someone',
+        'family_name': addResult['family_name'] as String? ?? '',
+      },
+      targetUserId: invitedUserId,
+    );
   }
 
   void _showInvitesSentMessage(int invitedCount) {
