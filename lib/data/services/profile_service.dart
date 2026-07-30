@@ -115,6 +115,7 @@ class ProfileService {
     required bool walletExpense,
     required bool walletLendBorrow,
     required bool planItAlertMe,
+    required bool walletSplitAdded,
   }) async {
     await _db.from('profiles').update({
       'notif_master': master,
@@ -126,6 +127,7 @@ class ProfileService {
       'notif_wallet_expense': walletExpense,
       'notif_wallet_lend_borrow': walletLendBorrow,
       'notif_planit_alert_me': planItAlertMe,
+      'notif_wallet_split': walletSplitAdded,
     }).eq('id', _uid);
   }
 

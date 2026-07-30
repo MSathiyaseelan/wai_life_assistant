@@ -256,6 +256,7 @@ class SplitGroup {
   String name;
   String emoji;
   String walletId;
+  final String createdBy;
   List<SplitParticipant> participants;
   List<SplitGroupTx> transactions;
   List<SplitGroupMsg> messages;
@@ -267,6 +268,7 @@ class SplitGroup {
     required this.name,
     required this.emoji,
     required this.walletId,
+    required this.createdBy,
     required this.participants,
     List<SplitGroupTx>? transactions,
     List<SplitGroupMsg>? messages,
@@ -396,6 +398,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
       .toList();
 
   final transactions = (row['split_group_transactions'] as List? ?? [])
+      .where((t) => t['deleted_at'] == null)
       .map((t) {
         final shares = (t['split_shares'] as List? ?? [])
             .map((s) => SplitShare(
@@ -439,6 +442,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
     name: row['name'] as String,
     emoji: row['emoji'] as String? ?? '🤝',
     walletId: row['wallet_id'] as String,
+    createdBy: row['created_by'] as String? ?? '',
     participants: participants,
     transactions: transactions,
     createdAt: row['created_at'] != null

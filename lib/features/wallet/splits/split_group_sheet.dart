@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
@@ -289,6 +290,9 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
       name: name,
       emoji: finalEmoji,
       walletId: widget.walletId,
+      createdBy: widget.existing?.createdBy ??
+          Supabase.instance.client.auth.currentUser?.id ??
+          '',
       participants: List.from(_participants),
       transactions: widget.existing?.transactions,
       messages: widget.existing?.messages,
@@ -561,7 +565,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
             _atSearch.isEmpty ||
             c.$1.toLowerCase().contains(_atSearch) ||
             c.$3.contains(_atSearch),
-          ).take(6).toList()
+          ).toList()
         : <(String, String, String)>[];
 
     return SingleChildScrollView(
@@ -648,6 +652,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
           if (_showAtDropdown && filteredContacts.isNotEmpty) ...[
             const SizedBox(height: 6),
             Container(
+              constraints: const BoxConstraints(maxHeight: 240),
               decoration: BoxDecoration(
                 color: surfBg,
                 borderRadius: BorderRadius.circular(12),
@@ -655,8 +660,16 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
                   color: AppColors.split.withValues(alpha: 0.3),
                 ),
               ),
-              child: Column(
-                children: filteredContacts.map((c) {
+              // Independently scrollable — this list can be longer than
+              // fits on screen, and was previously capped to the first 6
+              // matches (with no scroll at all) so anything past that was
+              // simply unreachable rather than just off-screen.
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                itemCount: filteredContacts.length,
+                itemBuilder: (_, i) {
+                  final c = filteredContacts[i];
                   return GestureDetector(
                     onTap: () => _selectMentionContact(c),
                     child: Padding(
@@ -701,7 +714,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
                       ),
                     ),
                   );
-                }).toList(),
+                },
               ),
             ),
           ],

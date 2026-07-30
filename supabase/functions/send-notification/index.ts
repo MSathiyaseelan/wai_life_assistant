@@ -79,6 +79,7 @@ const EVENT_PREF_COLUMN: Record<string, string> = {
   "wallet.expense_added": "notif_wallet_expense",
   "wallet.income_added": "notif_wallet_expense",
   "wallet.lend_added": "notif_wallet_lend_borrow",
+  "wallet.split_added": "notif_wallet_split",
   "planit.reminder_added": "notif_planit_alert_me",
   "functions.upcoming_added": "notif_functions_upcoming",
 };

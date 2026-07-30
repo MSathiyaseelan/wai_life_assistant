@@ -55,6 +55,9 @@ class NotificationPrefs extends ChangeNotifier {
   bool get walletLendBorrow => _b('wallet_lend_borrow');
   set walletLendBorrow(bool v) => _setB('wallet_lend_borrow', v);
 
+  bool get walletSplitAdded => _b('wallet_split_added');
+  set walletSplitAdded(bool v) => _setB('wallet_split_added', v);
+
   // ── Pantry ─────────────────────────────────────────────────────────────────
   bool get pantryLowStock => _b('pantry_low_stock');
   set pantryLowStock(bool v) => _setB('pantry_low_stock', v);

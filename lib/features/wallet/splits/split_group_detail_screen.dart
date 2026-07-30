@@ -80,6 +80,12 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     }
   }
 
+  /// Whether the current user may edit/delete this specific expense —
+  /// only the participant who added it, or the group's admin (personal-
+  /// wallet groups have no admin concept, so this is just _myId there).
+  /// Mirrors the server-side split_tx_can_manage() RLS check.
+  bool _canManageTx(SplitGroupTx tx) => tx.addedById == _myId || _isAdmin;
+
   @override
   void initState() {
     super.initState();
@@ -1178,6 +1184,18 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
 
   // ── Edit expense ───────────────────────────────────────────────────────────
   void _showEditExpense(SplitGroupTx tx) {
+    if (!_canManageTx(tx)) return; // UI already hides the button; guard anyway
+    if (tx.shares.any((s) => s.status == SettleStatus.settled && s.participantId != tx.addedById)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Can't edit — one or more shares are already settled."),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     _AddExpenseSheet.show(
       context,
@@ -1196,6 +1214,40 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     );
   }
 
+  // ── Delete expense ─────────────────────────────────────────────────────────
+  Future<void> _deleteExpense(SplitGroupTx tx) async {
+    if (!_canManageTx(tx)) return;
+    final removedIdx = _group.transactions.indexWhere((t) => t.id == tx.id);
+    setState(() {
+      _group.transactions.removeWhere((t) => t.id == tx.id);
+      _recomputeGroupCache();
+    });
+    _update();
+    try {
+      await WalletService.instance.deleteSplitTransaction(tx.id);
+    } catch (e, stack) {
+      debugPrint('[SplitGroupDetail] deleteSplitTransaction failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'delete_split_transaction');
+      if (!mounted) return;
+      setState(() {
+        final insertAt = removedIdx >= 0 && removedIdx <= _group.transactions.length
+            ? removedIdx
+            : _group.transactions.length;
+        _group.transactions.insert(insertAt, tx); // revert
+        _recomputeGroupCache();
+      });
+      _update();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete expense. Please try again.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
   Future<void> _updateAndPersistTransaction(SplitGroupTx tx) async {
     if (!AuthCoordinator.instance.isLoggedIn) return;
     try {
@@ -1207,6 +1259,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         shares: tx.shares
             .map((s) => (
                   shareId: s.id,
+                  participantId: s.participantId,
                   amount: s.amount,
                   percentage: s.percentage,
                 ))
@@ -2109,7 +2162,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           surfBg: surfBg,
           tc: tc,
           sub: sub,
-          onEdit: () => _showEditExpense(tx),
+          onEdit: _canManageTx(tx) ? () => _showEditExpense(tx) : null,
+          onDelete: _canManageTx(tx) ? () => _deleteExpense(tx) : null,
           onShareUpdated: () => _update(),
           onAddChatMsg: (msg) {
             _group.messages.add(
@@ -2332,7 +2386,12 @@ class _ExpenseTile extends StatefulWidget {
   final VoidCallback onShareUpdated;
   final void Function(String) onAddChatMsg;
   final void Function(SplitShare, SplitGroupTx) onSendReminder;
-  final VoidCallback onEdit;
+
+  /// Null when the current user is neither this expense's payer nor the
+  /// group's admin — hides the corresponding action instead of just
+  /// disabling it, matching the server-side split_tx_can_manage() gate.
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _ExpenseTile({
     required this.tx,
@@ -2347,7 +2406,8 @@ class _ExpenseTile extends StatefulWidget {
     required this.onShareUpdated,
     required this.onAddChatMsg,
     required this.onSendReminder,
-    required this.onEdit,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -2356,6 +2416,34 @@ class _ExpenseTile extends StatefulWidget {
 
 class _ExpenseTileState extends State<_ExpenseTile> {
   bool _expanded = false;
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Expense?',
+            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        content: Text(
+          'This removes "${widget.tx.title}" (${AppPrefs.cs}${widget.tx.totalAmount.toStringAsFixed(0)}) from the group. This can\'t be undone.',
+          style: const TextStyle(fontFamily: 'Nunito'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.onDelete!();
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
 
   String _name(String id) => widget.group.participantById(id)?.name ?? id;
   String _emoji(String id) => widget.group.participantById(id)?.emoji ?? '🧑';
@@ -2482,24 +2570,46 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          GestureDetector(
-                            onTap: widget.onEdit,
-                            child: Container(
-                              width: 28,
-                              height: 28,
-                              decoration: BoxDecoration(
-                                color: AppColors.split.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                size: 14,
-                                color: AppColors.split,
+                          if (widget.onDelete != null) ...[
+                            GestureDetector(
+                              onTap: () => _confirmDelete(context),
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: AppColors.expense.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 14,
+                                  color: AppColors.expense,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
+                            const SizedBox(width: 6),
+                          ],
+                          if (widget.onEdit != null) ...[
+                            GestureDetector(
+                              onTap: widget.onEdit,
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: AppColors.split.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.edit_rounded,
+                                  size: 14,
+                                  color: AppColors.split,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
                           Text(
                             '${AppPrefs.cs}${tx.totalAmount.toStringAsFixed(0)}',
                             style: TextStyle(

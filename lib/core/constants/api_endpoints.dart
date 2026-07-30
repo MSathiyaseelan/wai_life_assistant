@@ -30,4 +30,5 @@ abstract final class AppRpc {
 
   // ── Wallet ─────────────────────────────────────────────────────────────────
   static const String incrementSplitReminder = 'increment_split_reminder';
+  static const String matchProfileIdsByPhone = 'match_profile_ids_by_phone';
 }

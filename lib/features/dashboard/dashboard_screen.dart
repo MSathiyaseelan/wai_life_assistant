@@ -284,6 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         final nWalletExpense = (profile['notif_wallet_expense'] as bool?) ?? true;
         final nWalletLendBorrow = (profile['notif_wallet_lend_borrow'] as bool?) ?? true;
         final nPlanItAlertMe = (profile['notif_planit_alert_me'] as bool?) ?? true;
+        final nWalletSplit = (profile['notif_wallet_split'] as bool?) ?? true;
         if (notifPrefs.masterOn != nMaster) notifPrefs.masterOn = nMaster;
         if (notifPrefs.pantryExpiry != nPantryExpiry) notifPrefs.pantryExpiry = nPantryExpiry;
         if (notifPrefs.pantryExpiryDays != nPantryExpiryDays) notifPrefs.pantryExpiryDays = nPantryExpiryDays;
@@ -293,6 +294,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         if (notifPrefs.walletFamilyExpense != nWalletExpense) notifPrefs.walletFamilyExpense = nWalletExpense;
         if (notifPrefs.walletLendBorrow != nWalletLendBorrow) notifPrefs.walletLendBorrow = nWalletLendBorrow;
         if (notifPrefs.planItAlertMe != nPlanItAlertMe) notifPrefs.planItAlertMe = nPlanItAlertMe;
+        if (notifPrefs.walletSplitAdded != nWalletSplit) notifPrefs.walletSplitAdded = nWalletSplit;
       }
     } catch (e, stack) {
       debugPrint('[Dashboard] _loadProfile error: $e');

@@ -1435,6 +1435,21 @@ class _WalletScreenState extends State<WalletScreen>
 
   // ── Split Group handlers ─────────────────────────────────────────────────
 
+  /// Whether the current user can rename/delete this split group, manage
+  /// its participants, or move it to another wallet — the group's own
+  /// creator, or (for a family wallet) that family's admin. Mirrors the
+  /// server-side split_group_can_manage() RLS check (migration 135).
+  bool _canManageSplitGroup(SplitGroup group) {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid != null && group.createdBy == uid) return true;
+    for (final family in _appState.families) {
+      if (family.walletId == group.walletId) {
+        return family.myRole == MemberRole.admin;
+      }
+    }
+    return false;
+  }
+
   void _openCreateGroup() {
     SplitGroupSheet.show(
       context,
@@ -1484,6 +1499,7 @@ class _WalletScreenState extends State<WalletScreen>
             name: group.name,
             emoji: group.emoji,
             walletId: group.walletId,
+            createdBy: row['created_by'] as String? ?? group.createdBy,
             participants: realParticipants,
             transactions: group.transactions,
             messages: group.messages,
@@ -1518,6 +1534,16 @@ class _WalletScreenState extends State<WalletScreen>
       existing: group,
       walletId: widget.activeWalletId,
       onSave: (updated) async {
+        // Participants have no rename path in this sheet — only add/remove
+        // — so a simple id-set diff against the pre-edit group is enough.
+        final originalIds = group.participants.map((p) => p.id).toSet();
+        final removedParticipants = group.participants
+            .where((p) => !updated.participants.any((u) => u.id == p.id))
+            .toList();
+        final addedParticipants = updated.participants
+            .where((p) => !originalIds.contains(p.id))
+            .toList();
+
         setState(() {
           final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
           if (idx >= 0) _splitGroups[idx] = updated;
@@ -1531,14 +1557,49 @@ class _WalletScreenState extends State<WalletScreen>
               emoji: updated.emoji,
               pinned: updated.pinnedToDashboard,
             );
+
+            for (final r in removedParticipants) {
+              await WalletService.instance.removeSplitParticipant(r.id);
+            }
+
+            if (addedParticipants.isNotEmpty) {
+              final insertedRows = await WalletService.instance.addSplitParticipants(
+                groupId: updated.id,
+                participants: addedParticipants
+                    .map((p) => (name: p.name, emoji: p.emoji, phone: p.phone))
+                    .toList(),
+              );
+              // Swap the local placeholder ids for the real DB ids —
+              // otherwise a second edit before the next refetch would
+              // treat these as "new" all over again.
+              if (mounted) {
+                setState(() {
+                  final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
+                  if (idx < 0) return;
+                  for (var i = 0; i < addedParticipants.length && i < insertedRows.length; i++) {
+                    final pIdx = _splitGroups[idx].participants
+                        .indexWhere((p) => p.id == addedParticipants[i].id);
+                    if (pIdx < 0) continue;
+                    final row = insertedRows[i];
+                    _splitGroups[idx].participants[pIdx] = SplitParticipant(
+                      id: row['id'] as String,
+                      name: row['name'] as String,
+                      emoji: row['emoji'] as String? ?? '🧑',
+                      phone: row['phone'] as String?,
+                      isMe: row['is_me'] as bool? ?? false,
+                    );
+                  }
+                });
+              }
+            }
           } catch (e, stack) {
             ErrorLogger.log(e, stackTrace: stack, action: 'update_split_group');
             if (!mounted) return;
-            setState(() {
-              final idx = _splitGroups.indexWhere((g) => g.id == group.id);
-              if (idx >= 0) _splitGroups[idx] = group; // revert
-            });
-            _syncPinnedGroups();
+            // Whatever partially completed is already reflected server-side
+            // — resync from there rather than reverting to the stale
+            // pre-edit group, which could undo a change that actually saved.
+            await _loadSplitGroups();
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Failed to save group. Please try again.')),
             );
@@ -1569,6 +1630,53 @@ class _WalletScreenState extends State<WalletScreen>
         }
       },
     );
+  }
+
+  void _moveSplitGroupPrompt(SplitGroup group) {
+    final otherWallets =
+        _allWallets.where((w) => w.id != group.walletId).toList();
+    if (otherWallets.isEmpty) return;
+    if (otherWallets.length == 1) {
+      _moveSplitGroupToWallet(group, otherWallets[0]);
+    } else {
+      _showMoveWalletPickerRaw(
+        subtitle: '${group.emoji} ${group.name} · ${group.participants.length} members',
+        wallets: otherWallets,
+        onPick: (w) => _moveSplitGroupToWallet(group, w),
+      );
+    }
+  }
+
+  Future<void> _moveSplitGroupToWallet(SplitGroup group, WalletModel target) async {
+    final oldWalletId = group.walletId;
+    setState(() => group.walletId = target.id);
+    _syncPinnedGroups();
+    try {
+      await WalletService.instance.moveSplitGroup(group.id, target.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Moved "${group.name}" to ${target.name} ${target.isPersonal ? '👤' : '👨‍👩‍👧'}',
+            style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: const Color(0xFF00C897),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      await _loadSplitGroups();
+    } catch (e, stack) {
+      debugPrint('[Wallet] moveSplitGroup failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'move_split_group');
+      if (!mounted) return;
+      setState(() => group.walletId = oldWalletId); // revert
+      _syncPinnedGroups();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to move group. Please try again.')),
+      );
+    }
   }
 
   void _openGroupDetail(SplitGroup group, {bool autoAddExpense = false}) {
@@ -2516,7 +2624,8 @@ class _WalletScreenState extends State<WalletScreen>
                     tc: tc,
                     sub: sub,
                     onTap: () => _openGroupDetail(g),
-                    onEdit: () => _openEditGroup(g),
+                    onEdit: _canManageSplitGroup(g) ? () => _openEditGroup(g) : null,
+                    onMove: _canManageSplitGroup(g) ? () => _moveSplitGroupPrompt(g) : null,
                     onAddExpense: () =>
                         _openGroupDetail(g, autoAddExpense: true),
                   ),
@@ -3806,7 +3915,14 @@ class _SplitGroupCard extends StatelessWidget {
   final SplitGroup group;
   final bool isDark;
   final Color cardBg, surfBg, tc, sub;
-  final VoidCallback onTap, onEdit, onAddExpense;
+  final VoidCallback onTap, onAddExpense;
+
+  /// Rename/manage participants/delete — null when the current user is
+  /// neither the group's creator nor its wallet's admin.
+  final VoidCallback? onEdit;
+
+  /// Move the whole group to another wallet — same gating as [onEdit].
+  final VoidCallback? onMove;
 
   const _SplitGroupCard({
     required this.group,
@@ -3816,7 +3932,8 @@ class _SplitGroupCard extends StatelessWidget {
     required this.tc,
     required this.sub,
     required this.onTap,
-    required this.onEdit,
+    this.onEdit,
+    this.onMove,
     required this.onAddExpense,
   });
 
@@ -3901,23 +4018,43 @@ class _SplitGroupCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Edit button
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onEdit();
-                  },
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: surfBg,
-                      borderRadius: BorderRadius.circular(10),
+                if (onMove != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onMove!();
+                      },
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: surfBg,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Icons.swap_horiz_rounded, size: 16, color: sub),
+                      ),
                     ),
-                    alignment: Alignment.center,
-                    child: Icon(Icons.edit_rounded, size: 16, color: sub),
                   ),
-                ),
+                if (onEdit != null)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onEdit!();
+                    },
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: surfBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.edit_rounded, size: 16, color: sub),
+                    ),
+                  ),
               ],
             ),
 

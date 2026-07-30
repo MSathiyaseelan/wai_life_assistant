@@ -46,6 +46,7 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
       walletExpense: _prefs.walletFamilyExpense,
       walletLendBorrow: _prefs.walletLendBorrow,
       planItAlertMe: _prefs.planItAlertMe,
+      walletSplitAdded: _prefs.walletSplitAdded,
     ).catchError((e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'persist_notification_prefs');
     });
@@ -103,6 +104,16 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                               _prefs.walletLendBorrow,
                               (v) {
                                 setState(() => _prefs.walletLendBorrow = v);
+                                _persistServerSynced();
+                              },
+                            ),
+                            _toggle(
+                              '🧾',
+                              'Split expense added',
+                              'Notify when a split group expense is added',
+                              _prefs.walletSplitAdded,
+                              (v) {
+                                setState(() => _prefs.walletSplitAdded = v);
                                 _persistServerSynced();
                               },
                             ),

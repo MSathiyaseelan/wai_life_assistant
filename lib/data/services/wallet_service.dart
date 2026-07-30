@@ -561,6 +561,14 @@ class WalletService {
     await _db.from('split_groups').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', groupId);
   }
 
+  /// Moves a whole split group (and every expense/share in it — they
+  /// reference the group, not the wallet, directly) to another wallet.
+  /// Server-side gated to the group's creator or its wallet's admin
+  /// (migration 135's "split_groups: update" RLS policy).
+  Future<void> moveSplitGroup(String groupId, String targetWalletId) async {
+    await _db.from('split_groups').update({'wallet_id': targetWalletId}).eq('id', groupId);
+  }
+
   /// Create a split group with an initial set of participants.
   Future<Map<String, dynamic>> createSplitGroup({
     required String walletId,
@@ -583,10 +591,19 @@ class WalletService {
         'emoji': emoji,
       }).select().single();
 
+      // Resolve participant phones to existing WAI accounts — without
+      // this, a participant's split_participants.user_id stays NULL
+      // forever, and the group is invisible to them no matter how
+      // exactly their phone matches, since RLS requires user_id =
+      // auth.uid() to see it.
+      final matchedByPhone = await _matchParticipantPhones(
+        participants.where((p) => !p.isMe).map((p) => p.phone).toList(),
+      );
+
       // 2. Insert participants and return them with real DB ids
       final rows = participants.map((p) => {
         'group_id': group['id'],
-        'user_id': p.isMe ? _uid : null,
+        'user_id': p.isMe ? _uid : matchedByPhone[p.phone],
         'name': p.name,
         'emoji': p.emoji,
         'phone': p.phone,
@@ -610,6 +627,55 @@ class WalletService {
       });
       rethrow;
     }
+  }
+
+  /// Resolves a list of phone numbers to existing WAI accounts (last-10-
+  /// digits match, same as add_family_member) — shared by createSplitGroup
+  /// and addSplitParticipants so a participant is linked to their real
+  /// account regardless of whether they were added at group-creation time
+  /// or later via "Edit Group".
+  Future<Map<String, String>> _matchParticipantPhones(List<String?> phones) async {
+    final toMatch = phones.whereType<String>().where((p) => p.isNotEmpty).toSet().toList();
+    if (toMatch.isEmpty) return {};
+    final matches = await _db.rpc(AppRpc.matchProfileIdsByPhone, params: {
+      'p_phones': toMatch,
+    }) as List;
+    return {
+      for (final m in matches)
+        if (m['user_id'] != null) m['phone'] as String: m['user_id'] as String,
+    };
+  }
+
+  /// Adds participants to an already-existing split group (e.g. via "Edit
+  /// Group") — resolves phones to accounts the same way createSplitGroup
+  /// does, so someone added after the group already exists is just as
+  /// visible to them as one added at creation time. Returns the inserted
+  /// rows in the same order as [participants], with real DB ids.
+  Future<List<Map<String, dynamic>>> addSplitParticipants({
+    required String groupId,
+    required List<({String name, String emoji, String? phone})> participants,
+  }) async {
+    final matchedByPhone = await _matchParticipantPhones(
+      participants.map((p) => p.phone).toList(),
+    );
+    final rows = participants.map((p) => {
+      'group_id': groupId,
+      'user_id': matchedByPhone[p.phone],
+      'name': p.name,
+      'emoji': p.emoji,
+      'phone': p.phone,
+      'is_me': false,
+    }).toList();
+    return await _db.from('split_participants').insert(rows).select();
+  }
+
+  /// Removes a participant from a split group. Cascades to their shares
+  /// (ON DELETE CASCADE) — any amount attributed to them on existing
+  /// expenses is removed along with them, same as the DB schema has
+  /// always done; this just exposes it via "Edit Group" instead of only
+  /// through a direct API call.
+  Future<void> removeSplitParticipant(String participantId) async {
+    await _db.from('split_participants').delete().eq('id', participantId);
   }
 
   /// Add a split transaction with per-participant shares.
@@ -650,12 +716,18 @@ class WalletService {
   }
 
   /// Update an existing split transaction and its share amounts.
+  ///
+  /// A share with an empty [shareId] means this participant wasn't in the
+  /// expense's original share set (e.g. an "equal split" recomputed after
+  /// someone new joined the group) — insert it instead of silently
+  /// dropping it, which previously left that participant's portion
+  /// unpersisted (visible locally until the next refresh, then gone).
   Future<void> updateSplitTransaction({
     required String txId,
     required String title,
     required double totalAmount,
     required String splitType,
-    required List<({String shareId, double amount, double? percentage})> shares,
+    required List<({String shareId, String participantId, double amount, double? percentage})> shares,
     String? note,
     DateTime? date,
     String? paymentMode,
@@ -670,12 +742,26 @@ class WalletService {
     }).eq('id', txId);
 
     for (final s in shares) {
-      if (s.shareId.isEmpty) continue;
-      await _db.from('split_shares').update({
-        'amount': s.amount,
-        'percentage': s.percentage,
-      }).eq('id', s.shareId);
+      if (s.shareId.isEmpty) {
+        await _db.from('split_shares').insert({
+          'transaction_id': txId,
+          'participant_id': s.participantId,
+          'amount': s.amount,
+          'percentage': s.percentage,
+        });
+      } else {
+        await _db.from('split_shares').update({
+          'amount': s.amount,
+          'percentage': s.percentage,
+        }).eq('id', s.shareId);
+      }
     }
+  }
+
+  /// Soft-delete a single split expense; its shares stay attached until the
+  /// 30-day purge cascades the real DELETE (same pattern as split groups).
+  Future<void> deleteSplitTransaction(String txId) async {
+    await _db.from('split_group_transactions').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', txId);
   }
 
   /// Update a share's settlement status.
