@@ -2937,7 +2937,10 @@ class _WalletScreenState extends State<WalletScreen>
           ),
         ),
         // TxGroup master cards — each wrapped in DragTarget
-        ...sectionGroups.map((g) => DragTarget<TxModel>(
+        ...sectionGroups.map((g) {
+          final otherWallets =
+              _allWallets.where((w) => w.id != g.walletId).toList();
+          return DragTarget<TxModel>(
               onWillAcceptWithDetails: (d) => d.data.groupId != g.id,
               onAcceptWithDetails: (d) {
                 HapticFeedback.mediumImpact();
@@ -2962,22 +2965,25 @@ class _WalletScreenState extends State<WalletScreen>
                   onAddExpense: () => _addToGroup(g),
                   onRename: (name, emoji) => _renameTxGroup(g, name, emoji),
                   onDeleteGroup: () => _deleteTxGroup(g),
-                  onMoveGroup: () {
-                    final otherWallets =
-                        _allWallets.where((w) => w.id != g.walletId).toList();
-                    if (otherWallets.isEmpty) return;
-                    if (otherWallets.length == 1) {
-                      _moveGroupToWallet(g, otherWallets[0]);
-                    } else {
-                      _showMoveGroupWalletPicker(g, otherWallets);
-                    }
-                  },
+                  onMoveGroup: otherWallets.isEmpty
+                      ? null
+                      : () {
+                          if (otherWallets.length == 1) {
+                            _moveGroupToWallet(g, otherWallets[0]);
+                          } else {
+                            _showMoveGroupWalletPicker(g, otherWallets);
+                          }
+                        },
+                  moveGroupLabel: otherWallets.length == 1
+                      ? 'Move group to ${otherWallets[0].name}'
+                      : 'Move group to wallet',
                   onTxDragStarted: (tx) => setState(() => _draggingTx = tx),
                   onTxDragEnded: () => setState(() => _draggingTx = null),
                   memberNames: widget.activeWalletId != 'personal' ? _activeMemberNames : null,
                 ),
               ),
-            )),
+            );
+        }),
         // Individual (ungrouped) tiles — draggable + drop target
         ...entry.value.map((tx) {
           final currentUid = AuthCoordinator.instance.currentUser?.id;

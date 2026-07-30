@@ -34,6 +34,10 @@ class TxGroupCard extends StatefulWidget {
   /// Null when there's no other wallet to move to (e.g. no family yet).
   final VoidCallback? onMoveGroup;
 
+  /// Label shown for the move action, e.g. "Move group to Personal" or
+  /// "Move group to Sharma Family". Falls back to a generic label when null.
+  final String? moveGroupLabel;
+
   /// Called when a member tile drag starts (for parent to track _draggingTx)
   final void Function(TxModel tx)? onTxDragStarted;
 
@@ -56,6 +60,7 @@ class TxGroupCard extends StatefulWidget {
     required this.onRename,
     required this.onDeleteGroup,
     this.onMoveGroup,
+    this.moveGroupLabel,
     this.onTxDragStarted,
     this.onTxDragEnded,
     this.memberNames,
@@ -197,7 +202,7 @@ class _TxGroupCardState extends State<TxGroupCard>
             if (widget.onMoveGroup != null)
               _MenuTile(
                 icon: Icons.swap_horiz_rounded,
-                label: 'Move group to wallet',
+                label: widget.moveGroupLabel ?? 'Move group to wallet',
                 sublabel: 'Moves every expense in this group together',
                 color: AppColors.primary,
                 onTap: () {
