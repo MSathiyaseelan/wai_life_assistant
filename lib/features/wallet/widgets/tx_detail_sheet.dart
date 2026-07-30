@@ -562,6 +562,8 @@ class _TxEditSheetState extends State<TxEditSheet> {
         persons: widget.tx.persons,
         status: widget.tx.status,
         dueDate: widget.tx.dueDate,
+        userId: widget.tx.userId,
+        groupId: widget.tx.groupId,
       ),
     );
     Navigator.pop(context);

@@ -227,7 +227,15 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
 
       if (!mounted) return;
       final saved = TxModel.fromRow(row);
-      _notifyFamilyOfTx(saved);
+      // Notifying other family members must never block closing this sheet —
+      // the transaction is already saved at this point, so a failure here
+      // (bad context lookup, family data not loaded yet, etc.) shouldn't
+      // leave the sheet stuck open behind a "failed to save" error.
+      try {
+        _notifyFamilyOfTx(saved);
+      } catch (e, st) {
+        ErrorLogger.log(e, stackTrace: st, action: 'notify_family_of_tx');
+      }
       widget.onSave(saved);
       Navigator.pop(context);
     } catch (e, st) {

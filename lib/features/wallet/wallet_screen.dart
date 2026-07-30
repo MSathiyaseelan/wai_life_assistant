@@ -3178,18 +3178,18 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   /// Whether the current user can edit/delete a transaction — always true
-  /// for personal wallets; for family wallets, true if the family's
-  /// perm_edit/perm_delete is 'any_member', the user is an admin, OR the
-  /// user is the one who created this specific transaction (mirrors the
-  /// server-side wallet_can_edit/wallet_can_delete RLS, which already
-  /// allows a creator to fix their own mistake — e.g. added to the wrong
-  /// wallet — regardless of the family's general edit/delete setting).
+  /// for personal wallets; for family wallets, true only for the transaction's
+  /// creator or a family admin. Unlike Pantry/PlanIt, Wallet transactions
+  /// ignore the family's perm_edit/perm_delete "Any member" setting — anyone
+  /// being able to edit anyone else's money entries was surprising, so this
+  /// is always creator-or-admin (mirrors the server-side "transactions:
+  /// update"/"transactions: delete" RLS policies).
   (bool canEdit, bool canDelete) _txPermsForTx(TxModel tx) {
     final ownTx = tx.userId != null && tx.userId == Supabase.instance.client.auth.currentUser?.id;
     if (ownTx) return (true, true);
     for (final family in _appState.families) {
       if (family.walletId == tx.walletId) {
-        return (family.canEdit, family.canDelete);
+        return (family.isAdmin, family.isAdmin);
       }
     }
     return (true, true);
