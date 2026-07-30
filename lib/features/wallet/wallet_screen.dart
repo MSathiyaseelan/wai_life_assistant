@@ -3034,12 +3034,18 @@ class _WalletScreenState extends State<WalletScreen>
     return map;
   }
 
-  /// Whether the current user can edit/delete transactions in [walletId] —
-  /// always true for personal wallets; for family wallets, governed by that
-  /// family's perm_edit/perm_delete setting unless the user is an admin.
-  (bool canEdit, bool canDelete) _txPermsForWallet(String walletId) {
+  /// Whether the current user can edit/delete a transaction — always true
+  /// for personal wallets; for family wallets, true if the family's
+  /// perm_edit/perm_delete is 'any_member', the user is an admin, OR the
+  /// user is the one who created this specific transaction (mirrors the
+  /// server-side wallet_can_edit/wallet_can_delete RLS, which already
+  /// allows a creator to fix their own mistake — e.g. added to the wrong
+  /// wallet — regardless of the family's general edit/delete setting).
+  (bool canEdit, bool canDelete) _txPermsForTx(TxModel tx) {
+    final ownTx = tx.userId != null && tx.userId == Supabase.instance.client.auth.currentUser?.id;
+    if (ownTx) return (true, true);
     for (final family in _appState.families) {
-      if (family.walletId == walletId) {
+      if (family.walletId == tx.walletId) {
         return (family.canEdit, family.canDelete);
       }
     }
@@ -3050,7 +3056,7 @@ class _WalletScreenState extends State<WalletScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final otherWallets = _allWallets.where((w) => w.id != tx.walletId).toList();
     final walletGroups = _activeWalletTxGroups;
-    final (canEdit, canDelete) = _txPermsForWallet(tx.walletId);
+    final (canEdit, canDelete) = _txPermsForTx(tx);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,

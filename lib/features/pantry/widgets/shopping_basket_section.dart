@@ -872,6 +872,11 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
   String _phase = 'pick';
   File? _image;
   List<_ScannedItem> _scannedItems = [];
+  // The bill's total (tax/other charges included) from the AI response —
+  // used for the optional "push to Wallet" total instead of just re-summing
+  // the individual item prices shown here, so the wallet expense (when
+  // enabled) reflects what was actually paid, not just the itemized subtotal.
+  double? _billTotal;
   String? _error;
   bool _pushToWallet = false;
   bool _limitChecking = true; // true while checking on open
@@ -1011,6 +1016,7 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
       }
       setState(() {
         _scannedItems = items;
+        _billTotal = (result.data?['total_amount'] as num?)?.toDouble();
         _phase = 'confirm';
       });
     } catch (e) {
@@ -1051,10 +1057,19 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
 
     // Optionally push total to Wallet as an expense
     if (_pushToWallet) {
-      final total = selected.fold<double>(0.0, (sum, i) {
+      final itemsSum = selected.fold<double>(0.0, (sum, i) {
         final p = double.tryParse(i.priceCtrl.text) ?? i.price ?? 0.0;
         return sum + p;
       });
+      // Only trust the bill's total (which includes tax/other charges the
+      // items don't break out) when every scanned item is still selected —
+      // if the user deselected some, there's no clean way to know how much
+      // of the tax belongs to just the kept items, so fall back to the
+      // plain itemized sum in that case.
+      final allSelected = selected.length == _scannedItems.length;
+      final total = (allSelected && _billTotal != null && _billTotal! > itemsSum)
+          ? _billTotal!
+          : itemsSum;
       if (total > 0) {
         try {
           await WalletService.instance.addTransaction(

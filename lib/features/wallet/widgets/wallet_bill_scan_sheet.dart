@@ -190,6 +190,26 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
         });
         return;
       }
+
+      // total_amount includes tax/service charges/etc. that the line items
+      // don't individually break out — surface the gap as its own editable
+      // row instead of silently dropping it, so the saved total actually
+      // matches what was paid.
+      final billTotal = (result.data?['total_amount'] as num?)?.toDouble();
+      if (billTotal != null && !items.first.isIncome) {
+        final itemsSum = items.fold(0.0, (s, i) => s + i.amount);
+        final extra = billTotal - itemsSum;
+        if (extra > 0.01) {
+          items.add(_ScannedBillItem(
+            title: 'Tax & Other Charges',
+            amount: extra,
+            category: items.first.category,
+            isIncome: false,
+            confidence: null,
+          ));
+        }
+      }
+
       setState(() {
         _scannedItems = items;
         _merchant = result.data?['merchant'] as String?;
