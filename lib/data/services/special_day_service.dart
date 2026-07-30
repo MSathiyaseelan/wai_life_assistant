@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [SpecialDayService.addDay] when the caller's standing special
 /// day count cap (personal or shared family pool) is exhausted — deleting
 /// one frees up a slot for another.
-class SpecialDayLimitExceededException implements Exception {
+class SpecialDayLimitExceededException implements UserFacingException {
   final int limit;
   const SpecialDayLimitExceededException(this.limit);
   @override

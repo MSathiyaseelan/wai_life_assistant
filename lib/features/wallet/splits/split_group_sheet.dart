@@ -5,6 +5,8 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
+import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
@@ -270,11 +272,12 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
           folder: 'splits',
           name: 'sg_${DateTime.now().millisecondsSinceEpoch}',
         );
-      } catch (e) {
+      } catch (e, stack) {
         debugPrint('[Photo upload] $e');
+        ErrorLogger.log(e, stackTrace: stack, action: 'split_group_photo_upload');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Photo upload failed: $e'),
+            content: Text(friendlyError(e, 'Photo upload failed. Please try again.')),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
           ));

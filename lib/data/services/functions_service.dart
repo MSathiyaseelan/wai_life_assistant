@@ -2,11 +2,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [FunctionsService]'s add methods when the caller's standing
 /// count cap for that Functions list (personal or shared family pool) is
 /// exhausted — deleting an existing entry frees up a slot for another.
-class FunctionLimitExceededException implements Exception {
+class FunctionLimitExceededException implements UserFacingException {
   final int limit;
   final String label;
   const FunctionLimitExceededException(this.limit, this.label);

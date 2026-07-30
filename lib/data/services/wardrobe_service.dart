@@ -3,11 +3,12 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [WardrobeService.addItem] when the caller's standing wardrobe
 /// item count cap (personal or shared family pool) is exhausted — deleting
 /// an existing item frees up a slot for another.
-class WardrobeLimitExceededException implements Exception {
+class WardrobeLimitExceededException implements UserFacingException {
   final int limit;
   const WardrobeLimitExceededException(this.limit);
   @override

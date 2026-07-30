@@ -5,10 +5,11 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [WalletService.addTransaction] when the caller's monthly
 /// wallet-transaction quota (personal or shared family pool) is exhausted.
-class TransactionLimitExceededException implements Exception {
+class TransactionLimitExceededException implements UserFacingException {
   const TransactionLimitExceededException();
   @override
   String toString() =>
@@ -17,7 +18,7 @@ class TransactionLimitExceededException implements Exception {
 
 /// Thrown by [WalletService.createSplitGroup] when the caller's monthly
 /// split-group quota (personal or shared family pool) is exhausted.
-class SplitGroupLimitExceededException implements Exception {
+class SplitGroupLimitExceededException implements UserFacingException {
   const SplitGroupLimitExceededException();
   @override
   String toString() =>

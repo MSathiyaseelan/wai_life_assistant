@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [TaskService.addTask] when the caller's standing task count cap
 /// (personal or shared family pool) is exhausted — deleting a task frees up
 /// a slot for another.
-class TaskLimitExceededException implements Exception {
+class TaskLimitExceededException implements UserFacingException {
   final int limit;
   const TaskLimitExceededException(this.limit);
   @override

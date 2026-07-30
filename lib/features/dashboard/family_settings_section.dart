@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:wai_life_assistant/data/services/invite_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -210,7 +211,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       ErrorLogger.log(e, stackTrace: stack, action: 'send_family_invite');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Failed to send invite: $e'),
+        content: Text(friendlyError(e, 'Failed to send invite. Please try again.')),
         backgroundColor: AppColors.expense,
       ));
     } finally {
@@ -235,7 +236,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       ErrorLogger.log(e, stackTrace: stack, action: 'share_invite_link');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Failed to generate invite link: $e'),
+        content: Text(friendlyError(e, 'Failed to generate invite link. Please try again.')),
         backgroundColor: AppColors.expense,
       ));
     }
@@ -270,7 +271,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       ErrorLogger.log(e, stackTrace: stack, action: 'join_family_by_code');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Failed to join: $e'),
+        content: Text(friendlyError(e, 'Failed to join. Please try again.')),
         backgroundColor: AppColors.expense,
       ));
     } finally {

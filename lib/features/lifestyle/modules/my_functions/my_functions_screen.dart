@@ -14,6 +14,7 @@ import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/shared/utils/overlay_toast.dart';
 import '../../widgets/life_widgets.dart';
@@ -795,7 +796,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                 // actually visible above the still-open sheet instead of
                 // stacking invisibly behind it.
                 if (ctx.mounted) {
-                  showOverlayToast(ctx, isLimitError ? e.toString() : 'Failed to save: $e', backgroundColor: Colors.red);
+                  showOverlayToast(ctx, friendlyError(e, 'Failed to save. Please try again.'), backgroundColor: Colors.red);
                 }
               }
             },
@@ -1162,7 +1163,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                             });
                             showOverlayToast(
                               context,
-                              e is FunctionLimitExceededException ? e.toString() : 'Failed to reschedule. Please try again.',
+                              friendlyError(e, 'Failed to reschedule. Please try again.'),
                               backgroundColor: Colors.red,
                             );
                           });
@@ -1336,7 +1337,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       if (ctx.mounted) {
                         showOverlayToast(
                           ctx,
-                          isLimitError ? e.toString() : 'Failed to convert. Please try again.',
+                          friendlyError(e, 'Failed to convert. Please try again.'),
                           backgroundColor: Colors.red,
                         );
                       }

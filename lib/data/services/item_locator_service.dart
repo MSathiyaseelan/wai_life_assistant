@@ -1,10 +1,11 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [ItemLocatorService]'s add methods when the caller's standing
 /// count cap (personal or shared family pool) is exhausted — deleting an
 /// existing container/item frees up a slot for another.
-class ItemLocatorLimitExceededException implements Exception {
+class ItemLocatorLimitExceededException implements UserFacingException {
   final int limit;
   final String label;
   const ItemLocatorLimitExceededException(this.limit, this.label);

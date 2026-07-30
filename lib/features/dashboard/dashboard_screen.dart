@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
@@ -2213,9 +2214,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(e is TransactionLimitExceededException
-                                ? e.toString()
-                                : 'Failed to save transaction. Please try again.'),
+                            content: Text(friendlyError(e, 'Failed to save transaction. Please try again.')),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
@@ -2577,7 +2576,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ErrorLogger.log(e, stackTrace: s, action: 'delete_account');
       localNav.pop();
       messenger.showSnackBar(SnackBar(
-        content: Text('Failed to delete account. Please try again.\n$e'),
+        content: Text(friendlyError(e, 'Failed to delete account. Please try again.')),
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.red,
       ));

@@ -4,10 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/health/health_models.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [HealthService]'s add methods when the caller's plan limit
 /// (personal or shared family pool) is exhausted for that record type.
-class HealthLimitExceededException implements Exception {
+class HealthLimitExceededException implements UserFacingException {
   final String message;
   const HealthLimitExceededException(this.message);
   @override

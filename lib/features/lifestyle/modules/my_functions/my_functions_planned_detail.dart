@@ -959,7 +959,7 @@ class _ParticipantsTab extends StatelessWidget {
                     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                   } catch (e, stack) {
                     ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_participant');
-                    if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                    if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
                   }
                 },
               ),
@@ -1251,7 +1251,7 @@ class _ClothingGiftsTab extends StatelessWidget {
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e, stack) {
                   ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
                 }
               },
             ),
@@ -1499,7 +1499,7 @@ class _BridalEssentialsTab extends StatelessWidget {
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e, stack) {
                   ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
                 }
               },
             ),
@@ -1690,7 +1690,7 @@ class _ReturnGiftsTab extends StatelessWidget {
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                 } catch (e, stack) {
                   ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
                 }
               },
             ),

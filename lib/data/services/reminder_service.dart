@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [ReminderService.addReminder] when the caller's standing
 /// reminder count cap (personal or shared family pool) is exhausted —
 /// deleting a reminder frees up a slot for another.
-class ReminderLimitExceededException implements Exception {
+class ReminderLimitExceededException implements UserFacingException {
   final int limit;
   const ReminderLimitExceededException(this.limit);
   @override

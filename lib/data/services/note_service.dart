@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [NoteService.addNote] when the caller's standing note count cap
 /// (personal or shared family pool) is exhausted — deleting a note frees up
 /// a slot for another.
-class NoteLimitExceededException implements Exception {
+class NoteLimitExceededException implements UserFacingException {
   final int limit;
   const NoteLimitExceededException(this.limit);
   @override

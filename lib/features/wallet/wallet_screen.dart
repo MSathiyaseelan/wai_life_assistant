@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1509,16 +1510,16 @@ class _WalletScreenState extends State<WalletScreen>
           _syncPinnedGroups();
         }
       });
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('[WalletScreen] createSplitGroup failed: $e');
-      final isLimitError = e is SplitGroupLimitExceededException;
+      ErrorLogger.log(e, stackTrace: stack, action: 'create_split_group');
       if (mounted) {
         // The save genuinely failed — undo the optimistic insert so a
         // never-persisted, placeholder-id group doesn't linger in the list.
         setState(() => _splitGroups.removeWhere((g) => g.id == group.id));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isLimitError ? e.toString() : 'Failed to save group: $e'),
+            content: Text(friendlyError(e, 'Failed to save group. Please try again.')),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
@@ -3081,10 +3082,11 @@ class _WalletScreenState extends State<WalletScreen>
               final idx = _transactions.indexWhere((t) => t.id == tx.id);
               if (idx >= 0) _transactions[idx] = updated;
             });
-          } catch (e) {
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'update_request_status');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to update: $e')),
+                SnackBar(content: Text(friendlyError(e, 'Failed to update. Please try again.'))),
               );
             }
           }
@@ -3244,11 +3246,12 @@ class _WalletScreenState extends State<WalletScreen>
           try {
             await WalletService.instance.deleteTransaction(tx.id);
             WalletService.txChangeSignal.value++;
-          } catch (e) {
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'delete_transaction');
             if (!mounted) return;
             setState(() => _transactions.add(tx));
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to delete: $e')),
+              SnackBar(content: Text(friendlyError(e, 'Failed to delete. Please try again.'))),
             );
           }
         },

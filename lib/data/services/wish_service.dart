@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [WishService.addWish] when the caller's standing wish-list
 /// count cap (personal or shared family pool) is exhausted — deleting one
 /// frees up a slot for another.
-class WishLimitExceededException implements Exception {
+class WishLimitExceededException implements UserFacingException {
   final int limit;
   const WishLimitExceededException(this.limit);
   @override

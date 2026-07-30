@@ -6,6 +6,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BUDGET SHEET
@@ -238,7 +239,7 @@ class _BudgetSheetState extends State<BudgetSheet> {
       ErrorLogger.log(e, stackTrace: stack, action: 'set_budget');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save budget: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text(friendlyError(e, 'Failed to save budget. Please try again.')), backgroundColor: Colors.red),
         );
       }
     }

@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/core/services/contact_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 
 /// Locally-unique id for a not-yet-persisted member/family draft. Combines
@@ -1231,10 +1232,14 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           Navigator.pop(context, result['wallet_id'] as String?);
         }
       }
-    } on PostgrestException catch (e) {
+    } on PostgrestException catch (e, stack) {
       if (!mounted) return;
       setState(() => _saving = false);
-      // P0001 = plan gate raised by create_family_with_wallet or add_family_member
+      // P0001 = a deliberate RAISE EXCEPTION from our own SQL functions
+      // (plan gates, business-rule violations) — these messages are
+      // hand-written to be shown directly. Any other Postgrest error code
+      // (RLS denial, constraint violation, connection issue) carries SQL
+      // detail that shouldn't reach the user.
       if (e.code == 'P0001' &&
           (e.message.contains('Family plan') || e.message.contains('Upgrade'))) {
         await showModalBottomSheet(
@@ -1246,16 +1251,28 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             currentPlan: 'personal_free',
           ),
         );
-      } else {
+      } else if (e.code == 'P0001') {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message), backgroundColor: Colors.red),
         );
+      } else {
+        ErrorLogger.log(e, stackTrace: stack, action: 'save_family');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyError(e, 'Failed to save. Please try again.')),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    } catch (e) {
+    } catch (e, stack) {
       if (mounted) {
         setState(() => _saving = false);
+        ErrorLogger.log(e, stackTrace: stack, action: 'save_family');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(friendlyError(e, 'Failed to save. Please try again.')),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -1341,7 +1358,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Error: $e'),
+                      content: Text(friendlyError(e, 'Failed to remove group. Please try again.')),
                       backgroundColor: Colors.red,
                     ),
                   );
