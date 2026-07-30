@@ -621,6 +621,8 @@ class _PinnedSplitCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (group.participants.isEmpty) return const SizedBox.shrink();
+
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final pending = group.pendingCount;
     final me = group.participants.firstWhere(
