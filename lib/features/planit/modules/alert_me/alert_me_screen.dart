@@ -9,7 +9,6 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
-import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/plan_widgets.dart';
@@ -206,7 +205,6 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   /// Fire-and-forget push to other family members when a reminder is added,
   /// if this reminder's wallet belongs to a family.
   void _notifyFamilyOfReminder(ReminderModel r) {
-    if (!NotificationPrefs.instance.planItAlertMe) return;
     final appState = AppStateScope.read(context);
     if (appState.isPersonal || appState.families.isEmpty) return;
     final matches = appState.families.where((f) => f.walletId == r.walletId);

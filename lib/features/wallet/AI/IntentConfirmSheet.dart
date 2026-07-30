@@ -12,7 +12,6 @@ import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
-import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTENT CONFIRM SHEET
@@ -262,13 +261,10 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
     String? eventType;
     switch (tx.type) {
       case TxType.expense:
-        if (!NotificationPrefs.instance.walletFamilyExpense) return;
         eventType = 'wallet.expense_added';
       case TxType.income:
-        if (!NotificationPrefs.instance.walletFamilyExpense) return;
         eventType = 'wallet.income_added';
       case TxType.lend:
-        if (!NotificationPrefs.instance.walletLendBorrow) return;
         eventType = 'wallet.lend_added';
       default:
         eventType = null; // borrow/request/split/returned — not templated

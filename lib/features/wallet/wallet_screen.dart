@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
-import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -791,13 +790,10 @@ class _WalletScreenState extends State<WalletScreen>
     };
     switch (tx.type) {
       case TxType.expense:
-        if (!NotificationPrefs.instance.walletFamilyExpense) return;
         eventType = 'wallet.expense_added';
       case TxType.income:
-        if (!NotificationPrefs.instance.walletFamilyExpense) return;
         eventType = 'wallet.income_added';
       case TxType.lend:
-        if (!NotificationPrefs.instance.walletLendBorrow) return;
         eventType = 'wallet.lend_added';
       default:
         eventType = null; // borrow/request/split/returned — not templated

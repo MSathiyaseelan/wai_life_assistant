@@ -17,7 +17,6 @@ import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/reminder_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
-import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/intent_classifier.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/context_fetcher.dart';
@@ -419,17 +418,14 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     final eventData = <String, dynamic>{'member_name': memberName};
     switch (action.actionType) {
       case ActionType.addExpense:
-        if (!NotificationPrefs.instance.walletFamilyExpense) return;
         eventType = 'wallet.expense_added';
         eventData['amount'] = '${d['amount'] ?? 0}';
         eventData['category'] = '${d['category'] ?? 'Other'}';
       case ActionType.addIncome:
-        if (!NotificationPrefs.instance.walletFamilyExpense) return;
         eventType = 'wallet.income_added';
         eventData['amount'] = '${d['amount'] ?? 0}';
         eventData['title'] = '${d['title'] ?? d['category'] ?? ''}';
       case ActionType.addLend:
-        if (!NotificationPrefs.instance.walletLendBorrow) return;
         eventType = 'wallet.lend_added';
         eventData['amount'] = '${d['amount'] ?? 0}';
         eventData['person'] = '${d['person'] ?? ''}';
@@ -438,12 +434,10 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         eventData['task_title'] = '${d['title'] ?? ''}';
         eventData['assignee'] = '';
       case ActionType.addReminder:
-        if (!NotificationPrefs.instance.planItAlertMe) return;
         eventType = 'planit.reminder_added';
         eventData['reminder_title'] = '${d['title'] ?? ''}';
         eventData['time'] = '${d['due_time'] ?? ''}';
       case ActionType.addFunctionUpcoming:
-        if (!NotificationPrefs.instance.functionsUpcoming) return;
         eventType = 'functions.upcoming_added';
         eventData['function_name'] = '${d['function_title'] ?? ''}';
         eventData['date'] = '${d['date'] ?? ''}';

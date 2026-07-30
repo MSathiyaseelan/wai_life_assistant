@@ -20,7 +20,6 @@ import '../../widgets/life_widgets.dart';
 import 'package:wai_life_assistant/features/planit/widgets/plan_widgets.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
-import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -807,7 +806,6 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
   /// Fire-and-forget push to other family members when an upcoming function
   /// is added, if this function's wallet belongs to a family.
   void _notifyFamilyOfUpcomingFunction(String title, DateTime? date) {
-    if (!NotificationPrefs.instance.functionsUpcoming) return;
     final appState = AppStateScope.read(context);
     if (appState.isPersonal || appState.families.isEmpty) return;
     final matches = appState.families.where((f) => f.walletId == widget.walletId);

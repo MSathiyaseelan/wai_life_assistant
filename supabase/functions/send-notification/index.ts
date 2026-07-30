@@ -72,6 +72,17 @@ const TEMPLATES: Record<string, Template> = {
   "family.invite_received": (d) => ({ title: `👨‍👩‍👧 Family Invite`, body: `${d.inviter_name} invited you to join "${d.family_name}"`, route: "dashboard" }),
 };
 
+// Maps an event_type to the recipient's own profiles column that must also
+// be true (alongside notif_master) for them to receive it. Event types with
+// no entry here are only gated by the master switch.
+const EVENT_PREF_COLUMN: Record<string, string> = {
+  "wallet.expense_added": "notif_wallet_expense",
+  "wallet.income_added": "notif_wallet_expense",
+  "wallet.lend_added": "notif_wallet_lend_borrow",
+  "planit.reminder_added": "notif_planit_alert_me",
+  "functions.upcoming_added": "notif_functions_upcoming",
+};
+
 // ── Base64url helpers ─────────────────────────────────────────────────────────
 
 function base64url(data: Uint8Array | string): string {
@@ -336,6 +347,35 @@ serve(async (req) => {
     }
 
     memberIds = members.map((m: { user_id: string }) => m.user_id);
+  }
+
+  // ── Recipient-side preference filtering ───────────────────────────────────
+  // Every notification toggle (master switch and per-event) is a promise
+  // about what the RECIPIENT wants to receive — it must be checked against
+  // each recipient's own profiles row, not the triggering client's local
+  // SharedPreferences. Events with no entry in EVENT_PREF_COLUMN are only
+  // gated by the master switch.
+  const prefColumn = EVENT_PREF_COLUMN[event_type];
+  const { data: prefRows, error: prefErr } = await supabase
+    .from("profiles")
+    .select(prefColumn ? `id, notif_master, ${prefColumn}` : "id, notif_master")
+    .in("id", memberIds);
+
+  if (prefErr) {
+    console.error("[notify] prefs lookup failed:", prefErr);
+  } else if (prefRows) {
+    const allowed = new Set(
+      (prefRows as Record<string, unknown>[])
+        .filter((r) => r.notif_master !== false && (!prefColumn || r[prefColumn] !== false))
+        .map((r) => r.id as string),
+    );
+    memberIds = memberIds.filter((id) => allowed.has(id));
+  }
+
+  if (!memberIds.length) {
+    return new Response(JSON.stringify({ sent: 0, reason: "muted by recipient prefs" }), {
+      status: 200, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    });
   }
 
   // Get FCM tokens for all members

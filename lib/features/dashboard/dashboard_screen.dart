@@ -281,12 +281,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         final nSpecialDay = (profile['notif_planit_special_day'] as bool?) ?? true;
         final nFunctionsUpcoming = (profile['notif_functions_upcoming'] as bool?) ?? true;
         final nFunctionsUpcomingDays = (profile['notif_functions_upcoming_days'] as int?) ?? 7;
+        final nWalletExpense = (profile['notif_wallet_expense'] as bool?) ?? true;
+        final nWalletLendBorrow = (profile['notif_wallet_lend_borrow'] as bool?) ?? true;
+        final nPlanItAlertMe = (profile['notif_planit_alert_me'] as bool?) ?? true;
         if (notifPrefs.masterOn != nMaster) notifPrefs.masterOn = nMaster;
         if (notifPrefs.pantryExpiry != nPantryExpiry) notifPrefs.pantryExpiry = nPantryExpiry;
         if (notifPrefs.pantryExpiryDays != nPantryExpiryDays) notifPrefs.pantryExpiryDays = nPantryExpiryDays;
         if (notifPrefs.planItSpecialDay != nSpecialDay) notifPrefs.planItSpecialDay = nSpecialDay;
         if (notifPrefs.functionsUpcoming != nFunctionsUpcoming) notifPrefs.functionsUpcoming = nFunctionsUpcoming;
         if (notifPrefs.functionsUpcomingDays != nFunctionsUpcomingDays) notifPrefs.functionsUpcomingDays = nFunctionsUpcomingDays;
+        if (notifPrefs.walletFamilyExpense != nWalletExpense) notifPrefs.walletFamilyExpense = nWalletExpense;
+        if (notifPrefs.walletLendBorrow != nWalletLendBorrow) notifPrefs.walletLendBorrow = nWalletLendBorrow;
+        if (notifPrefs.planItAlertMe != nPlanItAlertMe) notifPrefs.planItAlertMe = nPlanItAlertMe;
       }
     } catch (e, stack) {
       debugPrint('[Dashboard] _loadProfile error: $e');

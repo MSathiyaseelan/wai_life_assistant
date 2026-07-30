@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
-import 'package:wai_life_assistant/core/services/notification_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FamilyNotificationTrigger
@@ -32,11 +31,11 @@ class FamilyNotificationTrigger {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
     if (familyId.isEmpty) return;
-    // "All Notifications" master switch — this is the single choke point
-    // every family push notification routes through, so gating it here
-    // covers wallet/functions/etc. uniformly instead of needing the check
-    // repeated at every call site.
-    if (!NotificationPrefs.instance.masterOn) return;
+
+    // No local NotificationPrefs gate here — every notification toggle
+    // (master switch and per-event) is a promise about what each RECIPIENT
+    // wants, not what this sending device wants, so it's checked server-side
+    // in the edge function against each recipient's own profiles row.
 
     // Fire and forget — never await, never block the UI. Note: the edge
     // function resolves "who's triggering this" from the caller's own

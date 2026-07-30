@@ -43,6 +43,9 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
       planItSpecialDay: _prefs.planItSpecialDay,
       functionsUpcoming: _prefs.functionsUpcoming,
       functionsUpcomingDays: _prefs.functionsUpcomingDays,
+      walletExpense: _prefs.walletFamilyExpense,
+      walletLendBorrow: _prefs.walletLendBorrow,
+      planItAlertMe: _prefs.planItAlertMe,
     ).catchError((e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'persist_notification_prefs');
     });
@@ -88,14 +91,20 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                               'Family expense added',
                               'Notify when a family member adds a transaction',
                               _prefs.walletFamilyExpense,
-                              (v) => setState(() => _prefs.walletFamilyExpense = v),
+                              (v) {
+                                setState(() => _prefs.walletFamilyExpense = v);
+                                _persistServerSynced();
+                              },
                             ),
                             _toggle(
                               '🤝',
                               'Lend / Borrow reminders',
                               'Remind you of pending lend or borrow entries',
                               _prefs.walletLendBorrow,
-                              (v) => setState(() => _prefs.walletLendBorrow = v),
+                              (v) {
+                                setState(() => _prefs.walletLendBorrow = v);
+                                _persistServerSynced();
+                              },
                             ),
                           ]),
                           const SizedBox(height: 12),
@@ -188,7 +197,10 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                               'Alert Me reminders',
                               'Custom reminders you\'ve set in PlanIt',
                               _prefs.planItAlertMe,
-                              (v) => setState(() => _prefs.planItAlertMe = v),
+                              (v) {
+                                setState(() => _prefs.planItAlertMe = v);
+                                _persistServerSynced();
+                              },
                             ),
                             _toggle(
                               '📝',

@@ -112,6 +112,9 @@ class ProfileService {
     required bool planItSpecialDay,
     required bool functionsUpcoming,
     required int functionsUpcomingDays,
+    required bool walletExpense,
+    required bool walletLendBorrow,
+    required bool planItAlertMe,
   }) async {
     await _db.from('profiles').update({
       'notif_master': master,
@@ -120,6 +123,9 @@ class ProfileService {
       'notif_planit_special_day': planItSpecialDay,
       'notif_functions_upcoming': functionsUpcoming,
       'notif_functions_upcoming_days': functionsUpcomingDays,
+      'notif_wallet_expense': walletExpense,
+      'notif_wallet_lend_borrow': walletLendBorrow,
+      'notif_planit_alert_me': planItAlertMe,
     }).eq('id', _uid);
   }
 
