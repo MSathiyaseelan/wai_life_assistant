@@ -30,6 +30,10 @@ class TxGroupCard extends StatefulWidget {
   /// Delete the whole group (txs become ungrouped)
   final VoidCallback onDeleteGroup;
 
+  /// Move the whole group (and every transaction in it) to another wallet.
+  /// Null when there's no other wallet to move to (e.g. no family yet).
+  final VoidCallback? onMoveGroup;
+
   /// Called when a member tile drag starts (for parent to track _draggingTx)
   final void Function(TxModel tx)? onTxDragStarted;
 
@@ -51,6 +55,7 @@ class TxGroupCard extends StatefulWidget {
     required this.onAddExpense,
     required this.onRename,
     required this.onDeleteGroup,
+    this.onMoveGroup,
     this.onTxDragStarted,
     this.onTxDragEnded,
     this.memberNames,
@@ -189,6 +194,17 @@ class _TxGroupCardState extends State<TxGroupCard>
                 widget.onAddExpense();
               },
             ),
+            if (widget.onMoveGroup != null)
+              _MenuTile(
+                icon: Icons.swap_horiz_rounded,
+                label: 'Move group to wallet',
+                sublabel: 'Moves every expense in this group together',
+                color: AppColors.primary,
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onMoveGroup!();
+                },
+              ),
             _MenuTile(
               icon: Icons.delete_outline_rounded,
               label: 'Delete group',

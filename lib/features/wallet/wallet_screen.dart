@@ -918,6 +918,26 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   void _showMoveWalletPicker(TxModel tx, List<WalletModel> wallets) {
+    _showMoveWalletPickerRaw(
+      subtitle: '${tx.type.emoji} ${tx.type.label} · ${AppPrefs.cs}${tx.amount.toStringAsFixed(0)}',
+      wallets: wallets,
+      onPick: (w) => _moveTxToWallet(tx, w),
+    );
+  }
+
+  void _showMoveGroupWalletPicker(TxGroup group, List<WalletModel> wallets) {
+    _showMoveWalletPickerRaw(
+      subtitle: '${group.emoji} ${group.name} · ${group.transactions.length} expense${group.transactions.length == 1 ? '' : 's'}',
+      wallets: wallets,
+      onPick: (w) => _moveGroupToWallet(group, w),
+    );
+  }
+
+  void _showMoveWalletPickerRaw({
+    required String subtitle,
+    required List<WalletModel> wallets,
+    required void Function(WalletModel) onPick,
+  }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
@@ -958,7 +978,7 @@ class _WalletScreenState extends State<WalletScreen>
             ),
             const SizedBox(height: 4),
             Text(
-              '${tx.type.emoji} ${tx.type.label} · ${AppPrefs.cs}${tx.amount.toStringAsFixed(0)}',
+              subtitle,
               style: TextStyle(
                 fontSize: 12,
                 color: sub,
@@ -969,7 +989,7 @@ class _WalletScreenState extends State<WalletScreen>
             ...wallets.map((w) => GestureDetector(
                   onTap: () {
                     Navigator.pop(context);
-                    _moveTxToWallet(tx, w);
+                    onPick(w);
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 10),
@@ -2832,6 +2852,16 @@ class _WalletScreenState extends State<WalletScreen>
                   onAddExpense: () => _addToGroup(g),
                   onRename: (name, emoji) => _renameTxGroup(g, name, emoji),
                   onDeleteGroup: () => _deleteTxGroup(g),
+                  onMoveGroup: () {
+                    final otherWallets =
+                        _allWallets.where((w) => w.id != g.walletId).toList();
+                    if (otherWallets.isEmpty) return;
+                    if (otherWallets.length == 1) {
+                      _moveGroupToWallet(g, otherWallets[0]);
+                    } else {
+                      _showMoveGroupWalletPicker(g, otherWallets);
+                    }
+                  },
                   onTxDragStarted: (tx) => setState(() => _draggingTx = tx),
                   onTxDragEnded: () => setState(() => _draggingTx = null),
                   memberNames: widget.activeWalletId != 'personal' ? _activeMemberNames : null,
@@ -3222,6 +3252,73 @@ class _WalletScreenState extends State<WalletScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to delete group. Please try again.')),
+      );
+    }
+  }
+
+  /// Moves an entire group (all its member transactions) to another wallet
+  /// in one shot — same "by mistake added to the wrong wallet" rationale as
+  /// the single-transaction Move To, but for a whole scanned-bill/manual
+  /// group at once instead of moving each line item individually. Recreates
+  /// the group in the target wallet (groups are scoped per-wallet) and
+  /// re-homes every member transaction into it, then removes the old
+  /// (now-empty) group.
+  Future<void> _moveGroupToWallet(TxGroup group, WalletModel target) async {
+    try {
+      final newGroupRow = await WalletService.instance.createTxGroup(
+        walletId: target.id,
+        name: group.name,
+        emoji: group.emoji,
+      );
+      final newGroupId = newGroupRow['id'] as String;
+
+      for (final tx in group.transactions) {
+        await WalletService.instance.deleteTransaction(tx.id);
+        final row = await WalletService.instance.addTransaction(
+          walletId: target.id,
+          type: tx.type.name,
+          amount: tx.amount,
+          category: tx.category,
+          payMode: tx.payMode?.name,
+          title: tx.title,
+          note: tx.note,
+          person: tx.person,
+          persons: tx.persons,
+          dueDate: tx.dueDate,
+          date: tx.date,
+        );
+        await WalletService.instance.setTxGroup(row['id'] as String, newGroupId);
+      }
+
+      await WalletService.instance.deleteTxGroup(group.id);
+      WalletService.txChangeSignal.value++;
+      if (!mounted) return;
+      await _loadTransactions();
+      await _loadTxGroups();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Moved "${group.name}" to ${target.name} ${target.isPersonal ? '👤' : '👨‍👩‍👧'}',
+            style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: const Color(0xFF00C897),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    } catch (e, stack) {
+      debugPrint('[Wallet] moveGroupToWallet failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'move_group_to_wallet');
+      if (!mounted) return;
+      // Whatever partially completed is reflected server-side already —
+      // resync from the server rather than guessing at local state.
+      await _loadTransactions();
+      await _loadTxGroups();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to move the whole group. Please check and try again.')),
       );
     }
   }
