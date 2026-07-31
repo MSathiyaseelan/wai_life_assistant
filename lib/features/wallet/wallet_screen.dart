@@ -1475,23 +1475,35 @@ class _WalletScreenState extends State<WalletScreen>
     List<SplitParticipant> allParticipants,
     List<SplitParticipant> newParticipants,
   ) {
-    FamilyModel? family;
+    // familyId is null for a personal-wallet split (147) — the edge
+    // function and RPC both authorize via split-group participation in
+    // that case instead of family membership.
+    String? familyId;
     for (final f in _appState.families) {
       if (f.walletId == walletId) {
-        family = f;
+        familyId = f.id;
         break;
       }
     }
-    if (family == null) return; // personal wallet — no family_id to notify through
     final me = allParticipants.where((p) => p.isMe).firstOrNull;
     final actorName = me?.name ?? 'Someone';
     final actorEmoji = me?.emoji ?? '👤';
     for (final p in newParticipants) {
       if (p.isMe || p.userId == null) continue;
+      FamilyNotificationTrigger.notify(
+        eventType: 'split.added_you',
+        familyId: familyId,
+        splitGroupId: groupId,
+        eventData: {
+          'member_name': actorName,
+          'group_name': groupName,
+        },
+        targetUserId: p.userId,
+      );
       WalletService.instance.sendSplitAddedNotification(
         groupId: groupId,
         recipientUserId: p.userId!,
-        familyId: family.id,
+        familyId: familyId,
         actorName: actorName,
         actorEmoji: actorEmoji,
         groupName: groupName,

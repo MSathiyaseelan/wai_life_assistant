@@ -1177,20 +1177,24 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             ),
 
             // In-app push — only when this participant is a linked WAI
-            // account in the same family as this group's wallet (the
-            // send-notification function requires a family_id + a real
+            // account (the send-notification function needs a real
             // recipient with an FCM token; Copy/WhatsApp remain the only
-            // options for participants who are just contacts).
-            if (widget.family != null && p.userId != null) ...[
+            // options for participants who are just contacts). Works
+            // regardless of whether the group's wallet belongs to a
+            // family (147) — a personal-wallet split just authorizes via
+            // split-group participation instead of family membership.
+            if (p.userId != null) ...[
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
                     final messenger = ScaffoldMessenger.of(context);
+                    final familyId = widget.family?.id;
                     FamilyNotificationTrigger.notify(
                       eventType: 'split.reminder',
-                      familyId: widget.family!.id,
+                      familyId: familyId,
+                      splitGroupId: _group.id,
                       eventData: {
                         'member_name': _participantName(_myId),
                         'amount': owedAmount.toStringAsFixed(0),
@@ -1205,7 +1209,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                     WalletService.instance.sendSplitReminderNotification(
                       groupId: _group.id,
                       recipientUserId: p.userId!,
-                      familyId: widget.family!.id,
+                      familyId: familyId,
                       actorName: _participantName(_myId),
                       actorEmoji: _participantEmoji(_myId),
                       groupName: _group.name,
@@ -1478,11 +1482,15 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   /// open Chat (unlike adding an expense, which already notifies via
   /// _notifyFamilyOfSplit above).
   void _notifyExtensionRequested(SplitParticipant payer, double amount) {
-    final family = widget.family;
-    if (family == null || payer.userId == null) return;
+    if (payer.userId == null) return;
+    // familyId is null for a personal-wallet split (147) — the edge
+    // function and RPC both authorize via split-group participation in
+    // that case instead of family membership.
+    final familyId = widget.family?.id;
     FamilyNotificationTrigger.notify(
       eventType: 'split.extension_requested',
-      familyId: family.id,
+      familyId: familyId,
+      splitGroupId: _group.id,
       eventData: {
         'member_name': _participantName(_myId),
         'amount': amount.toStringAsFixed(0),
@@ -1493,7 +1501,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     WalletService.instance.sendSplitExtensionNotification(
       groupId: _group.id,
       recipientUserId: payer.userId!,
-      familyId: family.id,
+      familyId: familyId,
       actorName: _participantName(_myId),
       actorEmoji: _participantEmoji(_myId),
       groupName: _group.name,

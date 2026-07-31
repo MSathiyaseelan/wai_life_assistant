@@ -859,7 +859,7 @@ class WalletService {
   Future<void> sendSplitReminderNotification({
     required String groupId,
     required String recipientUserId,
-    required String familyId,
+    String? familyId,
     required String actorName,
     required String actorEmoji,
     required String groupName,
@@ -878,10 +878,11 @@ class WalletService {
 
   /// Inserts an in-app notification for a split "Request Extension" — same
   /// rationale and RLS workaround as [sendSplitReminderNotification] (145).
+  /// familyId is null for a personal-wallet split (147).
   Future<void> sendSplitExtensionNotification({
     required String groupId,
     required String recipientUserId,
-    required String familyId,
+    String? familyId,
     required String actorName,
     required String actorEmoji,
     required String groupName,
@@ -906,7 +907,7 @@ class WalletService {
   Future<void> sendSplitAddedNotification({
     required String groupId,
     required String recipientUserId,
-    required String familyId,
+    String? familyId,
     required String actorName,
     required String actorEmoji,
     required String groupName,

@@ -6,7 +6,9 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 class AppNotification {
   final String id;
   final String userId;
-  final String familyId;
+  /// Null for a personal-wallet split notification (147) — not every
+  /// notification is tied to a family.
+  final String? familyId;
   final String? txId;
   final String? actorId;
   final String actorName;
@@ -29,7 +31,7 @@ class AppNotification {
   const AppNotification({
     required this.id,
     required this.userId,
-    required this.familyId,
+    this.familyId,
     this.txId,
     this.actorId,
     required this.actorName,
@@ -48,7 +50,7 @@ class AppNotification {
     return AppNotification(
       id:          row['id']           as String,
       userId:      row['user_id']      as String,
-      familyId:    row['family_id']    as String,
+      familyId:    row['family_id']    as String?,
       txId:        row['tx_id']        as String?,
       actorId:     row['actor_id']     as String?,
       actorName:   row['actor_name']   as String? ?? '',

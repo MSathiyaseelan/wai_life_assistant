@@ -53,6 +53,7 @@ const TEMPLATES: Record<string, Template> = {
   "wallet.split_added":    (d) => ({ title: `🧾 New split added`,                 body: `${d.member_name} split ₹${d.amount} — you owe ₹${d.your_share}`, route: "wallet" }),
   "split.reminder":        (d) => ({ title: `🔔 Payment reminder`,               body: `${d.member_name} reminds you: you owe ₹${d.amount} in "${d.group_name}"`, route: "wallet" }),
   "split.extension_requested": (d) => ({ title: `⏰ Extension requested`,        body: `${d.member_name} asked for more time on ₹${d.amount} in "${d.group_name}"`, route: "wallet" }),
+  "split.added_you":       (d) => ({ title: `🤝 Added to a split group`,        body: `${d.member_name} added you to "${d.group_name}"`, route: "wallet" }),
 
   // Pantry
   "pantry.meal_added":         (d) => ({ title: `🍽️ Meal planned`,          body: `${d.member_name} added ${d.meal_name} for ${d.meal_type}`, route: "pantry" }),
@@ -84,6 +85,7 @@ const EVENT_PREF_COLUMN: Record<string, string> = {
   "wallet.split_added": "notif_wallet_split",
   "split.reminder": "notif_wallet_split",
   "split.extension_requested": "notif_wallet_split",
+  "split.added_you": "notif_wallet_split",
   "planit.reminder_added": "notif_planit_alert_me",
   "functions.upcoming_added": "notif_functions_upcoming",
 };
@@ -249,11 +251,17 @@ serve(async (req) => {
 
   let body: {
     event_type: string;
-    family_id: string;
+    // Exactly one of family_id / split_group_id must be present — a split
+    // group's wallet doesn't have to belong to a family (e.g. splitting
+    // with a friend on your personal wallet), so family membership isn't
+    // always the right thing to authorize against.
+    family_id?: string;
+    split_group_id?: string;
     event_data: TemplateData;
     // When set, sends only to this user instead of resolving recipients
     // from family_members — needed for invites, since the invitee isn't a
-    // member of family_id yet (that only happens once they accept).
+    // member of family_id yet (that only happens once they accept), and
+    // always used for split_group_id mode (there's no "all members" list).
     target_user_id?: string;
   };
 
@@ -265,7 +273,7 @@ serve(async (req) => {
     });
   }
 
-  const { event_type, family_id, target_user_id } = body;
+  const { event_type, family_id, split_group_id, target_user_id } = body;
   const event_data = sanitizeEventData(body.event_data);
 
   const template = TEMPLATES[event_type];
@@ -274,8 +282,8 @@ serve(async (req) => {
       status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
-  if (!family_id) {
-    return new Response(JSON.stringify({ error: "family_id is required" }), {
+  if (!family_id && !split_group_id) {
+    return new Response(JSON.stringify({ error: "family_id or split_group_id is required" }), {
       status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
     });
   }
@@ -286,7 +294,8 @@ serve(async (req) => {
   // This function used to trust client-supplied family_id/triggered_by with
   // no verification at all — any logged-in user could push notifications to
   // any family in the system. Resolve the caller from their own Supabase
-  // session instead, and require they're actually a member of family_id.
+  // session instead, and require they're actually a member of family_id (or,
+  // in split_group_id mode, an actual participant of that split group).
   // triggered_by is no longer taken from the request body — it's always the
   // verified caller, closing the spoofing gap along with it.
   const authHeader = req.headers.get("Authorization");
@@ -304,27 +313,56 @@ serve(async (req) => {
   }
   const triggered_by = caller.id;
 
-  const { data: callerMembership, error: callerMembershipErr } = await supabase
-    .from("family_members")
-    .select("id")
-    .eq("family_id", family_id)
-    .eq("user_id", triggered_by)
-    .maybeSingle();
-  if (callerMembershipErr) {
-    console.error("[notify] caller membership check failed:", callerMembershipErr);
-    return new Response(JSON.stringify({ error: "Membership check failed" }), {
-      status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    });
-  }
-  if (!callerMembership) {
-    return new Response(JSON.stringify({ error: "Not a member of this family" }), {
-      status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-    });
+  if (family_id) {
+    const { data: callerMembership, error: callerMembershipErr } = await supabase
+      .from("family_members")
+      .select("id")
+      .eq("family_id", family_id)
+      .eq("user_id", triggered_by)
+      .maybeSingle();
+    if (callerMembershipErr) {
+      console.error("[notify] caller membership check failed:", callerMembershipErr);
+      return new Response(JSON.stringify({ error: "Membership check failed" }), {
+        status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    if (!callerMembership) {
+      return new Response(JSON.stringify({ error: "Not a member of this family" }), {
+        status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    // split_group_id mode — caller AND recipient must both actually be
+    // participants of this split group (mirrors is_split_group_participant
+    // in the DB-side notification RPCs, since this function runs with the
+    // service key and bypasses RLS entirely).
+    if (!target_user_id) {
+      return new Response(JSON.stringify({ error: "target_user_id is required with split_group_id" }), {
+        status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    const { data: participants, error: participantsErr } = await supabase
+      .from("split_participants")
+      .select("user_id")
+      .eq("group_id", split_group_id)
+      .in("user_id", [triggered_by, target_user_id]);
+    if (participantsErr) {
+      console.error("[notify] split participant check failed:", participantsErr);
+      return new Response(JSON.stringify({ error: "Participant check failed" }), {
+        status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+    const participantIds = new Set((participants ?? []).map((p: { user_id: string }) => p.user_id));
+    if (!participantIds.has(triggered_by) || !participantIds.has(target_user_id)) {
+      return new Response(JSON.stringify({ error: "Not participants of this split group" }), {
+        status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
   }
 
   const { title, body: notifBody, route } = template(event_data);
 
-  console.log(`[notify] event=${event_type} family=${family_id} triggered_by=${triggered_by}`);
+  console.log(`[notify] event=${event_type} family=${family_id ?? "-"} split_group=${split_group_id ?? "-"} triggered_by=${triggered_by}`);
 
   let memberIds: string[];
 
@@ -339,7 +377,9 @@ serve(async (req) => {
     const { data: members, error: membersErr } = await supabase
       .from("family_members")
       .select("user_id")
-      .eq("family_id", family_id)
+      // family_id is guaranteed set here: this branch only runs without
+      // target_user_id, and split_group_id mode always requires it above.
+      .eq("family_id", family_id as string)
       .not("user_id", "is", null)
       .neq("user_id", triggered_by);
 
