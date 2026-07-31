@@ -1489,6 +1489,7 @@ class _WalletScreenState extends State<WalletScreen>
                   (name: p.name, emoji: p.emoji, phone: p.phone, isMe: p.isMe),
             )
             .toList(),
+        pinned: group.pinnedToDashboard,
       );
       if (!mounted) return;
       // Replace local placeholder ids with real DB ids (group + participants)

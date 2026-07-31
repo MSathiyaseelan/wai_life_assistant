@@ -609,6 +609,12 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                           text: '⏰ Requested extension till ${_fmtDate(pickedDate)}: $reason',
                           type: MsgType.extensionReq,
                         );
+                        for (final entry in mySettlements) {
+                          final payer = _group.participantById(entry.toId);
+                          if (payer != null) {
+                            _notifyExtensionRequested(payer, entry.amount);
+                          }
+                        }
                         _update();
                       },
                       style: FilledButton.styleFrom(
@@ -1192,6 +1198,19 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                       },
                       targetUserId: p.userId,
                     );
+                    // Also record it in the recipient's in-app notification
+                    // bell — the push above is fire-and-forget and won't
+                    // land at all if they have no FCM token / denied
+                    // permission, so this is the only guaranteed record.
+                    WalletService.instance.sendSplitReminderNotification(
+                      groupId: _group.id,
+                      recipientUserId: p.userId!,
+                      familyId: widget.family!.id,
+                      actorName: _participantName(_myId),
+                      actorEmoji: _participantEmoji(_myId),
+                      groupName: _group.name,
+                      amount: owedAmount,
+                    ).catchError((e, stack) => ErrorLogger.log(e, stackTrace: stack, action: 'send_split_reminder_notification'));
                     onReminderSent?.call();
                     Navigator.pop(context);
                     messenger.showSnackBar(
@@ -1451,6 +1470,35 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         'your_share': approxShare.toStringAsFixed(0),
       },
     );
+  }
+
+  /// Fire-and-forget push + in-app bell entry to the payer when a debtor
+  /// requests an extension — previously this only posted a group chat
+  /// message, so the payer had no way to find out unless they happened to
+  /// open Chat (unlike adding an expense, which already notifies via
+  /// _notifyFamilyOfSplit above).
+  void _notifyExtensionRequested(SplitParticipant payer, double amount) {
+    final family = widget.family;
+    if (family == null || payer.userId == null) return;
+    FamilyNotificationTrigger.notify(
+      eventType: 'split.extension_requested',
+      familyId: family.id,
+      eventData: {
+        'member_name': _participantName(_myId),
+        'amount': amount.toStringAsFixed(0),
+        'group_name': _group.name,
+      },
+      targetUserId: payer.userId,
+    );
+    WalletService.instance.sendSplitExtensionNotification(
+      groupId: _group.id,
+      recipientUserId: payer.userId!,
+      familyId: family.id,
+      actorName: _participantName(_myId),
+      actorEmoji: _participantEmoji(_myId),
+      groupName: _group.name,
+      amount: amount,
+    ).catchError((e, stack) => ErrorLogger.log(e, stackTrace: stack, action: 'send_split_extension_notification'));
   }
 
   // ── Send chat message ──────────────────────────────────────────────────────
@@ -2310,6 +2358,10 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               ).catchError((e) => ErrorLogger.warning(e, action: 'record_reminder_sent'));
             });
           },
+          onExtensionRequested: (share, tx) {
+            final payer = _group.participantById(tx.addedById);
+            if (payer != null) _notifyExtensionRequested(payer, share.amount);
+          },
         );
       },
       ),
@@ -2492,6 +2544,7 @@ class _ExpenseTile extends StatefulWidget {
   final VoidCallback onShareUpdated;
   final void Function(String) onAddChatMsg;
   final void Function(SplitShare, SplitGroupTx) onSendReminder;
+  final void Function(SplitShare, SplitGroupTx) onExtensionRequested;
 
   /// Null when the current user is neither this expense's payer nor the
   /// group's admin — hides the corresponding action instead of just
@@ -2512,6 +2565,7 @@ class _ExpenseTile extends StatefulWidget {
     required this.onShareUpdated,
     required this.onAddChatMsg,
     required this.onSendReminder,
+    required this.onExtensionRequested,
     this.onEdit,
     this.onDelete,
   });
@@ -2826,6 +2880,8 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                 },
                 onAddChatMsg: widget.onAddChatMsg,
                 onSendReminder: () => widget.onSendReminder(share, widget.tx),
+                onExtensionRequested: () =>
+                    widget.onExtensionRequested(share, widget.tx),
               ),
             ),
             const SizedBox(height: 8),
@@ -2849,6 +2905,7 @@ class _ShareRow extends StatelessWidget {
   final VoidCallback onUpdate;
   final void Function(String) onAddChatMsg;
   final VoidCallback? onSendReminder;
+  final VoidCallback? onExtensionRequested;
 
   const _ShareRow({
     required this.share,
@@ -2867,6 +2924,7 @@ class _ShareRow extends StatelessWidget {
     required this.onAddChatMsg,
     required this.isAdmin,
     this.onSendReminder,
+    this.onExtensionRequested,
   });
 
   bool get _iAmPayer => addedById == myId; // I paid the bill
@@ -3361,6 +3419,7 @@ class _ShareRow extends StatelessWidget {
                         onAddChatMsg(
                           '⏰ Requested extension till ${_fmtShareDate(pickedDate)}: $reason',
                         );
+                        onExtensionRequested?.call();
                         Navigator.pop(context);
                         onUpdate();
                       },

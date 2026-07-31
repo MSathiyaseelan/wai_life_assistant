@@ -65,6 +65,12 @@ class AppNotification {
   /// True when this notification is a budget threshold alert.
   bool get isBudgetAlert => txType == 'budget_alert';
 
+  /// True when this notification is a split-group payment reminder.
+  bool get isSplitReminder => txType == 'split_reminder';
+
+  /// True when this notification is a split-group extension request.
+  bool get isSplitExtension => txType == 'split_extension';
+
   /// The invite_id is stored in txId for invite-type notifications.
   String? get inviteId => isInvite ? txId : null;
 

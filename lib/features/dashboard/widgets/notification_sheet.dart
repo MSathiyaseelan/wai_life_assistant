@@ -614,6 +614,8 @@ class _NotifTile extends StatelessWidget {
       case 'borrow':   return AppColors.borrow;
       case 'request':  return AppColors.request;
       case 'returned': return AppColors.returned;
+      case 'split_reminder': return AppColors.expense;
+      case 'split_extension': return const Color(0xFF9C27B0);
       default:         return AppColors.primary;
     }
   }
@@ -688,7 +690,11 @@ class _NotifTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Added ${n.txType} · $label',
+                  n.isSplitReminder
+                      ? '🔔 Payment reminder · ${n.txCategory}'
+                      : n.isSplitExtension
+                      ? '⏰ Extension requested · ${n.txCategory}'
+                      : 'Added ${n.txType} · $label',
                   style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),

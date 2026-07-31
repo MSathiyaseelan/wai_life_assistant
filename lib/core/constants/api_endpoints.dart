@@ -30,5 +30,8 @@ abstract final class AppRpc {
 
   // ── Wallet ─────────────────────────────────────────────────────────────────
   static const String incrementSplitReminder = 'increment_split_reminder';
+  static const String sendSplitReminderNotification = 'send_split_reminder_notification';
+  static const String sendBudgetAlertNotification = 'send_budget_alert_notification';
+  static const String sendSplitExtensionNotification = 'send_split_extension_notification';
   static const String matchProfileIdsByPhone = 'match_profile_ids_by_phone';
 }

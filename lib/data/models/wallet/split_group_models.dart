@@ -398,7 +398,14 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
   // participant" (e.g. defaulting "who paid" on Add Expense). Recompute it
   // per-viewer instead, from the linked account id.
   final currentUid = Supabase.instance.client.auth.currentUser?.id;
-  final participants = (row['split_participants'] as List? ?? [])
+  final rawParticipants = (row['split_participants'] as List? ?? []);
+  // Pin is per-participant (142) — each viewer's own row carries their own
+  // pin state, so it's not shared with (or overwritten by) other members.
+  final pinnedToDashboard = rawParticipants.any((p) =>
+      p['user_id'] != null &&
+      p['user_id'] == currentUid &&
+      p['pinned_to_dashboard'] == true);
+  final participants = rawParticipants
       .map((p) {
         final userId = p['user_id'] as String?;
         return SplitParticipant(
@@ -463,7 +470,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
     createdAt: row['created_at'] != null
         ? DateTime.parse(row['created_at'] as String)
         : null,
-    pinnedToDashboard: row['pinned_to_dashboard'] as bool? ?? false,
+    pinnedToDashboard: pinnedToDashboard,
   );
   return group;
 }

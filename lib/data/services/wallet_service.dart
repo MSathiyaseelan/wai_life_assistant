@@ -497,7 +497,21 @@ class WalletService {
   // ── Split Groups ─────────────────────────────────────────────────────────
 
   /// Fetch all split groups pinned to the dashboard for the current user.
+  /// Pin state is per-participant (142) — a two-step fetch, since a
+  /// PostgREST inner-join filter on the embedded relationship would also
+  /// restrict the returned split_participants array to just the current
+  /// user's own row, when callers need every participant in the group.
   Future<List<SplitGroup>> fetchPinnedSplitGroups() async {
+    final pinnedRows = await _db
+        .from('split_participants')
+        .select('group_id')
+        .eq('user_id', _uid)
+        .eq('pinned_to_dashboard', true);
+    final groupIds = (pinnedRows as List)
+        .map((r) => r['group_id'] as String)
+        .toList();
+    if (groupIds.isEmpty) return [];
+
     final rows = await _db
         .from('split_groups')
         .select('''
@@ -508,7 +522,7 @@ class WalletService {
             split_shares(*)
           )
         ''')
-        .eq('pinned_to_dashboard', true)
+        .inFilter('id', groupIds)
         .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return (rows as List)
@@ -516,15 +530,18 @@ class WalletService {
         .toList();
   }
 
-  /// Toggle the dashboard pin for a split group.
+  /// Toggle the dashboard pin for a split group — this is the CURRENT
+  /// user's own preference (142), not shared with other participants.
   Future<void> updateSplitGroupPin(String groupId, {required bool pinned}) async {
     await _db
-        .from('split_groups')
+        .from('split_participants')
         .update({'pinned_to_dashboard': pinned})
-        .eq('id', groupId);
+        .eq('group_id', groupId)
+        .eq('user_id', _uid);
   }
 
-  /// Update a split group's name and emoji (photo URL).
+  /// Update a split group's name and emoji (photo URL), and the current
+  /// user's own dashboard pin (142 — not shared with other participants).
   Future<void> updateSplitGroup(
     String groupId, {
     required String name,
@@ -534,8 +551,8 @@ class WalletService {
     await _db.from('split_groups').update({
       'name': name,
       'emoji': emoji,
-      'pinned_to_dashboard': pinned,
     }).eq('id', groupId);
+    await updateSplitGroupPin(groupId, pinned: pinned);
   }
 
   /// Fetch all split groups for a wallet, including participants & transactions.
@@ -593,6 +610,7 @@ class WalletService {
     required String name,
     required String emoji,
     required List<({String name, String emoji, String? phone, bool isMe})> participants,
+    bool pinned = false,
   }) async {
     final allowed = await _db.rpc(AppRpc.checkFeatureLimit, params: {
       'p_user_id': _uid,
@@ -626,6 +644,9 @@ class WalletService {
         'emoji': p.emoji,
         'phone': p.phone,
         'is_me': p.isMe,
+        // Pin is per-participant (142) — only set on the creator's own row,
+        // since that's the only person who actually asked for it here.
+        if (p.isMe && pinned) 'pinned_to_dashboard': true,
       }).toList();
       final insertedParticipants = await _db
           .from('split_participants')
@@ -827,6 +848,54 @@ class WalletService {
         .from('split-proof')
         .uploadBinary(path, Uint8List.fromList(imageBytes));
     return _db.storage.from('split-proof').getPublicUrl(path);
+  }
+
+  /// Inserts an in-app notification for a split payment reminder — a record
+  /// the recipient can see in their notification bell even if the paired
+  /// FCM push (FamilyNotificationTrigger) doesn't land (no token, denied
+  /// permission, etc). Routed through a SECURITY DEFINER RPC (143) rather
+  /// than a raw table insert — notifications has no client INSERT policy
+  /// since 072_rls_security_fixes.sql closed a forge-for-any-user gap.
+  Future<void> sendSplitReminderNotification({
+    required String groupId,
+    required String recipientUserId,
+    required String familyId,
+    required String actorName,
+    required String actorEmoji,
+    required String groupName,
+    required double amount,
+  }) async {
+    await _db.rpc(AppRpc.sendSplitReminderNotification, params: {
+      'p_group_id': groupId,
+      'p_recipient_user_id': recipientUserId,
+      'p_family_id': familyId,
+      'p_actor_name': actorName,
+      'p_actor_emoji': actorEmoji,
+      'p_group_name': groupName,
+      'p_amount': amount,
+    });
+  }
+
+  /// Inserts an in-app notification for a split "Request Extension" — same
+  /// rationale and RLS workaround as [sendSplitReminderNotification] (145).
+  Future<void> sendSplitExtensionNotification({
+    required String groupId,
+    required String recipientUserId,
+    required String familyId,
+    required String actorName,
+    required String actorEmoji,
+    required String groupName,
+    required double amount,
+  }) async {
+    await _db.rpc(AppRpc.sendSplitExtensionNotification, params: {
+      'p_group_id': groupId,
+      'p_recipient_user_id': recipientUserId,
+      'p_family_id': familyId,
+      'p_actor_name': actorName,
+      'p_actor_emoji': actorEmoji,
+      'p_group_name': groupName,
+      'p_amount': amount,
+    });
   }
 
   /// Atomically increment the reminder count for a share.
@@ -1136,16 +1205,17 @@ class WalletService {
         var anySucceeded = false;
         for (final userId in memberUserIds) {
           try {
-            await _db.from('notifications').insert({
-              'user_id':     userId,
-              'family_id':   familyId,
-              'actor_emoji': threshold == 100 ? '🔴' : '🟠',
-              'actor_name':  'Budget Alert',
-              'tx_type':     'budget_alert',
-              'tx_category': budget.category,
-              'tx_amount':   spent,
-              'tx_title':    alertMsg,
-              'is_read':     false,
+            // Routed through a SECURITY DEFINER RPC (144) — notifications
+            // has no client INSERT policy since 072_rls_security_fixes.sql
+            // closed a forge-for-any-user gap, so a raw insert here always
+            // failed silently (caught below, never actually delivered).
+            await _db.rpc(AppRpc.sendBudgetAlertNotification, params: {
+              'p_recipient_user_id': userId,
+              'p_family_id': familyId,
+              'p_category': budget.category,
+              'p_amount': spent,
+              'p_title': alertMsg,
+              'p_actor_emoji': threshold == 100 ? '🔴' : '🟠',
             });
             anySucceeded = true;
           } catch (e, stack) {
