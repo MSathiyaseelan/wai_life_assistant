@@ -634,7 +634,9 @@ class _NotifTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color  = _typeColor(n.txType);
     final prefix = _amountPrefix(n.txType);
-    final label  = n.txTitle?.isNotEmpty == true ? n.txTitle! : n.txCategory;
+    final label  = n.itemCount > 1
+        ? '${n.itemCount} items'
+        : (n.txTitle?.isNotEmpty == true ? n.txTitle! : n.txCategory);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

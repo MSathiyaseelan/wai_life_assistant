@@ -117,6 +117,20 @@ class NotificationService {
           ),
           callback: (_) => _bump(),
         )
+        // A digest notification (see 140_merge_bulk_tx_notifications.sql) is
+        // updated in place for follow-up items instead of inserting a new
+        // row — without this, the list wouldn't refresh past the first item.
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: uid,
+          ),
+          callback: (_) => _bump(),
+        )
         .subscribe();
   }
 

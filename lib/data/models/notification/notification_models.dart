@@ -17,6 +17,11 @@ class AppNotification {
   final String? txTitle;
   final bool isRead;
   final DateTime createdAt;
+  /// How many transactions this notification represents — bumped instead of
+  /// inserting a new row when several land in quick succession (e.g. a
+  /// scanned bill's line items, or a group being moved between wallets), so
+  /// family members get one digest notification instead of one per item.
+  final int itemCount;
 
   const AppNotification({
     required this.id,
@@ -32,6 +37,7 @@ class AppNotification {
     this.txTitle,
     required this.isRead,
     required this.createdAt,
+    this.itemCount = 1,
   });
 
   factory AppNotification.fromRow(Map<String, dynamic> row) {
@@ -49,6 +55,7 @@ class AppNotification {
       txTitle:     row['tx_title']     as String?,
       isRead:      row['is_read']      as bool? ?? false,
       createdAt:   DateTime.parse(row['created_at'] as String),
+      itemCount:   (row['item_count'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -75,11 +82,14 @@ class AppNotification {
     txTitle:     txTitle,
     isRead:      isRead ?? this.isRead,
     createdAt:   createdAt,
+    itemCount:   itemCount,
   );
 
   /// Human-readable body text shown in the notification tile.
   String get body {
-    final label = txTitle?.isNotEmpty == true ? txTitle! : txCategory;
+    final label = itemCount > 1
+        ? '$itemCount items'
+        : (txTitle?.isNotEmpty == true ? txTitle! : txCategory);
     final sign   = (txType == 'income' || txType == 'borrow') ? '+' : '-';
     return '$actorEmoji $actorName added $txType · $label · $sign${AppPrefs.cs}${txAmount.toStringAsFixed(0)}';
   }

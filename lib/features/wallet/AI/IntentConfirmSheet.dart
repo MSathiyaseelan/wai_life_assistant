@@ -33,6 +33,15 @@ class IntentConfirmSheet extends StatefulWidget {
   /// own ScaffoldMessenger scope rather than getting covered by it).
   final String? pendingError;
 
+  /// The family that owns [walletId] (null for a personal wallet), and a
+  /// uid→display-name map — resolved by [show] from the *caller's* context
+  /// and threaded through as plain data. This sheet is shown via
+  /// [showModalBottomSheet], whose content is mounted under the Navigator's
+  /// Overlay rather than under the screen that called [show] — so it sits
+  /// outside AppStateScope's subtree and can't read it via its own context.
+  final FamilyModel? family;
+  final Map<String, String> allMemberNames;
+
   const IntentConfirmSheet({
     super.key,
     required this.intent,
@@ -41,6 +50,8 @@ class IntentConfirmSheet extends StatefulWidget {
     required this.onOpenFlow,
     this.existingId,
     this.pendingError,
+    this.family,
+    this.allMemberNames = const {},
   });
 
   static Future<void> show(
@@ -52,6 +63,22 @@ class IntentConfirmSheet extends StatefulWidget {
     String? existingId,
     String? pendingError,
   }) {
+    FamilyModel? family;
+    Map<String, String> allMemberNames = const {};
+    try {
+      final appState = AppStateScope.read(context);
+      for (final f in appState.families) {
+        if (f.walletId == walletId) {
+          family = f;
+          break;
+        }
+      }
+      allMemberNames = appState.allMemberNames;
+    } catch (_) {
+      // No AppStateScope above this context — family notification is
+      // skipped for this save, everything else still works.
+    }
+
     return showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -64,6 +91,8 @@ class IntentConfirmSheet extends StatefulWidget {
           onOpenFlow: onOpenFlow,
           existingId: existingId,
           pendingError: pendingError,
+          family: family,
+          allMemberNames: allMemberNames,
         ),
       ),
     );
@@ -258,13 +287,10 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   /// Fire-and-forget push to other family members when a transaction lands
   /// in a shared (non-personal) wallet.
   void _notifyFamilyOfTx(TxModel tx) {
-    final appState = AppStateScope.read(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == tx.walletId);
-    if (matches.isEmpty) return;
-    final family = matches.first;
+    final family = widget.family;
+    if (family == null) return;
     final uid = Supabase.instance.client.auth.currentUser?.id;
-    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+    final memberName = (uid != null ? widget.allMemberNames[uid] : null) ?? 'Someone';
 
     String? eventType;
     switch (tx.type) {
