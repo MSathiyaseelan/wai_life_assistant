@@ -1436,10 +1436,11 @@ class _WalletScreenState extends State<WalletScreen>
 
   // ── Split Group handlers ─────────────────────────────────────────────────
 
-  /// Whether the current user can rename/delete this split group, manage
-  /// its participants, or move it to another wallet — the group's own
-  /// creator, or (for a family wallet) that family's admin. Mirrors the
-  /// server-side split_group_can_manage() RLS check (migration 135).
+  /// Whether the current user can move this split group to another
+  /// wallet — the group's own creator, or (for a family wallet) that
+  /// family's admin. Renaming/pinning/adding-removing participants is
+  /// allowed for any participant (migration 141) — this check is now only
+  /// for the wallet-move action.
   bool _canManageSplitGroup(SplitGroup group) {
     final uid = Supabase.instance.client.auth.currentUser?.id;
     if (uid != null && group.createdBy == uid) return true;
@@ -1449,6 +1450,18 @@ class _WalletScreenState extends State<WalletScreen>
       }
     }
     return false;
+  }
+
+  /// The family that owns a split group's wallet, or null for a personal
+  /// wallet. SplitGroupDetailScreen is reached via Navigator.push, whose
+  /// content lands in an Overlay entry that AppStateScope (declared inside
+  /// AppShell, the "home" entry) isn't an ancestor of — so it can't resolve
+  /// this itself and needs it passed in from here instead.
+  FamilyModel? _familyForSplitGroup(SplitGroup group) {
+    for (final family in _appState.families) {
+      if (family.walletId == group.walletId) return family;
+    }
+    return null;
   }
 
   void _openCreateGroup() {
@@ -1481,6 +1494,7 @@ class _WalletScreenState extends State<WalletScreen>
       // Replace local placeholder ids with real DB ids (group + participants)
       final realId = row['id'] as String;
       final rawParts = (row['split_participants'] as List? ?? []);
+      final currentUid = Supabase.instance.client.auth.currentUser?.id;
       final realParticipants = rawParts
           .map(
             (p) => SplitParticipant(
@@ -1488,7 +1502,8 @@ class _WalletScreenState extends State<WalletScreen>
               name: p['name'] as String,
               emoji: p['emoji'] as String? ?? '👤',
               phone: p['phone'] as String?,
-              isMe: p['is_me'] as bool? ?? false,
+              userId: p['user_id'] as String?,
+              isMe: p['user_id'] != null && p['user_id'] == currentUid,
             ),
           )
           .toList();
@@ -1582,12 +1597,15 @@ class _WalletScreenState extends State<WalletScreen>
                         .indexWhere((p) => p.id == addedParticipants[i].id);
                     if (pIdx < 0) continue;
                     final row = insertedRows[i];
+                    final rowUserId = row['user_id'] as String?;
                     _splitGroups[idx].participants[pIdx] = SplitParticipant(
                       id: row['id'] as String,
                       name: row['name'] as String,
                       emoji: row['emoji'] as String? ?? '🧑',
                       phone: row['phone'] as String?,
-                      isMe: row['is_me'] as bool? ?? false,
+                      userId: rowUserId,
+                      isMe: rowUserId != null &&
+                          rowUserId == Supabase.instance.client.auth.currentUser?.id,
                     );
                   }
                 });
@@ -1687,6 +1705,7 @@ class _WalletScreenState extends State<WalletScreen>
         pageBuilder: (_, anim, __) => SplitGroupDetailScreen(
           group: group,
           autoOpenAddExpense: autoAddExpense,
+          family: _familyForSplitGroup(group),
           onGroupUpdated: (updated) {
             setState(() {
               final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
@@ -2625,7 +2644,10 @@ class _WalletScreenState extends State<WalletScreen>
                     tc: tc,
                     sub: sub,
                     onTap: () => _openGroupDetail(g),
-                    onEdit: _canManageSplitGroup(g) ? () => _openEditGroup(g) : null,
+                    // Any participant can rename/pin/add-or-remove members —
+                    // only visible in _splitGroups at all if they already
+                    // have access, so no extra gating needed here.
+                    onEdit: () => _openEditGroup(g),
                     onMove: _canManageSplitGroup(g) ? () => _moveSplitGroupPrompt(g) : null,
                     onAddExpense: () =>
                         _openGroupDetail(g, autoAddExpense: true),
@@ -3926,11 +3948,11 @@ class _SplitGroupCard extends StatelessWidget {
   final Color cardBg, surfBg, tc, sub;
   final VoidCallback onTap, onAddExpense;
 
-  /// Rename/manage participants/delete — null when the current user is
-  /// neither the group's creator nor its wallet's admin.
+  /// Rename group, toggle "Pin to Dashboard", add/remove participants —
+  /// available to any participant of the group.
   final VoidCallback? onEdit;
 
-  /// Move the whole group to another wallet — same gating as [onEdit].
+  /// Move the whole group to another wallet — creator/wallet-admin only.
   final VoidCallback? onMove;
 
   const _SplitGroupCard({

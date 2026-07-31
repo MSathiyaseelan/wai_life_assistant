@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPLIT GROUP MODELS
@@ -110,6 +111,7 @@ class SplitParticipant {
   String name;
   String emoji;
   String? phone;
+  String? userId;
   bool isMe;
 
   SplitParticipant({
@@ -117,6 +119,7 @@ class SplitParticipant {
     required this.name,
     required this.emoji,
     this.phone,
+    this.userId,
     this.isMe = false,
   });
 }
@@ -387,14 +390,26 @@ SettleStatus settleStatusFromString(String s) {
 }
 
 SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
+  // `is_me` is a snapshot from whoever created/added this participant row —
+  // true only for the person who was "me" from *their* point of view at
+  // that time. Every other member opening the same group would otherwise
+  // see zero participants flagged as "me" (no is_me=true row matches their
+  // own account), breaking anything that resolves "the current viewer's
+  // participant" (e.g. defaulting "who paid" on Add Expense). Recompute it
+  // per-viewer instead, from the linked account id.
+  final currentUid = Supabase.instance.client.auth.currentUser?.id;
   final participants = (row['split_participants'] as List? ?? [])
-      .map((p) => SplitParticipant(
-            id: p['id'] as String,
-            name: p['name'] as String,
-            emoji: p['emoji'] as String? ?? '👤',
-            phone: p['phone'] as String?,
-            isMe: p['is_me'] as bool? ?? false,
-          ))
+      .map((p) {
+        final userId = p['user_id'] as String?;
+        return SplitParticipant(
+          id: p['id'] as String,
+          name: p['name'] as String,
+          emoji: p['emoji'] as String? ?? '👤',
+          phone: p['phone'] as String?,
+          userId: userId,
+          isMe: userId != null && userId == currentUid,
+        );
+      })
       .toList();
 
   final transactions = (row['split_group_transactions'] as List? ?? [])

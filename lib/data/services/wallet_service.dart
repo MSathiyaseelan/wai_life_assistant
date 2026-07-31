@@ -556,6 +556,23 @@ class WalletService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  /// Fetch a single split group (participants, transactions, shares) fresh
+  /// from the server — used to pull-to-refresh the group detail screen.
+  Future<Map<String, dynamic>> fetchSplitGroup(String groupId) async {
+    return await _db
+        .from('split_groups')
+        .select('''
+          *,
+          split_participants(*),
+          split_group_transactions(
+            *,
+            split_shares(*)
+          )
+        ''')
+        .eq('id', groupId)
+        .single();
+  }
+
   /// Soft-delete a split group; participants/transactions/shares are left
   /// intact until the 30-day purge issues a real (cascading) DELETE.
   Future<void> deleteSplitGroup(String groupId) async {

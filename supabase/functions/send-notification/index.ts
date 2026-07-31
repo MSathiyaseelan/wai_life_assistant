@@ -51,6 +51,7 @@ const TEMPLATES: Record<string, Template> = {
   "wallet.income_added":   (d) => ({ title: `💰 ${d.member_name} added income`,   body: `₹${d.amount} — ${d.title}`,                    route: "wallet" }),
   "wallet.lend_added":     (d) => ({ title: `🤝 ${d.member_name} lent money`,     body: `₹${d.amount} to ${d.person}`,                  route: "wallet" }),
   "wallet.split_added":    (d) => ({ title: `🧾 New split added`,                 body: `${d.member_name} split ₹${d.amount} — you owe ₹${d.your_share}`, route: "wallet" }),
+  "split.reminder":        (d) => ({ title: `🔔 Payment reminder`,               body: `${d.member_name} reminds you: you owe ₹${d.amount} in "${d.group_name}"`, route: "wallet" }),
 
   // Pantry
   "pantry.meal_added":         (d) => ({ title: `🍽️ Meal planned`,          body: `${d.member_name} added ${d.meal_name} for ${d.meal_type}`, route: "pantry" }),
@@ -80,6 +81,7 @@ const EVENT_PREF_COLUMN: Record<string, string> = {
   "wallet.income_added": "notif_wallet_expense",
   "wallet.lend_added": "notif_wallet_lend_borrow",
   "wallet.split_added": "notif_wallet_split",
+  "split.reminder": "notif_wallet_split",
   "planit.reminder_added": "notif_planit_alert_me",
   "functions.upcoming_added": "notif_functions_upcoming",
 };

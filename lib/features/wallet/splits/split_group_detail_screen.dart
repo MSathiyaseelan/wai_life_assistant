@@ -9,10 +9,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
-import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart' show MemberRole;
+import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart' show MemberRole, FamilyModel;
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
-import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -31,11 +30,18 @@ class SplitGroupDetailScreen extends StatefulWidget {
   final void Function(SplitGroup) onGroupUpdated;
   final bool autoOpenAddExpense;
 
+  /// The family that owns this group's wallet (null for a personal
+  /// wallet) — resolved by the caller, since this screen is reached via
+  /// Navigator.push and can't reliably read AppStateScope itself (see
+  /// wallet_screen.dart's _familyForSplitGroup for why).
+  final FamilyModel? family;
+
   const SplitGroupDetailScreen({
     super.key,
     required this.group,
     required this.onGroupUpdated,
     this.autoOpenAddExpense = false,
+    this.family,
   });
 
   @override
@@ -60,6 +66,31 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     _cachedSettlementPlan = _group.settlementPlan;
   }
 
+  bool _refreshing = false;
+
+  /// Pull-to-refresh on the Expenses tab — refetches this group (participants,
+  /// transactions, shares) fresh from the server instead of relying only on
+  /// local optimistic state, e.g. to pick up an expense another member just
+  /// added.
+  Future<void> _refreshGroup() async {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      final row = await WalletService.instance.fetchSplitGroup(_group.id);
+      if (!mounted) return;
+      setState(() {
+        _group = splitGroupFromRow(row);
+        _recomputeGroupCache();
+      });
+      widget.onGroupUpdated(_group);
+    } catch (e, stack) {
+      debugPrint('[SplitGroupDetail] refresh failed: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'refresh_split_group');
+    } finally {
+      _refreshing = false;
+    }
+  }
+
   // Resolve current-user participant ID from the isMe flag (real DB IDs).
   // Falls back to 'me' for local/mock data.
   String get _myId {
@@ -70,15 +101,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     }
   }
 
-  bool get _isAdmin {
-    try {
-      final families = AppStateScope.of(context).families;
-      final family = families.firstWhere((f) => f.walletId == _group.walletId);
-      return family.myRole == MemberRole.admin;
-    } catch (_) {
-      return false;
-    }
-  }
+  bool get _isAdmin => widget.family?.myRole == MemberRole.admin;
 
   /// Whether the current user may edit/delete this specific expense —
   /// only the participant who added it, or the group's admin (personal-
@@ -341,25 +364,26 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         tc: tc,
         sub: sub,
         onSubmit: (note, imagePath) {
+          final proofDate = DateTime.now();
           for (final e in pending) {
             e.share.status = SettleStatus.proofSubmitted;
             e.share.proofNote = note.isNotEmpty ? note : null;
             e.share.proofImagePath = imagePath;
-            e.share.proofDate = DateTime.now();
+            e.share.proofDate = proofDate;
+            _persistShareStatus(
+              share: e.share,
+              txId: e.tx.id,
+              status: 'proof_submitted',
+              proofNote: e.share.proofNote,
+              proofImagePath: imagePath,
+              proofDate: proofDate,
+            );
           }
-          _group.messages.add(
-            SplitGroupMsg(
-              id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-              groupId: _group.id,
-              senderId: _myId,
-              senderName: _participantName(_myId),
-              senderEmoji: _participantEmoji(_myId),
-              text:
-                  'Submitted payment proof for ${AppPrefs.cs}${totalAmt.toStringAsFixed(0)}'
-                  '${note.isNotEmpty ? ': $note' : ''}',
-              time: DateTime.now(),
-              type: MsgType.settled,
-            ),
+          _addAndPersistMessage(
+            text:
+                'Submitted payment proof for ${AppPrefs.cs}${totalAmt.toStringAsFixed(0)}'
+                '${note.isNotEmpty ? ': $note' : ''}',
+            type: MsgType.settled,
           );
           _update();
         },
@@ -1145,6 +1169,73 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 ],
               ],
             ),
+
+            // In-app push — only when this participant is a linked WAI
+            // account in the same family as this group's wallet (the
+            // send-notification function requires a family_id + a real
+            // recipient with an FCM token; Copy/WhatsApp remain the only
+            // options for participants who are just contacts).
+            if (widget.family != null && p.userId != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final messenger = ScaffoldMessenger.of(context);
+                    FamilyNotificationTrigger.notify(
+                      eventType: 'split.reminder',
+                      familyId: widget.family!.id,
+                      eventData: {
+                        'member_name': _participantName(_myId),
+                        'amount': owedAmount.toStringAsFixed(0),
+                        'group_name': _group.name,
+                      },
+                      targetUserId: p.userId,
+                    );
+                    onReminderSent?.call();
+                    Navigator.pop(context);
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Row(
+                          children: [
+                            Icon(Icons.notifications_active_rounded,
+                                color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'In-app reminder sent!',
+                              style: TextStyle(
+                                fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: AppColors.expense,
+                        behavior: SnackBarBehavior.floating,
+                        margin: EdgeInsets.all(16),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.notifications_active_rounded, size: 16),
+                  label: const Text(
+                    'Notify in App',
+                    style: TextStyle(
+                      fontFamily: 'Nunito',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.expense,
+                    side: const BorderSide(color: AppColors.expense),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1348,11 +1439,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   /// so it can't show each participant their own actual share — an even
   /// split across all shares is used as an approximation.
   void _notifyFamilyOfSplit(SplitGroupTx tx) {
-    final appState = AppStateScope.read(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == _group.walletId);
-    if (matches.isEmpty) return;
-    final family = matches.first;
+    final family = widget.family;
+    if (family == null) return;
     final approxShare = tx.shares.isEmpty ? tx.totalAmount : tx.totalAmount / tx.shares.length;
     FamilyNotificationTrigger.notify(
       eventType: 'wallet.split_added',
@@ -1583,7 +1671,10 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   ) {
     final balances = _cachedNetBalances;
 
-    return ListView(
+    return RefreshIndicator(
+      onRefresh: _refreshGroup,
+      child: ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         // Settled banner
@@ -2108,6 +2199,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
 
         const SizedBox(height: 80),
       ],
+      ),
     );
   }
 
@@ -2121,32 +2213,45 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     Color sub,
   ) {
     if (_group.transactions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: _refreshGroup,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
-            const Text('💸', style: TextStyle(fontSize: 48)),
-            const SizedBox(height: 12),
-            Text(
-              'No expenses yet',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Nunito',
-                color: tc,
+            const SizedBox(height: 80),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('💸', style: TextStyle(fontSize: 48)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No expenses yet',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: tc,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tap + to add the first expense',
+                    style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Tap + to add the first expense',
-              style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
             ),
           ],
         ),
       );
     }
 
-    return ListView.separated(
+    return RefreshIndicator(
+      onRefresh: _refreshGroup,
+      child: ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: _group.transactions.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -2207,6 +2312,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           },
         );
       },
+      ),
     );
   }
 

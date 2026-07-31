@@ -1517,6 +1517,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                   group: g,
                                   onGroupUpdated: _onPinnedGroupUpdated,
                                   autoOpenAddExpense: true,
+                                  family: appState.families
+                                      .where((f) => f.walletId == g.walletId)
+                                      .firstOrNull,
                                 ),
                               ),
                             ),
@@ -1526,6 +1529,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                 builder: (_) => SplitGroupDetailScreen(
                                   group: g,
                                   onGroupUpdated: _onPinnedGroupUpdated,
+                                  family: appState.families
+                                      .where((f) => f.walletId == g.walletId)
+                                      .firstOrNull,
                                 ),
                               ),
                             ),
