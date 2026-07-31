@@ -527,8 +527,46 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => NotificationSheet(isDark: isDark),
+      builder: (_) => NotificationSheet(
+        isDark: isDark,
+        onOpenSplitGroup: _openSplitGroupFromNotification,
+      ),
     ).then((_) => _loadUnreadCount());
+  }
+
+  /// Deep-links a split-group notification tap to its detail screen — works
+  /// even if the group's wallet belongs to a family the current user isn't
+  /// a member of (e.g. added as a participant from outside the family),
+  /// since it fetches the group directly by id rather than relying on it
+  /// already being in a wallet-scoped list.
+  Future<void> _openSplitGroupFromNotification(String groupId) async {
+    Navigator.pop(context); // close the notification sheet first
+    try {
+      final row = await WalletService.instance.fetchSplitGroup(groupId);
+      if (!mounted) return;
+      final group = splitGroupFromRow(row);
+      final appState = AppStateScope.of(context);
+      final family = appState.families
+          .where((f) => f.walletId == group.walletId)
+          .firstOrNull;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SplitGroupDetailScreen(
+            group: group,
+            family: family,
+            onGroupUpdated: (_) {},
+          ),
+        ),
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'open_split_group_from_notification');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open this group. Please try again.')),
+        );
+      }
+    }
   }
 
   void _onSplitGroupsChanged() {

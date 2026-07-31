@@ -22,6 +22,9 @@ class AppNotification {
   /// scanned bill's line items, or a group being moved between wallets), so
   /// family members get one digest notification instead of one per item.
   final int itemCount;
+  /// Split group this notification deep-links to (reminder, extension
+  /// request, or "added you") — null for non-split notification types.
+  final String? relatedGroupId;
 
   const AppNotification({
     required this.id,
@@ -38,6 +41,7 @@ class AppNotification {
     required this.isRead,
     required this.createdAt,
     this.itemCount = 1,
+    this.relatedGroupId,
   });
 
   factory AppNotification.fromRow(Map<String, dynamic> row) {
@@ -56,6 +60,7 @@ class AppNotification {
       isRead:      row['is_read']      as bool? ?? false,
       createdAt:   DateTime.parse(row['created_at'] as String),
       itemCount:   (row['item_count'] as num?)?.toInt() ?? 1,
+      relatedGroupId: row['related_group_id'] as String?,
     );
   }
 
@@ -70,6 +75,15 @@ class AppNotification {
 
   /// True when this notification is a split-group extension request.
   bool get isSplitExtension => txType == 'split_extension';
+
+  /// True when this notification is for being added to a split group.
+  bool get isSplitAddedYou => txType == 'split_added_you';
+
+  /// True for any split-group notification that should deep-link to the
+  /// group when tapped.
+  bool get isSplitLink =>
+      relatedGroupId != null &&
+      (isSplitReminder || isSplitExtension || isSplitAddedYou);
 
   /// The invite_id is stored in txId for invite-type notifications.
   String? get inviteId => isInvite ? txId : null;
@@ -89,6 +103,7 @@ class AppNotification {
     isRead:      isRead ?? this.isRead,
     createdAt:   createdAt,
     itemCount:   itemCount,
+    relatedGroupId: relatedGroupId,
   );
 
   /// Human-readable body text shown in the notification tile.

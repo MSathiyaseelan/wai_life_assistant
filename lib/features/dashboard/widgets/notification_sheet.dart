@@ -14,7 +14,12 @@ import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 
 class NotificationSheet extends StatefulWidget {
   final bool isDark;
-  const NotificationSheet({super.key, required this.isDark});
+  /// Opens a split group from a notification tap — resolved by the caller
+  /// (DashboardScreen), since this sheet is shown via showModalBottomSheet
+  /// and can't reliably resolve AppStateScope/family from its own context
+  /// (same Overlay-sibling issue as SplitGroupDetailScreen's `family` param).
+  final void Function(String groupId)? onOpenSplitGroup;
+  const NotificationSheet({super.key, required this.isDark, this.onOpenSplitGroup});
 
   @override
   State<NotificationSheet> createState() => _NotificationSheetState();
@@ -206,6 +211,7 @@ class _NotificationSheetState extends State<NotificationSheet> {
                           }
                           return _NotifTile(
                             n: n, isDark: isDark, surf: surf, tc: tc, sub: sub,
+                            onOpenSplitGroup: widget.onOpenSplitGroup,
                           );
                         },
                       ),
@@ -596,6 +602,7 @@ class _NotifTile extends StatelessWidget {
   final AppNotification n;
   final bool isDark;
   final Color surf, tc, sub;
+  final void Function(String groupId)? onOpenSplitGroup;
 
   const _NotifTile({
     required this.n,
@@ -603,6 +610,7 @@ class _NotifTile extends StatelessWidget {
     required this.surf,
     required this.tc,
     required this.sub,
+    this.onOpenSplitGroup,
   });
 
   Color _typeColor(String type) {
@@ -616,6 +624,7 @@ class _NotifTile extends StatelessWidget {
       case 'returned': return AppColors.returned;
       case 'split_reminder': return AppColors.expense;
       case 'split_extension': return const Color(0xFF9C27B0);
+      case 'split_added_you': return AppColors.split;
       default:         return AppColors.primary;
     }
   }
@@ -640,7 +649,11 @@ class _NotifTile extends StatelessWidget {
         ? '${n.itemCount} items'
         : (n.txTitle?.isNotEmpty == true ? n.txTitle! : n.txCategory);
 
-    return Padding(
+    final canOpen = n.isSplitLink && onOpenSplitGroup != null;
+
+    return InkWell(
+      onTap: canOpen ? () => onOpenSplitGroup!(n.relatedGroupId!) : null,
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -672,20 +685,21 @@ class _NotifTile extends StatelessWidget {
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: color.withAlpha(24),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$prefix${AppPrefs.cs}${n.txAmount.toStringAsFixed(0)}',
-                        style: TextStyle(
-                          fontSize: 13, fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w800, color: color,
+                    if (!n.isSplitAddedYou)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withAlpha(24),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$prefix${AppPrefs.cs}${n.txAmount.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: 13, fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800, color: color,
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -694,6 +708,8 @@ class _NotifTile extends StatelessWidget {
                       ? '🔔 Payment reminder · ${n.txCategory}'
                       : n.isSplitExtension
                       ? '⏰ Extension requested · ${n.txCategory}'
+                      : n.isSplitAddedYou
+                      ? '🤝 Added to split group · ${n.txCategory}'
                       : 'Added ${n.txType} · $label',
                   style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -721,6 +737,7 @@ class _NotifTile extends StatelessWidget {
               ),
             ),
         ],
+      ),
       ),
     );
   }

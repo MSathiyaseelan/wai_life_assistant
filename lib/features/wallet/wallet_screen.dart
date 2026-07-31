@@ -1464,6 +1464,41 @@ class _WalletScreenState extends State<WalletScreen>
     return null;
   }
 
+  /// Notifies newly-added linked participants that they're now part of this
+  /// split group — otherwise, if the group's wallet belongs to a family
+  /// they're not a member of, they'd have no wallet-switcher entry that
+  /// would ever surface it and no other way to find out it exists.
+  void _notifySplitParticipantsAdded(
+    String groupId,
+    String groupName,
+    String walletId,
+    List<SplitParticipant> allParticipants,
+    List<SplitParticipant> newParticipants,
+  ) {
+    FamilyModel? family;
+    for (final f in _appState.families) {
+      if (f.walletId == walletId) {
+        family = f;
+        break;
+      }
+    }
+    if (family == null) return; // personal wallet — no family_id to notify through
+    final me = allParticipants.where((p) => p.isMe).firstOrNull;
+    final actorName = me?.name ?? 'Someone';
+    final actorEmoji = me?.emoji ?? '👤';
+    for (final p in newParticipants) {
+      if (p.isMe || p.userId == null) continue;
+      WalletService.instance.sendSplitAddedNotification(
+        groupId: groupId,
+        recipientUserId: p.userId!,
+        familyId: family.id,
+        actorName: actorName,
+        actorEmoji: actorEmoji,
+        groupName: groupName,
+      ).catchError((e, stack) => ErrorLogger.log(e, stackTrace: stack, action: 'send_split_added_notification'));
+    }
+  }
+
   void _openCreateGroup() {
     SplitGroupSheet.show(
       context,
@@ -1526,6 +1561,13 @@ class _WalletScreenState extends State<WalletScreen>
           _syncPinnedGroups();
         }
       });
+      _notifySplitParticipantsAdded(
+        realId,
+        group.name,
+        group.walletId,
+        realParticipants,
+        realParticipants,
+      );
     } catch (e, stack) {
       debugPrint('[WalletScreen] createSplitGroup failed: $e');
       ErrorLogger.log(e, stackTrace: stack, action: 'create_split_group');
@@ -1589,6 +1631,7 @@ class _WalletScreenState extends State<WalletScreen>
               // Swap the local placeholder ids for the real DB ids —
               // otherwise a second edit before the next refetch would
               // treat these as "new" all over again.
+              final newParticipants = <SplitParticipant>[];
               if (mounted) {
                 setState(() {
                   final idx = _splitGroups.indexWhere((g) => g.id == updated.id);
@@ -1599,7 +1642,7 @@ class _WalletScreenState extends State<WalletScreen>
                     if (pIdx < 0) continue;
                     final row = insertedRows[i];
                     final rowUserId = row['user_id'] as String?;
-                    _splitGroups[idx].participants[pIdx] = SplitParticipant(
+                    final sp = SplitParticipant(
                       id: row['id'] as String,
                       name: row['name'] as String,
                       emoji: row['emoji'] as String? ?? '🧑',
@@ -1608,9 +1651,18 @@ class _WalletScreenState extends State<WalletScreen>
                       isMe: rowUserId != null &&
                           rowUserId == Supabase.instance.client.auth.currentUser?.id,
                     );
+                    _splitGroups[idx].participants[pIdx] = sp;
+                    newParticipants.add(sp);
                   }
                 });
               }
+              _notifySplitParticipantsAdded(
+                updated.id,
+                updated.name,
+                updated.walletId,
+                updated.participants,
+                newParticipants,
+              );
             }
           } catch (e, stack) {
             ErrorLogger.log(e, stackTrace: stack, action: 'update_split_group');

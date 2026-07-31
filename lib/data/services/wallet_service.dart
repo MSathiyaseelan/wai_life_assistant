@@ -898,6 +898,29 @@ class WalletService {
     });
   }
 
+  /// Inserts an in-app notification when a linked WAI account is added as a
+  /// split participant — otherwise they have no way to discover the group
+  /// exists, especially if its wallet belongs to a family they're not a
+  /// member of (no wallet-switcher entry would ever surface it). Same RLS
+  /// workaround as [sendSplitReminderNotification]/[sendSplitExtensionNotification].
+  Future<void> sendSplitAddedNotification({
+    required String groupId,
+    required String recipientUserId,
+    required String familyId,
+    required String actorName,
+    required String actorEmoji,
+    required String groupName,
+  }) async {
+    await _db.rpc(AppRpc.sendSplitAddedNotification, params: {
+      'p_group_id': groupId,
+      'p_recipient_user_id': recipientUserId,
+      'p_family_id': familyId,
+      'p_actor_name': actorName,
+      'p_actor_emoji': actorEmoji,
+      'p_group_name': groupName,
+    });
+  }
+
   /// Atomically increment the reminder count for a share.
   Future<void> recordReminderSent({
     required String transactionId,
