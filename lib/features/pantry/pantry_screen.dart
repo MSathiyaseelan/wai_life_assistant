@@ -112,7 +112,13 @@ class _PantryScreenState extends State<PantryScreen>
     if (idx >= 0) {
       return families[idx]
           .members
-          .map((m) => PantryMember(id: m.id, name: m.name, emoji: m.emoji))
+          // FamilyMember.id is the family_members row id, not the person's
+          // auth uid — comparing that against currentUserId (Family Food
+          // Guide's "is this my own card" check) would never match. Use the
+          // real auth uid (userId) when the member has an app account,
+          // falling back to the row id for members without one (who can
+          // never be "the logged-in viewer" anyway).
+          .map((m) => PantryMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji))
           .toList();
     }
 

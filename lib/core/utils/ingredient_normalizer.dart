@@ -7,9 +7,19 @@
 /// Mirrors normalize_grocery_name() in
 /// supabase/migrations/087_grocery_normalized_name.sql, which backfills
 /// this value server-side for rows written before this existed.
+///
+/// Also keeps the Tamil Unicode block (U+0B80-U+0BFF, see
+/// supabase/migrations/151_tamil_ingredient_search.sql) so a Tamil
+/// ingredient name survives normalization intact and can resolve through
+/// [canonicalIngredientName]'s alias lookup. Plain ASCII-letter stripping
+/// isn't enough — Tamil vowel signs and the pulli (virama) mark are
+/// combining characters, not "letters", so a naive alpha-only filter would
+/// strip them and corrupt the word. To support another language later,
+/// add its Unicode block range here the same way and seed its aliases in
+/// a migration like 151's.
 String normalizeIngredientName(String raw) {
   var s = raw.toLowerCase().trim();
-  s = s.replaceAll(RegExp(r'[^a-z0-9 ]'), '');
+  s = s.replaceAll(RegExp(r'[^a-z0-9஀-௿ ]'), '');
   s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
   if (s.length > 3 && s.endsWith('ies')) {
