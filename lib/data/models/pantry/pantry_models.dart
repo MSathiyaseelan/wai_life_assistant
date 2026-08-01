@@ -426,7 +426,7 @@ class GroceryItem {
 
   /// The value actually used for matching — always non-null.
   String get effectiveNormalizedName =>
-      normalizedName ?? normalizeIngredientName(name);
+      normalizedName ?? canonicalIngredientName(name);
 
   GroceryItem({
     required this.id,

@@ -1173,7 +1173,7 @@ class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
     final checked = <_IngredientStatus>[];
 
     for (final ingredient in _ingredients) {
-      final name = normalizeIngredientName(_extractName(ingredient));
+      final name = canonicalIngredientName(_extractName(ingredient));
       bool matches(GroceryItem g) {
         if (name.isEmpty) return false;
         final gName = g.effectiveNormalizedName;

@@ -379,6 +379,7 @@ class _PantryScreenState extends State<PantryScreen>
     _loadRecipes();
     _loadGroceries();
     _loadFoodPrefs();
+    PantryService.instance.preloadIngredientAliases();
     DashNavService.pantry.addListener(_onDashNavPantry);
   }
 
@@ -1210,7 +1211,7 @@ class _PantryScreenState extends State<PantryScreen>
     bool changed = false;
 
     for (final ingredient in recipe.ingredients) {
-      final name = normalizeIngredientName(_extractIngredientName(ingredient));
+      final name = canonicalIngredientName(_extractIngredientName(ingredient));
       if (name.isEmpty) continue;
 
       final gIdx = _groceries.indexWhere(
@@ -1281,7 +1282,7 @@ class _PantryScreenState extends State<PantryScreen>
     final missing = <String>[];
     final alreadyInToBuy = <String>[];
     for (final ingredient in ingredientList) {
-      final name = normalizeIngredientName(_extractIngredientName(ingredient));
+      final name = canonicalIngredientName(_extractIngredientName(ingredient));
       if (name.isEmpty) continue;
       bool matches(GroceryItem g) => _ingredientMatchesGrocery(g, name);
       if (stockItems.any(matches)) {
@@ -2307,7 +2308,7 @@ class _PantryScreenState extends State<PantryScreen>
     bool hasStockMatch(RecipeModel r) {
       if (r.ingredients.isEmpty || stockItems.isEmpty) return false;
       return r.ingredients.any((ing) {
-        final name = normalizeIngredientName(_extractIngredientName(ing));
+        final name = canonicalIngredientName(_extractIngredientName(ing));
         return stockItems.any((g) => _ingredientMatchesGrocery(g, name));
       });
     }

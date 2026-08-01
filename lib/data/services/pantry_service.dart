@@ -58,6 +58,26 @@ class PantryService {
     }).toList();
   }
 
+  bool _aliasesLoaded = false;
+
+  /// Loads the `ingredient_aliases` table (synonym map, e.g. "eggplant" ->
+  /// "brinjal") into [canonicalIngredientName]'s in-memory cache. Admin-
+  /// curated and rarely changes, so it's fetched once per session, same as
+  /// [searchMasterRecipes]'s catalogue cache. Safe to call repeatedly —
+  /// no-ops after the first successful load.
+  Future<void> preloadIngredientAliases() async {
+    if (_aliasesLoaded) return;
+    try {
+      final rows = await _db.from('ingredient_aliases').select('alias, canonical');
+      setIngredientAliases({
+        for (final r in rows) r['alias'] as String: r['canonical'] as String,
+      });
+      _aliasesLoaded = true;
+    } catch (e) {
+      debugPrint('[Pantry] preloadIngredientAliases failed: $e');
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // RECIPE BOX
   // ═══════════════════════════════════════════════════════════════════════════
@@ -385,7 +405,7 @@ class PantryService {
       'wallet_id':       walletId,
       'created_by':      _uid,
       'name':            name,
-      'normalized_name': normalizedName ?? normalizeIngredientName(name),
+      'normalized_name': normalizedName ?? canonicalIngredientName(name),
       'category':        category,
       'quantity':        quantity,
       'unit':            unit,
@@ -407,7 +427,7 @@ class PantryService {
     await _db.from('grocery_items').update({
       ...updates,
       if (newName != null && !updates.containsKey('normalized_name'))
-        'normalized_name': normalizeIngredientName(newName),
+        'normalized_name': canonicalIngredientName(newName),
       'last_updated': DateTime.now().toIso8601String(),
     }).eq('id', id);
   }
