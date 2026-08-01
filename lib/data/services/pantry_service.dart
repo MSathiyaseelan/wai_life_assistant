@@ -122,6 +122,31 @@ class PantryService {
     await _db.from('recipes').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
+  /// Fetch this wallet's own previously-untagged (soft-deleted) custom
+  /// recipes — shown alongside the master catalogue in the Library tab so
+  /// untagging a custom recipe is safely reversible from there.
+  Future<List<Map<String, dynamic>>> fetchUntaggedRecipes(String walletId) async {
+    final rows = await _db
+        .from('recipes')
+        .select()
+        .eq('wallet_id', walletId)
+        .isFilter('library_recipe_id', null)
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  /// Restore a previously-untagged recipe (undo soft delete). Returns false
+  /// if RLS silently denied the update (0 rows affected).
+  Future<bool> restoreRecipe(String id) async {
+    final rows = await _db
+        .from('recipes')
+        .update({'deleted_at': null})
+        .eq('id', id)
+        .select('id');
+    return (rows as List).isNotEmpty;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // MEAL MAP — entries
   // ═══════════════════════════════════════════════════════════════════════════

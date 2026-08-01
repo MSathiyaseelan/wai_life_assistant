@@ -14,6 +14,8 @@ void showMealDetailSheet(
   required MealEntry meal,
   required bool isDark,
   required String currentUserName,
+  String? currentUserId,
+  bool isAdmin = false,
   required VoidCallback onEdit,
   required VoidCallback onDelete,
   required void Function(MealReaction reaction) onReactionAdded,
@@ -52,6 +54,8 @@ void showMealDetailSheet(
                   meal: meal,
                   isDark: isDark,
                   currentUserName: currentUserName,
+                  currentUserId: currentUserId,
+                  isAdmin: isAdmin,
                   onEdit: onEdit,
                   onDelete: onDelete,
                   onReactionAdded: onReactionAdded,
@@ -75,6 +79,14 @@ class MealDetailSheet extends StatefulWidget {
   final MealEntry meal;
   final bool isDark;
   final String currentUserName;
+  /// Used to decide whether the current viewer added a given reaction —
+  /// falls back to name-matching if unavailable (e.g. legacy reactions
+  /// saved before user_id was captured).
+  final String? currentUserId;
+  /// Whether the current viewer can edit/delete anyone's reaction —
+  /// false for personal wallets and non-admin family members, mirroring
+  /// the same admin-override pattern used for Wallet transactions.
+  final bool isAdmin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final void Function(MealReaction reaction) onReactionAdded;
@@ -88,6 +100,8 @@ class MealDetailSheet extends StatefulWidget {
     required this.meal,
     required this.isDark,
     required this.currentUserName,
+    this.currentUserId,
+    this.isAdmin = false,
     required this.onEdit,
     required this.onDelete,
     required this.onReactionAdded,
@@ -136,6 +150,17 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
   int? _editingIndex;
   String? _replyingTo;
 
+  /// Whether the current viewer may edit/delete this specific reaction —
+  /// the admin, or whoever added it. Falls back to name-matching when
+  /// userId is unavailable (legacy reactions saved before it was captured).
+  bool _canManageReaction(MealReaction r) {
+    if (widget.isAdmin) return true;
+    if (widget.currentUserId != null && r.userId != null) {
+      return r.userId == widget.currentUserId;
+    }
+    return r.memberName == widget.currentUserName;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -156,6 +181,7 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
 
   void _startEdit(int index) {
     final r = _reactions[index];
+    if (!_canManageReaction(r)) return; // UI already hides the button; guard anyway
     setState(() {
       _editingIndex = index;
       _replyingTo = r.replyTo;
@@ -190,6 +216,7 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
   }
 
   void _deleteReaction(int index) {
+    if (!_canManageReaction(_reactions[index])) return; // UI already hides the button; guard anyway
     setState(() => _reactions.removeAt(index));
     widget.onReactionDeleted(index);
   }
@@ -608,18 +635,20 @@ class _MealDetailSheetState extends State<MealDetailSheet> {
                                   onTap: () => _startReply(i),
                                   tooltip: 'Reply',
                                 ),
-                                MealReactionActionBtn(
-                                  icon: Icons.edit_rounded,
-                                  color: sub,
-                                  onTap: () => _startEdit(i),
-                                  tooltip: 'Edit',
-                                ),
-                                MealReactionActionBtn(
-                                  icon: Icons.delete_outline_rounded,
-                                  color: Colors.redAccent,
-                                  onTap: () => _deleteReaction(i),
-                                  tooltip: 'Delete',
-                                ),
+                                if (_canManageReaction(r)) ...[
+                                  MealReactionActionBtn(
+                                    icon: Icons.edit_rounded,
+                                    color: sub,
+                                    onTap: () => _startEdit(i),
+                                    tooltip: 'Edit',
+                                  ),
+                                  MealReactionActionBtn(
+                                    icon: Icons.delete_outline_rounded,
+                                    color: Colors.redAccent,
+                                    onTap: () => _deleteReaction(i),
+                                    tooltip: 'Delete',
+                                  ),
+                                ],
                               ],
                             ),
                           ],

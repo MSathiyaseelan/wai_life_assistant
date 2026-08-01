@@ -5,17 +5,23 @@ import '../sheets/add_recipe_sheet.dart';
 
 class RecipeBoxSection extends StatefulWidget {
   final List<RecipeModel> recipes;
+  final String walletId;
   final void Function(RecipeModel) onRecipeTapped;
   final void Function(RecipeModel) onRecipeAdded;
-  /// Called when the user untagged a library recipe from their box.
+  /// Called when the user untags a recipe from their box (safe/reversible —
+  /// it can be added again from the Library tab's "Your Recipes" section).
   final void Function(RecipeModel)? onUntagRecipe;
+  /// Called to bring back a previously-untagged recipe from the Library tab.
+  final void Function(RecipeModel)? onRestoreUntagged;
 
   const RecipeBoxSection({
     super.key,
     required this.recipes,
+    required this.walletId,
     required this.onRecipeTapped,
     required this.onRecipeAdded,
     this.onUntagRecipe,
+    this.onRestoreUntagged,
   });
 
   @override
@@ -131,8 +137,12 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
               ),
               const SizedBox(width: 10),
               GestureDetector(
-                onTap: () =>
-                    AddRecipeSheet.show(context, onSave: widget.onRecipeAdded),
+                onTap: () => AddRecipeSheet.show(
+                  context,
+                  onSave: widget.onRecipeAdded,
+                  walletId: widget.walletId,
+                  onRestoreUntagged: widget.onRestoreUntagged,
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -223,7 +233,10 @@ class RecipeCard extends StatelessWidget {
   final RecipeModel recipe;
   final bool isDark;
   final VoidCallback onTap;
-  /// Non-null only for library recipes — tapping removes from the box.
+  /// Removes the recipe from the box. Safe and reversible for both library
+  /// and custom recipes — it can always be added back from the Library
+  /// tab's "Your Recipes" section, so this fires immediately with no
+  /// confirmation dialog.
   final VoidCallback? onUntag;
 
   const RecipeCard({
@@ -291,7 +304,6 @@ class RecipeCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // Untag button — only for library recipes
                       if (onUntag != null)
                         GestureDetector(
                           onTap: onUntag,
@@ -305,7 +317,8 @@ class RecipeCard extends StatelessWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.label_off_rounded,
+                                Icon(
+                                    Icons.label_off_rounded,
                                     size: 12,
                                     color: isDark
                                         ? AppColors.subDark

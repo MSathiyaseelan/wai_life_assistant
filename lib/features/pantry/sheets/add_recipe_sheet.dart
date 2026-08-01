@@ -10,12 +10,19 @@ class AddRecipeSheet extends StatefulWidget {
   final void Function(RecipeModel) onSave;
   final RecipeModel? existing;
   final void Function(RecipeModel)? onUpdate;
+  /// Wallet whose previously-untagged custom recipes should be offered
+  /// alongside the master catalogue in the Library tab.
+  final String? walletId;
+  /// Called to bring back a previously-untagged recipe from the wallet.
+  final void Function(RecipeModel)? onRestoreUntagged;
 
   const AddRecipeSheet({
     super.key,
     required this.onSave,
     this.existing,
     this.onUpdate,
+    this.walletId,
+    this.onRestoreUntagged,
   });
 
   static Future<void> show(
@@ -23,6 +30,8 @@ class AddRecipeSheet extends StatefulWidget {
     required void Function(RecipeModel) onSave,
     RecipeModel? existing,
     void Function(RecipeModel)? onUpdate,
+    String? walletId,
+    void Function(RecipeModel)? onRestoreUntagged,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -32,6 +41,8 @@ class AddRecipeSheet extends StatefulWidget {
         onSave: onSave,
         existing: existing,
         onUpdate: onUpdate,
+        walletId: walletId,
+        onRestoreUntagged: onRestoreUntagged,
       ),
     );
   }
@@ -56,6 +67,7 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
   int _tab = 1; // 0 = Custom, 1 = From Library (Library shown first)
   final _searchCtrl = TextEditingController();
   List<MasterRecipe> _masterResults = [];
+  List<RecipeModel> _untaggedResults = [];
   bool _searching = false;
   bool _libraryLoaded = false;
 
@@ -148,14 +160,28 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
     Navigator.pop(context);
   }
 
+  List<RecipeModel>? _untaggedCache;
+
   Future<void> _doSearch(String q) async {
     if (!mounted) return;
     setState(() => _searching = true);
     try {
       final rows = await PantryService.instance.searchMasterRecipes(q);
+      _untaggedCache ??= widget.walletId == null
+          ? []
+          : (await PantryService.instance.fetchUntaggedRecipes(widget.walletId!))
+              .map(RecipeModel.fromMap)
+              .toList();
       if (!mounted) return;
+      final query = q.trim().toLowerCase();
       setState(() {
         _masterResults = rows.map(MasterRecipe.fromMap).toList();
+        _untaggedResults = query.isEmpty
+            ? _untaggedCache!
+            : _untaggedCache!
+                .where((r) => r.name.toLowerCase().contains(query) ||
+                    r.cuisine.label.toLowerCase().contains(query))
+                .toList();
         _searching = false;
       });
     } catch (_) {
@@ -552,75 +578,165 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
 
         // Results list
         Expanded(
-          child: _masterResults.isEmpty && !_searching
+          child: _masterResults.isEmpty && _untaggedResults.isEmpty && !_searching
               ? Center(
                   child: Text(
                     _libraryLoaded ? 'No recipes found 🍽️' : 'Loading…',
                     style: TextStyle(fontFamily: 'Nunito', fontSize: 14, color: sub),
                   ),
                 )
-              : ListView.separated(
+              : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                  itemCount: _masterResults.length,
-                  separatorBuilder: (_, i) => const Divider(height: 1),
-                  itemBuilder: (ctx, i) {
-                    final r = _masterResults[i];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 4,
-                      ),
-                      leading: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: AppColors.lend.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(r.emoji, style: const TextStyle(fontSize: 22)),
-                      ),
-                      title: Text(
-                        r.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          fontFamily: 'Nunito',
-                          color: tc,
+                  children: [
+                    if (_untaggedResults.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          'Your Recipes',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
                         ),
                       ),
-                      subtitle: Text(
-                        '${r.cuisine}${r.cookTimeMin != null ? '  ·  ⏱ ${r.cookTimeMin} min' : ''}',
-                        style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
-                      ),
-                      trailing: GestureDetector(
-                        onTap: () => _quickAdd(ctx, r),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.lend,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text(
-                            '+ Add',
+                      ..._untaggedResults.map((r) => Column(
+                            children: [
+                              _untaggedTile(ctx: context, r: r, sub: sub, tc: tc),
+                              const Divider(height: 1),
+                            ],
+                          )),
+                      const SizedBox(height: 14),
+                      if (_masterResults.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Text(
+                            'Library',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
-                              color: Colors.white,
                               fontFamily: 'Nunito',
+                              color: sub,
                             ),
                           ),
                         ),
+                    ],
+                    ..._masterResults.map((r) => Column(children: [
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 4,
+                        ),
+                        leading: Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: AppColors.lend.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(r.emoji, style: const TextStyle(fontSize: 22)),
+                        ),
+                        title: Text(
+                          r.name,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${r.cuisine}${r.cookTimeMin != null ? '  ·  ⏱ ${r.cookTimeMin} min' : ''}',
+                          style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+                        ),
+                        trailing: GestureDetector(
+                          onTap: () => _quickAdd(context, r),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.lend,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              '+ Add',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                fontFamily: 'Nunito',
+                              ),
+                            ),
+                          ),
+                        ),
+                        onTap: () => _showPreview(context, r),
                       ),
-                      onTap: () => _showPreview(ctx, r),
-                    );
-                  },
+                      const Divider(height: 1),
+                    ])),
+                  ],
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _untaggedTile({
+    required BuildContext ctx,
+    required RecipeModel r,
+    required Color sub,
+    required Color tc,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      leading: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: AppColors.income.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.center,
+        child: Text(r.emoji, style: const TextStyle(fontSize: 22)),
+      ),
+      title: Text(
+        r.name,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          fontFamily: 'Nunito',
+          color: tc,
+        ),
+      ),
+      subtitle: Text(
+        '${r.cuisine.label}${r.cookTimeMin != null ? '  ·  ⏱ ${r.cookTimeMin} min' : ''}',
+        style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+      ),
+      trailing: GestureDetector(
+        onTap: () {
+          widget.onRestoreUntagged?.call(r);
+          Navigator.pop(ctx);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.income,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Text(
+            '+ Add back',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              fontFamily: 'Nunito',
+            ),
+          ),
+        ),
+      ),
     );
   }
 

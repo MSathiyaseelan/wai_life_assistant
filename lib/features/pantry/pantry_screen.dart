@@ -134,6 +134,18 @@ class _PantryScreenState extends State<PantryScreen>
     return (true, true);
   }
 
+  /// Whether the current user is the admin of [walletId]'s family — used to
+  /// let an admin manage (edit/delete) any family member's meal reaction,
+  /// not just their own. False for personal wallets (no admin concept).
+  bool _isAdminForWallet(String walletId) {
+    for (final family in AppStateScope.of(context).families) {
+      if (family.walletId == walletId) {
+        return family.myRole == MemberRole.admin;
+      }
+    }
+    return false;
+  }
+
   /// Shows a denial snackbar and returns true if [allowed] is false —
   /// call sites should `if (_denyIfNoPerm(...)) return;` before mutating.
   bool _denyIfNoPerm(bool allowed, String action) {
@@ -824,8 +836,12 @@ class _PantryScreenState extends State<PantryScreen>
           onUpdate: _updateMeal,
           dayMeals: _mealsForDate(_selectedDate),
         ),
-        onOpenRecipeForm: () =>
-            AddRecipeSheet.show(context, onSave: _addRecipe),
+        onOpenRecipeForm: () => AddRecipeSheet.show(
+          context,
+          onSave: _addRecipe,
+          walletId: widget.activeWalletId,
+          onRestoreUntagged: _restoreRecipe,
+        ),
         onOpenBasketForm: () => _showAddGrocerySheet(context),
       );
     } else {
@@ -882,7 +898,12 @@ class _PantryScreenState extends State<PantryScreen>
       },
       onRecipe: () {
         _sectionTab.animateTo(1);
-        AddRecipeSheet.show(context, onSave: _addRecipe);
+        AddRecipeSheet.show(
+          context,
+          onSave: _addRecipe,
+          walletId: widget.activeWalletId,
+          onRestoreUntagged: _restoreRecipe,
+        );
       },
       onBasket: () {
         _sectionTab.animateTo(2);
@@ -961,6 +982,24 @@ class _PantryScreenState extends State<PantryScreen>
           m.date.day == date.day)
       .toList();
 
+  /// Fire-and-forget push to other family members for a Meal Map event
+  /// (added / status changed / reaction) — no-op outside family scope.
+  void _notifyFamilyOfMealEvent({
+    required String eventType,
+    required String walletId,
+    required Map<String, dynamic> eventData,
+  }) {
+    final appState = AppStateScope.of(context);
+    if (appState.isPersonal || appState.families.isEmpty) return;
+    final matches = appState.families.where((f) => f.walletId == walletId);
+    final family = matches.isNotEmpty ? matches.first : appState.families.first;
+    FamilyNotificationTrigger.notify(
+      eventType: eventType,
+      familyId: family.id,
+      eventData: eventData,
+    );
+  }
+
   // Adds a meal: optimistic insert → persist to DB → replace with real UUID row.
   Future<void> _addMeal(MealEntry m) async {
     setState(() => _meals.add(m)); // optimistic
@@ -983,21 +1022,15 @@ class _PantryScreenState extends State<PantryScreen>
       });
       PantryService.mealChangeSignal.value++;
 
-      // Notify family members when a meal is added in family scope
-      final appState = AppStateScope.of(context);
-      if (!appState.isPersonal && appState.families.isNotEmpty) {
-        final matches = appState.families.where((f) => f.walletId == widget.activeWalletId);
-        final family = matches.isNotEmpty ? matches.first : appState.families.first;
-        FamilyNotificationTrigger.notify(
-          eventType: 'pantry.meal_added',
-          familyId: family.id,
-          eventData: {
-            'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
-            'meal_name': m.name,
-            'meal_type': m.mealTime.name,
-          },
-        );
-      }
+      _notifyFamilyOfMealEvent(
+        eventType: 'pantry.meal_added',
+        walletId: m.walletId,
+        eventData: {
+          'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
+          'meal_name': m.name,
+          'meal_type': m.mealTime.name,
+        },
+      );
 
       // Ingredient analysis — for recipe-linked meals or manually-entered ingredients
       if ((m.recipeIds.isNotEmpty || m.ingredients.isNotEmpty) && mounted) {
@@ -1077,6 +1110,19 @@ class _PantryScreenState extends State<PantryScreen>
         for (final rid in m.recipeIds) {
           await _reduceStockForMeal(rid);
         }
+      }
+
+      // Notify family members when the status genuinely changed
+      if (status != original.mealStatus) {
+        _notifyFamilyOfMealEvent(
+          eventType: 'pantry.meal_status_changed',
+          walletId: m.walletId,
+          eventData: {
+            'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
+            'meal_name': m.name,
+            'status': status.label,
+          },
+        );
       }
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_update_meal_status');
@@ -1289,6 +1335,8 @@ class _PantryScreenState extends State<PantryScreen>
         meal: m,
         isDark: isDark,
         currentUserName: _currentUserName,
+        currentUserId: Supabase.instance.client.auth.currentUser?.id,
+        isAdmin: _isAdminForWallet(m.walletId),
         onEdit: () {
           Navigator.pop(context);
           AddMealSheet.show(
@@ -1349,6 +1397,16 @@ class _PantryScreenState extends State<PantryScreen>
                 _meals[idx] = _meals[idx].copyWith(reactions: list);
               }
             });
+            _notifyFamilyOfMealEvent(
+              eventType: 'pantry.meal_reaction_added',
+              walletId: m.walletId,
+              eventData: {
+                'member_name': reaction.memberName.isNotEmpty ? reaction.memberName : 'Someone',
+                'meal_name': m.name,
+                'reaction_emoji': reaction.reactionEmoji,
+                'comment': reaction.comment ?? '',
+              },
+            );
           } catch (e, stack) {
             ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_reaction');
             if (!mounted) return;
@@ -1519,6 +1577,23 @@ class _PantryScreenState extends State<PantryScreen>
       if (!mounted) return;
       setState(() => _recipes.add(r));
       _showSavedSnack('Failed to remove recipe', AppColors.expense);
+    }
+  }
+
+  /// Bring back a previously-untagged custom recipe from the Library tab.
+  /// Unlike [_addRecipe], this restores the existing row instead of
+  /// inserting a new one, so it bypasses the duplicate/quota checks.
+  Future<void> _restoreRecipe(RecipeModel r) async {
+    setState(() => _recipes.add(r)); // optimistic
+    try {
+      final ok = await PantryService.instance.restoreRecipe(r.id);
+      if (!ok) throw Exception('restore denied');
+      _showSavedSnack('${r.emoji} ${r.name} added back to Recipe Box!', AppColors.lend);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_restore_recipe');
+      if (!mounted) return;
+      setState(() => _recipes.remove(r));
+      _showSavedSnack('Failed to add recipe', AppColors.expense);
     }
   }
 
@@ -2076,9 +2151,11 @@ class _PantryScreenState extends State<PantryScreen>
           children: [
             RecipeBoxSection(
               recipes: _recipes,
+              walletId: widget.activeWalletId,
               onRecipeTapped: _showRecipeDetail,
               onRecipeAdded: _addRecipe,
               onUntagRecipe: _deleteRecipe,
+              onRestoreUntagged: _restoreRecipe,
             ),
             const SizedBox(height: 24),
           ],
@@ -2392,7 +2469,7 @@ class _PantryScreenState extends State<PantryScreen>
                       .toList(),
                   currentUserId: Supabase.instance.client.auth.currentUser?.id ?? 'me',
                   walletId: widget.activeWalletId,
-                  isAdmin: true,
+                  isAdmin: _isAdminForWallet(widget.activeWalletId),
                   onSave: _saveFoodPrefs,
                 ),
                 const SizedBox(height: 24),
@@ -2418,7 +2495,12 @@ class _PantryScreenState extends State<PantryScreen>
           dayMeals: _mealsForDate(_selectedDate),
         );
       case 1:
-        AddRecipeSheet.show(context, onSave: _addRecipe);
+        AddRecipeSheet.show(
+          context,
+          onSave: _addRecipe,
+          walletId: widget.activeWalletId,
+          onRestoreUntagged: _restoreRecipe,
+        );
       case 2:
         _showAddGrocerySheet(context);
     }
@@ -3060,6 +3142,13 @@ class _MealDetailSheet extends StatefulWidget {
   final MealEntry meal;
   final bool isDark;
   final String currentUserName;
+  /// Used to decide whether the current viewer added a given reaction —
+  /// falls back to name-matching if unavailable (e.g. legacy reactions
+  /// saved before user_id was captured).
+  final String? currentUserId;
+  /// Whether the current viewer can edit/delete anyone's reaction —
+  /// false for personal wallets and non-admin family members.
+  final bool isAdmin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final void Function(MealReaction reaction) onReactionAdded;
@@ -3072,6 +3161,8 @@ class _MealDetailSheet extends StatefulWidget {
     required this.meal,
     required this.isDark,
     required this.currentUserName,
+    this.currentUserId,
+    this.isAdmin = false,
     required this.onEdit,
     required this.onDelete,
     required this.onReactionAdded,
@@ -3141,8 +3232,20 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
     super.dispose();
   }
 
+  /// Whether the current viewer may edit/delete this specific reaction —
+  /// the admin, or whoever added it. Falls back to name-matching when
+  /// userId is unavailable (legacy reactions saved before it was captured).
+  bool _canManageReaction(MealReaction r) {
+    if (widget.isAdmin) return true;
+    if (widget.currentUserId != null && r.userId != null) {
+      return r.userId == widget.currentUserId;
+    }
+    return r.memberName == widget.currentUserName;
+  }
+
   void _startEdit(int index) {
     final r = _reactions[index];
+    if (!_canManageReaction(r)) return; // UI already hides the button; guard anyway
     setState(() {
       _editingIndex = index;
       _replyingTo = r.replyTo; // preserve reply context so options show correctly
@@ -3177,6 +3280,7 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
   }
 
   void _deleteReaction(int index) {
+    if (!_canManageReaction(_reactions[index])) return; // UI already hides the button; guard anyway
     setState(() => _reactions.removeAt(index));
     widget.onReactionDeleted(index);
   }
@@ -3599,18 +3703,20 @@ class _MealDetailSheetState extends State<_MealDetailSheet> {
                                   onTap: () => _startReply(i),
                                   tooltip: 'Reply',
                                 ),
-                                _ReactionActionBtn(
-                                  icon: Icons.edit_rounded,
-                                  color: sub,
-                                  onTap: () => _startEdit(i),
-                                  tooltip: 'Edit',
-                                ),
-                                _ReactionActionBtn(
-                                  icon: Icons.delete_outline_rounded,
-                                  color: Colors.redAccent,
-                                  onTap: () => _deleteReaction(i),
-                                  tooltip: 'Delete',
-                                ),
+                                if (_canManageReaction(r)) ...[
+                                  _ReactionActionBtn(
+                                    icon: Icons.edit_rounded,
+                                    color: sub,
+                                    onTap: () => _startEdit(i),
+                                    tooltip: 'Edit',
+                                  ),
+                                  _ReactionActionBtn(
+                                    icon: Icons.delete_outline_rounded,
+                                    color: Colors.redAccent,
+                                    onTap: () => _deleteReaction(i),
+                                    tooltip: 'Delete',
+                                  ),
+                                ],
                               ],
                             ),
                           ],

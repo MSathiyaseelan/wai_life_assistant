@@ -60,6 +60,8 @@ const TEMPLATES: Record<string, Template> = {
   "pantry.basket_item_added":  (d) => ({ title: `🛒 Added to shopping list`, body: `${d.member_name} added ${d.item_name} to ToBuy`,         route: "pantry" }),
   "pantry.item_finished":      (d) => ({ title: `⚠️ Item finished`,          body: `${d.member_name} marked ${d.item_name} as out of stock`, route: "pantry" }),
   "pantry.expiry_alert":       (d) => ({ title: `🔴 Expiry Alert`,           body: `${d.item_name} expires ${d.expiry_text}`,                route: "pantry" }),
+  "pantry.meal_status_changed": (d) => ({ title: `🍽️ ${d.member_name} updated a meal`, body: `${d.meal_name} marked as ${d.status}`,          route: "pantry" }),
+  "pantry.meal_reaction_added": (d) => ({ title: `${d.reaction_emoji} ${d.member_name} reacted`, body: `On ${d.meal_name}${d.comment ? `: ${d.comment}` : ""}`, route: "pantry" }),
 
   // PlanIt
   "planit.task_added":                (d) => ({ title: `✅ New family task`,           body: `${d.member_name}: ${d.task_title}${d.assignee ? ` → ${d.assignee}` : ""}`, route: "planit" }),

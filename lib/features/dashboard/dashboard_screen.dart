@@ -708,11 +708,16 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   void _showMealDetail(MealEntry m) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final family = AppStateScope.of(context).families
+        .where((f) => f.walletId == m.walletId)
+        .firstOrNull;
     showMealDetailSheet(
       context,
       meal: m,
       isDark: isDark,
       currentUserName: _userName,
+      currentUserId: Supabase.instance.client.auth.currentUser?.id,
+      isAdmin: family?.myRole == MemberRole.admin,
       onEdit: () async {
         Navigator.pop(context);
         // Fetch the wallet's recipes on-demand so the edit sheet has them.

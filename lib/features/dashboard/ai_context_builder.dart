@@ -143,14 +143,15 @@ class AiContextBuilder {
       // Recent meals
       final mealRows = await _db
           .from('meal_entries')
-          .select('meal_name, meal_type, logged_at')
+          .select('name, meal_time, date')
           .eq('wallet_id', walletId)
-          .order('logged_at', ascending: false)
+          .isFilter('deleted_at', null)
+          .order('date', ascending: false)
           .limit(5);
 
       if (mealRows.isNotEmpty) {
         final meals = (mealRows as List)
-            .map((r) => '${r['meal_name']} (${r['meal_type']})')
+            .map((r) => '${r['name']} (${r['meal_time']})')
             .join(', ');
         buf.writeln('Recent meals: $meals');
       }

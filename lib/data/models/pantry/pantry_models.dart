@@ -198,6 +198,7 @@ extension MealStatusExt on MealStatus {
 
 class MealReaction {
   final String? id;          // DB UUID; null for locally-created reactions not yet persisted
+  final String? userId;      // who added it — null for locally-created reactions not yet persisted
   final String memberName;
   final String reactionEmoji; // e.g. 👍 😋 🤔 ❌ 🔄
   final String? comment;
@@ -205,6 +206,7 @@ class MealReaction {
 
   const MealReaction({
     this.id,
+    this.userId,
     required this.memberName,
     required this.reactionEmoji,
     this.comment,
@@ -213,12 +215,14 @@ class MealReaction {
 
   MealReaction copyWith({
     String? id,
+    String? userId,
     String? memberName,
     String? reactionEmoji,
     String? comment,
     String? replyTo,
   }) => MealReaction(
     id: id ?? this.id,
+    userId: userId ?? this.userId,
     memberName: memberName ?? this.memberName,
     reactionEmoji: reactionEmoji ?? this.reactionEmoji,
     comment: comment ?? this.comment,
@@ -227,6 +231,7 @@ class MealReaction {
 
   factory MealReaction.fromMap(Map<String, dynamic> m) => MealReaction(
     id: m['id'] as String?,
+    userId: m['user_id'] as String?,
     memberName: m['member_name'] as String,
     reactionEmoji: m['reaction_emoji'] as String,
     comment: m['comment'] as String?,
@@ -302,8 +307,14 @@ class MealEntry {
   /// Deserialise a Supabase row (with optional nested meal_reactions list).
   factory MealEntry.fromMap(Map<String, dynamic> m) {
     final rawReactions = m['meal_reactions'];
+    // meal_reactions is embedded via PostgREST, which can't filter the
+    // nested resource's own soft-delete column — a deleted reaction never
+    // actually left the parent meal's payload, so it has to be excluded
+    // here or it reappears on every refetch even though deleteReaction()
+    // "succeeded".
     final reactions = rawReactions is List
         ? rawReactions
+            .where((r) => (r as Map<String, dynamic>)['deleted_at'] == null)
             .map((r) => MealReaction.fromMap(r as Map<String, dynamic>))
             .toList()
         : <MealReaction>[];
