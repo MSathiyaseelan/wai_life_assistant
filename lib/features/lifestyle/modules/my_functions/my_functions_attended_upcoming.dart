@@ -12,6 +12,22 @@ class _AttendedCard extends StatelessWidget {
     required this.onTap,
   });
 
+  /// "🎁 ₹2000 + 1g Gold · Cash, Gold" — the ₹ total (currency gifts only)
+  /// combined with each weight-based gift's own label, so grams never get
+  /// silently added into the ₹ figure (e.g. "2000 cash + 1g gold" must not
+  /// read as "2001").
+  String _giftLine() {
+    final valueParts = <String>[
+      if (item.giftsTotal > 0) '₹${item.giftsTotal.toStringAsFixed(0)}',
+      for (final g in item.gifts)
+        if (g.isWeightBased && g.amountLabel != null) '${g.amountLabel} ${g.category}',
+    ];
+    final categories = item.gifts.map((g) => g.category).join(', ');
+    return valueParts.isEmpty
+        ? '🎁 $categories'
+        : '🎁 ${valueParts.join(' + ')} · $categories';
+  }
+
   String _countdown() {
     if (item.date == null) return '';
     final today = DateTime(
@@ -215,9 +231,7 @@ class _AttendedCard extends StatelessWidget {
                         if (item.gifts.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           Text(
-                            item.giftsTotal > 0
-                                ? '🎁 ₹${item.giftsTotal.toStringAsFixed(0)} · ${item.gifts.map((g) => g.category).join(', ')}'
-                                : '🎁 ${item.gifts.map((g) => g.category).join(', ')}',
+                            _giftLine(),
                             style: TextStyle(
                               fontSize: 10,
                               fontFamily: 'Nunito',

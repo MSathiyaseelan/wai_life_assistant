@@ -85,10 +85,10 @@ class _GiftEntryEditorState extends State<_GiftEntryEditor> {
                                 color: tc,
                               ),
                             ),
-                            if (e.value.amount != null) ...[
+                            if (e.value.amountLabel != null) ...[
                               const SizedBox(width: 6),
                               Text(
-                                '· ₹${e.value.amount!.toStringAsFixed(0)}',
+                                '· ${e.value.amountLabel}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
@@ -175,7 +175,9 @@ class _GiftEntryEditorState extends State<_GiftEntryEditor> {
         const SizedBox(height: 8),
         PlanInputField(
           controller: _amountCtrl,
-          hint: 'Amount given (₹) — optional',
+          hint: (_newCategory == 'Gold' || _newCategory == 'Silver')
+              ? 'Weight given (grams) — optional'
+              : 'Amount given (₹) — optional',
           inputType: const TextInputType.numberWithOptions(decimal: true),
         ),
         const SizedBox(height: 8),

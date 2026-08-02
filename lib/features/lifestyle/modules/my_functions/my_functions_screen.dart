@@ -761,7 +761,16 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       () => _upcoming.insert(0, UpcomingFunction.fromJson(row)),
                     );
                   }
-                  _notifyFamilyOfUpcomingFunction(title, date);
+                  // The function is already saved at this point — a
+                  // notification failure (bad context lookup, family data
+                  // not loaded yet, etc.) must never be treated as a save
+                  // failure, or the sheet stays open and the user re-saves
+                  // a genuine duplicate thinking it didn't work.
+                  try {
+                    _notifyFamilyOfUpcomingFunction(title, date);
+                  } catch (e, stack) {
+                    ErrorLogger.log(e, stackTrace: stack, action: 'notify_family_of_upcoming_function');
+                  }
                 } else if (tabIdx == 1) {
                   // ATTENDED tab
                   final row = await svc.addAttended(

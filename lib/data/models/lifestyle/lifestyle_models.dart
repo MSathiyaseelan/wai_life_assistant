@@ -996,8 +996,23 @@ class GiftedItem {
 class PlannedGiftItem {
   String category; // e.g. 'Cash', 'Gold'
   String? notes;
-  double? amount; // cash amount, or approx value for gold/silver/other gifts
+  double? amount; // cash amount for most categories, but grams for Gold/Silver
   PlannedGiftItem({required this.category, this.notes, this.amount});
+
+  /// Gold/Silver's `amount` is a weight in grams, not a ₹ value — it must
+  /// never be summed together with currency amounts (e.g. Cash), or "2000
+  /// cash + 1g gold" silently becomes "2001".
+  bool get isWeightBased => category == 'Gold' || category == 'Silver';
+
+  /// Display-ready amount, unit-aware: "1g" for Gold/Silver, "₹2000" otherwise.
+  String? get amountLabel {
+    final a = amount;
+    if (a == null) return null;
+    if (isWeightBased) {
+      return '${a == a.truncateToDouble() ? a.toStringAsFixed(0) : a}g';
+    }
+    return '₹${a.toStringAsFixed(0)}';
+  }
 
   factory PlannedGiftItem.fromJson(Map<String, dynamic> json) => PlannedGiftItem(
     category: json['category'] ?? '',
@@ -1102,9 +1117,13 @@ class AttendedFunction {
     List<PlannedGiftItem>? gifts,
   }) : gifts = gifts ?? [];
 
-  /// Total value of all gifts given at this function (gifts without a
-  /// recorded amount don't contribute — the total is a lower bound).
-  double get giftsTotal => gifts.fold(0.0, (sum, g) => sum + (g.amount ?? 0));
+  /// Total ₹ value of all currency-denominated gifts given at this function
+  /// (gifts without a recorded amount don't contribute — the total is a
+  /// lower bound). Weight-based gifts (Gold/Silver, recorded in grams) are
+  /// excluded — they display separately via [PlannedGiftItem.amountLabel].
+  double get giftsTotal => gifts
+      .where((g) => !g.isWeightBased)
+      .fold(0.0, (sum, g) => sum + (g.amount ?? 0));
 
   factory AttendedFunction.fromJson(Map<String, dynamic> json) => AttendedFunction(
     id: json['id'] as String,

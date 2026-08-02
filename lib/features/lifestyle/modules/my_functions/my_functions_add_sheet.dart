@@ -208,45 +208,53 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
     });
   }
 
+  bool _saving = false;
+
   Future<void> _save() async {
+    if (_saving) return; // guards against duplicate entries from rapid re-taps
     final title = _titleCtrl.text.trim();
     if (title.isEmpty) {
       if (_mode.index == 0) _mode.animateTo(1);
       return;
     }
-    String icon = _icon;
-    if (_photoPath != null) {
-      try {
-        icon = await ProfileService.instance.uploadPhoto(
-          localPath: _photoPath!,
-          folder: 'functions',
-          name: 'fn_${DateTime.now().millisecondsSinceEpoch}',
-        );
-      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_icon_upload_error');
-        debugPrint('[Functions] icon upload error: $e');
+    setState(() => _saving = true);
+    try {
+      String icon = _icon;
+      if (_photoPath != null) {
+        try {
+          icon = await ProfileService.instance.uploadPhoto(
+            localPath: _photoPath!,
+            folder: 'functions',
+            name: 'fn_${DateTime.now().millisecondsSinceEpoch}',
+          );
+        } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_icon_upload_error');
+          debugPrint('[Functions] icon upload error: $e');
+        }
       }
+      final needsPersonFields = widget.tabIdx != 2;
+      await widget.onSave(
+        title,
+        _type,
+        _type == FunctionType.other && _customTypeCtrl.text.trim().isNotEmpty
+            ? _customTypeCtrl.text.trim()
+            : null,
+        _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
+        _date,
+        needsPersonFields
+            ? (_personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim())
+            : null,
+        needsPersonFields
+            ? (_familyNameCtrl.text.trim().isEmpty
+                  ? null
+                  : _familyNameCtrl.text.trim())
+            : null,
+        _isFunctionPlanned,
+        icon,
+        _gifts,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    final needsPersonFields = widget.tabIdx != 2;
-    await widget.onSave(
-      title,
-      _type,
-      _type == FunctionType.other && _customTypeCtrl.text.trim().isNotEmpty
-          ? _customTypeCtrl.text.trim()
-          : null,
-      _venueCtrl.text.trim().isEmpty ? null : _venueCtrl.text.trim(),
-      _date,
-      needsPersonFields
-          ? (_personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim())
-          : null,
-      needsPersonFields
-          ? (_familyNameCtrl.text.trim().isEmpty
-                ? null
-                : _familyNameCtrl.text.trim())
-          : null,
-      _isFunctionPlanned,
-      icon,
-      _gifts,
-    );
   }
 
   void _pickIcon(BuildContext ctx) {
