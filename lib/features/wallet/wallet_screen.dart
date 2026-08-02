@@ -625,6 +625,7 @@ class _WalletScreenState extends State<WalletScreen>
             : readyWallets.first.id)
         : (_allWallets.isNotEmpty ? _allWallets.first.id : 'personal');
     final walletsForSheet = readyWallets.isNotEmpty ? readyWallets : _allWallets;
+    final family = _appState.families.where((f) => f.walletId == activeId).firstOrNull;
 
     Navigator.push(
       context,
@@ -635,6 +636,7 @@ class _WalletScreenState extends State<WalletScreen>
           wallets: walletsForSheet,
           transactions: _transactions,
           onComplete: _onTransactionSaved,
+          family: family,
         ),
         transitionsBuilder: (_, anim, __, child) => SlideTransition(
           position: Tween<Offset>(
@@ -697,6 +699,7 @@ class _WalletScreenState extends State<WalletScreen>
         persons: tx.persons,
         dueDate: tx.dueDate,
         date: tx.date,
+        targetUserId: tx.targetUserId,
       );
       if (!mounted) return;
       // Replace local placeholder id with real DB row
@@ -3074,9 +3077,16 @@ class _WalletScreenState extends State<WalletScreen>
         // Individual (ungrouped) tiles — draggable + drop target
         ...entry.value.map((tx) {
           final currentUid = AuthCoordinator.instance.currentUser?.id;
+          // Was `tx.userId != currentUid` — true for EVERY other family
+          // member, not just the person the request is actually for. Must
+          // match the specific target account (see
+          // 152_request_money_target_user.sql); legacy rows with no
+          // target_user_id show Accept/Reject to nobody but the requestor
+          // themselves (already excluded, since isRecipient requires
+          // targetUserId == currentUid, never the requestor's own uid).
           final isRecipient = tx.type == TxType.request &&
-              tx.userId != null &&
-              tx.userId != currentUid;
+              tx.targetUserId != null &&
+              tx.targetUserId == currentUid;
           final tile = TxTile(
             tx: tx,
             hideAmount: _amountsHidden,
@@ -3170,6 +3180,8 @@ class _WalletScreenState extends State<WalletScreen>
               status: newStatus,
               dueDate: tx.dueDate,
               userId: tx.userId,
+              groupId: tx.groupId,
+              targetUserId: tx.targetUserId,
             );
             setState(() {
               final idx = _transactions.indexWhere((t) => t.id == tx.id);
@@ -3230,6 +3242,7 @@ class _WalletScreenState extends State<WalletScreen>
                 ? widget.activeWalletId
                 : readyWallets2.first.id)
             : (_allWallets.isNotEmpty ? _allWallets.first.id : 'personal');
+        final family2 = _appState.families.where((f) => f.walletId == activeId2).firstOrNull;
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -3238,6 +3251,7 @@ class _WalletScreenState extends State<WalletScreen>
               walletId: activeId2,
               wallets: walletsForSheet2,
               onComplete: _onTransactionSaved,
+              family: family2,
             ),
           ),
         );
@@ -3390,6 +3404,7 @@ class _WalletScreenState extends State<WalletScreen>
           payMode: tx.payMode, title: tx.title, note: tx.note,
           person: tx.person, persons: tx.persons, status: tx.status,
           dueDate: tx.dueDate, userId: tx.userId, groupId: groupId,
+          targetUserId: tx.targetUserId,
         );
       }
       WalletService.txChangeSignal.value++;
@@ -3415,6 +3430,7 @@ class _WalletScreenState extends State<WalletScreen>
           payMode: tx.payMode, title: tx.title, note: tx.note,
           person: tx.person, persons: tx.persons, status: tx.status,
           dueDate: tx.dueDate, userId: tx.userId, groupId: null,
+          targetUserId: tx.targetUserId,
         );
       }
       WalletService.txChangeSignal.value++;
@@ -3821,6 +3837,7 @@ class _WalletScreenState extends State<WalletScreen>
             payMode: tx.payMode, title: tx.title, note: tx.note,
             person: tx.person, persons: tx.persons, status: tx.status,
             dueDate: tx.dueDate, userId: tx.userId, groupId: groupId,
+            targetUserId: tx.targetUserId,
           );
         }
       }

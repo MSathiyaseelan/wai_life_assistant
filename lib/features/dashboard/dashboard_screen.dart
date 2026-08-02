@@ -226,21 +226,72 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
+  static bool _isDbId(String id) =>
+      RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+          .hasMatch(id);
+
+  /// ConversationFlow only builds a local TxModel with a temp millisecond
+  /// id and hands it to onComplete — unlike IntentConfirmSheet, it never
+  /// calls WalletService itself. The Wallet screen's equivalent callback
+  /// persists it (see _persistTransaction there); this one previously
+  /// didn't, so transactions created via "Edit in full flow" from here
+  /// were shown locally but silently never saved to the database.
+  Future<void> _persistConversationTx(TxModel tx) async {
+    if (_isDbId(tx.id)) return; // IntentConfirmSheet already persisted this
+    WalletService.instance.ensureCategory(tx.category, tx.type.name)
+        .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
+    try {
+      final row = await WalletService.instance.addTransaction(
+        walletId: tx.walletId,
+        type: tx.type.name,
+        amount: tx.amount,
+        category: tx.category,
+        payMode: tx.payMode?.name,
+        title: tx.title,
+        note: tx.note,
+        person: tx.person,
+        persons: tx.persons,
+        dueDate: tx.dueDate,
+        date: tx.date,
+        targetUserId: tx.targetUserId,
+      );
+      if (!mounted) return;
+      final saved = TxModel.fromRow(row);
+      setState(() {
+        final idx = _transactions.indexWhere((t) => t.id == tx.id);
+        if (idx >= 0) _transactions[idx] = saved;
+      });
+      WalletService.txChangeSignal.value++;
+    } catch (e, stack) {
+      if (e is! TransactionLimitExceededException) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'persist_conversation_tx');
+      }
+      if (!mounted) return;
+      setState(() => _transactions.removeWhere((t) => t.id == tx.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyError(e, 'Failed to save transaction. Please try again.'))),
+      );
+    }
+  }
+
   // "Edit in full flow" escape hatch from IntentConfirmSheet — opens the
   // step-by-step ConversationFlow so the user can adjust fields the quick
   // confirm card doesn't expose.
   void _openConversation(FlowType flowType, String walletId) {
+    final appState = AppStateScope.of(context);
+    final family = appState.families.where((f) => f.walletId == walletId).firstOrNull;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ConversationScreen(
           flowType: flowType,
           walletId: walletId,
-          wallets: AppStateScope.of(context).wallets,
+          wallets: appState.wallets,
           transactions: _transactions,
+          family: family,
           onComplete: (tx) {
             setState(() => _transactions.insert(0, tx));
-            WalletService.txChangeSignal.value++;
+            _persistConversationTx(tx);
           },
         ),
       ),
@@ -1325,8 +1376,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         onTransactionSaved: (tx) {
                           setState(() => _transactions.insert(0, tx));
                           WalletService.txChangeSignal.value++;
-                          WalletService.instance.ensureCategory(tx.category, tx.type.name)
-                              .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
+                          // IntentConfirmSheet already persists before calling
+                          // this (real DB id) — _persistConversationTx no-ops
+                          // for that case and only saves ConversationFlow's
+                          // local-only (temp id) transactions.
+                          _persistConversationTx(tx);
                         },
                         onUpgrade: _prefsTap(context, Theme.of(context).brightness == Brightness.dark, 'Subscription'),
                       ),

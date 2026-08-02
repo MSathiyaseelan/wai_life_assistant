@@ -360,6 +360,7 @@ class WalletService {
     String? dueDate,
     DateTime? date,
     String? groupId,
+    String? targetUserId,
   }) async {
     final allowed = await _db.rpc(AppRpc.checkFeatureLimit, params: {
       'p_user_id': _uid,
@@ -384,6 +385,7 @@ class WalletService {
         'due_date': dueDate,
         'date': (date ?? DateTime.now()).toIso8601String(),
         if (groupId != null) 'group_id': groupId,
+        if (targetUserId != null) 'target_user_id': targetUserId,
       }).select().single();
       return row;
     } catch (e) {

@@ -12,6 +12,11 @@ class ConversationScreen extends StatelessWidget {
   final List<WalletModel> wallets;
   final List<TxModel> transactions;
   final void Function(TxModel tx) onComplete;
+  /// The family that owns [walletId] (null for a personal wallet) —
+  /// resolved by the caller's context, since this screen is pushed via
+  /// Navigator.push and may not sit under AppStateScope's subtree itself.
+  /// Lets Request Money's person step target a real member account.
+  final FamilyModel? family;
 
   const ConversationScreen({
     super.key,
@@ -20,6 +25,7 @@ class ConversationScreen extends StatelessWidget {
     required this.wallets,
     this.transactions = const [],
     required this.onComplete,
+    this.family,
   });
 
   @override
@@ -71,6 +77,7 @@ class ConversationScreen extends StatelessWidget {
         walletId: walletId,
         wallets: wallets,
         transactions: transactions,
+        family: family,
         onComplete: (tx) {
           onComplete(tx);
           // Pop back after a short delay so user sees the success card

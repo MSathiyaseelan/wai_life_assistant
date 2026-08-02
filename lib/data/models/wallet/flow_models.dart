@@ -263,6 +263,9 @@ class FlowData {
   List<String>? persons;
   String? splitType;
   String? person;
+  /// Set when [person] was picked from the family (Request Money only) —
+  /// the real account this transaction targets, not just a display name.
+  String? targetUserId;
   String? dueDate;
   String? title;
   String? note;
@@ -314,6 +317,7 @@ class FlowData {
       persons: persons,
       dueDate: dueDate,
       userId: Supabase.instance.client.auth.currentUser?.id,
+      targetUserId: targetUserId,
     );
   }
 

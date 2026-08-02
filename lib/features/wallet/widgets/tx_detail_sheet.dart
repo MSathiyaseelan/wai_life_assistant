@@ -564,6 +564,11 @@ class _TxEditSheetState extends State<TxEditSheet> {
         dueDate: widget.tx.dueDate,
         userId: widget.tx.userId,
         groupId: widget.tx.groupId,
+        // This sheet still edits 'person' as free text (no member picker),
+        // so it can't tell if the user retyped a different name here —
+        // preserves whatever account the request already targeted rather
+        // than silently dropping it.
+        targetUserId: widget.tx.targetUserId,
       ),
     );
     Navigator.pop(context);

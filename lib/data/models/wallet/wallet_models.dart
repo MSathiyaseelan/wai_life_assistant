@@ -126,6 +126,11 @@ class TxModel {
   final String walletId; // 'personal' or family id
   final String? userId;  // Supabase user_id of who created this transaction
   final String? groupId; // tx_groups.id — null means not grouped
+  /// For type == request: the specific family member's account this request
+  /// targets (null for a personal-wallet request to a non-app contact, or
+  /// for legacy rows created before this field existed). Drives both RLS
+  /// visibility and who's allowed to accept/reject the request.
+  final String? targetUserId;
 
   const TxModel({
     required this.id,
@@ -143,6 +148,7 @@ class TxModel {
     this.dueDate,
     this.userId,
     this.groupId,
+    this.targetUserId,
   });
 
   factory TxModel.fromRow(Map<String, dynamic> row) {
@@ -172,6 +178,7 @@ class TxModel {
       dueDate: row['due_date'] as String?,
       userId: row['user_id'] as String?,
       groupId: row['group_id'] as String?,
+      targetUserId: row['target_user_id'] as String?,
     );
   }
 }

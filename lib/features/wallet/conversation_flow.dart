@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
@@ -47,6 +48,12 @@ class ConversationFlow extends StatefulWidget {
   /// Called after user saves — receives the new TxModel
   final void Function(TxModel tx) onComplete;
 
+  /// The family that owns [walletId] (null for a personal wallet) —
+  /// resolved by the caller's context. Lets Request Money's person step
+  /// pick a real family member instead of a phone contact, so the request
+  /// can be scoped to that specific account.
+  final FamilyModel? family;
+
   const ConversationFlow({
     super.key,
     required this.flowType,
@@ -54,6 +61,7 @@ class ConversationFlow extends StatefulWidget {
     required this.wallets,
     this.transactions = const [],
     required this.onComplete,
+    this.family,
   });
 
   @override
@@ -464,6 +472,21 @@ class _ConversationFlowState extends State<ConversationFlow> {
 
       // ── Single person ────────────────────────────────────────────────────────
       case FlowStep.person:
+        // Request Money in a family wallet must target a real member
+        // account — a phone contact has no account to scope visibility/
+        // edit rights to (see 152_request_money_target_user.sql). Free
+        // text/contacts stay for lend/borrow/returned, or a personal-
+        // wallet request to a non-app contact.
+        if (widget.flowType == FlowType.request && widget.family != null) {
+          return _FamilyMemberStep(
+            color: color,
+            family: widget.family!,
+            onSelect: (member) => _answer(step, member.name, () {
+              _data.person = member.name;
+              _data.targetUserId = member.userId;
+            }),
+          );
+        }
         return PersonStep(
           color: color,
           multiSelect: false,
@@ -580,6 +603,79 @@ class _ConversationFlowState extends State<ConversationFlow> {
 }
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
+
+// ── Family member step (Request Money target) ─────────────────────────────────
+// A real member account is required (not a phone contact/free text) so the
+// request can be scoped to that specific person — see
+// 152_request_money_target_user.sql.
+
+class _FamilyMemberStep extends StatelessWidget {
+  final Color color;
+  final FamilyModel family;
+  final void Function(FamilyMember member) onSelect;
+
+  const _FamilyMemberStep({
+    required this.color,
+    required this.family,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    final currentUid = Supabase.instance.client.auth.currentUser?.id;
+    final members = family.members.where((m) => m.userId != currentUid).toList();
+
+    if (members.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          'No other family members to request from.',
+          style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: members.map((m) {
+          return GestureDetector(
+            onTap: () => onSelect(m),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: surfBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(m.emoji, style: const TextStyle(fontSize: 15)),
+                  const SizedBox(width: 6),
+                  Text(
+                    m.name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Nunito',
+                      color: sub,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
 
 class _ProgressBar extends StatelessWidget {
   final int current, total;

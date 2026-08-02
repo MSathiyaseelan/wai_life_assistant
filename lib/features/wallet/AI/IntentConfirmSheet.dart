@@ -112,6 +112,20 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
   String? _category;
   PayMode? _payMode;
   late DateTime _date;
+  /// Set when the user picks a family member as the Request Money target
+  /// (family wallets only) — lets the request be scoped to that specific
+  /// account instead of relying on free-text 'person'. Null for personal
+  /// wallets, lend/borrow/split, or if no member has been picked yet.
+  String? _targetUserId;
+
+  /// Family members eligible to be picked as a Request Money target —
+  /// everyone but the current user, restricted to request type only.
+  List<FamilyMember> get _requestableMembers {
+    final family = widget.family;
+    if (family == null) return const [];
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    return family.members.where((m) => m.userId != uid).toList();
+  }
 
 
   // Family-role keywords that suggest a lend to Amma/Appa may actually be
@@ -149,6 +163,18 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
     _category = i.category;
     _payMode = i.payMode ?? PayMode.online;
     _date = i.date ?? DateTime.now();
+
+    // AI-parsed text has no concept of a real account — best-effort match
+    // the suggested name against family members so the picker starts
+    // pre-selected instead of forcing a re-pick of what the AI already got
+    // right. Only meaningful for Request Money in a family wallet.
+    if (_flowType == FlowType.request && i.person != null) {
+      final typed = i.person!.trim().toLowerCase();
+      final match = _requestableMembers.where(
+        (m) => m.name.trim().toLowerCase() == typed,
+      ).firstOrNull;
+      if (match != null) _targetUserId = match.userId;
+    }
 
     // Auto-focus amount field when AI couldn't extract a value
     if (i.amount == null || i.amount! <= 0) {
@@ -250,6 +276,7 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
         note:     _noteCtrl.text.trim().isEmpty  ? null : _noteCtrl.text.trim(),
         person:   _personCtrl.text.trim().isEmpty ? null : _personCtrl.text.trim(),
         date:     _date,
+        targetUserId: _flowType == FlowType.request ? _targetUserId : null,
       );
 
       _maybeRecordCorrection(amount, category);
@@ -564,12 +591,66 @@ class _IntentConfirmSheetState extends State<IntentConfirmSheet> {
                         : 'REQUEST FROM',
                     sub,
                   ),
-                  _InputField(
-                    controller: _personCtrl,
-                    hint: 'Person name',
-                    surfBg: surfBg,
-                    tc: tc,
-                  ),
+                  // Request Money in a family wallet must target a real
+                  // member account — that's what lets the request be
+                  // visible/editable to only that person (see 152_request_
+                  // money_target_user.sql). Free text has no account to
+                  // scope to, so it's only used for lend/borrow/split, or
+                  // for a personal-wallet request to a non-app contact.
+                  if (_flowType == FlowType.request && widget.family != null)
+                    _requestableMembers.isEmpty
+                        ? Text(
+                            'No other family members to request from.',
+                            style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _requestableMembers.map((m) {
+                              final sel = m.userId != null && m.userId == _targetUserId;
+                              return GestureDetector(
+                                onTap: () => setState(() {
+                                  _targetUserId = m.userId;
+                                  _personCtrl.text = m.name;
+                                }),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 130),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: sel ? color.withValues(alpha: 0.12) : surfBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: sel ? color : Colors.transparent,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(m.emoji, style: const TextStyle(fontSize: 14)),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        m.name,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Nunito',
+                                          color: sel ? color : sub,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          )
+                  else
+                    _InputField(
+                      controller: _personCtrl,
+                      hint: 'Person name',
+                      surfBg: surfBg,
+                      tc: tc,
+                    ),
                   const SizedBox(height: 14),
                 ],
 

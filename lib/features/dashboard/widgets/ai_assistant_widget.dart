@@ -554,6 +554,8 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   // step-by-step ConversationFlow so the user can adjust fields the quick
   // confirm card doesn't expose.
   void _openConversation(FlowType flowType) {
+    final family = AppStateScope.of(context).families
+        .where((f) => f.walletId == _selectedWalletId).firstOrNull;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -561,6 +563,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
           flowType: flowType,
           walletId: _selectedWalletId,
           wallets: widget.wallets,
+          family: family,
           onComplete: (tx) => widget.onTransactionSaved?.call(tx),
         ),
       ),
