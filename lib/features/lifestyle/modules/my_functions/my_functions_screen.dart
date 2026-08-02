@@ -431,13 +431,22 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
               controller: _tab,
               children: [
                 // UPCOMING tab (index 0)
-                _activeUpcoming.isEmpty
-                    ? const PlanEmptyState(
-                        emoji: '📅',
-                        title: 'No upcoming functions',
-                        subtitle: 'Plan for functions you\'re attending',
+                RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: _funcColor,
+                  child: _activeUpcoming.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: const [
+                          PlanEmptyState(
+                            emoji: '📅',
+                            title: 'No upcoming functions',
+                            subtitle: 'Plan for functions you\'re attending',
+                          ),
+                        ],
                       )
                     : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                         itemCount: _activeUpcoming.length,
                         itemBuilder: (_, i) => Padding(
@@ -477,6 +486,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           ),
                         ),
                       ),
+                ),
 
                 // ATTENDED tab (index 1)
                 Builder(
@@ -562,17 +572,26 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                           ),
                         ),
                         Expanded(
-                          child: (filtered.isEmpty && past.isEmpty && groups.isEmpty)
-                              ? PlanEmptyState(
-                                  emoji: '✅',
-                                  title: _attendedSearch.isNotEmpty
-                                      ? 'No results for "$_attendedSearch"'
-                                      : 'No attended functions recorded',
-                                  subtitle: _attendedSearch.isNotEmpty
-                                      ? 'Try a different search'
-                                      : 'Track functions you\'ve attended and what you gave',
+                          child: RefreshIndicator(
+                            onRefresh: _loadData,
+                            color: _funcColor,
+                            child: (filtered.isEmpty && past.isEmpty && groups.isEmpty)
+                              ? ListView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  children: [
+                                    PlanEmptyState(
+                                      emoji: '✅',
+                                      title: _attendedSearch.isNotEmpty
+                                          ? 'No results for "$_attendedSearch"'
+                                          : 'No attended functions recorded',
+                                      subtitle: _attendedSearch.isNotEmpty
+                                          ? 'Try a different search'
+                                          : 'Track functions you\'ve attended and what you gave',
+                                    ),
+                                  ],
                                 )
                               : ListView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
                                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                                   children: [
                                     for (final group in groups)
@@ -654,6 +673,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                                       ),
                                   ],
                                 ),
+                          ),
                         ),
                       ],
                     );
@@ -668,6 +688,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   allFamilyWalletNames: widget.allFamilyWalletNames,
                   currentWalletId: widget.walletId,
                   personalWalletId: widget.personalWalletId,
+                  onRefresh: _loadData,
                   onDelete: (fn) async {
                     HapticFeedback.mediumImpact();
                     setState(() => _functions.remove(fn));

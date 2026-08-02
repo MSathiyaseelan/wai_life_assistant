@@ -30,6 +30,13 @@ class _AroundTheHouseScreenState extends State<AroundTheHouseScreen> {
     return m;
   }
 
+  // Appliances are local/mock data (no backend fetch yet), but pull-to-refresh
+  // is still wired up for UI consistency across every module tab.
+  Future<void> _loadData() async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -132,14 +139,23 @@ class _AroundTheHouseScreenState extends State<AroundTheHouseScreen> {
             ),
           ),
           Expanded(
-            child: _filtered.isEmpty
-                ? const LifeEmptyState(
-                    emoji: '🏠',
-                    title: 'No appliances yet',
-                    subtitle: 'Add your home appliances room by room',
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              color: _houseColor,
+              child: _filtered.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      LifeEmptyState(
+                        emoji: '🏠',
+                        title: 'No appliances yet',
+                        subtitle: 'Add your home appliances room by room',
+                      ),
+                    ],
                   )
                 : _filter != null
                 ? ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
                     itemCount: _filtered.length,
                     itemBuilder: (_, i) => Padding(
@@ -159,6 +175,7 @@ class _AroundTheHouseScreenState extends State<AroundTheHouseScreen> {
                   )
                 // Group by room
                 : ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
                     children: _byRoom.entries.map<Widget>((e) {
                       final cards = e.value
@@ -229,6 +246,7 @@ class _AroundTheHouseScreenState extends State<AroundTheHouseScreen> {
                       );
                     }).toList(),
                   ),
+            ),
           ),
         ],
       ),

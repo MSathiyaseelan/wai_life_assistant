@@ -353,10 +353,8 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
               child: CircularProgressIndicator(color: _wardrobeColor),
             )
           : RefreshIndicator(
-              onRefresh: () async {
-                setState(() => _loading = true);
-                await _loadData();
-              },
+              onRefresh: _loadData,
+              color: _wardrobeColor,
               child: Column(
                 children: [
                   // Member selector
@@ -454,11 +452,16 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                             Expanded(
                               child: _searchQuery.isNotEmpty
                                   ? _filtered.isEmpty
-                                      ? LifeEmptyState(
-                                          emoji: '🔍',
-                                          title: 'No results',
-                                          subtitle:
-                                              'No items match "$_searchQuery"',
+                                      ? ListView(
+                                          physics: const AlwaysScrollableScrollPhysics(),
+                                          children: [
+                                            LifeEmptyState(
+                                              emoji: '🔍',
+                                              title: 'No results',
+                                              subtitle:
+                                                  'No items match "$_searchQuery"',
+                                            ),
+                                          ],
                                         )
                                       : _SearchResultsList(
                                           items: _filtered,
@@ -476,11 +479,16 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                           ),
                                         )
                                   : _filtered.isEmpty
-                                      ? const LifeEmptyState(
-                                          emoji: '👗',
-                                          title: 'No items here',
-                                          subtitle:
-                                              'Add dresses to your wardrobe',
+                                      ? ListView(
+                                          physics: const AlwaysScrollableScrollPhysics(),
+                                          children: const [
+                                            LifeEmptyState(
+                                              emoji: '👗',
+                                              title: 'No items here',
+                                              subtitle:
+                                                  'Add dresses to your wardrobe',
+                                            ),
+                                          ],
                                         )
                                       : _ClothingGrid(
                                           items: _filtered,
@@ -584,13 +592,19 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
 
                         // WISHLIST TAB
                         _wishlist.isEmpty
-                            ? const LifeEmptyState(
-                                emoji: '💛',
-                                title: 'Wishlist is empty',
-                                subtitle:
-                                    'Snap a dress you love and save it here',
+                            ? ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: const [
+                                  LifeEmptyState(
+                                    emoji: '💛',
+                                    title: 'Wishlist is empty',
+                                    subtitle:
+                                        'Snap a dress you love and save it here',
+                                  ),
+                                ],
                               )
                             : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(),
                                 padding: const EdgeInsets.fromLTRB(
                                   16,
                                   16,
@@ -1323,6 +1337,7 @@ class _ClothingGrid extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     return GridView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -1960,6 +1975,7 @@ class _SearchResultsList extends StatelessWidget {
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
 
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
       itemCount: items.length,
       itemBuilder: (_, i) {
@@ -2245,6 +2261,7 @@ class _OutfitLogTab extends StatelessWidget {
         );
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       children: [
         Row(

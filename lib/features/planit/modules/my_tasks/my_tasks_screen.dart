@@ -101,14 +101,19 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     super.dispose();
   }
 
-  Future<void> _loadTasks({bool force = false}) async {
+  /// [showSpinner] gates the full-body loading spinner. Pull-to-refresh
+  /// calls pass `false` so a mid-gesture setState doesn't swap out the
+  /// TabBarView (and the RefreshIndicator driving the gesture) for a
+  /// Center(CircularProgressIndicator) — the RefreshIndicator already shows
+  /// its own spinner while refreshing.
+  Future<void> _loadTasks({bool force = false, bool showSpinner = true}) async {
     if (widget.walletId.isEmpty) {
-      setState(() => _loading = false);
+      if (showSpinner) setState(() => _loading = false);
       return;
     }
     if (widget.familyWalletNames.isNotEmpty) {
       // Personal view: fetch from personal wallet + all family wallets.
-      setState(() => _loading = true);
+      if (showSpinner) setState(() => _loading = true);
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
@@ -132,7 +137,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       }
       return;
     }
-    setState(() => _loading = true);
+    if (showSpinner) setState(() => _loading = true);
     try {
       final rows = await TaskService.instance.fetchTasks(widget.walletId, force: force);
       if (!mounted) return;
@@ -372,7 +377,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
-                  onRefresh: () => _loadTasks(force: true),
+                  onRefresh: () => _loadTasks(force: true, showSpinner: false),
                   familyWalletNames: widget.familyWalletNames,
                 ),
                 _TaskList(
@@ -385,7 +390,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: (t) => _openDetailSheet(context, t, isDark, surfBg),
-                  onRefresh: () => _loadTasks(force: true),
+                  onRefresh: () => _loadTasks(force: true, showSpinner: false),
                   familyWalletNames: widget.familyWalletNames,
                 ),
                 _TaskList(
@@ -396,7 +401,7 @@ class _MyTasksScreenState extends State<MyTasksScreen>
                   onStatusChange: _updateStatus,
                   onToggleSubtask: _toggleSubtask,
                   onTap: null,
-                  onRefresh: () => _loadTasks(force: true),
+                  onRefresh: () => _loadTasks(force: true, showSpinner: false),
                   familyWalletNames: widget.familyWalletNames,
                 ),
               ],

@@ -515,10 +515,19 @@ class _NotesScreenState extends State<NotesScreen> {
     final total = pinned.length + unpinned.length;
 
     if (_notes.isEmpty) {
-      return _buildEmpty(isDark, subColor);
+      return RefreshIndicator(
+        onRefresh: _loadNotes,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [_buildEmpty(isDark, subColor)],
+        ),
+      );
     }
 
-    return CustomScrollView(
+    return RefreshIndicator(
+      onRefresh: _loadNotes,
+      child: CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         // Search bar
         SliverToBoxAdapter(child: _buildSearchBar(isDark, subColor)),
@@ -554,6 +563,7 @@ class _NotesScreenState extends State<NotesScreen> {
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ],
+      ),
     );
   }
 

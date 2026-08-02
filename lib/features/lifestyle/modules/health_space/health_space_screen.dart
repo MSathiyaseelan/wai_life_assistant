@@ -379,29 +379,34 @@ class _ProfileTab extends StatelessWidget {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
 
     if (p == null) {
-      return Center(child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 80, height: 80,
-            decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.1), shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: const Text('🏥', style: TextStyle(fontSize: 40))),
-          const SizedBox(height: 20),
-          Text('No Health Profile Yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
-          const SizedBox(height: 8),
-          Text('Add your medical details for quick access\nduring emergencies', textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
-          const SizedBox(height: 24),
-          GestureDetector(
-            onTap: () => _showEditProfile(context, null),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
-              decoration: BoxDecoration(color: _healthColor, borderRadius: BorderRadius.circular(14)),
-              child: const Text('Set Up Profile', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white)),
-            ),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 80, height: 80,
+                decoration: BoxDecoration(color: _healthColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: const Text('🏥', style: TextStyle(fontSize: 40))),
+              const SizedBox(height: 20),
+              Text('No Health Profile Yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+              const SizedBox(height: 8),
+              Text('Add your medical details for quick access\nduring emergencies', textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
+              const SizedBox(height: 24),
+              GestureDetector(
+                onTap: () => _showEditProfile(context, null),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 13),
+                  decoration: BoxDecoration(color: _healthColor, borderRadius: BorderRadius.circular(14)),
+                  child: const Text('Set Up Profile', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.white)),
+                ),
+              ),
+            ]),
           ),
-        ]),
-      ));
+        ],
+      );
     }
 
     // BMI
@@ -419,7 +424,7 @@ class _ProfileTab extends StatelessWidget {
       }
     }
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+    return ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
 
       // ── Header banner ─────────────────────────────────────────────
       Container(
@@ -914,8 +919,13 @@ class _MedicationsTab extends StatelessWidget {
         label: const Text('Add Medicine', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: meds.isEmpty
-          ? const LifeEmptyState(emoji: '💊', title: 'No medications yet', subtitle: 'Track current and past medications')
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                LifeEmptyState(emoji: '💊', title: 'No medications yet', subtitle: 'Track current and past medications'),
+              ],
+            )
+          : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               if (active.isNotEmpty) ...[
                 const LifeLabel(text: 'ACTIVE MEDICATIONS'),
                 ...active.map((m) => _MedCard(m: m, cardBg: cardBg, isDark: isDark,
@@ -1517,8 +1527,13 @@ class _DoctorsTab extends StatelessWidget {
         label: const Text('Add Doctor', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: doctors.isEmpty
-          ? const LifeEmptyState(emoji: '🩺', title: 'No doctors added', subtitle: 'Save your doctors and specialists here')
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                LifeEmptyState(emoji: '🩺', title: 'No doctors added', subtitle: 'Save your doctors and specialists here'),
+              ],
+            )
+          : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               for (final d in doctors)
                 Dismissible(
                   key: ValueKey(d.id),
@@ -1800,8 +1815,13 @@ class _DocumentsTab extends StatelessWidget {
         label: const Text('Add Document', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: docs.isEmpty
-          ? const LifeEmptyState(emoji: '📋', title: 'No documents yet', subtitle: 'Upload prescriptions, lab reports and more')
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                LifeEmptyState(emoji: '📋', title: 'No documents yet', subtitle: 'Upload prescriptions, lab reports and more'),
+              ],
+            )
+          : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               for (final d in docs)
                 Dismissible(
                   key: ValueKey(d.id),
@@ -2121,8 +2141,13 @@ class _AppointmentsTab extends StatelessWidget {
         label: const Text('Book Appointment', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: appointments.isEmpty
-          ? const LifeEmptyState(emoji: '📅', title: 'No appointments', subtitle: 'Track upcoming and past doctor visits')
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                LifeEmptyState(emoji: '📅', title: 'No appointments', subtitle: 'Track upcoming and past doctor visits'),
+              ],
+            )
+          : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               if (upcoming.isNotEmpty) ...[
                 const LifeLabel(text: 'UPCOMING'),
                 ...upcoming.map((a) => _ApptCard(a: a, cardBg: cardBg, isDark: isDark,
@@ -2426,8 +2451,13 @@ class _VitalsTabState extends State<_VitalsTab> {
         ),
         Expanded(
           child: filtered.isEmpty
-              ? LifeEmptyState(emoji: _selected.emoji, title: 'No ${_selected.label} logs', subtitle: 'Start tracking ${_selected.label.toLowerCase()}')
-              : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    LifeEmptyState(emoji: _selected.emoji, title: 'No ${_selected.label} logs', subtitle: 'Start tracking ${_selected.label.toLowerCase()}'),
+                  ],
+                )
+              : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
                   for (final v in filtered)
                     Dismissible(
                       key: ValueKey(v.id),
@@ -2647,8 +2677,13 @@ class _VaccinesTab extends StatelessWidget {
         label: const Text('Add Vaccine', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: vaccinations.isEmpty
-          ? const LifeEmptyState(emoji: '💉', title: 'No vaccinations', subtitle: 'Track vaccines and due dates')
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                LifeEmptyState(emoji: '💉', title: 'No vaccinations', subtitle: 'Track vaccines and due dates'),
+              ],
+            )
+          : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               if (overdue.isNotEmpty) ...[const LifeLabel(text: '⚠️ OVERDUE'), ...overdue.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.red, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
               if (dueSoon.isNotEmpty) ...[if (overdue.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: '🔔 DUE SOON'), ...dueSoon.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: Colors.orange, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
               if (rest.isNotEmpty) ...[if (overdue.isNotEmpty || dueSoon.isNotEmpty) const SizedBox(height: 8), const LifeLabel(text: 'COMPLETED'), ...rest.map((v) => _VaccineCard(v: v, cardBg: cardBg, isDark: isDark, statusColor: _healthColor, onDelete: () async { try { await HealthService.instance.deleteVaccination(v.id); onDelete(v.id); } catch (err, stack) { ErrorLogger.log(err, stackTrace: stack, action: 'health_delete_vaccination'); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete vaccination'))); } }, onEdit: () => _showSheet(context, existing: v)))],
@@ -2871,8 +2906,13 @@ class _InsuranceTab extends StatelessWidget {
         label: const Text('Add Policy', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       body: policies.isEmpty
-          ? const LifeEmptyState(emoji: '🛡️', title: 'No insurance policies', subtitle: 'Keep track of your health insurance')
-          : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                LifeEmptyState(emoji: '🛡️', title: 'No insurance policies', subtitle: 'Keep track of your health insurance'),
+              ],
+            )
+          : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
               for (final p in policies) () {
                 final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
                 final sub = isDark ? AppColors.subDark   : AppColors.subLight;
@@ -3089,7 +3129,7 @@ class _EmergencyTab extends StatelessWidget {
     final tc  = isDark ? AppColors.textDark  : AppColors.textLight;
     final sub = isDark ? AppColors.subDark   : AppColors.subLight;
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+    return ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
 
       // ── Identity header card ────────────────────────────────────────
       Container(

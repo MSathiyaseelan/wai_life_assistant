@@ -221,26 +221,30 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
 
           // ── Body: search results OR shelf map ──────────────────────────────
           Expanded(
-            child: _isSearching
-                ? _SearchResultsView(
-                    results: _searchResults,
-                    query: _query,
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    onItemTap: (r) =>
-                        _showItemDetail(context, r.item, r.container, isDark),
-                  )
-                : _ShelfMapView(
-                    containers: _myContainers,
-                    itemsIn: itemsIn,
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    surfBg: surfBg,
-                    onContainerTap: (c) =>
-                        _pushContainerDetail(context, c, isDark, surfBg),
-                    onAddContainer: () =>
-                        _showAddContainer(context, isDark, surfBg),
-                  ),
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              color: _locatorColor,
+              child: _isSearching
+                  ? _SearchResultsView(
+                      results: _searchResults,
+                      query: _query,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      onItemTap: (r) =>
+                          _showItemDetail(context, r.item, r.container, isDark),
+                    )
+                  : _ShelfMapView(
+                      containers: _myContainers,
+                      itemsIn: itemsIn,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      surfBg: surfBg,
+                      onContainerTap: (c) =>
+                          _pushContainerDetail(context, c, isDark, surfBg),
+                      onAddContainer: () =>
+                          _showAddContainer(context, isDark, surfBg),
+                    ),
+            ),
           ),
         ],
       ),
@@ -1668,34 +1672,42 @@ class _ShelfMapView extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
 
     if (containers.isEmpty) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const Text('📍', style: TextStyle(fontSize: 56)),
-          const SizedBox(height: 14),
-          const Text(
-            'No storage containers yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'Nunito',
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 60),
+            child: Column(
+              children: [
+                const Text('📍', style: TextStyle(fontSize: 56)),
+                const SizedBox(height: 14),
+                const Text(
+                  'No storage containers yet',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Add a box, shelf, cupboard or almirah\nto start locating your items',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: onAddContainer,
+                  icon: const Icon(Icons.create_new_folder_rounded, size: 16),
+                  label: const Text(
+                    'Add Container',
+                    style: TextStyle(fontFamily: 'Nunito'),
+                  ),
+                  style: FilledButton.styleFrom(backgroundColor: _locatorColor),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Add a box, shelf, cupboard or almirah\nto start locating your items',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
-          ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: onAddContainer,
-            icon: const Icon(Icons.create_new_folder_rounded, size: 16),
-            label: const Text(
-              'Add Container',
-              style: TextStyle(fontFamily: 'Nunito'),
-            ),
-            style: FilledButton.styleFrom(backgroundColor: _locatorColor),
           ),
         ],
       );
@@ -1709,6 +1721,7 @@ class _ShelfMapView extends StatelessWidget {
     }
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
       children: [
         // Stats bar
@@ -2111,23 +2124,31 @@ class _SearchResultsView extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
 
     if (results.isEmpty) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          const Text('🔍', style: TextStyle(fontSize: 48)),
-          const SizedBox(height: 12),
-          const Text(
-            'No items found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              fontFamily: 'Nunito',
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 60),
+            child: Column(
+              children: [
+                const Text('🔍', style: TextStyle(fontSize: 48)),
+                const SizedBox(height: 12),
+                const Text(
+                  'No items found',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Try a different search word',
+                  style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Try a different search word',
-            style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub),
           ),
         ],
       );
@@ -2150,6 +2171,7 @@ class _SearchResultsView extends StatelessWidget {
         ),
         Expanded(
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
             itemCount: results.length,
             itemBuilder: (_, i) {

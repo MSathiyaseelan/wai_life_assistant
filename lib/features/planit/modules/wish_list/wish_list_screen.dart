@@ -41,7 +41,6 @@ class _WishListScreenState extends State<WishListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   List<WishModel> _wishes = [];
-  bool _loading = false;
   bool _wasOnline = true;
   WishCategory? _filterCat;
 
@@ -96,12 +95,10 @@ class _WishListScreenState extends State<WishListScreen>
 
   Future<void> _loadWishes({bool force = false}) async {
     if (widget.walletId.isEmpty) {
-      setState(() => _loading = false);
       return;
     }
     if (widget.familyWalletNames.isNotEmpty) {
       // Personal view: fetch from personal wallet + all family wallets.
-      setState(() => _loading = true);
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
@@ -112,12 +109,10 @@ class _WishListScreenState extends State<WishListScreen>
         setState(() {
           _wishes = loaded;
           widget.wishes..clear()..addAll(loaded);
-          _loading = false;
         });
       } catch (e, stack) {
         ErrorLogger.log(e, stackTrace: stack, action: 'wish_load');
         if (mounted) {
-          setState(() => _loading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to load wishes')),
           );
@@ -125,7 +120,6 @@ class _WishListScreenState extends State<WishListScreen>
       }
       return;
     }
-    setState(() => _loading = true);
     try {
       final rows = await WishService.instance.fetchWishes(widget.walletId, force: force);
       if (!mounted) return;
@@ -135,12 +129,10 @@ class _WishListScreenState extends State<WishListScreen>
         widget.wishes
           ..clear()
           ..addAll(loaded);
-        _loading = false;
       });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'wish_load');
       if (mounted) {
-        setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to load wishes')),
         );
@@ -373,17 +365,14 @@ class _WishListScreenState extends State<WishListScreen>
               children: [
                 RefreshIndicator(
                   onRefresh: () => _loadWishes(force: true),
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _WishList(
-                          key: ValueKey('active-${_active.length}'),
-                          wishes: _active,
-                          isDark: isDark,
-                          onDelete: _delete,
-                          onTap: (w) =>
-                              _openDetailSheet(context, w, isDark, surfBg),
-                          familyWalletNames: widget.familyWalletNames,
-                        ),
+                  child: _WishList(
+                    key: ValueKey('active-${_active.length}'),
+                    wishes: _active,
+                    isDark: isDark,
+                    onDelete: _delete,
+                    onTap: (w) => _openDetailSheet(context, w, isDark, surfBg),
+                    familyWalletNames: widget.familyWalletNames,
+                  ),
                 ),
                 RefreshIndicator(
                   onRefresh: () => _loadWishes(force: true),
@@ -705,15 +694,21 @@ class _WishList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (wishes.isEmpty) {
-      return PlanEmptyState(
-        emoji: showPurchasedBadge ? '🛍️' : '🌟',
-        title: showPurchasedBadge ? 'No purchases yet' : 'No wishes yet',
-        subtitle: showPurchasedBadge
-            ? 'Mark items as purchased'
-            : 'Add things you want to save for',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          PlanEmptyState(
+            emoji: showPurchasedBadge ? '🛍️' : '🌟',
+            title: showPurchasedBadge ? 'No purchases yet' : 'No wishes yet',
+            subtitle: showPurchasedBadge
+                ? 'Mark items as purchased'
+                : 'Add things you want to save for',
+          ),
+        ],
       );
     }
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: wishes.length,
       itemBuilder: (_, i) {

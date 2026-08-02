@@ -21,6 +21,13 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
   String _search = '';
   String _selectedMember = 'all';
 
+  Future<void> _loadData() async {
+    // Document vault currently runs on local mock data (no backend fetch
+    // yet), but pull-to-refresh should still work — this is the hook point
+    // for a real reload once a VaultDocument service exists.
+    if (mounted) setState(() {});
+  }
+
   List<VaultDocument> get _filtered {
     var list = _docs.where((d) => d.walletId == widget.walletId).toList();
     if (_selectedMember != 'all') {
@@ -193,31 +200,42 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
             ),
           ),
           Expanded(
-            child: _filtered.isEmpty
-                ? const LifeEmptyState(
-                    emoji: '🗂️',
-                    title: 'No documents found',
-                    subtitle: 'Scan and store your important documents safely',
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _DocCard(
-                        doc: _filtered[i],
-                        isDark: isDark,
-                        onTap: () => showLifeSheet(
-                          context,
-                          child: _DocDetail(
-                            doc: _filtered[i],
-                            isDark: isDark,
-                            members: widget.members,
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              color: color,
+              child: _filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        LifeEmptyState(
+                          emoji: '🗂️',
+                          title: 'No documents found',
+                          subtitle:
+                              'Scan and store your important documents safely',
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 100),
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _DocCard(
+                          doc: _filtered[i],
+                          isDark: isDark,
+                          onTap: () => showLifeSheet(
+                            context,
+                            child: _DocDetail(
+                              doc: _filtered[i],
+                              isDark: isDark,
+                              members: widget.members,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+            ),
           ),
         ],
       ),

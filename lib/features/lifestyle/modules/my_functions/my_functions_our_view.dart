@@ -12,6 +12,7 @@ class _OurFunctionsView extends StatefulWidget {
   final void Function(FunctionModel) onDelete;
   final VoidCallback onUpdate;
   final void Function(bool isPlanned) onSubTabChanged;
+  final Future<void> Function() onRefresh;
 
   const _OurFunctionsView({
     required this.functions,
@@ -23,6 +24,7 @@ class _OurFunctionsView extends StatefulWidget {
     required this.onDelete,
     required this.onUpdate,
     required this.onSubTabChanged,
+    required this.onRefresh,
   });
 
   @override
@@ -114,33 +116,42 @@ class _OurFunctionsViewState extends State<_OurFunctionsView>
   }
 
   Widget _buildList(List<FunctionModel> fns, {bool asCompleted = false}) {
-    if (fns.isEmpty) {
-      return PlanEmptyState(
-        emoji: asCompleted ? '✅' : '📋',
-        title: asCompleted ? 'No completed functions' : 'No planned functions',
-        subtitle: asCompleted
-            ? 'Completed functions appear here'
-            : 'Plan a function to get started',
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-      itemCount: fns.length,
-      itemBuilder: (_, i) {
-        final fn = fns[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: SwipeTile(
-            onDelete: () => widget.onDelete(fn),
-            child: _FunctionCard(
-              fn: fn,
-              isDark: widget.isDark,
-              familyLabel: widget.familyWalletNames[fn.walletId],
-              onTap: () => _navigate(fn, forceCompleted: asCompleted),
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      color: _funcColor,
+      child: fns.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                PlanEmptyState(
+                  emoji: asCompleted ? '✅' : '📋',
+                  title: asCompleted ? 'No completed functions' : 'No planned functions',
+                  subtitle: asCompleted
+                      ? 'Completed functions appear here'
+                      : 'Plan a function to get started',
+                ),
+              ],
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+              itemCount: fns.length,
+              itemBuilder: (_, i) {
+                final fn = fns[i];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SwipeTile(
+                    onDelete: () => widget.onDelete(fn),
+                    child: _FunctionCard(
+                      fn: fn,
+                      isDark: widget.isDark,
+                      familyLabel: widget.familyWalletNames[fn.walletId],
+                      onTap: () => _navigate(fn, forceCompleted: asCompleted),
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
-        );
-      },
     );
   }
 

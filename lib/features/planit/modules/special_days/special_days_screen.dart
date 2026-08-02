@@ -783,13 +783,19 @@ class _DayList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (days.isEmpty) {
-      return const PlanEmptyState(
-        emoji: '📅',
-        title: 'Nothing here',
-        subtitle: 'Add your special days',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          PlanEmptyState(
+            emoji: '📅',
+            title: 'Nothing here',
+            subtitle: 'Add your special days',
+          ),
+        ],
       );
     }
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       itemCount: days.length,
       itemBuilder: (_, i) {

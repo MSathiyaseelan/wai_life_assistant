@@ -113,14 +113,19 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     super.dispose();
   }
 
-  Future<void> _loadReminders({bool force = false}) async {
+  /// Loads reminders. [showSpinner] controls whether the whole-screen
+  /// loading spinner is shown — it must be `false` when called from a
+  /// pull-to-refresh gesture, otherwise the body swaps from the
+  /// TabBarView/RefreshIndicator to a bare spinner mid-pull, which tears
+  /// down the RefreshIndicator and breaks the gesture.
+  Future<void> _loadReminders({bool force = false, bool showSpinner = true}) async {
     if (widget.walletId.isEmpty) {
-      setState(() => _loading = false);
+      if (showSpinner) setState(() => _loading = false);
       return;
     }
     if (widget.familyWalletNames.isNotEmpty) {
       // Personal view: fetch from personal wallet + all family wallets.
-      setState(() => _loading = true);
+      if (showSpinner) setState(() => _loading = true);
       try {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final results = await Future.wait(
@@ -145,7 +150,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       }
       return;
     }
-    setState(() => _loading = true);
+    if (showSpinner) setState(() => _loading = true);
     try {
       final rows = await ReminderService.instance.fetchReminders(widget.walletId, force: force);
       if (!mounted) return;
@@ -436,7 +441,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onDelete: _delete,
             onTap: (r) => _openDetailSheet(context, r, isDark, surfBg),
             onReactivate: null,
-            onRefresh: () => _loadReminders(force: true),
+            onRefresh: () => _loadReminders(force: true, showSpinner: false),
             familyWalletNames: widget.familyWalletNames,
           ),
           _ReminderList(
@@ -447,7 +452,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
             onSnooze: null,
             onDelete: _delete,
             onTap: null,
-            onRefresh: () => _loadReminders(force: true),
+            onRefresh: () => _loadReminders(force: true, showSpinner: false),
             onReactivate: _markActive,
             familyWalletNames: widget.familyWalletNames,
           ),

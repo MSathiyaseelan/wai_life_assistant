@@ -19,6 +19,14 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
     return base.where((d) => d.category == _filter).toList();
   }
 
+  // Device data is currently local mock data with no backend fetch, so
+  // there's nothing to re-load — but pull-to-refresh should still be
+  // available for a consistent gesture across every tab/module, and this
+  // keeps a hook ready for when a real data source is wired in.
+  Future<void> _loadData() async {
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -98,47 +106,57 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
             ),
           ),
           Expanded(
-            child: _filtered.isEmpty
-                ? const LifeEmptyState(
-                    emoji: '📱',
-                    title: 'No devices yet',
-                    subtitle: 'Track your gadgets, warranty & more',
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _DeviceCard(
-                        device: _filtered[i],
-                        isDark: isDark,
-                        onTap: () {
-                          final device = _filtered[i];
-                          showLifeSheet(
-                            context,
-                            child: _DeviceDetail(
-                              device: device,
-                              isDark: isDark,
-                              onEdit: () {
-                                Navigator.pop(context);
-                                _showEditDevice(
-                                  context,
-                                  isDark,
-                                  surfBg,
-                                  device,
-                                );
-                              },
-                              onDelete: () => setState(
-                                () => _devices.removeWhere(
-                                  (d) => d.id == device.id,
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              color: color,
+              child: _filtered.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        LifeEmptyState(
+                          emoji: '📱',
+                          title: 'No devices yet',
+                          subtitle: 'Track your gadgets, warranty & more',
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 100),
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _DeviceCard(
+                          device: _filtered[i],
+                          isDark: isDark,
+                          onTap: () {
+                            final device = _filtered[i];
+                            showLifeSheet(
+                              context,
+                              child: _DeviceDetail(
+                                device: device,
+                                isDark: isDark,
+                                onEdit: () {
+                                  Navigator.pop(context);
+                                  _showEditDevice(
+                                    context,
+                                    isDark,
+                                    surfBg,
+                                    device,
+                                  );
+                                },
+                                onDelete: () => setState(
+                                  () => _devices.removeWhere(
+                                    (d) => d.id == device.id,
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ),
-                  ),
+            ),
           ),
         ],
       ),

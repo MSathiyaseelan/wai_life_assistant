@@ -28,6 +28,13 @@ class _MyGarageScreenState extends State<MyGarageScreen> {
   List<VehicleModel> get _filtered =>
       _vehicles.where((v) => v.walletId == widget.walletId).toList();
 
+  // Vehicles are in-memory mock data (no remote fetch), so a "refresh" just
+  // rebuilds against the current list — this keeps pull-to-refresh working
+  // consistently with the rest of the app's tabs/screens.
+  Future<void> _refresh() async {
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -72,39 +79,49 @@ class _MyGarageScreenState extends State<MyGarageScreen> {
           ),
         ),
       ),
-      body: _filtered.isEmpty
-          ? const LifeEmptyState(
-              emoji: '🚗',
-              title: 'No vehicles yet',
-              subtitle: 'Add your vehicles to track insurance & service',
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: _filtered.length,
-              itemBuilder: (_, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: _VehicleCard(
-                  vehicle: _filtered[i],
-                  isDark: isDark,
-                  members: widget.members,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => _VehicleDetailScreen(
-                        vehicle: _filtered[i],
-                        isDark: isDark,
-                        members: widget.members,
-                        onUpdate: () => setState(() {}),
-                        onDelete: () {
-                          setState(() => _vehicles.remove(_filtered[i]));
-                          Navigator.pop(context);
-                        },
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        color: _garageColor,
+        child: _filtered.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
+                  LifeEmptyState(
+                    emoji: '🚗',
+                    title: 'No vehicles yet',
+                    subtitle: 'Add your vehicles to track insurance & service',
+                  ),
+                ],
+              )
+            : ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                itemCount: _filtered.length,
+                itemBuilder: (_, i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _VehicleCard(
+                    vehicle: _filtered[i],
+                    isDark: isDark,
+                    members: widget.members,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _VehicleDetailScreen(
+                          vehicle: _filtered[i],
+                          isDark: isDark,
+                          members: widget.members,
+                          onUpdate: () => setState(() {}),
+                          onDelete: () {
+                            setState(() => _vehicles.remove(_filtered[i]));
+                            Navigator.pop(context);
+                          },
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 
@@ -667,6 +684,13 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
     super.dispose();
   }
 
+  // Vehicle detail data (policies/services/repairs) lives in-memory on the
+  // vehicle model, not fetched remotely — a "refresh" just rebuilds so
+  // pull-to-refresh still works consistently on every tab.
+  Future<void> _refresh() async {
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
@@ -764,24 +788,44 @@ class _VehicleDetailScreenState extends State<_VehicleDetailScreen>
       body: TabBarView(
         controller: _tab,
         children: [
-          _DetailsTab(vehicle: v, isDark: isDark, members: widget.members),
-          _InsuranceTab(
-            vehicle: v,
-            isDark: isDark,
-            onUpdate: () => setState(() {}),
-            onEdit: (p) => _showEditInsurance(context, isDark, p),
+          RefreshIndicator(
+            onRefresh: _refresh,
+            color: _garageColor,
+            child: _DetailsTab(
+              vehicle: v,
+              isDark: isDark,
+              members: widget.members,
+            ),
           ),
-          _ServiceTab(
-            vehicle: v,
-            isDark: isDark,
-            onUpdate: () => setState(() {}),
-            onEdit: (s) => _showEditService(context, isDark, s),
+          RefreshIndicator(
+            onRefresh: _refresh,
+            color: _garageColor,
+            child: _InsuranceTab(
+              vehicle: v,
+              isDark: isDark,
+              onUpdate: () => setState(() {}),
+              onEdit: (p) => _showEditInsurance(context, isDark, p),
+            ),
           ),
-          _RepairTab(
-            vehicle: v,
-            isDark: isDark,
-            onUpdate: () => setState(() {}),
-            onEdit: (r) => _showEditRepair(context, isDark, r),
+          RefreshIndicator(
+            onRefresh: _refresh,
+            color: _garageColor,
+            child: _ServiceTab(
+              vehicle: v,
+              isDark: isDark,
+              onUpdate: () => setState(() {}),
+              onEdit: (s) => _showEditService(context, isDark, s),
+            ),
+          ),
+          RefreshIndicator(
+            onRefresh: _refresh,
+            color: _garageColor,
+            child: _RepairTab(
+              vehicle: v,
+              isDark: isDark,
+              onUpdate: () => setState(() {}),
+              onEdit: (r) => _showEditRepair(context, isDark, r),
+            ),
           ),
         ],
       ),
@@ -1882,6 +1926,7 @@ class _DetailsTab extends StatelessWidget {
     ];
 
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2121,14 +2166,20 @@ class _InsuranceTabState extends State<_InsuranceTab> {
     final v = widget.vehicle;
 
     if (v.policies.isEmpty) {
-      return const LifeEmptyState(
-        emoji: '🛡️',
-        title: 'No policies yet',
-        subtitle: 'Tap the + button to add an insurance policy',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          LifeEmptyState(
+            emoji: '🛡️',
+            title: 'No policies yet',
+            subtitle: 'Tap the + button to add an insurance policy',
+          ),
+        ],
       );
     }
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       children: v.policies.map((p) {
         final daysLeft = p.expiryDate.difference(DateTime.now()).inDays;
@@ -2424,10 +2475,15 @@ class _ServiceTabState extends State<_ServiceTab> {
     final v = widget.vehicle;
 
     if (v.services.isEmpty) {
-      return const LifeEmptyState(
-        emoji: '🔧',
-        title: 'No service records',
-        subtitle: 'Tap + to log a service or maintenance visit',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          LifeEmptyState(
+            emoji: '🔧',
+            title: 'No service records',
+            subtitle: 'Tap + to log a service or maintenance visit',
+          ),
+        ],
       );
     }
 
@@ -2436,6 +2492,7 @@ class _ServiceTabState extends State<_ServiceTab> {
       ..sort((a, b) => b.serviceDate.compareTo(a.serviceDate));
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       children: sorted.map((s) {
         final nextDueSoon =
@@ -2667,10 +2724,15 @@ class _RepairTabState extends State<_RepairTab> {
     final v = widget.vehicle;
 
     if (v.repairs.isEmpty) {
-      return const LifeEmptyState(
-        emoji: '🔩',
-        title: 'No repair tasks',
-        subtitle: 'Tap + to log a repair or planned work',
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          LifeEmptyState(
+            emoji: '🔩',
+            title: 'No repair tasks',
+            subtitle: 'Tap + to log a repair or planned work',
+          ),
+        ],
       );
     }
 
@@ -2836,6 +2898,7 @@ class _RepairTabState extends State<_RepairTab> {
     }
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       children: [
         if (pending.isNotEmpty) ...[

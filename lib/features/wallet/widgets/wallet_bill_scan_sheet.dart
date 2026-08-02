@@ -192,21 +192,31 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
       }
 
       // total_amount includes tax/service charges/etc. that the line items
-      // don't individually break out — surface the gap as its own editable
-      // row instead of silently dropping it, so the saved total actually
-      // matches what was paid.
+      // don't individually break out — surface the gap so it's not silently
+      // dropped and the saved total actually matches what was paid.
       final billTotal = (result.data?['total_amount'] as num?)?.toDouble();
       if (billTotal != null && !items.first.isIncome) {
         final itemsSum = items.fold(0.0, (s, i) => s + i.amount);
         final extra = billTotal - itemsSum;
         if (extra > 0.01) {
-          items.add(_ScannedBillItem(
-            title: 'Tax & Other Charges',
-            amount: extra,
-            category: items.first.category,
-            isIncome: false,
-            confidence: null,
-          ));
+          if (items.length == 1) {
+            // Only one real item — fold tax/other charges directly into it
+            // instead of adding a second row. A second row here would force
+            // auto-grouping in _saveSelected (any bill with >1 selected
+            // item becomes a TxGroup), and grouped transactions only show
+            // inside their collapsed TxGroupCard, not the flat expense
+            // list — so a simple "item + tax" bill looked like the tax
+            // silently vanished, even though the wallet total was correct.
+            items[0].amountCtrl.text = (items[0].amount + extra).toStringAsFixed(2);
+          } else {
+            items.add(_ScannedBillItem(
+              title: 'Tax & Other Charges',
+              amount: extra,
+              category: items.first.category,
+              isIncome: false,
+              confidence: null,
+            ));
+          }
         }
       }
 
