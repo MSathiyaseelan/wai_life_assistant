@@ -90,7 +90,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
   // search across all items
   List<_SearchResult> get _searchResults {
     if (_query.trim().isEmpty) return [];
-    final q = _query.toLowerCase();
+    final q = _query.trim().toLowerCase();
     final results = <_SearchResult>[];
     for (final item in _myItems) {
       final matches =
@@ -974,14 +974,38 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     return StorageType.other;
   }
 
+  String? _inferItemCategory(String lower) {
+    if (lower.contains('document') || lower.contains('paper') || lower.contains('certificate')) return 'Documents';
+    if (lower.contains('cloth') || lower.contains('dress') || lower.contains('saree') || lower.contains('shirt')) return 'Clothes';
+    if (lower.contains('jewel') || lower.contains('gold') || lower.contains('silver') || lower.contains('necklace')) return 'Jewellery';
+    if (lower.contains('medicine') || lower.contains('tablet') || lower.contains('drug')) return 'Medicine';
+    if (lower.contains('festival') || lower.contains('puja') || lower.contains('lamp')) return 'Festival';
+    if (lower.contains('key')) return 'Keys';
+    if (lower.contains('electronic') || lower.contains('charger') || lower.contains('cable')) return 'Electronics';
+    return null;
+  }
+
   Map<String, dynamic>? _nlpParseItem(String text) {
-    final lower = text.toLowerCase();
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+    final lower = trimmed.toLowerCase();
     final storeIn = RegExp(
       r'(?:store|put|keep|place|add)\s+(?:my\s+)?(.+?)\s+in(?:to)?\s+(?:the\s+)?(.+)',
       caseSensitive: false,
     );
-    final m = storeIn.firstMatch(text);
-    if (m == null) return null;
+    final m = storeIn.firstMatch(trimmed);
+    if (m == null) {
+      // No "store X in Y" location phrase — most often because the user is
+      // already inside a specific shelf/container (preselected), so just
+      // typing the plain item name (e.g. "power bank") is a valid, common
+      // case, not a parse failure. Strip a leading verb if present
+      // ("add power bank" -> "power bank") and use the rest as-is.
+      final bareVerb = RegExp(r'^(?:store|put|keep|place|add)\s+(?:my\s+)?', caseSensitive: false);
+      final itemName = trimmed.replaceFirst(bareVerb, '').trim();
+      if (itemName.isEmpty) return null;
+      final category = _inferItemCategory(lower);
+      return {'item_name': itemName, 'container': '', 'room': '', if (category != null) 'category': category};
+    }
     final itemName = m.group(1)?.trim() ?? '';
     final inPart = m.group(2)?.trim() ?? '';
     String container = inPart, room = '';
@@ -991,14 +1015,7 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
       container = m2.group(1)?.trim() ?? inPart;
       room = m2.group(2)?.trim() ?? '';
     }
-    String? category;
-    if (lower.contains('document') || lower.contains('paper') || lower.contains('certificate')) category = 'Documents';
-    else if (lower.contains('cloth') || lower.contains('dress') || lower.contains('saree') || lower.contains('shirt')) category = 'Clothes';
-    else if (lower.contains('jewel') || lower.contains('gold') || lower.contains('silver') || lower.contains('necklace')) category = 'Jewellery';
-    else if (lower.contains('medicine') || lower.contains('tablet') || lower.contains('drug')) category = 'Medicine';
-    else if (lower.contains('festival') || lower.contains('puja') || lower.contains('lamp')) category = 'Festival';
-    else if (lower.contains('key')) category = 'Keys';
-    else if (lower.contains('electronic') || lower.contains('charger') || lower.contains('cable')) category = 'Electronics';
+    final category = _inferItemCategory(lower);
     return {'item_name': itemName, 'container': container, 'room': room, if (category != null) 'category': category};
   }
 

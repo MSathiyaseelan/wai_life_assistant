@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../core/theme/app_theme.dart';
@@ -149,8 +150,20 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
   @override
   void initState() {
     super.initState();
-    _selectedMember =
-        widget.members.isNotEmpty ? widget.members.first.id : 'me';
+    // Default to whichever member IS the logged-in viewer, not just the
+    // first family member in the list — otherwise every device defaults to
+    // the same member (e.g. whoever was added to the family first), so
+    // outfit logs from different people collide onto one "today" entry
+    // instead of showing separately under Family Today.
+    final currentUid = Supabase.instance.client.auth.currentUser?.id;
+    _selectedMember = widget.members
+            .firstWhere(
+              (m) => m.id == currentUid,
+              orElse: () => widget.members.isNotEmpty
+                  ? widget.members.first
+                  : const LifeMember(id: 'me', name: 'Me', emoji: '🧑'),
+            )
+            .id;
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() {
       setState(() {

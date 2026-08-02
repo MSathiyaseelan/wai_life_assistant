@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -95,7 +96,18 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
   void initState() {
     super.initState();
     _tab = TabController(length: _tabs.length, vsync: this, initialIndex: widget.initialTab.clamp(0, _tabs.length - 1));
-    _selectedMember = widget.members.first.id;
+    // Default to whichever member IS the logged-in viewer, not just the
+    // first family member — otherwise every device defaults to the same
+    // member's records instead of showing/editing their own.
+    final currentUid = Supabase.instance.client.auth.currentUser?.id;
+    _selectedMember = widget.members
+        .firstWhere(
+          (m) => m.id == currentUid,
+          orElse: () => widget.members.isNotEmpty
+              ? widget.members.first
+              : const LifeMember(id: 'me', name: 'Me', emoji: '🧑'),
+        )
+        .id;
     _loadData();
   }
 
@@ -1309,7 +1321,12 @@ class _MedicationsTab extends StatelessWidget {
             Expanded(child: LifeDateTile(date: refillRef[0], hint: 'Refill Date', color: Colors.orange, onTap: () async { final d = await _pickDate(ctx2); if (d != null) ss(() => refillRef[0] = d); })),
           ]),
           LifeSaveButton(label: existing == null ? 'Save' : 'Update', color: _healthColor, onTap: () {
-            if (nameCtrl.text.trim().isEmpty || dosageCtrl.text.trim().isEmpty || freqCtrl.text.trim().isEmpty) return;
+            if (nameCtrl.text.trim().isEmpty) {
+              ScaffoldMessenger.of(ctx2).showSnackBar(
+                const SnackBar(content: Text('Please fill in: Medicine name')),
+              );
+              return;
+            }
             final name = nameCtrl.text.trim();
             final dosage = dosageCtrl.text.trim();
             final freq = freqCtrl.text.trim();

@@ -658,7 +658,11 @@ class _MyHubScreenState extends State<MyHubScreen> {
       orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
     );
     final members = family.members
-        .map((m) => LifeMember(id: m.id, name: m.name, emoji: m.emoji))
+        // FamilyMember.id is the family_members row id, not the person's
+        // auth uid — every "who is this outfit/record for" check downstream
+        // compares against the real logged-in uid, so using the row id here
+        // makes every viewer collapse to the same wrong default member.
+        .map((m) => LifeMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji))
         .toList();
     return members.isNotEmpty
         ? members
@@ -699,7 +703,11 @@ class _MyHubScreenState extends State<MyHubScreen> {
       orElse: () => FamilyModel(id: '', name: '', emoji: '', colorIndex: 0),
     );
     final members = family.members
-        .map((m) => LifeMember(id: m.id, name: m.name, emoji: m.emoji))
+        // FamilyMember.id is the family_members row id, not the person's
+        // auth uid — every "who is this outfit/record for" check downstream
+        // compares against the real logged-in uid, so using the row id here
+        // makes every viewer collapse to the same wrong default member.
+        .map((m) => LifeMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji))
         .toList();
     return members.isNotEmpty
         ? members
