@@ -1096,6 +1096,12 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
       ss(() { aiParsing = true; aiError = null; aiContainerNote = null; });
       try {
         Map<String, dynamic>? parsed;
+        // Tracks whether the smart parser itself failed (service hiccup,
+        // quota, timeout) vs. simply had no AI configured for this input —
+        // so if the local fallback also can't make sense of the text, the
+        // error shown doesn't wrongly imply the user's phrasing was at
+        // fault when it was really a temporary service issue.
+        bool aiServiceFailed = false;
         try {
           final result = await AIParser.parseText(
             feature: 'mylife',
@@ -1110,13 +1116,18 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
           if (result.success && result.data != null) {
             parsed = result.data;
           } else {
+            aiServiceFailed = result.error != null;
             maybeShowAiLimitSnackbar(ctx, result.error);
           }
-        } catch (_) {}
+        } catch (_) {
+          aiServiceFailed = true;
+        }
         parsed ??= _nlpParseItem(text);
         if (parsed == null) {
           ss(() {
-            aiError = 'Could not understand. Try: "Store passport in bedroom almirah"';
+            aiError = aiServiceFailed
+                ? 'Smart parser is temporarily unavailable, and we couldn\'t read that directly either. Please try again shortly, or type the item name plainly (e.g. "Passport") if you\'re already inside a container.'
+                : 'Could not understand. Try: "Store passport in bedroom almirah"';
             aiParsing = false;
           });
           return;

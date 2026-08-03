@@ -140,11 +140,18 @@ class _WishListScreenState extends State<WishListScreen>
     }
   }
 
+  // Every mutator keeps widget.wishes (shared with PlanItScreen) in sync
+  // with the local _wishes copy — Quick Add opens a SEPARATE WishListScreen
+  // instance (see quickAddBuilder in planit_screen.dart) that shares this
+  // same widget.wishes reference, so without this a wish added/edited/
+  // deleted via Quick Add wouldn't show on the main screen until a full
+  // reload.
   Future<void> _add(WishModel w) async {
     try {
       final row = await WishService.instance.addWish(w.toRow());
       final saved = WishModel.fromRow(row);
       if (mounted) setState(() => _wishes.add(saved));
+      widget.wishes.add(saved);
     } catch (e, stack) {
       final isLimitError = e is WishLimitExceededException;
       if (!isLimitError) {
@@ -161,11 +168,13 @@ class _WishListScreenState extends State<WishListScreen>
   Future<void> _delete(WishModel w) async {
     final idx = _wishes.indexOf(w);
     setState(() => _wishes.remove(w));
+    widget.wishes.removeWhere((x) => x.id == w.id);
     try {
       await WishService.instance.deleteWish(w.id);
     } catch (e) {
       ErrorLogger.log(e, action: 'wish_delete');
       if (mounted && idx >= 0) setState(() => _wishes.insert(idx, w));
+      widget.wishes.add(w);
     }
   }
 
@@ -173,11 +182,16 @@ class _WishListScreenState extends State<WishListScreen>
     final idx = _wishes.indexWhere((w) => w.id == u.id);
     final original = idx >= 0 ? _wishes[idx] : null;
     setState(() { if (idx >= 0) _wishes[idx] = u; });
+    final widgetIdx = widget.wishes.indexWhere((w) => w.id == u.id);
+    if (widgetIdx >= 0) widget.wishes[widgetIdx] = u;
     try {
       await WishService.instance.updateWish(u.id, u.toRow());
     } catch (e) {
       ErrorLogger.log(e, action: 'wish_update');
-      if (mounted && idx >= 0 && original != null) setState(() => _wishes[idx] = original);
+      if (mounted && idx >= 0 && original != null) {
+        setState(() => _wishes[idx] = original);
+        if (widgetIdx >= 0) widget.wishes[widgetIdx] = original;
+      }
     }
   }
 

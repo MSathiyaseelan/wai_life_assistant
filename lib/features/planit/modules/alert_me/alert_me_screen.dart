@@ -192,6 +192,11 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       );
       final saved = ReminderModel.fromRow(row);
       if (mounted) setState(() => _reminders.add(saved));
+      // Quick Add opens a SEPARATE AlertMeScreen instance (see
+      // quickAddBuilder in planit_screen.dart) sharing this same
+      // widget.reminders reference — without this, a reminder added via
+      // Quick Add wouldn't show on the main screen until a full reload.
+      widget.reminders.add(saved);
       NotificationService.instance.schedule(saved);
       _notifyFamilyOfReminder(saved);
     } catch (e, stack) {
@@ -231,12 +236,14 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   Future<void> _delete(ReminderModel r) async {
     final idx = _reminders.indexOf(r);
     setState(() => _reminders.remove(r));
+    widget.reminders.removeWhere((x) => x.id == r.id);
     NotificationService.instance.cancel(r);
     try {
       await ReminderService.instance.deleteReminder(r.id);
     } catch (e) {
       ErrorLogger.log(e, action: 'reminder_delete');
       if (mounted && idx >= 0) setState(() => _reminders.insert(idx, r));
+      widget.reminders.add(r);
     }
   }
 
@@ -244,6 +251,8 @@ class _AlertMeScreenState extends State<AlertMeScreen>
     final idx = _reminders.indexWhere((r) => r.id == updated.id);
     final original = idx >= 0 ? _reminders[idx] : null;
     setState(() { if (idx >= 0) _reminders[idx] = updated; });
+    final widgetIdx = widget.reminders.indexWhere((r) => r.id == updated.id);
+    if (widgetIdx >= 0) widget.reminders[widgetIdx] = updated;
     // Cancel using the *original* schedule — the notification ids actually
     // scheduled were computed from the old repeat/repeatEndDate, not the
     // new ones, so cancelling with `updated` can leave stale occurrences
@@ -254,7 +263,10 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       await ReminderService.instance.updateReminder(updated.id, updated.toMap());
     } catch (e) {
       ErrorLogger.log(e, action: 'reminder_update');
-      if (mounted && idx >= 0 && original != null) setState(() => _reminders[idx] = original);
+      if (mounted && idx >= 0 && original != null) {
+        setState(() => _reminders[idx] = original);
+        if (widgetIdx >= 0) widget.reminders[widgetIdx] = original;
+      }
     }
   }
 

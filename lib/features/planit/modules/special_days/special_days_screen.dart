@@ -423,11 +423,17 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     }
   }
 
+  // Every mutator keeps widget.days (shared with PlanItScreen) in sync with
+  // the local _days copy — Quick Add opens a SEPARATE SpecialDaysScreen
+  // instance (see quickAddBuilder in planit_screen.dart) that shares this
+  // same widget.days reference, so without this a day added/edited/deleted
+  // via Quick Add wouldn't show on the main screen until a full reload.
   Future<void> _add(SpecialDayModel d) async {
     try {
       final row = await SpecialDayService.instance.addDay(d.toRow());
       final saved = SpecialDayModel.fromRow(row);
       if (mounted) setState(() => _days.add(saved));
+      widget.days.add(saved);
     } catch (e, stack) {
       final isLimitError = e is SpecialDayLimitExceededException;
       if (!isLimitError) {
@@ -444,11 +450,13 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
   Future<void> _delete(SpecialDayModel d) async {
     final idx = _days.indexOf(d);
     setState(() => _days.remove(d));
+    widget.days.removeWhere((x) => x.id == d.id);
     try {
       await SpecialDayService.instance.deleteDay(d.id);
     } catch (e) {
       ErrorLogger.log(e, action: 'special_day_delete');
       if (mounted && idx >= 0) setState(() => _days.insert(idx, d));
+      widget.days.add(d);
     }
   }
 
@@ -456,11 +464,16 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
     final idx = _days.indexWhere((d) => d.id == updated.id);
     final original = idx >= 0 ? _days[idx] : null;
     setState(() { if (idx >= 0) _days[idx] = updated; });
+    final widgetIdx = widget.days.indexWhere((d) => d.id == updated.id);
+    if (widgetIdx >= 0) widget.days[widgetIdx] = updated;
     try {
       await SpecialDayService.instance.updateDay(updated.id, updated.toRow());
     } catch (e) {
       ErrorLogger.log(e, action: 'special_day_update');
-      if (mounted && idx >= 0 && original != null) setState(() => _days[idx] = original);
+      if (mounted && idx >= 0 && original != null) {
+        setState(() => _days[idx] = original);
+        if (widgetIdx >= 0) widget.days[widgetIdx] = original;
+      }
     }
   }
 

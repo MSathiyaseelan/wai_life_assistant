@@ -230,6 +230,38 @@ async function callGemini(
   };
 }
 
+// A 503 ("model overloaded") or a network-level timeout is usually
+// transient — Google's own 503 message literally says "usually temporary" —
+// so retry those a couple of times with a short backoff before giving up.
+// Real errors (quota, bad key, malformed request) aren't retried since
+// retrying them just wastes time and quota for no benefit.
+function isTransientGeminiError(e: unknown): boolean {
+  const msg = (e as Error)?.message ?? "";
+  return msg === "SERVICE_OVERLOADED" ||
+    msg.toLowerCase().includes("timed out") ||
+    msg.toLowerCase().includes("aborted");
+}
+
+async function callGeminiWithRetry(
+  prompt: string,
+  imageBase64?: string,
+  imageMimeType?: string,
+  model = GEMINI_DEFAULT_MODEL,
+  maxRetries = 2
+): Promise<{ text: string; tokens: number; latencyMs: number }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await callGemini(prompt, imageBase64, imageMimeType, model);
+    } catch (e) {
+      lastError = e;
+      if (attempt === maxRetries || !isTransientGeminiError(e)) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 // ── Log Parse Attempt ─────────────────────────────────────────
 async function logParse(
   supabase: ReturnType<typeof createClient>,
@@ -403,10 +435,13 @@ serve(async (req: Request) => {
     sub_feature === "bill_scan";
   const model = useVisionModel ? GEMINI_VISION_MODEL : GEMINI_DEFAULT_MODEL;
 
-  // ── Call Gemini
+  // ── Call Gemini (with a couple of retries for transient failures — Google's
+  // own error text for 503/UNAVAILABLE explicitly says "usually temporary",
+  // and a single 25s network timeout is often just a one-off blip rather
+  // than a real dead end).
   let geminiResult: { text: string; tokens: number; latencyMs: number };
   try {
-    geminiResult = await callGemini(
+    geminiResult = await callGeminiWithRetry(
       finalPrompt,
       image_base64,
       image_mime_type || "image/jpeg",

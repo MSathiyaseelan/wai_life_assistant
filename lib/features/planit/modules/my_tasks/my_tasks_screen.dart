@@ -162,11 +162,20 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   }
 
   // ── Mutators ──────────────────────────────────────────────────────────────
+  // Every mutator keeps widget.tasks (the list instance shared with
+  // PlanItScreen) in sync with the local _tasks copy — not just for the
+  // pending-task badge, but because "Quick Add" opens a SEPARATE
+  // MyTasksScreen instance (see quickAddBuilder in planit_screen.dart) that
+  // shares this same widget.tasks reference. If a mutator only touched the
+  // local _tasks list, a task added/edited/deleted via Quick Add would be
+  // invisible on the main My Tasks screen until a full reload, since that
+  // instance's _tasks is seeded from widget.tasks on init.
   Future<void> _add(TaskModel t) async {
     try {
       final row = await TaskService.instance.addTask(t.toRow());
       final saved = TaskModel.fromRow(row);
       if (mounted) setState(() => _tasks.add(saved));
+      widget.tasks.add(saved);
       _notifyFamilyOfTask(saved);
     } catch (e, stack) {
       final isLimitError = e is TaskLimitExceededException;
@@ -184,11 +193,13 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   Future<void> _delete(TaskModel t) async {
     final idx = _tasks.indexOf(t);
     setState(() => _tasks.remove(t));
+    widget.tasks.removeWhere((x) => x.id == t.id);
     try {
       await TaskService.instance.deleteTask(t.id);
     } catch (e) {
       ErrorLogger.log(e, action: 'task_delete');
       if (mounted && idx >= 0) setState(() => _tasks.insert(idx, t));
+      widget.tasks.add(t);
     }
   }
 
@@ -196,11 +207,16 @@ class _MyTasksScreenState extends State<MyTasksScreen>
     final idx = _tasks.indexWhere((t) => t.id == updated.id);
     final original = idx >= 0 ? _tasks[idx] : null;
     setState(() { if (idx >= 0) _tasks[idx] = updated; });
+    final widgetIdx = widget.tasks.indexWhere((t) => t.id == updated.id);
+    if (widgetIdx >= 0) widget.tasks[widgetIdx] = updated;
     try {
       await TaskService.instance.updateTask(updated.id, updated.toRow());
     } catch (e) {
       ErrorLogger.log(e, action: 'task_update');
-      if (mounted && idx >= 0 && original != null) setState(() => _tasks[idx] = original);
+      if (mounted && idx >= 0 && original != null) {
+        setState(() => _tasks[idx] = original);
+        if (widgetIdx >= 0) widget.tasks[widgetIdx] = original;
+      }
     }
   }
 
@@ -2176,6 +2192,11 @@ class _TaskManualForm extends StatelessWidget {
         /// Due Date + Assign
         Row(
           children: [
+            // "Assign to" only appears when there are real family members to
+            // pick from (see below) — a personal wallet has nobody else to
+            // assign to, so falling back to placeholder mock members here
+            // showed people that don't exist, with no way to tell who any
+            // emoji actually was (bare emoji, no name).
             Expanded(
               child: GestureDetector(
                 onTap: () async {
@@ -2219,46 +2240,57 @@ class _TaskManualForm extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: (members.isNotEmpty ? members : mockMembers)
-                      .take(5)
-                      .map((m_) {
-                        final m = m_;
-                        return GestureDetector(
-                          onTap: () => onAssignedChanged(m.id),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            margin: const EdgeInsets.only(right: 6),
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: assignedTo == m.id
-                                  ? AppColors.primary.withOpacity(0.15)
-                                  : surfBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: assignedTo == m.id
-                                    ? AppColors.primary
-                                    : Colors.transparent,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              m.emoji,
-                              style: const TextStyle(fontSize: 20),
+            if (members.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: SizedBox(
+                  height: 56,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: members.take(5).map((m) {
+                      final sel = assignedTo == m.id;
+                      return GestureDetector(
+                        onTap: () => onAssignedChanged(m.id),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.only(right: 6),
+                          width: 48,
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? AppColors.primary.withOpacity(0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: sel ? AppColors.primary : Colors.transparent,
                             ),
                           ),
-                        );
-                      })
-                      .toList(),
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(m.emoji, style: const TextStyle(fontSize: 18)),
+                              const SizedBox(height: 2),
+                              Text(
+                                m.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: sel ? AppColors.primary : sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
 

@@ -200,8 +200,11 @@ class _PlanItScreenState extends State<PlanItScreen> {
     );
     return family.members
         .map(
+          // FamilyMember.id is the family_members row id, not the person's
+          // auth uid — "assigned to me" checks elsewhere compare against the
+          // real logged-in uid, so using the row id here breaks that match.
           (m) => PlanMember(
-            id: m.id,
+            id: m.userId ?? m.id,
             name: m.name,
             emoji: m.emoji,
             phone: m.phone,
