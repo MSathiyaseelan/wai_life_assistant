@@ -785,9 +785,6 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       venue: venue,
                       gifts: gifts,
                     ).toJson(),
-                    personalWalletId: widget.personalWalletId.isNotEmpty
-                        ? widget.personalWalletId
-                        : widget.walletId,
                   );
                   if (mounted)
                     setState(
@@ -1201,9 +1198,6 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       await FunctionsService.instance.updateAttended(
                         item.id,
                         item.toJson(),
-                        personalWalletId: widget.personalWalletId.isNotEmpty
-                            ? widget.personalWalletId
-                            : widget.walletId,
                       );
                     }
                     if (ctx.mounted) Navigator.pop(ctx);
@@ -1347,9 +1341,6 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                     try {
                       final row = await FunctionsService.instance.addAttended(
                         item.toJson(),
-                        personalWalletId: widget.personalWalletId.isNotEmpty
-                            ? widget.personalWalletId
-                            : widget.walletId,
                       );
                       await FunctionsService.instance.deleteUpcoming(source.id);
                       if (mounted) {

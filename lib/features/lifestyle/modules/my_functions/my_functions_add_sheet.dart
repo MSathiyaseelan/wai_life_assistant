@@ -200,10 +200,10 @@ class _FunctionAddSheetState extends State<_FunctionAddSheet>
       _familyNameCtrl.text = result.familyName ?? '';
       _type = result.type;
       _date = result.date;
-      // Pre-fill the gift editor from the AI's extracted gift (if any) —
+      // Pre-fill the gift editor from the AI's extracted gifts (if any) —
       // only when the user hasn't already entered one manually.
-      if (result.gift != null && _gifts.isEmpty) {
-        _gifts.add(result.gift!);
+      if (result.gifts.isNotEmpty && _gifts.isEmpty) {
+        _gifts.addAll(result.gifts);
       }
     });
   }

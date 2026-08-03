@@ -58,12 +58,14 @@ class FunctionsService {
     });
   }
 
-  /// Creates the matching Personal-wallet expense for an attended function's
-  /// gift, the first time it has a recorded amount — fire-and-forget aside
-  /// from returning the new transaction id to store on the function row, so
-  /// this never runs twice for the same function.
+  /// Creates the matching wallet expense for an attended function's gift —
+  /// in the SAME wallet the function itself belongs to (family wallet for a
+  /// family-group function, personal wallet for a personal one) — the first
+  /// time it has a recorded amount. Fire-and-forget aside from returning the
+  /// new transaction id to store on the function row, so this never runs
+  /// twice for the same function.
   Future<String?> _syncGiftToWallet({
-    required String personalWalletId,
+    required String walletId,
     required dynamic gifts,
     required String functionName,
     String? personName,
@@ -75,7 +77,7 @@ class FunctionsService {
     try {
       final who = personName ?? familyName;
       final row = await WalletService.instance.addTransaction(
-        walletId: personalWalletId,
+        walletId: walletId,
         type: 'expense',
         amount: total,
         category: '🎁 Gifts',
@@ -176,12 +178,13 @@ class FunctionsService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
-  /// [personalWalletId] enables auto-logging the gift as a Personal-wallet
-  /// expense — pass it whenever the caller has it (my_functions_screen.dart
-  /// always does). Omitted only for callers that don't want the sync.
+  /// Auto-logs a gift as a wallet expense in the SAME wallet as the
+  /// attended function itself (family wallet for a family-group function,
+  /// personal wallet for a personal one) — pass [syncGiftToWallet] as false
+  /// only for callers that don't want the sync at all.
   Future<Map<String, dynamic>> addAttended(
     Map<String, dynamic> data, {
-    String? personalWalletId,
+    bool syncGiftToWallet = true,
   }) async {
     await _enforceCountLimit(
       table: 'functions_attended',
@@ -195,9 +198,9 @@ class FunctionsService {
         .select()
         .single();
 
-    if (personalWalletId != null) {
+    if (syncGiftToWallet) {
       final txId = await _syncGiftToWallet(
-        personalWalletId: personalWalletId,
+        walletId: row['wallet_id'] as String,
         gifts: row['gifts'],
         functionName: row['function_name'] as String? ?? '',
         personName: row['person_name'] as String?,
@@ -216,7 +219,7 @@ class FunctionsService {
     return row;
   }
 
-  /// Same [personalWalletId] contract as [addAttended] — only touches the
+  /// Same [syncGiftToWallet] contract as [addAttended] — only touches the
   /// wallet when [updates] touches `gifts`. If this function has no linked
   /// transaction yet, one is created (as before). If it's already linked,
   /// the existing transaction's amount is kept in sync with the edited gift
@@ -225,18 +228,18 @@ class FunctionsService {
   Future<void> updateAttended(
     String id,
     Map<String, dynamic> updates, {
-    String? personalWalletId,
+    bool syncGiftToWallet = true,
   }) async {
-    if (personalWalletId != null && updates.containsKey('gifts')) {
+    if (syncGiftToWallet && updates.containsKey('gifts')) {
       final existing = await _db
           .from('functions_attended')
-          .select('wallet_tx_id, function_name, person_name, family_name, date')
+          .select('wallet_id, wallet_tx_id, function_name, person_name, family_name, date')
           .eq('id', id)
           .maybeSingle();
       final existingTxId = existing?['wallet_tx_id'] as String?;
       if (existing != null && existingTxId == null) {
         final txId = await _syncGiftToWallet(
-          personalWalletId: personalWalletId,
+          walletId: existing['wallet_id'] as String,
           gifts: updates['gifts'],
           functionName: (existing['function_name'] as String?) ?? '',
           personName: existing['person_name'] as String?,

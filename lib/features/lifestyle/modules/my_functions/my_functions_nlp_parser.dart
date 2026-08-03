@@ -9,9 +9,11 @@ class _ParsedFunction {
   final FunctionType type;
   final String? venue, personName, familyName;
   final DateTime? date;
-  /// Gift given at the function, extracted from the AI response (attended_function
-  /// prompt returns cash_amount/gold_grams/gift_type/etc.) — null if none found.
-  final PlannedGiftItem? gift;
+  /// Gifts given at the function, extracted from the AI response
+  /// (attended_function prompt returns cash_amount/gold_grams/gift_type/
+  /// etc.) — one entry per distinct component (e.g. "500 cash + 1g gold"
+  /// becomes two entries, not a single combined value), empty if none found.
+  final List<PlannedGiftItem> gifts;
   const _ParsedFunction({
     required this.title,
     required this.type,
@@ -19,7 +21,7 @@ class _ParsedFunction {
     this.date,
     this.personName,
     this.familyName,
-    this.gift,
+    this.gifts = const [],
   });
 }
 
@@ -109,15 +111,20 @@ class _FunctionAIParser {
       date: date,
       personName: personName,
       familyName: familyName,
-      gift: _giftFromAiData(data),
+      gifts: _giftsFromAiData(data),
     );
   }
 
   /// Maps the attended_function prompt's gift fields (gift_type, cash_amount,
   /// gold_grams, gold_approx_value, gift_description, saree_count,
-  /// vessel_description, total_estimated_value, note) onto a PlannedGiftItem.
-  /// Returns null when nothing gift-related was actually extracted.
-  static PlannedGiftItem? _giftFromAiData(Map<String, dynamic> data) {
+  /// vessel_description, total_estimated_value, note) onto one
+  /// PlannedGiftItem PER distinct component instead of folding everything
+  /// into a single combined value — "500 cash + 1g gold" must produce a
+  /// Cash:500 entry and a Gold:1g entry, not one "6500" Gift Item (that
+  /// total mixes a currency amount with gold's approximate ₹ value, which
+  /// isn't even the same kind of number as the grams the model also
+  /// returned).
+  static List<PlannedGiftItem> _giftsFromAiData(Map<String, dynamic> data) {
     final giftType = (data['gift_type'] as String?)?.toLowerCase();
     final cashAmount = (data['cash_amount'] as num?)?.toDouble();
     final goldGrams = (data['gold_grams'] as num?)?.toDouble();
@@ -128,46 +135,59 @@ class _FunctionAIParser {
     final vesselDescription = data['vessel_description'] as String?;
     final note = data['note'] as String?;
 
-    final hasAnyGiftData = cashAmount != null ||
-        goldGrams != null ||
-        goldValue != null ||
-        totalValue != null ||
-        (giftDescription != null && giftDescription.isNotEmpty) ||
-        sareeCount != null ||
-        (vesselDescription != null && vesselDescription.isNotEmpty);
-    if (!hasAnyGiftData) return null;
+    final gifts = <PlannedGiftItem>[];
 
-    String category;
-    double? amount;
-    String? notes;
-    switch (giftType) {
-      case 'gold':
-        category = 'Gold';
-        amount = goldValue ?? totalValue;
-        notes = goldGrams != null ? '${goldGrams}g gold' : note;
-      case 'silver':
-        category = 'Silver';
-        amount = totalValue;
-        notes = note;
-      case 'saree':
-      case 'clothes':
-      case 'vessel_utensil':
-      case 'electronics':
-      case 'mixed':
-      case 'other':
-        category = 'Gift Item';
-        amount = totalValue;
-        notes = giftDescription ??
-            vesselDescription ??
-            (sareeCount != null ? '$sareeCount saree(s)' : note);
-      case 'cash':
-      default:
-        category = 'Cash';
-        amount = cashAmount ?? totalValue;
-        notes = note;
+    if (cashAmount != null && cashAmount > 0) {
+      gifts.add(PlannedGiftItem(category: 'Cash', amount: cashAmount, notes: note));
     }
 
-    return PlannedGiftItem(category: category, amount: amount, notes: notes);
+    // PlannedGiftItem.isWeightBased treats Gold/Silver's amount as GRAMS,
+    // not a ₹ value — so gold_approx_value goes in notes, never in amount.
+    if (goldGrams != null && goldGrams > 0) {
+      gifts.add(PlannedGiftItem(
+        category: 'Gold',
+        amount: goldGrams,
+        notes: goldValue != null ? '≈ ₹${goldValue.toStringAsFixed(0)}' : null,
+      ));
+    } else if (goldValue != null && goldValue > 0) {
+      // No weight extracted, only an estimated value — can't express as
+      // grams, so note it instead of silently mislabeling it as weight.
+      gifts.add(PlannedGiftItem(category: 'Gold', notes: '≈ ₹${goldValue.toStringAsFixed(0)}'));
+    }
+
+    if (giftType == 'silver' && totalValue != null) {
+      // No silver-grams field exists in this prompt's schema — keep the
+      // value in notes rather than amount, since Gold/Silver's amount is
+      // otherwise always interpreted as a weight, not currency.
+      gifts.add(PlannedGiftItem(category: 'Silver', notes: '≈ ₹${totalValue.toStringAsFixed(0)}'));
+    }
+
+    final otherDescription = giftDescription ??
+        vesselDescription ??
+        (sareeCount != null ? '$sareeCount saree(s)' : null);
+    if (otherDescription != null && otherDescription.isNotEmpty) {
+      // Only attribute total_estimated_value to this entry when it's the
+      // SOLE component — if cash/gold were also extracted, that total
+      // already double-counts them.
+      final soleComponent = cashAmount == null && goldGrams == null && goldValue == null;
+      gifts.add(PlannedGiftItem(
+        category: 'Gift Item',
+        amount: soleComponent ? totalValue : null,
+        notes: otherDescription,
+      ));
+    }
+
+    if (gifts.isEmpty && (note != null || totalValue != null)) {
+      // Nothing structured was extracted, but the AI still returned
+      // something — surface it as one generic entry rather than dropping it.
+      gifts.add(PlannedGiftItem(
+        category: giftType == 'cash' ? 'Cash' : 'Gift Item',
+        amount: totalValue,
+        notes: note,
+      ));
+    }
+
+    return gifts;
   }
 }
 
