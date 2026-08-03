@@ -117,36 +117,35 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _loading = true);
+  // Profile (tab 0, shown first) is fetched and awaited on its own so the
+  // screen can render as soon as IT is ready, instead of every tab being
+  // gated behind one shared spinner waiting on whichever of the other 7
+  // unrelated queries happens to be slowest. The rest load in the
+  // background and populate their tab as soon as each individually
+  // completes.
+  Future<void> _loadData({bool showSpinner = true}) async {
+    if (showSpinner) setState(() => _loading = true);
+    final svc = HealthService.instance;
+    final wid = widget.walletId;
+
+    final medsFuture = svc.fetchMedications(wid);
+    final doctorsFuture = svc.fetchDoctors(wid);
+    final docsFuture = svc.fetchDocuments(wid);
+    final apptsFuture = svc.fetchAppointments(wid);
+    final vitalsFuture = svc.fetchVitals(wid);
+    final vaccinesFuture = svc.fetchVaccinations(wid);
+    final insuranceFuture = svc.fetchInsurance(wid);
+
     try {
-      final svc = HealthService.instance;
-      final wid = widget.walletId;
-      final results = await Future.wait([
-        svc.fetchProfile(wid, _selectedMember),
-        svc.fetchMedications(wid),
-        svc.fetchDoctors(wid),
-        svc.fetchDocuments(wid),
-        svc.fetchAppointments(wid),
-        svc.fetchVitals(wid),
-        svc.fetchVaccinations(wid),
-        svc.fetchInsurance(wid),
-      ]);
+      final profile = await svc.fetchProfile(wid, _selectedMember);
       if (!mounted) return;
       setState(() {
-        _profile = results[0] as HealthProfile?;
-        _medications = (results[1] as List).map((r) => Medication.fromJson(r as Map<String, dynamic>)).toList();
-        _doctors = (results[2] as List).map((r) => DoctorRecord.fromJson(r as Map<String, dynamic>)).toList();
-        _documents = (results[3] as List).map((r) => MedicalDocument.fromJson(r as Map<String, dynamic>)).toList();
-        _appointments = (results[4] as List).map((r) => Appointment.fromJson(r as Map<String, dynamic>)).toList();
-        _vitals = (results[5] as List).map((r) => HealthVital.fromJson(r as Map<String, dynamic>)).toList();
-        _vaccinations = (results[6] as List).map((r) => Vaccination.fromJson(r as Map<String, dynamic>)).toList();
-        _insurance = (results[7] as List).map((r) => InsurancePolicy.fromJson(r as Map<String, dynamic>)).toList();
+        _profile = profile;
         _loading = false;
       });
     } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'health_load_data');
-      debugPrint('[HealthSpace] loadData error: $e');
+      ErrorLogger.log(e, stackTrace: stack, action: 'health_load_profile');
+      debugPrint('[HealthSpace] loadProfile error: $e');
       if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -156,6 +155,35 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
         ),
       );
     }
+
+    medsFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _medications = rows.map((r) => Medication.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_meds'); });
+    doctorsFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _doctors = rows.map((r) => DoctorRecord.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_doctors'); });
+    docsFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _documents = rows.map((r) => MedicalDocument.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_docs'); });
+    apptsFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _appointments = rows.map((r) => Appointment.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_appts'); });
+    vitalsFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _vitals = rows.map((r) => HealthVital.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_vitals'); });
+    vaccinesFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _vaccinations = rows.map((r) => Vaccination.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_vaccines'); });
+    insuranceFuture.then((rows) {
+      if (!mounted) return;
+      setState(() => _insurance = rows.map((r) => InsurancePolicy.fromJson(r)).toList());
+    }).catchError((e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'health_load_insurance'); });
   }
 
   Future<void> _reloadProfile() async {
@@ -194,7 +222,7 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
           ? const Center(child: CircularProgressIndicator(color: _healthColor))
           : RefreshIndicator(
               color: _healthColor,
-              onRefresh: _loadData,
+              onRefresh: () => _loadData(showSpinner: false),
               child: Column(children: [
                 // ── Member chips ───────────────────────────────────────────
                 if (widget.members.length > 1)

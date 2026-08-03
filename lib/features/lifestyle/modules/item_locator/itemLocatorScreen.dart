@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
@@ -1057,7 +1058,12 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
         preselected?.id ??
         _myContainers.firstOrNull?.id ??
         '';
-    var selMember = editing?.storedBy ?? 'me';
+    // Defaults to the logged-in user's real account id, not the literal
+    // string 'me' — the "Stored by" picker's ids are real member ids after
+    // the LifeMember userId fix, so 'me' would never match anyone.
+    var selMember = editing?.storedBy ??
+        Supabase.instance.client.auth.currentUser?.id ??
+        'me';
     var isFragile = editing?.isFragile ?? false;
     var isImportant = editing?.isImportant ?? false;
 

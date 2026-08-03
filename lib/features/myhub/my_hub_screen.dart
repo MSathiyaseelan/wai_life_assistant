@@ -134,19 +134,25 @@ class _MyHubScreenState extends State<MyHubScreen> {
   Future<void> _loadData() async {
     final wid = widget.activeWalletId;
     if (wid.isEmpty) return;
+    // Functions intentionally merges in every family wallet for the Personal
+    // view (celebrations make sense to see across your whole life). Item
+    // Locator and Wardrobe are about physical belongings tied to a specific
+    // place/wallet, so those stay scoped to just the active wallet even in
+    // Personal view — otherwise Personal's summary cards showed family
+    // members' items/clothes as if they were yours.
     final walletIds = _currentWallet.isPersonal
         ? [wid, ..._allWallets.where((w) => !w.isPersonal).map((w) => w.id)]
         : [wid];
-    final loadKey = walletIds.join('|');
+    final loadKey = '${walletIds.join('|')}|$wid';
     if (loadKey == _loadedKey) return;
     _loadedKey = loadKey;
     try {
       final locSvc = ItemLocatorService.instance;
       final results = await Future.wait([
         Future.wait(walletIds.map((id) => FunctionsService.instance.fetchMyFunctions(id))),
-        Future.wait(walletIds.map((id) => locSvc.fetchContainers(id))),
-        Future.wait(walletIds.map((id) => locSvc.fetchItems(id))),
-        Future.wait(walletIds.map((id) => WardrobeService.instance.fetchItems(id))),
+        locSvc.fetchContainers(wid),
+        locSvc.fetchItems(wid),
+        WardrobeService.instance.fetchItems(wid),
         HealthService.instance.fetchSummary(wid),
         HealthService.instance.fetchAppointments(wid),
       ]);
@@ -167,13 +173,13 @@ class _MyHubScreenState extends State<MyHubScreen> {
           ..addAll((results[0] as List).expand((r) => r as List).map((r) => FunctionModel.fromJson(r as Map<String, dynamic>)));
         _containers
           ..clear()
-          ..addAll((results[1] as List).expand((r) => r as List).map((r) => StorageContainer.fromJson(r as Map<String, dynamic>)));
+          ..addAll((results[1] as List).map((r) => StorageContainer.fromJson(r as Map<String, dynamic>)));
         _items
           ..clear()
-          ..addAll((results[2] as List).expand((r) => r as List).map((r) => StoredItem.fromJson(r as Map<String, dynamic>)));
+          ..addAll((results[2] as List).map((r) => StoredItem.fromJson(r as Map<String, dynamic>)));
         _wardrobeItems
           ..clear()
-          ..addAll((results[3] as List).expand((r) => r as List).map((r) => ClothingItem.fromJson(r as Map<String, dynamic>)));
+          ..addAll((results[3] as List).map((r) => ClothingItem.fromJson(r as Map<String, dynamic>)));
         _healthMedications = healthSummary['medications'] ?? 0;
         _healthAppointments = healthSummary['appointments'] ?? 0;
         if (upcoming.isNotEmpty) {
@@ -259,9 +265,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
       return '🎊 ${f.title}${when.isNotEmpty ? ' · $when' : ''}';
     }).toList();
 
-    // Item Locator summary
-    final containersInView = _containers.where((c) => personal || c.walletId == wid).toList();
-    final itemsInView = _items.where((i) => personal || i.walletId == wid).toList();
+    // Item Locator summary — personal-only even in Personal view (physical
+    // belongings are tied to a specific place, unlike Functions).
+    final containersInView = _containers.where((c) => c.walletId == wid).toList();
+    final itemsInView = _items.where((i) => i.walletId == wid).toList();
     final itemCount = itemsInView.length;
     final importantCount = itemsInView.where((i) => i.isImportant).length;
     final lastImportant = (itemsInView.where((i) => i.isImportant).toList()
@@ -275,8 +282,9 @@ class _MyHubScreenState extends State<MyHubScreen> {
           ]
         : <String>[];
 
-    // Wardrobe summary
-    final wardrobeInView = _wardrobeItems.where((c) => personal || c.walletId == wid).toList();
+    // Wardrobe summary — personal-only even in Personal view (clothes are
+    // tied to a specific person/wallet, unlike Functions).
+    final wardrobeInView = _wardrobeItems.where((c) => c.walletId == wid).toList();
     final wardrobeCount = wardrobeInView.where((c) => !c.wishlist).length;
     final wishlistCount = wardrobeInView.where((c) => c.wishlist).length;
     final lastWardrobe = (wardrobeInView.where((c) => !c.wishlist).toList()
