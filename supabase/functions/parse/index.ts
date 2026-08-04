@@ -1,7 +1,7 @@
 // ============================================================
 // Supabase Edge Function: /parse
 // WAI Life Assistant — AI Text & Image Parser
-// Uses: Gemini 1.5 Flash + Supabase DB prompt storage
+// Uses: Gemini Flash-Lite (text) / Flash (image) + Supabase DB prompt storage
 // ============================================================
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -49,10 +49,16 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_BASE =
   "https://generativelanguage.googleapis.com/v1beta/models/";
 
-// gemini-flash-latest is natively multimodal (accepts image input), so the
-// same stable alias covers both text and vision tasks — avoids pinning to a
-// dated model name that may not be enabled for every API key/account tier.
-const GEMINI_DEFAULT_MODEL = "gemini-flash-latest";
+// Text-only parsing (the large majority of calls — reminders, tasks,
+// expenses, grocery, wardrobe, etc.) doesn't need full Flash: Flash-Lite
+// scores comparably on structured field extraction at a fraction of the
+// cost. Image parsing (bill/receipt scans) stays on full Flash, since
+// misreading a scanned amount is a worse failure than misreading a typed
+// grocery item, and image calls are a small share of total volume anyway.
+// Both are "-latest" rolling aliases (not pinned dated versions) so they
+// keep working without maintenance as Google rotates model versions —
+// same tradeoff as before, just split by task instead of one-size-fits-all.
+const GEMINI_DEFAULT_MODEL = "gemini-flash-lite-latest";
 const GEMINI_VISION_MODEL   = "gemini-flash-latest";
 
 function geminiUrl(model: string): string {
@@ -175,6 +181,13 @@ async function callGemini(
   };
   if (!isImageRequest) {
     generationConfig["responseMimeType"] = "application/json";
+  } else {
+    // Newer Flash/Flash-Lite models can default to a lower internal image
+    // resolution, which has been observed to cause misreads of small/fine
+    // text (digits, tax lines) — force high resolution for bill/receipt
+    // scans where an amount misread is a real-money mistake, not just a
+    // cosmetic one.
+    generationConfig["mediaResolution"] = "MEDIA_RESOLUTION_HIGH";
   }
 
   const response = await fetch(`${geminiUrl(model)}?key=${GEMINI_API_KEY}`, {
