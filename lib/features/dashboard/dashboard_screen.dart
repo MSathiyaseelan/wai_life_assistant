@@ -3484,7 +3484,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         sRow(emoji: '🗑️', bg: const Color(0xFFF5F5F5), title: 'Recycle Bin',
                           subtitle: 'Restore recently deleted items', value: '',
                           onTap: _prefsTap(ctx, isDark, 'Recycle Bin')),
-                        sRow(emoji: 'ℹ️', bg: const Color(0xFFF0F0F0), title: 'About WAI',
+                        sRow(emoji: 'ℹ️', bg: const Color(0xFFF0F0F0), title: 'About RiyasHome',
                           subtitle: 'Version, licences & credits', value: _appVersion,
                           onTap: _prefsTap(ctx, isDark, 'About')),
                       ]),

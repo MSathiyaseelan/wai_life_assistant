@@ -55,7 +55,7 @@ class AboutWaiSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return PrefsSheetBase(
       isDark: isDark,
-      title: 'About WAI',
+      title: 'About RiyasHome',
       loading: false,
       child: Column(
         children: [
@@ -173,7 +173,7 @@ class AboutWaiSheet extends StatelessWidget {
               ),
               _InfoRow(
                 emoji: '⭐',
-                label: 'Rate WAI',
+                label: 'Rate RiyasHome',
                 sub: _sub,
                 tc: _tc,
                 onTap: () => _rateApp(context),
