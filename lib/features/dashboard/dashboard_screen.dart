@@ -2551,15 +2551,21 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  Future<void> _confirmDeleteAccount(BuildContext sheetCtx) async {
+  Future<void> _confirmDeleteAccount(BuildContext sheetCtx, AppStateNotifier appState) async {
     // Deleting your account only removes your own rows (family_members.user_id
     // and families.created_by are ON DELETE SET NULL, not CASCADE — shared
     // family wallets and other members' data are unaffected). But if you're
     // the sole admin of a family with other members, deleting leaves nobody
     // able to manage it afterward — same lockout the "Leave Family" flow
     // already guards against, so block here the same way.
+    //
+    // appState is passed in rather than resolved via AppStateScope.read(sheetCtx)
+    // because sheetCtx comes from inside a showModalBottomSheet builder chain,
+    // whose context sits outside the subtree where AppStateScope is mounted
+    // (bottom_nav_screen.dart) — that lookup throws a null-check error every
+    // time, silently killing the tap before the confirmation dialog can open.
     final uid = Supabase.instance.client.auth.currentUser?.id;
-    final families = AppStateScope.read(sheetCtx).families;
+    final families = appState.families;
     for (final family in families) {
       final myMember = family.members.where((m) => m.userId == uid).firstOrNull;
       if (myMember == null || myMember.role != MemberRole.admin) continue;
@@ -3586,7 +3592,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
                         ),
                         child: InkWell(
-                          onTap: () => _confirmDeleteAccount(ctx2),
+                          onTap: () => _confirmDeleteAccount(ctx2, appState),
                           borderRadius: BorderRadius.circular(18),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
