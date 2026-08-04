@@ -170,6 +170,12 @@ class ContextFetcher {
     try {
       final now = DateTime.now();
       final DateTime fromDateTime;
+      // Only "last month" needs an upper bound — every other range's implicit
+      // end is "now". Without one, "last month" pulled everything from the
+      // 1st of last month through today; combined with ordering newest-first
+      // and a row cap, a busy current month could push all of last month's
+      // rows out of the window before they were ever inspected.
+      DateTime? toDateTime;
       final String fromDate;
       switch (range) {
         case TimeRange.today:
@@ -178,10 +184,12 @@ class ContextFetcher {
           fromDateTime = now.subtract(const Duration(days: 7));
         case TimeRange.lastMonth:
           fromDateTime = DateTime(now.year, now.month - 1, 1);
+          toDateTime = DateTime(now.year, now.month, 1);
         default:
           fromDateTime = DateTime(now.year, now.month, 1);
       }
       fromDate = fromDateTime.toIso8601String().substring(0, 10);
+      final toDate = toDateTime?.toIso8601String().substring(0, 10);
 
       // DashboardScreen already holds this wallet's full transaction history
       // (merged across all its loaded wallets) — reuse it instead of a fresh
@@ -191,11 +199,14 @@ class ContextFetcher {
       final cached = cache?.transactions;
       if (cached != null) {
         final filtered = cached
-            .where((t) => t.walletId == walletId && !t.date.isBefore(fromDateTime))
+            .where((t) =>
+                t.walletId == walletId &&
+                !t.date.isBefore(fromDateTime) &&
+                (toDateTime == null || t.date.isBefore(toDateTime)))
             .toList()
           ..sort((a, b) => b.date.compareTo(a.date));
         rows = filtered
-            .take(50)
+            .take(100)
             .map((t) => {
                   'type': t.type.name,
                   'amount': t.amount,
@@ -204,18 +215,23 @@ class ContextFetcher {
                 })
             .toList();
       } else {
-        rows = await _db
+        var query = _db
             .from('transactions')
             .select('type, amount, category, title, date')
             .eq('wallet_id', walletId)
             .isFilter('deleted_at', null)
-            .gte('date', fromDate)
-            .order('date', ascending: false)
-            .limit(50);
+            .gte('date', fromDate);
+        if (toDate != null) query = query.lt('date', toDate);
+        rows = await query.order('date', ascending: false).limit(100);
       }
 
       double income = 0, expense = 0, lend = 0, borrow = 0, split = 0, returned = 0;
       final catTotals = <String, double>{};
+      // Every expense line (not just the top categories/most-recent few) so
+      // the AI can answer item-level questions ("how much on coffee") that
+      // don't map to any category — coffee, for instance, is just logged
+      // under the broad "Food" category with no category of its own.
+      final allExpenseLines = <String>[];
       final recent = <String>[];
 
       for (final r in rows) {
@@ -229,6 +245,7 @@ class ContextFetcher {
           case 'expense':
             expense += amount;
             catTotals[cat] = (catTotals[cat] ?? 0) + amount;
+            allExpenseLines.add('${_cap(title)} ${AppPrefs.cs}${amount.toStringAsFixed(0)} ($cat)');
           case 'lend':     lend += amount;
           case 'borrow':   borrow += amount;
           case 'split':    split += amount;
@@ -262,6 +279,10 @@ class ContextFetcher {
         'net_flow': '${AppPrefs.cs}${(totalIn - totalOut).toStringAsFixed(0)}',
         if (topCats.isNotEmpty) 'top_expense_categories': topCats,
         if (recent.isNotEmpty) 'recent_transactions': recent.join(' | '),
+        // Full per-line expense list for this period — lets the AI answer
+        // item-level questions ("how much on coffee") by scanning titles
+        // itself, since no such category exists to filter/aggregate on.
+        if (allExpenseLines.isNotEmpty) 'all_expenses_this_period': allExpenseLines.join(' | '),
       };
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'context_fetch_wallet');
