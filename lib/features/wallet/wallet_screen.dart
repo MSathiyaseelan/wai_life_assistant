@@ -1931,10 +1931,13 @@ class _WalletScreenState extends State<WalletScreen>
   }
 
   // ── Contact strip (lend/borrow summary) ───────────────────────────────────
+  // Nets lend/borrow/returned across ALL time, not just the currently
+  // selected month — an outstanding lend from a prior month must keep
+  // showing until it's actually repaid, regardless of which month the
+  // wallet view happens to be scrolled to.
   Widget _buildContactStrip(Set<String> walletIds, bool isDark) {
     final txs = _transactions
         .where((t) => walletIds.contains(t.walletId))
-        .where((t) => _selectedRange.contains(t.date))
         .where((t) => t.type == TxType.lend || t.type == TxType.borrow || t.type == TxType.returned)
         .toList();
 
