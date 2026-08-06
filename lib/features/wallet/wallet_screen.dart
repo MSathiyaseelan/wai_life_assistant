@@ -48,6 +48,25 @@ import 'package:speech_to_text/speech_to_text.dart';
 /// negative means a borrow was. Ties (e.g. no lend/borrow history at all,
 /// which shouldn't normally happen — adding a 'returned' entry requires an
 /// outstanding balance) fall back to 'Returned'.
+/// Whether a transaction group should show while searching: matches if the
+/// group's own name matches, or ANY member transaction does (same title/
+/// category/note/person/amount substring check individual tx tiles use).
+/// Groups were previously always shown once their date fell in range,
+/// completely ignoring the search query — e.g. searching "coffee" would
+/// still surface an unrelated "Groceries + Electricity bill" group just
+/// because its date section existed, making search look like it was
+/// matching on category/date instead of the actual query.
+bool _groupMatchesSearch(TxGroup g, String searchLower) {
+  if (searchLower.isEmpty) return true;
+  if (g.name.toLowerCase().contains(searchLower)) return true;
+  return g.transactions.any((t) =>
+      (t.title ?? '').toLowerCase().contains(searchLower) ||
+      t.category.toLowerCase().contains(searchLower) ||
+      (t.note ?? '').toLowerCase().contains(searchLower) ||
+      (t.person ?? '').toLowerCase().contains(searchLower) ||
+      t.amount.toStringAsFixed(0).contains(searchLower));
+}
+
 String _returnedDirectionLabel(List<TxModel> personTxs) {
   double preNet = 0;
   for (final t in personTxs) {
@@ -2470,6 +2489,7 @@ class _WalletScreenState extends State<WalletScreen>
     }
     // Ensure date-sections hosting only TxGroupCards also appear
     for (final g in _activeWalletTxGroups) {
+      if (!_groupMatchesSearch(g, searchLower)) continue;
       final gDate = _groupDateInRange(g, _selectedRange);
       if (gDate == null) continue;
       final gd = DateTime(gDate.year, gDate.month, gDate.day);
@@ -3017,8 +3037,10 @@ class _WalletScreenState extends State<WalletScreen>
     // (see _groupDateInRange for how far back this reaches).
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
+    final searchLower = _searchQuery.toLowerCase().trim();
     final sectionGroups = _activeWalletTxGroups
         .where((g) {
+          if (!_groupMatchesSearch(g, searchLower)) return false;
           final gDate = _groupDateInRange(g, _selectedRange);
           if (gDate == null) return false;
           final gd = DateTime(gDate.year, gDate.month, gDate.day);

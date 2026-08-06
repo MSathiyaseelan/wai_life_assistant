@@ -441,12 +441,25 @@ serve(async (req: Request) => {
 
   const finalPrompt = injectContext(promptRow.prompt, enrichedContext);
 
-  // ── Select model: use lighter vision model for image-heavy features
-  const useVisionModel =
-    input_type === "image" &&
-    feature === "pantry" &&
-    sub_feature === "bill_scan";
-  const model = useVisionModel ? GEMINI_VISION_MODEL : GEMINI_DEFAULT_MODEL;
+  // ── Select model.
+  // Any image input goes to full Flash, not Lite — this was previously
+  // scoped to just feature==='pantry' && sub_feature==='bill_scan', which
+  // missed 'wallet'/'bill_scan' (a real, actively-used image-scan flow —
+  // see ai_parse_logs) silently routing receipt OCR to the weaker model.
+  // Digit/amount misreads on a scanned bill are a real-money mistake, so
+  // ANY image request gets the more capable model regardless of feature.
+  //
+  // The dashboard AI assistant also stays on full Flash even for text-only
+  // calls: unlike the other sub-features (which just extract a couple of
+  // fields from one short sentence), it has to search/sum many transaction
+  // line items to answer questions like "how much on coffee last month" —
+  // real multi-step reasoning, not simple extraction. Lite proved unreliable
+  // here, returning a plausible-looking but fabricated total instead of
+  // actually summing the matching rows.
+  const needsFullModel =
+    input_type === "image" ||
+    (feature === "dashboard" && sub_feature === "ai_assistant");
+  const model = needsFullModel ? GEMINI_VISION_MODEL : GEMINI_DEFAULT_MODEL;
 
   // ── Call Gemini (with a couple of retries for transient failures — Google's
   // own error text for 503/UNAVAILABLE explicitly says "usually temporary",
