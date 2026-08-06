@@ -247,6 +247,8 @@ class _FlowCardState extends State<_FlowCard> {
             Text(
               widget.flow.label,
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,

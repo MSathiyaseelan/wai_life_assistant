@@ -39,6 +39,24 @@ import 'package:wai_life_assistant/features/wallet/widgets/tx_detail_sheet.dart'
 import 'package:wai_life_assistant/features/wallet/widgets/tx_group_card.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+/// For a TxType.returned entry, decides whether it settled a lend (they
+/// were paying YOU back → 'Received') or a borrow (you were paying THEM
+/// back → 'Returned'). A 'returned' row carries no direction of its own,
+/// so this infers it the same way _buildContactStrip's netting does: sum
+/// that person's lend(+)/borrow(-)-only subtotal across `personTxs` (their
+/// other transactions) — a positive subtotal means a lend was outstanding,
+/// negative means a borrow was. Ties (e.g. no lend/borrow history at all,
+/// which shouldn't normally happen — adding a 'returned' entry requires an
+/// outstanding balance) fall back to 'Returned'.
+String _returnedDirectionLabel(List<TxModel> personTxs) {
+  double preNet = 0;
+  for (final t in personTxs) {
+    if (t.type == TxType.lend) preNet += t.amount;
+    if (t.type == TxType.borrow) preNet -= t.amount;
+  }
+  return preNet > 0 ? 'Received' : 'Returned';
+}
+
 class WalletScreen extends StatefulWidget {
   final String activeWalletId;
   final void Function(String) onWalletChange;
@@ -1943,27 +1961,50 @@ class _WalletScreenState extends State<WalletScreen>
 
     if (txs.isEmpty) return const SizedBox.shrink();
 
-    // Net per person + per-person tx list
-    // lend: +amount (they owe you), borrow: -amount (you owe them),
-    // returned: +amount (I paid back, reduces my negative borrow balance)
+    // Net per person + per-person tx list.
+    // lend: +amount (they owe you), borrow: -amount (you owe them).
+    // `returned` is directionless on its own — it settles whichever of the
+    // two is currently outstanding for that person, so it must move the
+    // balance TOWARD zero, not always add. Applying it with the opposite
+    // sign of the lend/borrow-only subtotal handles both directions: it
+    // shrinks a positive (lend) balance and shrinks a negative (borrow)
+    // balance the same way. Applying it as flat +amount (the old logic)
+    // only happened to work for settling a borrow — settling a lend made
+    // the "owes you" balance grow instead of clearing it.
     // Group by normalized key (trimmed + lowercase) so "Alice" and "alice kumar"
     // still club together if the user typed slightly different names.
-    final Map<String, double> netByKey = {};
+    final Map<String, double> preNetByKey = {}; // lend(+)/borrow(-) only
+    final Map<String, double> returnedByKey = {};
     final Map<String, String> displayName = {}; // normalized key → best display name
     final Map<String, List<TxModel>> txsByKey = {};
     for (final tx in txs) {
       final raw = (tx.person ?? 'Unknown').trim();
       final key = raw.toLowerCase();
-      final delta = tx.type == TxType.lend ? tx.amount
-                  : tx.type == TxType.returned ? tx.amount
-                  : -tx.amount;
-      netByKey[key] = (netByKey[key] ?? 0) + delta;
+      switch (tx.type) {
+        case TxType.lend:
+          preNetByKey[key] = (preNetByKey[key] ?? 0) + tx.amount;
+        case TxType.borrow:
+          preNetByKey[key] = (preNetByKey[key] ?? 0) - tx.amount;
+        case TxType.returned:
+          returnedByKey[key] = (returnedByKey[key] ?? 0) + tx.amount;
+        default:
+          break;
+      }
       // Keep the longest name variant as the display name
       if (!displayName.containsKey(key) || raw.length > displayName[key]!.length) {
         displayName[key] = raw;
       }
       (txsByKey[key] ??= []).add(tx);
     }
+    final Map<String, double> netByKey = {
+      for (final key in {...preNetByKey.keys, ...returnedByKey.keys})
+        key: () {
+          final pre = preNetByKey[key] ?? 0;
+          final returned = returnedByKey[key] ?? 0;
+          final sign = pre > 0 ? 1 : (pre < 0 ? -1 : 0);
+          return pre - sign * returned;
+        }(),
+    };
     // Re-key by display name for the rest of the method
     final Map<String, double> personNet = {
       for (final e in netByKey.entries) displayName[e.key]!: e.value,
@@ -3090,8 +3131,17 @@ class _WalletScreenState extends State<WalletScreen>
           final isRecipient = tx.type == TxType.request &&
               tx.targetUserId != null &&
               tx.targetUserId == currentUid;
+          final displayLabel = tx.type == TxType.returned
+              ? _returnedDirectionLabel(_transactions
+                  .where((t) =>
+                      t.walletId == tx.walletId &&
+                      (t.person ?? '').trim().toLowerCase() ==
+                          (tx.person ?? '').trim().toLowerCase())
+                  .toList())
+              : null;
           final tile = TxTile(
             tx: tx,
+            displayLabel: displayLabel,
             hideAmount: _amountsHidden,
             onTap: () => _showDetail(tx),
             onLongPress: () => _duplicateTx(tx),
@@ -4552,7 +4602,7 @@ class _ContactTxPage extends StatelessWidget {
                              : tx.type == TxType.returned ? AppColors.returned
                              : AppColors.income;
                 final txLabel = tx.type == TxType.lend ? 'Lent'
-                             : tx.type == TxType.returned ? 'Returned'
+                             : tx.type == TxType.returned ? _returnedDirectionLabel(transactions)
                              : 'Borrowed';
                 final txEmoji = tx.type == TxType.lend ? '📤'
                              : tx.type == TxType.returned ? '↩️'

@@ -1632,7 +1632,11 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      // Use the dialog's own builder context (dCtx) for Navigator.pop, not
+      // the outer `context` — reusing the outer one happened to work here
+      // but is the same fragile pattern that silently broke Delete Account
+      // earlier (a context resolved from outside the route it's popping).
+      builder: (dCtx) => AlertDialog(
         title: const Text(
           'Leave Family',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
@@ -1645,14 +1649,14 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dCtx),
             child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
           ),
           if (!mustTransfer)
             TextButton(
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
-                Navigator.pop(context);
+                Navigator.pop(dCtx);
                 widget.appState.switchWallet(
                   widget.appState.wallets
                       .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
@@ -1676,8 +1680,15 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           if (mustTransfer)
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
-                _showTransferAdminDialog(context, family, myMember, otherMembers);
+                try {
+                  Navigator.pop(dCtx);
+                  _showTransferAdminDialog(context, family, myMember, otherMembers);
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_open_dialog');
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Could not open transfer admin. Please try again.'),
+                  ));
+                }
               },
               child: const Text(
                 'Transfer Admin',
@@ -1760,7 +1771,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   ) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dCtx) => AlertDialog(
         title: const Text(
           'Transfer Admin',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
@@ -1777,7 +1788,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   leading: EmojiOrImage(value: m.emoji, size: 18),
                   title: Text(m.name, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito')),
                   onTap: () async {
-                    Navigator.pop(context);
+                    Navigator.pop(dCtx);
                     final messenger = ScaffoldMessenger.of(context);
                     widget.appState.switchWallet(
                       widget.appState.wallets

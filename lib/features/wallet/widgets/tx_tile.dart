@@ -18,6 +18,12 @@ class TxTile extends StatelessWidget {
 
   final bool hideAmount;
 
+  /// Overrides the type badge text (e.g. 'RETURNED' vs 'RECEIVED' for a
+  /// TxType.returned entry, which by itself doesn't encode which direction
+  /// it settled — see wallet_screen.dart's returned-direction helper).
+  /// Falls back to tx.type.label when not provided.
+  final String? displayLabel;
+
   const TxTile({
     super.key,
     required this.tx,
@@ -27,6 +33,7 @@ class TxTile extends StatelessWidget {
     this.onReject,
     this.addedByName,
     this.hideAmount = false,
+    this.displayLabel,
   });
 
   String _fmt(double v) {
@@ -155,7 +162,7 @@ class TxTile extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 6),
-                                _TypeBadge(tx: tx),
+                                _TypeBadge(tx: tx, labelOverride: displayLabel),
                               ],
                             ),
                           ),
@@ -279,7 +286,8 @@ class TxTile extends StatelessWidget {
 
 class _TypeBadge extends StatelessWidget {
   final TxModel tx;
-  const _TypeBadge({required this.tx});
+  final String? labelOverride;
+  const _TypeBadge({required this.tx, this.labelOverride});
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -288,7 +296,7 @@ class _TypeBadge extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
-      tx.type.label.toUpperCase(),
+      (labelOverride ?? tx.type.label).toUpperCase(),
       style: TextStyle(
         fontSize: 9,
         fontWeight: FontWeight.w800,

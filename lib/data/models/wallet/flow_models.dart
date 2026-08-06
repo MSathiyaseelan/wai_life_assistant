@@ -25,7 +25,7 @@ extension FlowTypeExt on FlowType {
       case FlowType.request:
         return 'Request Money';
       case FlowType.returned:
-        return 'Returned Money';
+        return 'Returned/Received Money';
     }
   }
 
