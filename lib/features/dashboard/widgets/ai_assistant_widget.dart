@@ -61,7 +61,7 @@ class AIAssistantWidget extends StatefulWidget {
 }
 
 class _AIAssistantWidgetState extends State<AIAssistantWidget>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _ctrl = TextEditingController();
   final _focus = FocusNode();
 
@@ -118,8 +118,16 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _focus.addListener(() => setState(() {}));
     _ctrl.addListener(_onMentionChanged);
+    WidgetsBinding.instance.addObserver(this);
     ContactService.instance.preload();
     _checkLimitOnOpen();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ContactService.instance.refresh();
+    }
   }
 
   @override
@@ -160,6 +168,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ctrl.removeListener(_onMentionChanged);
     _ctrl.dispose();
     _focus.dispose();

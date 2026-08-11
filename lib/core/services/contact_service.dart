@@ -24,6 +24,14 @@ class ContactService {
     return _pending!;
   }
 
+  // Force a fresh fetch from the device (e.g. on app resume) so contacts
+  // added/edited since the last load show up without an app restart.
+  Future<void> refresh() {
+    _cache = null;
+    _pending = _load();
+    return _pending!;
+  }
+
   Future<List<ContactEntry>> _load() async {
     try {
       final status = await FlutterContacts.permissions.request(PermissionType.read);
