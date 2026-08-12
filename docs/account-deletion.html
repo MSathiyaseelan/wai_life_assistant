@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiyasHome Account Deletion</title>
+<style>
+  :root{
+    --paper:#faf8f5;
+    --ink:#1f2420;
+    --ink-soft:#4b5249;
+    --rule:#dcd6cb;
+    --card:#ffffff;
+    --accent:#3d5a4c;
+    --accent-soft:#e8ede9;
+    --accent-ink:#2c4438;
+    --link:#2c5c46;
+    --warn-bg:#fbf3e7;
+    --warn-ink:#7a5a1e;
+    --warn-rule:#eddcb8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#15181a;
+      --ink:#e9e6de;
+      --ink-soft:#a9ada2;
+      --rule:#2c3129;
+      --card:#1c2020;
+      --accent:#84b39e;
+      --accent-soft:#212a24;
+      --accent-ink:#a9d3bf;
+      --link:#8fc9a9;
+      --warn-bg:#2a2417;
+      --warn-ink:#d9b06a;
+      --warn-rule:#4a3c1e;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:720px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+
+  header.doc-head{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding-bottom:32px;
+    margin-bottom:36px;
+    border-bottom:1px solid var(--rule);
+  }
+  .eyebrow{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:5px 10px;
+    border-radius:5px;
+    width:fit-content;
+  }
+  h1{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:clamp(28px,4vw,36px);
+    font-weight:600;
+    margin:6px 0 0;
+    text-wrap:balance;
+    letter-spacing:-.01em;
+  }
+  .meta-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    margin-top:8px;
+    font-size:13.5px;
+    color:var(--ink-soft);
+  }
+  .meta-row strong{color:var(--ink);font-weight:600;}
+  .meta-row .sep{color:var(--rule);}
+
+  section.clause{
+    padding:28px 0;
+    border-bottom:1px solid var(--rule);
+  }
+  section.clause:last-of-type{border-bottom:none;}
+  .clause-head{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    margin-bottom:12px;
+  }
+  .clause-num{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:14px;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border-radius:5px;
+    padding:2px 8px;
+    flex-shrink:0;
+  }
+  h2{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:19px;
+    font-weight:600;
+    margin:0;
+    text-wrap:balance;
+  }
+  section.clause p{
+    margin:0 0 12px;
+    color:var(--ink-soft);
+    font-size:15px;
+    max-width:62ch;
+  }
+  ol.steps{
+    margin:0 0 4px;
+    padding-left:0;
+    list-style:none;
+    counter-reset:step;
+  }
+  ol.steps li{
+    counter-increment:step;
+    position:relative;
+    padding-left:34px;
+    margin-bottom:14px;
+    color:var(--ink-soft);
+    font-size:15px;
+    max-width:60ch;
+  }
+  ol.steps li::before{
+    content:counter(step);
+    position:absolute;
+    left:0;
+    top:-1px;
+    width:22px;
+    height:22px;
+    border-radius:50%;
+    background:var(--accent-soft);
+    color:var(--accent-ink);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px;
+    font-weight:600;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  ol.steps li strong{color:var(--ink);}
+
+  .callout{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:14px 16px;
+    font-size:14px;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+  .callout strong{color:var(--ink);}
+
+  .warn{
+    background:var(--warn-bg);
+    border:1px solid var(--warn-rule);
+    border-radius:8px;
+    padding:14px 16px;
+    font-size:14px;
+    color:var(--warn-ink);
+    margin-top:16px;
+  }
+  .warn strong{color:var(--warn-ink);}
+
+  table.retain{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13.5px;
+    margin-top:6px;
+  }
+  table.retain th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    font-weight:600;
+    padding:6px 10px 8px 0;
+    border-bottom:1px solid var(--rule);
+  }
+  table.retain td{
+    padding:9px 10px 9px 0;
+    border-bottom:1px solid var(--rule);
+    color:var(--ink-soft);
+    vertical-align:top;
+  }
+  table.retain td:first-child{color:var(--ink);white-space:nowrap;}
+  .tbl-wrap{overflow-x:auto;}
+
+  a{color:var(--link);}
+  a.btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:var(--accent);
+    color:var(--paper);
+    text-decoration:none;
+    font-weight:600;
+    font-size:14px;
+    padding:11px 18px;
+    border-radius:8px;
+    margin-top:6px;
+  }
+
+  footer.doc-foot{
+    margin-top:48px;
+    padding-top:24px;
+    border-top:1px solid var(--rule);
+    font-size:13px;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc-head">
+    <span class="eyebrow">🗑️ Account Deletion</span>
+    <h1>Delete Your RiyasHome Account</h1>
+    <div class="meta-row">
+      <span><strong>Applies to</strong> RiyasHome app (Android &amp; iOS)</span>
+      <span class="sep">·</span>
+      <span>See also our <a href="privacy-policy.html">Privacy Policy</a></span>
+    </div>
+  </header>
+
+  <section class="clause">
+    <div class="clause-head"><span class="clause-num">A</span><h2>Delete from within the app</h2></div>
+    <p>The fastest way to delete your account and all associated data:</p>
+    <ol class="steps">
+      <li>Open the RiyasHome app and sign in.</li>
+      <li>Go to <strong>Settings → Privacy &amp; Security</strong>.</li>
+      <li>Tap <strong>Delete Account</strong> and confirm.</li>
+    </ol>
+    <div class="callout">Your account is deactivated immediately and all personal records are soft-deleted the moment you confirm — you do not need to wait for a response from us.</div>
+  </section>
+
+  <section class="clause">
+    <div class="clause-head"><span class="clause-num">B</span><h2>Request deletion without the app</h2></div>
+    <p>If you no longer have the app installed, or can't sign in, email us from the address linked to your account and we'll process the deletion on your behalf:</p>
+    <a class="btn" href="mailto:riyasailabs@gmail.com?subject=Account%20Deletion%20Request">✉️ riyasailabs@gmail.com</a>
+    <p style="margin-top:14px;">We verify the request against your registered phone number and complete it within <strong>7 business days</strong>.</p>
+  </section>
+
+  <section class="clause">
+    <div class="clause-head"><span class="clause-num">C</span><h2>What gets deleted, and when</h2></div>
+    <div class="tbl-wrap">
+      <table class="retain">
+        <thead><tr><th>Data</th><th>What happens</th></tr></thead>
+        <tbody>
+          <tr><td>Profile &amp; identity</td><td>Soft-deleted immediately, hard-deleted within 30 days</td></tr>
+          <tr><td>Wallet, expenses, Splits records</td><td>Soft-deleted immediately, hard-deleted within 30 days</td></tr>
+          <tr><td>Tasks, pantry, health, wardrobe, reminders</td><td>Soft-deleted immediately, hard-deleted within 30 days</td></tr>
+          <tr><td>Items already in Recycle Bin</td><td>Purged within 30 days of original deletion, unaffected by account status</td></tr>
+          <tr><td>Anonymised aggregate statistics</td><td>No personal identifiers — may be retained for service improvement</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="warn"><strong>This can't be undone.</strong> Once hard deletion completes, your records cannot be recovered.</div>
+  </section>
+
+  <footer class="doc-foot">
+    <span>© 2026 RiyasHome Life Assistance</span>
+    <span>riyasailabs@gmail.com</span>
+  </footer>
+
+</div>
+</body>
+</html>
