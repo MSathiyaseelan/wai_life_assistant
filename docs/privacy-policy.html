@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiyasHome Privacy Policy</title>
+<style>
+  :root{
+    --paper:#faf8f5;
+    --ink:#1f2420;
+    --ink-soft:#4b5249;
+    --rule:#dcd6cb;
+    --card:#ffffff;
+    --accent:#3d5a4c;
+    --accent-soft:#e8ede9;
+    --accent-ink:#2c4438;
+    --link:#2c5c46;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#15181a;
+      --ink:#e9e6de;
+      --ink-soft:#a9ada2;
+      --rule:#2c3129;
+      --card:#1c2020;
+      --accent:#84b39e;
+      --accent-soft:#212a24;
+      --accent-ink:#a9d3bf;
+      --link:#8fc9a9;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+
+  header.doc-head{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding-bottom:32px;
+    margin-bottom:36px;
+    border-bottom:1px solid var(--rule);
+  }
+  .eyebrow{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:5px 10px;
+    border-radius:5px;
+    width:fit-content;
+  }
+  h1{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:clamp(28px,4vw,38px);
+    font-weight:600;
+    margin:6px 0 0;
+    text-wrap:balance;
+    letter-spacing:-.01em;
+  }
+  .meta-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    margin-top:8px;
+    font-size:13.5px;
+    color:var(--ink-soft);
+  }
+  .meta-row strong{color:var(--ink);font-weight:600;}
+  .meta-row .sep{color:var(--rule);}
+
+  nav.toc{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:18px 20px;
+    margin-bottom:40px;
+  }
+  nav.toc h2{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.09em;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+    font-weight:600;
+  }
+  nav.toc ol{
+    margin:0;
+    padding:0;
+    list-style:none;
+    columns:2;
+    column-gap:24px;
+  }
+  nav.toc li{break-inside:avoid;margin-bottom:6px;}
+  nav.toc a{
+    color:var(--ink);
+    text-decoration:none;
+    font-size:13.5px;
+    display:flex;
+    gap:8px;
+  }
+  nav.toc a:hover{color:var(--link);}
+  nav.toc .n{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--ink-soft);
+    font-size:12.5px;
+    min-width:16px;
+  }
+
+  section.clause{
+    padding:28px 0;
+    border-bottom:1px solid var(--rule);
+    scroll-margin-top:20px;
+  }
+  section.clause:last-of-type{border-bottom:none;}
+  .clause-head{
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    margin-bottom:12px;
+  }
+  .clause-num{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:14px;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    border-radius:5px;
+    padding:2px 8px;
+    flex-shrink:0;
+  }
+  h2{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:19px;
+    font-weight:600;
+    margin:0;
+    text-wrap:balance;
+  }
+  section.clause p{
+    margin:0 0 12px;
+    color:var(--ink-soft);
+    font-size:15px;
+    max-width:64ch;
+  }
+  section.clause ul{
+    margin:0 0 12px;
+    padding-left:0;
+    list-style:none;
+  }
+  section.clause li{
+    position:relative;
+    padding-left:18px;
+    margin-bottom:8px;
+    color:var(--ink-soft);
+    font-size:15px;
+    max-width:62ch;
+  }
+  section.clause li::before{
+    content:"";
+    position:absolute;
+    left:2px;
+    top:9px;
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:var(--accent);
+  }
+  section.clause li strong{color:var(--ink);font-weight:600;}
+
+  .callout{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:14px 16px;
+    font-size:14px;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+  .callout strong{color:var(--ink);}
+
+  table.perm{
+    width:100%;
+    border-collapse:collapse;
+    font-size:13.5px;
+    margin-top:6px;
+  }
+  table.perm th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    font-weight:600;
+    padding:6px 10px 8px 0;
+    border-bottom:1px solid var(--rule);
+  }
+  table.perm td{
+    padding:9px 10px 9px 0;
+    border-bottom:1px solid var(--rule);
+    color:var(--ink-soft);
+    vertical-align:top;
+  }
+  table.perm td:first-child{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12.5px;
+    color:var(--ink);
+    white-space:nowrap;
+  }
+  .tbl-wrap{overflow-x:auto;}
+
+  a{color:var(--link);}
+
+  footer.doc-foot{
+    margin-top:48px;
+    padding-top:24px;
+    border-top:1px solid var(--rule);
+    font-size:13px;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  @media (max-width:520px){
+    nav.toc ol{columns:1;}
+    .wrap{padding:36px 18px 72px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="doc-head">
+    <span class="eyebrow">🛡️ Privacy Policy</span>
+    <h1>RiyasHome Life Assistance</h1>
+    <div class="meta-row">
+      <span><strong>Effective</strong> 12 August 2026</span>
+      <span class="sep">·</span>
+      <span><strong>Applies to</strong> RiyasHome app (Android &amp; iOS)</span>
+      <span class="sep">·</span>
+      <span><strong>Framework</strong> DPDP Act, 2023 (India)</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Sections</h2>
+    <ol>
+      <li><a href="#s1"><span class="n">01</span> Data Fiduciary</a></li>
+      <li><a href="#s2"><span class="n">02</span> Data We Collect</a></li>
+      <li><a href="#s3"><span class="n">03</span> Purpose of Processing</a></li>
+      <li><a href="#s4"><span class="n">04</span> Storage &amp; Security</a></li>
+      <li><a href="#s5"><span class="n">05</span> Your Rights</a></li>
+      <li><a href="#s6"><span class="n">06</span> Data Retention</a></li>
+      <li><a href="#s7"><span class="n">07</span> Third-Party Services</a></li>
+      <li><a href="#s8"><span class="n">08</span> Children's Privacy</a></li>
+      <li><a href="#s9"><span class="n">09</span> Changes to This Policy</a></li>
+      <li><a href="#s10"><span class="n">10</span> Grievance Officer</a></li>
+    </ol>
+  </nav>
+
+  <section class="clause" id="s1">
+    <div class="clause-head"><span class="clause-num">01</span><h2>Data Fiduciary</h2></div>
+    <p>RiyasHome Life Assistance ("RiyasHome", "we", "us") is the Data Fiduciary as defined under the Digital Personal Data Protection Act, 2023 (DPDP Act). RiyasHome is operated by an independent developer based in India.</p>
+    <div class="callout">Contact — <a href="mailto:riyasailabs@gmail.com">riyasailabs@gmail.com</a></div>
+  </section>
+
+  <section class="clause" id="s2">
+    <div class="clause-head"><span class="clause-num">02</span><h2>Data We Collect</h2></div>
+    <p>We collect only the personal data you choose to enter into the app, plus a small set of device permissions needed for specific features:</p>
+    <ul>
+      <li><strong>Identity</strong> — name, date of birth</li>
+      <li><strong>Contact</strong> — mobile phone number (used for OTP login)</li>
+      <li><strong>Financial</strong> — income, expenses, wallets, budgets you record</li>
+      <li><strong>Lifestyle</strong> — health notes, pantry items, tasks, reminders, wardrobe entries, wishes</li>
+      <li><strong>Device</strong> — Firebase device token, for push notifications</li>
+    </ul>
+    <div class="tbl-wrap">
+      <table class="perm">
+        <thead><tr><th>Permission</th><th>What it's for</th></tr></thead>
+        <tbody>
+          <tr><td>Contacts</td><td>Read on-device, with your permission, to power @mention suggestions and Splits group member search. When you pick a contact, only that person's name and phone number are saved into the record you're creating (e.g. a task mention or a Splits group) — we never upload or scan your full contact list.</td></tr>
+          <tr><td>Microphone</td><td>Voice input only. Speech is converted to text on-device / by the recognition service and is not stored as audio.</td></tr>
+          <tr><td>Camera / Photos</td><td>Used only when you choose to scan a bill or attach an image — nothing is captured in the background.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:12px;">We do not collect location data or any background sensor data, and we never sell or share this data for advertising.</p>
+  </section>
+
+  <section class="clause" id="s3">
+    <div class="clause-head"><span class="clause-num">03</span><h2>Purpose of Processing</h2></div>
+    <p>Your data is used solely to provide and improve RiyasHome's features:</p>
+    <ul>
+      <li>Authenticating your identity via OTP</li>
+      <li>Storing and displaying your personal records across devices</li>
+      <li>Sending reminders and alerts you create</li>
+      <li>Running AI parsing on data you explicitly submit (e.g. bill scan, SMS parser, chat assistant)</li>
+    </ul>
+    <p>We do not use your data for advertising, profiling, or selling to third parties.</p>
+  </section>
+
+  <section class="clause" id="s4">
+    <div class="clause-head"><span class="clause-num">04</span><h2>Storage &amp; Security</h2></div>
+    <p>Your data is stored in Supabase, hosted on AWS in the <strong>ap-south-1 (Mumbai)</strong> region. All data is:</p>
+    <ul>
+      <li>Encrypted in transit (TLS 1.3)</li>
+      <li>Encrypted at rest (AES-256)</li>
+      <li>Access-controlled by Row Level Security — only you can read your records</li>
+      <li>Locally cached credentials stored in encrypted storage (Android Keystore / iOS Secure Enclave)</li>
+    </ul>
+  </section>
+
+  <section class="clause" id="s5">
+    <div class="clause-head"><span class="clause-num">05</span><h2>Your Rights</h2></div>
+    <p>As a Data Principal under the DPDP Act, you have the following rights:</p>
+    <ul>
+      <li><strong>Access</strong> — view all data we hold about you, via <em>Export My Data</em> in Privacy &amp; Security settings</li>
+      <li><strong>Correction</strong> — edit any data directly in the app</li>
+      <li><strong>Erasure</strong> — request full account deletion; your data is deleted within 30 days</li>
+      <li><strong>Grievance redressal</strong> — contact us at <a href="mailto:riyasailabs@gmail.com">riyasailabs@gmail.com</a>; we respond within 7 days</li>
+      <li><strong>Withdraw consent</strong> — delete your account at any time from Privacy &amp; Security settings</li>
+    </ul>
+  </section>
+
+  <section class="clause" id="s6">
+    <div class="clause-head"><span class="clause-num">06</span><h2>Data Retention</h2></div>
+    <p>We retain your data for as long as your account is active. When you delete your account:</p>
+    <ul>
+      <li>All your personal records are immediately soft-deleted</li>
+      <li>Hard deletion completes within 30 days</li>
+      <li>Anonymised aggregate statistics (no personal identifiers) may be retained for service improvement</li>
+    </ul>
+    <p>Items in the Recycle Bin are permanently purged after 30 days.</p>
+  </section>
+
+  <section class="clause" id="s7">
+    <div class="clause-head"><span class="clause-num">07</span><h2>Third-Party Services</h2></div>
+    <p>RiyasHome relies on these third-party services, and shares only the minimum data each one needs:</p>
+    <ul>
+      <li><strong>Firebase (Google)</strong> — OTP authentication and push notifications. <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a></li>
+      <li><strong>Supabase</strong> — database, storage, and edge functions. <a href="https://supabase.com/privacy" target="_blank" rel="noopener">supabase.com/privacy</a></li>
+      <li><strong>Google Gemini API</strong> — AI text parsing, limited to data you explicitly submit; processed server-side and not retained by Google beyond processing. <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a></li>
+    </ul>
+  </section>
+
+  <section class="clause" id="s8">
+    <div class="clause-head"><span class="clause-num">08</span><h2>Children's Privacy</h2></div>
+    <p>RiyasHome is not intended for children under 18. We do not knowingly collect personal data from minors. If you believe a minor has provided data, contact us immediately.</p>
+  </section>
+
+  <section class="clause" id="s9">
+    <div class="clause-head"><span class="clause-num">09</span><h2>Changes to This Policy</h2></div>
+    <p>We may update this policy from time to time. Material changes will be notified in-app. Continued use of the app after notification constitutes acceptance of the updated policy.</p>
+  </section>
+
+  <section class="clause" id="s10">
+    <div class="clause-head"><span class="clause-num">10</span><h2>Grievance Officer</h2></div>
+    <p>As required under the DPDP Act, you may contact our Grievance Officer for any data-related concerns:</p>
+    <div class="callout">
+      <strong>Email</strong> <a href="mailto:riyasailabs@gmail.com">riyasailabs@gmail.com</a> — response within 7 business days.<br>
+      To exercise your right to erasure, use <em>Delete My Account</em> in Privacy &amp; Security settings, or write to the email above.
+    </div>
+  </section>
+
+  <footer class="doc-foot">
+    <span>© 2026 RiyasHome Life Assistance</span>
+    <span>riyasailabs@gmail.com</span>
+  </footer>
+
+</div>
+</body>
+</html>

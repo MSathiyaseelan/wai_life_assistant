@@ -63,8 +63,14 @@ class PrivacyPolicySheet extends StatelessWidget {
                     _bullet(
                       'Device: Firebase device token for push notifications',
                     ),
+                    _bullet(
+                      'Contacts: With your permission, we read your device contact list on-device to power @mention suggestions and Splits group member search. When you select a contact, that person\'s name and phone number are saved as part of the record you create (e.g. a task mention or a Splits group). We never upload or scan your full contact list.',
+                    ),
+                    _bullet(
+                      'Microphone: With your permission, used only for voice-to-text input. Audio is processed to text on your device/by the speech recognition service and is not stored as audio.',
+                    ),
                     _para(
-                      'We do not collect location data, contacts, camera images (unless you upload a bill), or any background sensor data.',
+                      'We do not collect location data, camera images (unless you upload a bill), or any background sensor data.',
                     ),
                   ],
                 ),
@@ -269,7 +275,7 @@ class PrivacyPolicySheet extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Last updated: June 2026  ·  Compliant with DPDP Act 2023 (India)',
+            'Last updated: August 2026  ·  Compliant with DPDP Act 2023 (India)',
             style: TextStyle(
               fontSize: 11,
               fontFamily: 'Nunito',
