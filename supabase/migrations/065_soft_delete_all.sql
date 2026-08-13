@@ -1,6 +1,36 @@
 -- 065_soft_delete_all.sql
 -- Adds deleted_at to all soft-deletable tables (families and transactions already have it from 034).
 
+-- function_moi_entries existed on dev/qa only as a manually-created table
+-- (never tracked by an earlier migration), which broke a from-scratch apply
+-- on a new project at this point. Recreated here from the live dev schema so
+-- history is complete; IF NOT EXISTS keeps this a no-op on dev/qa.
+CREATE TABLE IF NOT EXISTS function_moi_entries (
+  id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  function_id            TEXT NOT NULL,
+  wallet_id              TEXT NOT NULL,
+  person_name            TEXT NOT NULL,
+  family_name            TEXT,
+  place                  TEXT,
+  phone                  TEXT,
+  relation               TEXT,
+  amount                 NUMERIC NOT NULL,
+  kind                   TEXT NOT NULL DEFAULT 'newMoi',
+  notes                  TEXT,
+  returned               BOOLEAN NOT NULL DEFAULT false,
+  returned_amount        NUMERIC,
+  returned_on            DATE,
+  returned_for_function  TEXT,
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE function_moi_entries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "own" ON function_moi_entries;
+CREATE POLICY "own" ON function_moi_entries
+  FOR ALL USING (auth.uid() = user_id);
+
 ALTER TABLE wishes               ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE reminders            ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 ALTER TABLE notes                ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
