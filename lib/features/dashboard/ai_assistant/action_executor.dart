@@ -10,6 +10,7 @@ import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
+import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'assistant_response.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,8 +30,20 @@ class ActionExecutor {
 
   /// Returns the saved [TxModel] for transaction actions (expense/income/lend/borrow),
   /// null for all other action types.
+  static const _healthActionTypes = {
+    ActionType.addMedication,
+    ActionType.addAppointment,
+    ActionType.addVital,
+    ActionType.addVaccination,
+    ActionType.addDoctor,
+    ActionType.addInsurance,
+  };
+
   Future<TxModel?> execute(ActionPayload action, String walletId) async {
     final d = action.data;
+    if (!FeatureFlags.healthSpaceEnabled && _healthActionTypes.contains(action.actionType)) {
+      throw StateError('Health Space isn\'t available in this version of the app.');
+    }
     try {
     switch (action.actionType) {
       case ActionType.addGrocery:

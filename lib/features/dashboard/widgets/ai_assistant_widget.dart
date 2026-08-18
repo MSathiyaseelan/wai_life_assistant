@@ -30,6 +30,7 @@ import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/config/feature_flags.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AIAssistantWidget
@@ -98,11 +99,11 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
 
-  static const _quickQuestions = [
+  static List<String> get _quickQuestions => [
     'How much did I spend this month?',
-    'Any upcoming appointments?',
+    if (FeatureFlags.healthSpaceEnabled) 'Any upcoming appointments?',
     'What\'s on my grocery list?',
-    'My active medications?',
+    if (FeatureFlags.healthSpaceEnabled) 'My active medications?',
     'Any upcoming functions?',
     'Summarise my finances',
   ];

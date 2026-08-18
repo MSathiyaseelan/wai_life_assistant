@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/features/lifestyle/modules/health_space/healt
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/config/feature_flags.dart';
 
 class MyHubScreen extends StatefulWidget {
   final String activeWalletId;
@@ -87,7 +88,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
       if (!mounted) return;
       if (signal == 'functions') {
         _openFunctions(context);
-      } else if (signal.startsWith('health:')) {
+      } else if (FeatureFlags.healthSpaceEnabled && signal.startsWith('health:')) {
         final tabMap = {
           'health:meds': 1,
           'health:appointments': 4,
@@ -153,8 +154,12 @@ class _MyHubScreenState extends State<MyHubScreen> {
         locSvc.fetchContainers(wid),
         locSvc.fetchItems(wid),
         WardrobeService.instance.fetchItems(wid),
-        HealthService.instance.fetchSummary(wid),
-        HealthService.instance.fetchAppointments(wid),
+        FeatureFlags.healthSpaceEnabled
+            ? HealthService.instance.fetchSummary(wid)
+            : Future.value(<String, int>{}),
+        FeatureFlags.healthSpaceEnabled
+            ? HealthService.instance.fetchAppointments(wid)
+            : Future.value(<Map<String, dynamic>>[]),
       ]);
       if (!mounted) return;
       final healthSummary = results[4] as Map<String, int>;
@@ -424,23 +429,25 @@ class _MyHubScreenState extends State<MyHubScreen> {
                             setState(() => _wardrobeItems.insert(0, saved)),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _buildModuleCard(
-                      context: context,
-                      isDark: isDark,
-                      cardBg: cardBg,
-                      textColor: textColor,
-                      color: const Color(0xFF00BFA5),
-                      emoji: '🏥',
-                      title: 'Health Space',
-                      subtitle: 'Medications, vitals & records',
-                      count: _healthMedications + _healthAppointments,
-                      summary: healthSummary,
-                      emptyLabel: 'Tap ➕ to log your first record',
-                      onTap: () => _openHealthSpace(context),
-                      quickActionLabel: '💊 Meds',
-                      onQuickAction: () => _openHealthSpaceAt(context, 1),
-                    ),
+                    if (FeatureFlags.healthSpaceEnabled) ...[
+                      const SizedBox(height: 12),
+                      _buildModuleCard(
+                        context: context,
+                        isDark: isDark,
+                        cardBg: cardBg,
+                        textColor: textColor,
+                        color: const Color(0xFF00BFA5),
+                        emoji: '🏥',
+                        title: 'Health Space',
+                        subtitle: 'Medications, vitals & records',
+                        count: _healthMedications + _healthAppointments,
+                        summary: healthSummary,
+                        emptyLabel: 'Tap ➕ to log your first record',
+                        onTap: () => _openHealthSpace(context),
+                        quickActionLabel: '💊 Meds',
+                        onQuickAction: () => _openHealthSpaceAt(context, 1),
+                      ),
+                    ],
                   ],
                 ),
               ),

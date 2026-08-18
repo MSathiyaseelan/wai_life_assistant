@@ -11,6 +11,7 @@ import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/item_locator_service.dart';
+import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'intent_classifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,7 +138,8 @@ class ContextFetcher {
     final fetchPlanit    = sources.contains(DataSource.planit)    || isCrossTab;
     final fetchFunctions = sources.contains(DataSource.functions) || isCrossTab;
     final fetchFamily    = sources.contains(DataSource.family);
-    final fetchHealth    = sources.contains(DataSource.health)    || isCrossTab;
+    final fetchHealth    = FeatureFlags.healthSpaceEnabled &&
+        (sources.contains(DataSource.health) || isCrossTab);
     final fetchMyHub     = sources.contains(DataSource.myHub)     || isCrossTab;
 
     final results = await Future.wait([

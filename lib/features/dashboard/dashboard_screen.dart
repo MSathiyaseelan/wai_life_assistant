@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
@@ -687,6 +688,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Future<void> _loadHealthData(String walletId) async {
+    if (!FeatureFlags.healthSpaceEnabled) return;
     if (_isPlaceholder(walletId)) return;
     _loadedHealthWalletIds.add(walletId);
     try {
