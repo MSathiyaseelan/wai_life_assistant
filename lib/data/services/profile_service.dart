@@ -177,7 +177,7 @@ class ProfileService {
         return FamilyMember(
           id:       mm['id'] as String,
           userId:   mm['user_id'] as String?,
-          name:     mm['name'] as String,
+          name:     mm['name'] as String? ?? 'Member',
           emoji:    mm['emoji'] as String? ?? '👤',
           role:     _parseRole(mm['role'] as String?),
           phone:    mm['phone'] as String?,
@@ -187,7 +187,7 @@ class ProfileService {
 
       families.add(FamilyModel(
         id:         fm['family_id'] as String,
-        name:       fm['name'] as String,
+        name:       fm['name'] as String? ?? 'Family',
         emoji:      fm['emoji'] as String? ?? '👥',
         colorIndex: colorIdx,
         members:    members,
@@ -202,7 +202,7 @@ class ProfileService {
         final gradients = AppColors.familyGradients;
         familyWallets.add(WalletModel(
           id:        fm['wallet_id'] as String,
-          name:      fm['name'] as String,
+          name:      fm['name'] as String? ?? 'Family',
           emoji:     fm['emoji'] as String? ?? '👥',
           isPersonal: false,
           cashIn:    0, cashOut: 0,
