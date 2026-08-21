@@ -176,6 +176,22 @@ class AppStateNotifier extends ChangeNotifier {
         }
       } catch (e, stack) {
         debugPrint('[AppState] init error (attempt $attempt): $e');
+        // A row can come back from fetchSwitcherData with a null
+        // personal_wallet_id (bootstrap created the profile but not the
+        // wallet, e.g. a migration-gap or interrupted signup) — that throws
+        // here rather than hitting the "row == null" branch above, so it
+        // needs the same self-heal repair attempt or it just retries the
+        // same broken row until attempts run out.
+        if (!repairAttempted) {
+          repairAttempted = true;
+          try {
+            await ProfileService.instance.bootstrapNewUser();
+            debugPrint('[AppState] bootstrapNewUser repair attempted (after parse error)');
+          } catch (repairError) {
+            debugPrint('[AppState] bootstrapNewUser repair failed: $repairError');
+          }
+          if (!isLastAttempt) continue;
+        }
         if (isLastAttempt) {
           ErrorLogger.log(e, stackTrace: stack, action: 'app_state_init', severity: ErrorSeverity.critical);
           if (_wallets.isEmpty) {
