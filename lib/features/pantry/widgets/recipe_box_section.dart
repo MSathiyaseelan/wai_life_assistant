@@ -142,6 +142,10 @@ class _RecipeBoxSectionState extends State<RecipeBoxSection> {
                   onSave: widget.onRecipeAdded,
                   walletId: widget.walletId,
                   onRestoreUntagged: widget.onRestoreUntagged,
+                  existingLibraryIds: widget.recipes
+                      .map((r) => r.libraryRecipeId)
+                      .whereType<String>()
+                      .toSet(),
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(

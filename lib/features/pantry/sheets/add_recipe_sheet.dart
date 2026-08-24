@@ -15,6 +15,10 @@ class AddRecipeSheet extends StatefulWidget {
   final String? walletId;
   /// Called to bring back a previously-untagged recipe from the wallet.
   final void Function(RecipeModel)? onRestoreUntagged;
+  /// `libraryRecipeId`s already in the current Recipe Box — library results
+  /// matching one of these show as already-added instead of "+ Add", so the
+  /// button doesn't mislead the user into thinking a duplicate add is needed.
+  final Set<String> existingLibraryIds;
 
   const AddRecipeSheet({
     super.key,
@@ -23,6 +27,7 @@ class AddRecipeSheet extends StatefulWidget {
     this.onUpdate,
     this.walletId,
     this.onRestoreUntagged,
+    this.existingLibraryIds = const {},
   });
 
   static Future<void> show(
@@ -32,6 +37,7 @@ class AddRecipeSheet extends StatefulWidget {
     void Function(RecipeModel)? onUpdate,
     String? walletId,
     void Function(RecipeModel)? onRestoreUntagged,
+    Set<String> existingLibraryIds = const {},
   }) {
     return showModalBottomSheet(
       context: context,
@@ -43,6 +49,7 @@ class AddRecipeSheet extends StatefulWidget {
         onUpdate: onUpdate,
         walletId: walletId,
         onRestoreUntagged: onRestoreUntagged,
+        existingLibraryIds: existingLibraryIds,
       ),
     );
   }
@@ -99,6 +106,7 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
     super.initState();
     final e = widget.existing;
     if (e != null) {
+      _tab = 0; // Custom tab — editing an existing recipe, not browsing the library
       _nameCtrl.text = e.name;
       _emoji = e.emoji;
       _cuisine = e.cuisine;
@@ -622,7 +630,9 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
                           ),
                         ),
                     ],
-                    ..._masterResults.map((r) => Column(children: [
+                    ..._masterResults.map((r) {
+                      final alreadyAdded = widget.existingLibraryIds.contains(r.id);
+                      return Column(children: [
                       ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 4,
@@ -651,7 +661,34 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
                           '${r.cuisine}${r.cookTimeMin != null ? '  ·  ⏱ ${r.cookTimeMin} min' : ''}',
                           style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
                         ),
-                        trailing: GestureDetector(
+                        trailing: alreadyAdded
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: sub.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.check_rounded, size: 13, color: sub),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      'Added',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w900,
+                                        color: sub,
+                                        fontFamily: 'Nunito',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : GestureDetector(
                           onTap: () => _quickAdd(context, r),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -676,7 +713,8 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
                         onTap: () => _showPreview(context, r),
                       ),
                       const Divider(height: 1),
-                    ])),
+                    ]);
+                    }),
                   ],
                 ),
         ),
@@ -1555,6 +1593,7 @@ class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
                     recipe: widget.recipe,
                     onLogMeal: widget.onLogMeal,
                     onAddToBasket: widget.onAddToBasket,
+                    groceries: _groceries,
                   ),
 
                   const SizedBox(height: 24),
@@ -1574,11 +1613,16 @@ class _RecipeActions extends StatefulWidget {
   final RecipeModel recipe;
   final void Function(MealEntry)? onLogMeal;
   final void Function(GroceryItem)? onAddToBasket;
+  /// Current grocery list — used to detect whether this recipe's
+  /// ingredients are already in the To Buy list, so the button reflects
+  /// that on reopen instead of always offering to add again.
+  final List<GroceryItem> groceries;
 
   const _RecipeActions({
     required this.recipe,
     this.onLogMeal,
     this.onAddToBasket,
+    this.groceries = const [],
   });
 
   @override
@@ -1587,7 +1631,36 @@ class _RecipeActions extends StatefulWidget {
 
 class _RecipeActionsState extends State<_RecipeActions> {
   MealTime _selectedTime = MealTime.lunch;
-  bool _basketAdded = false;
+  late bool _basketAdded;
+
+  @override
+  void initState() {
+    super.initState();
+    // Reflect real state on reopen — if every ingredient is already in the
+    // To Buy list, show "Added" instead of offering to add (and silently
+    // inflate quantities via _addGrocery's merge-by-name) again.
+    final inToBuy = widget.groceries.where((g) => g.toBuy).toList();
+    _basketAdded = widget.recipe.ingredients.isNotEmpty &&
+        widget.recipe.ingredients.every((ing) {
+          final name = canonicalIngredientName(_extractIngName(ing));
+          if (name.isEmpty) return false;
+          return inToBuy.any((g) {
+            final gName = g.effectiveNormalizedName;
+            return gName.isNotEmpty &&
+                (gName == name || gName.contains(name) || name.contains(gName));
+          });
+        });
+  }
+
+  static String _extractIngName(String raw) {
+    return raw
+        .toLowerCase()
+        .replaceAll(
+            RegExp(r'^\s*[\d./]+\s*(cups?|tbsp|tsp|g|kg|ml|l|pcs|pieces?|medium|large|small)?\s*[-–:,]?\s*'),
+            '')
+        .replaceAll(RegExp(r'\s*[-–(,].*$'), '')
+        .trim();
+  }
 
   void _logMeal() {
     if (widget.onLogMeal == null) return;

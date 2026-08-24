@@ -161,6 +161,7 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
               id: 'me',
               name: profile['name'] as String? ?? 'Me',
               emoji: profile['emoji'] as String? ?? '🧑',
+              phone: profile['phone'] as String?,
               isMe: true,
             );
           }

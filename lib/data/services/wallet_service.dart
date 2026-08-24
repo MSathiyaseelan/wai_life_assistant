@@ -740,7 +740,7 @@ class WalletService {
       'split_type': splitType,
       'note': note,
       'date': (date ?? DateTime.now()).toIso8601String(),
-      if (paymentMode != null && paymentMode.isNotEmpty) 'payment_mode': paymentMode,
+      'payment_mode': (paymentMode != null && paymentMode.isNotEmpty) ? paymentMode : 'cash',
     }).select().single();
 
     // 2. Insert shares — payer's own share is auto-settled
@@ -779,7 +779,7 @@ class WalletService {
       'split_type': splitType,
       'note': note,
       'date': (date ?? DateTime.now()).toIso8601String(),
-      'payment_mode': (paymentMode != null && paymentMode.isNotEmpty) ? paymentMode : null,
+      'payment_mode': (paymentMode != null && paymentMode.isNotEmpty) ? paymentMode : 'cash',
     }).eq('id', txId);
 
     for (final s in shares) {

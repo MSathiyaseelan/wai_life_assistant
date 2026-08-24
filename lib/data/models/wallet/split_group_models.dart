@@ -410,7 +410,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
         final userId = p['user_id'] as String?;
         return SplitParticipant(
           id: p['id'] as String,
-          name: p['name'] as String,
+          name: p['name'] as String? ?? 'Member',
           emoji: p['emoji'] as String? ?? '👤',
           phone: p['phone'] as String?,
           userId: userId,
@@ -461,7 +461,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
 
   final group = SplitGroup(
     id: row['id'] as String,
-    name: row['name'] as String,
+    name: row['name'] as String? ?? 'Split Group',
     emoji: row['emoji'] as String? ?? '🤝',
     walletId: row['wallet_id'] as String,
     createdBy: row['created_by'] as String? ?? '',

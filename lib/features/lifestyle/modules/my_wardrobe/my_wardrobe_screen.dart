@@ -630,6 +630,41 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                   child: _WishlistCard(
                                     item: _wishlist[i],
                                     isDark: isDark,
+                                    onMoveToWardrobe: () async {
+                                      final item = _wishlist[i];
+                                      try {
+                                        await WardrobeService.instance
+                                            .updateItem(item.id, {'wishlist': false});
+                                        if (mounted) {
+                                          setState(() => item.wishlist = false);
+                                        }
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Failed to move item. Please try again.'),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    onDelete: () async {
+                                      final item = _wishlist[i];
+                                      try {
+                                        await WardrobeService.instance.deleteItem(item.id);
+                                        if (mounted) {
+                                          setState(() => _clothes.remove(item));
+                                        }
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Failed to remove item. Please try again.'),
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
                                   ),
                                 ),
                               ),
@@ -3105,7 +3140,14 @@ class _WardrobePhoto extends StatelessWidget {
 class _WishlistCard extends StatelessWidget {
   final ClothingItem item;
   final bool isDark;
-  const _WishlistCard({required this.item, required this.isDark});
+  final VoidCallback onMoveToWardrobe;
+  final VoidCallback onDelete;
+  const _WishlistCard({
+    required this.item,
+    required this.isDark,
+    required this.onMoveToWardrobe,
+    required this.onDelete,
+  });
   @override
   Widget build(BuildContext context) {
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -3162,7 +3204,60 @@ class _WishlistCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.favorite_rounded, color: _wardrobeColor, size: 20),
+          GestureDetector(
+            onTap: onMoveToWardrobe,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _wardrobeColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.checkroom_rounded,
+                color: _wardrobeColor,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => _confirmDelete(context),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+                size: 18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Remove from Wishlist?'),
+        content: Text('This will remove "${item.name}" from your wishlist.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              onDelete();
+            },
+            child: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+          ),
         ],
       ),
     );
