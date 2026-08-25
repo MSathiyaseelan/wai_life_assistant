@@ -367,7 +367,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'WAI $_planName',
+                  'RiyasHome $_planName',
                   style: const TextStyle(
                       fontSize: 20,
                       fontFamily: 'Nunito',
@@ -622,7 +622,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('WAI $title',
+                      Text('RiyasHome $title',
                           style: TextStyle(
                               fontSize: 14,
                               fontFamily: 'Nunito',

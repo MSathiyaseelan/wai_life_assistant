@@ -86,7 +86,7 @@ class SMSPermissionScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'WAI reads your bank SMS to suggest transactions automatically. '
+            'RiyasHome reads your bank SMS to suggest transactions automatically. '
             'No SMS is stored on our servers — everything is processed on your device.',
             style: TextStyle(
               fontSize: 13,

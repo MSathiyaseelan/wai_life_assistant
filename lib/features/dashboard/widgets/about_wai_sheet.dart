@@ -23,7 +23,7 @@ class AboutWaiSheet extends StatelessWidget {
     final uri = Uri(
       scheme: 'mailto',
       path: _supportEmail,
-      query: 'subject=${Uri.encodeComponent('WAI Support Request')}',
+      query: 'subject=${Uri.encodeComponent('RiyasHome Support Request')}',
     );
     try {
       final launched = await launchUrl(uri);
@@ -182,7 +182,7 @@ class AboutWaiSheet extends StatelessWidget {
           ),
 
           const SizedBox(height: 24),
-          Text('Made with ♥ by the WAI Team',
+          Text('Made with ♥ by the RiyasHome Team',
               style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _sub)),
           const SizedBox(height: 8),
         ],

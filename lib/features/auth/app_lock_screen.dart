@@ -104,7 +104,7 @@ class _AppLockGuardState extends State<AppLockGuard>
       // biometricOnly: true which throws on many devices when strong
       // biometric isn't configured.
       final success = await _auth.authenticate(
-        localizedReason: 'Authenticate to open WAI',
+        localizedReason: 'Authenticate to open RiyasHome',
         options: const AuthenticationOptions(
           biometricOnly: false,
           stickyAuth: true,
@@ -308,7 +308,7 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
             const SizedBox(height: 20),
 
             Text(
-              'WAI is Locked',
+              'RiyasHome is Locked',
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w900,

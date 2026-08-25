@@ -24,7 +24,7 @@ final _kAlarmVibration = Int64List.fromList([0, 600, 300, 600, 300, 600]);
 AndroidNotificationDetails _alarmAndroidDetails({required String body, String? payload}) =>
     AndroidNotificationDetails(
       'wai_alarms',
-      'WAI Alarms',
+      'RiyasHome Alarms',
       channelDescription: 'Alarm-style alerts from RiyasHome Life Assistance',
       importance: Importance.max,
       priority: fln.Priority.max,
@@ -67,7 +67,7 @@ const _alarmIosDetails = DarwinNotificationDetails(
 AndroidNotificationDetails _alarmAndroidDetailsQuiet() =>
     AndroidNotificationDetails(
       'wai_alarms_quiet',
-      'WAI Reminders (Quiet Hours)',
+      'RiyasHome Reminders (Quiet Hours)',
       channelDescription: 'Silent reminders during your configured quiet hours',
       importance: Importance.low,
       priority: fln.Priority.low,
@@ -255,7 +255,7 @@ class NotificationService {
     await androidImpl?.createNotificationChannel(
       AndroidNotificationChannel(
         'wai_alarms',
-        'WAI Alarms',
+        'RiyasHome Alarms',
         description: 'Alarm-style alerts from RiyasHome Life Assistance',
         importance: Importance.max,
         sound: const UriAndroidNotificationSound(
@@ -269,7 +269,7 @@ class NotificationService {
     await androidImpl?.createNotificationChannel(
       const AndroidNotificationChannel(
         'wai_alarms_quiet',
-        'WAI Reminders (Quiet Hours)',
+        'RiyasHome Reminders (Quiet Hours)',
         description: 'Silent reminders during your configured quiet hours',
         importance: Importance.low,
         playSound: false,

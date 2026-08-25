@@ -3539,10 +3539,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                   children: [
                                     Text(
                                       _userPlan == 'family_pro'
-                                          ? 'WAI Family Pro'
+                                          ? 'Family Pro'
                                           : _userPlan == 'family_plus'
-                                          ? 'WAI Family Plus'
-                                          : 'WAI Personal',
+                                          ? 'Family Plus'
+                                          : 'Personal',
                                       style: const TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w900,
