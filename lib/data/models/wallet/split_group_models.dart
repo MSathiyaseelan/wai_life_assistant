@@ -447,8 +447,15 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
         return SplitGroupTx(
           id: t['id'] as String,
           groupId: t['group_id'] as String,
-          addedById: t['added_by_id'] as String,
-          title: t['title'] as String,
+          // ON DELETE SET NULL (001_wallet_schema.sql) — a transaction's
+          // added_by_id goes null once the participant who added it is
+          // later removed from the group. '' is the established
+          // "no match" sentinel here (participantById/_name/_participantName
+          // all fall back to the raw id string when nothing matches, so
+          // this degrades to a blank/unknown payer rather than crashing
+          // the whole group's parse.
+          addedById: t['added_by_id'] as String? ?? '',
+          title: t['title'] as String? ?? 'Expense',
           totalAmount: (t['total_amount'] as num).toDouble(),
           splitType: splitTypeFromString(t['split_type'] as String? ?? 'equal'),
           shares: shares,

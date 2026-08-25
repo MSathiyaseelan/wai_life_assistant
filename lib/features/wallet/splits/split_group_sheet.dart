@@ -251,8 +251,22 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
     ));
   }
 
+  /// True if [p] is the group's creator — matches the server-side rule
+  /// (migration 160): any participant can remove a regular member, but only
+  /// the creator (or a wallet admin, enforced separately by RLS) can remove
+  /// the creator's own row.
+  bool _isCreator(SplitParticipant p) =>
+      p.userId != null && p.userId == widget.existing?.createdBy;
+
   void _remove(SplitParticipant p) {
     if (p.isMe) return;
+    if (_isCreator(p) &&
+        Supabase.instance.client.auth.currentUser?.id != widget.existing?.createdBy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Only the group's creator or a wallet admin can remove them.")),
+      );
+      return;
+    }
     setState(() => _participants.remove(p));
   }
 
@@ -1065,7 +1079,9 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
               ],
             ),
           ),
-          if (!p.isMe)
+          if (!p.isMe &&
+              (!_isCreator(p) ||
+                  Supabase.instance.client.auth.currentUser?.id == widget.existing?.createdBy))
             GestureDetector(
               onTap: () => _remove(p),
               child: Container(

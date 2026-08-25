@@ -205,7 +205,12 @@ class _WalletScreenState extends State<WalletScreen>
   /// Reloads AppState (to get real wallet UUID) then fetches transactions and split groups.
   Future<void> _refreshAll() async {
     await _appState.reload();
-    await Future.wait([_loadTransactions(), _loadSplitGroups(), _loadTxGroups()]);
+    await Future.wait([
+      _loadTransactions(),
+      _loadSplitGroups(),
+      _loadSharedSplitGroups(),
+      _loadTxGroups(),
+    ]);
   }
 
   @override
@@ -2769,7 +2774,11 @@ class _WalletScreenState extends State<WalletScreen>
     final groups = _splitGroups
         .where((g) => g.walletId == widget.activeWalletId)
         .toList();
-    final shared = _sharedSplitGroups;
+    // Shared groups don't belong to any of this user's own wallets, so show
+    // them once — anchored to the Personal tab — rather than duplicated
+    // under every wallet tab (Personal, each family wallet, etc.).
+    final activeWallet = _allWallets.where((w) => w.id == widget.activeWalletId).firstOrNull;
+    final shared = (activeWallet?.isPersonal ?? true) ? _sharedSplitGroups : const <SplitGroup>[];
 
     if (groups.isEmpty && shared.isEmpty) {
       return RefreshIndicator(
