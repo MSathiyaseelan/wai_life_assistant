@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/app_update_service.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
@@ -170,6 +171,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _loadUnreadCount();
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _appVersion = 'v${info.version}');
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) AppUpdateService.checkAndStartFlexibleUpdate(context);
     });
     ShortcutService.pending.addListener(_onShortcut);
     if (ShortcutService.pending.value == ShortcutService.pasteBankSms) {

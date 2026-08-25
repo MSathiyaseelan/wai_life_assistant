@@ -532,6 +532,47 @@ class WalletService {
         .toList();
   }
 
+  /// Fetch split groups the current user is a participant of but doesn't
+  /// own — groups someone else created and added them to by phone. These
+  /// live under the creator's wallet_id, so they never show up in
+  /// [fetchSplitGroups] (which is scoped to the caller's own wallet); before
+  /// this, the only way back into one was the one-time notification tap
+  /// that deep-links to it directly. RLS already allows a participant to
+  /// read a group regardless of wallet ownership (split_groups: select
+  /// policy, migration 138) — this just surfaces that access as a list.
+  Future<List<SplitGroup>> fetchSharedSplitGroups(List<String> myWalletIds) async {
+    final participantRows = await _db
+        .from('split_participants')
+        .select('group_id')
+        .eq('user_id', _uid)
+        .eq('is_me', false);
+    final groupIds = (participantRows as List)
+        .map((r) => r['group_id'] as String)
+        .toSet()
+        .toList();
+    if (groupIds.isEmpty) return [];
+
+    final rows = await _db
+        .from('split_groups')
+        .select('''
+          *,
+          split_participants(*),
+          split_group_transactions(
+            *,
+            split_shares(*)
+          )
+        ''')
+        .inFilter('id', groupIds)
+        .isFilter('deleted_at', null)
+        .order('created_at', ascending: false);
+
+    final myWalletSet = myWalletIds.toSet();
+    return (rows as List)
+        .where((r) => !myWalletSet.contains(r['wallet_id']))
+        .map((r) => splitGroupFromRow(r as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Toggle the dashboard pin for a split group — this is the CURRENT
   /// user's own preference (142), not shared with other participants.
   Future<void> updateSplitGroupPin(String groupId, {required bool pinned}) async {

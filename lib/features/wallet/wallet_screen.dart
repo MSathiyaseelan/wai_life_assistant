@@ -113,6 +113,11 @@ class _WalletScreenState extends State<WalletScreen>
   late List<SplitGroup> _splitGroups;
   bool _sgLoading = true;
 
+  // Split groups someone else created and added this account to by phone —
+  // not scoped to any of this user's own wallets, shown separately.
+  List<SplitGroup> _sharedSplitGroups = [];
+  bool _sharedSgLoading = true;
+
   // Transaction groups (named expense bundles)
   List<TxGroup> _txGroups = [];
 
@@ -230,6 +235,9 @@ class _WalletScreenState extends State<WalletScreen>
     // Initial transaction load
     if (_txLoading) _loadTransactions();
     if (_sgLoading) _loadSplitGroups();
+    // Not wallet-scoped (independent of the active wallet switcher), so
+    // load once rather than on every didUpdateWidget wallet switch.
+    if (_sharedSgLoading) _loadSharedSplitGroups();
     if (_txGroups.isEmpty) _loadTxGroups();
     WalletService.instance.loadCategories()
         .catchError((e) => ErrorLogger.warning(e, action: 'load_categories'));
@@ -439,6 +447,32 @@ class _WalletScreenState extends State<WalletScreen>
     } catch (e) {
       debugPrint('[WalletScreen] fetchSplitGroups error: $e');
       if (mounted) setState(() => _sgLoading = false);
+    }
+  }
+
+  Future<void> _loadSharedSplitGroups() async {
+    if (!AuthCoordinator.instance.isLoggedIn) {
+      if (mounted) {
+        setState(() {
+          _sharedSplitGroups = [];
+          _sharedSgLoading = false;
+        });
+      }
+      return;
+    }
+    setState(() => _sharedSgLoading = true);
+    try {
+      final myWalletIds = _appState.wallets.map((w) => w.id).toList();
+      final groups = await WalletService.instance.fetchSharedSplitGroups(myWalletIds);
+      if (mounted) {
+        setState(() {
+          _sharedSplitGroups = groups;
+          _sharedSgLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[WalletScreen] fetchSharedSplitGroups error: $e');
+      if (mounted) setState(() => _sharedSgLoading = false);
     }
   }
 
@@ -2735,8 +2769,9 @@ class _WalletScreenState extends State<WalletScreen>
     final groups = _splitGroups
         .where((g) => g.walletId == widget.activeWalletId)
         .toList();
+    final shared = _sharedSplitGroups;
 
-    if (groups.isEmpty) {
+    if (groups.isEmpty && shared.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refreshAll,
         child: CustomScrollView(
@@ -2748,8 +2783,9 @@ class _WalletScreenState extends State<WalletScreen>
       );
     }
 
-    // Build item list: [create banner, ...groups]
-    final itemCount = groups.length + 1;
+    // Build item list: [create banner, ...my groups, shared-header?, ...shared groups]
+    final hasShared = shared.isNotEmpty;
+    final itemCount = 1 + groups.length + (hasShared ? 1 + shared.length : 0);
     return RefreshIndicator(
       onRefresh: _refreshAll,
       child: CustomScrollView(
@@ -2765,7 +2801,44 @@ class _WalletScreenState extends State<WalletScreen>
                     child: _CreateGroupBanner(onTap: _openCreateGroup),
                   );
                 }
-                final g = groups[i - 1];
+                if (i - 1 < groups.length) {
+                  final g = groups[i - 1];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _SplitGroupCard(
+                      group: g,
+                      isDark: isDark,
+                      cardBg: cardBg,
+                      surfBg: surfBg,
+                      tc: tc,
+                      sub: sub,
+                      onTap: () => _openGroupDetail(g),
+                      // Any participant can rename/pin/add-or-remove members —
+                      // only visible in _splitGroups at all if they already
+                      // have access, so no extra gating needed here.
+                      onEdit: () => _openEditGroup(g),
+                      onMove: _canManageSplitGroup(g) ? () => _moveSplitGroupPrompt(g) : null,
+                      onAddExpense: () =>
+                          _openGroupDetail(g, autoAddExpense: true),
+                    ),
+                  );
+                }
+                final sharedIdx = i - 1 - groups.length;
+                if (sharedIdx == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                    child: Text(
+                      'Shared with me',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
+                    ),
+                  );
+                }
+                final g = shared[sharedIdx - 1];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _SplitGroupCard(
@@ -2776,9 +2849,6 @@ class _WalletScreenState extends State<WalletScreen>
                     tc: tc,
                     sub: sub,
                     onTap: () => _openGroupDetail(g),
-                    // Any participant can rename/pin/add-or-remove members —
-                    // only visible in _splitGroups at all if they already
-                    // have access, so no extra gating needed here.
                     onEdit: () => _openEditGroup(g),
                     onMove: _canManageSplitGroup(g) ? () => _moveSplitGroupPrompt(g) : null,
                     onAddExpense: () =>
