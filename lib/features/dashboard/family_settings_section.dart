@@ -693,25 +693,36 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                         ),
                         const SizedBox(width: 8),
                         GestureDetector(
-                          onTap: () => _sendPhoneInvite(family),
+                          onTap: _sendingInvite ? null : () => _sendPhoneInvite(family),
                           child: Container(
                             height: 42,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16),
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
+                              color: _sendingInvite
+                                  ? AppColors.primary.withValues(alpha: 0.6)
+                                  : AppColors.primary,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             alignment: Alignment.center,
-                            child: const Text(
-                              'Invite',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                fontFamily: 'Nunito',
-                                color: Colors.white,
-                              ),
-                            ),
+                            child: _sendingInvite
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                                    ),
+                                  )
+                                : const Text(
+                                    'Invite',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      fontFamily: 'Nunito',
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
                         ),
                       ],

@@ -346,14 +346,14 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
           ],
         ),
       ),
-      floatingActionButton: _tab.index == 0
+      floatingActionButton: _tab.index == 0 || _tab.index == 2
           ? FloatingActionButton.extended(
               onPressed: () => _showAddItem(context, isDark, surfBg),
               backgroundColor: _wardrobeColor,
               icon: const Icon(Icons.add_rounded, color: Colors.white),
-              label: const Text(
-                'Add Item',
-                style: TextStyle(
+              label: Text(
+                _tab.index == 2 ? 'Add to Wishlist' : 'Add Item',
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'Nunito',

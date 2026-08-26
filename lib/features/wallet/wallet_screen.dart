@@ -1763,8 +1763,18 @@ class _WalletScreenState extends State<WalletScreen>
             // pre-edit group, which could undo a change that actually saved.
             await _loadSplitGroups();
             if (!mounted) return;
+            // P0001 = a deliberate RAISE EXCEPTION from our own SQL (business
+            // rules like "only the creator/admin can remove them") — safe to
+            // show directly. Any other Postgrest error (RLS denial, etc.)
+            // carries SQL detail that shouldn't reach the user.
+            final isOffline = !NetworkService.instance.isOnline.value;
+            final message = isOffline
+                ? 'No internet connection. Your changes weren\'t saved.'
+                : (e is PostgrestException && e.code == 'P0001')
+                    ? e.message
+                    : 'Failed to save group. Please try again.';
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to save group. Please try again.')),
+              SnackBar(content: Text(message)),
             );
           }
         }
