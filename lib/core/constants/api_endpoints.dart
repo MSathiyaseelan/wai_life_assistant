@@ -33,6 +33,7 @@ abstract final class AppRpc {
   static const String sendSplitReminderNotification = 'send_split_reminder_notification';
   static const String sendBudgetAlertNotification = 'send_budget_alert_notification';
   static const String sendSplitExtensionNotification = 'send_split_extension_notification';
+  static const String sendSplitProofNotification = 'send_split_proof_notification';
   static const String sendSplitAddedNotification = 'send_split_added_notification';
   static const String matchProfileIdsByPhone = 'match_profile_ids_by_phone';
 }

@@ -53,6 +53,7 @@ const TEMPLATES: Record<string, Template> = {
   "wallet.split_added":    (d) => ({ title: `🧾 New split added`,                 body: `${d.member_name} split ₹${d.amount} — you owe ₹${d.your_share}`, route: "wallet" }),
   "split.reminder":        (d) => ({ title: `🔔 Payment reminder`,               body: `${d.member_name} reminds you: you owe ₹${d.amount} in "${d.group_name}"`, route: "wallet" }),
   "split.extension_requested": (d) => ({ title: `⏰ Extension requested`,        body: `${d.member_name} asked for more time on ₹${d.amount} in "${d.group_name}"`, route: "wallet" }),
+  "split.proof_submitted": (d) => ({ title: `🧾 Payment proof submitted`,       body: `${d.member_name} submitted proof for ₹${d.amount} in "${d.group_name}"`, route: "wallet" }),
   "split.added_you":       (d) => ({ title: `🤝 Added to a split group`,        body: `${d.member_name} added you to "${d.group_name}"`, route: "wallet" }),
 
   // Pantry
@@ -87,6 +88,7 @@ const EVENT_PREF_COLUMN: Record<string, string> = {
   "wallet.split_added": "notif_wallet_split",
   "split.reminder": "notif_wallet_split",
   "split.extension_requested": "notif_wallet_split",
+  "split.proof_submitted": "notif_wallet_split",
   "split.added_you": "notif_wallet_split",
   "planit.reminder_added": "notif_planit_alert_me",
   "functions.upcoming_added": "notif_functions_upcoming",

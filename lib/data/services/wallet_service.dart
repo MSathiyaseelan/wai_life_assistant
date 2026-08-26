@@ -846,8 +846,12 @@ class WalletService {
     await _db.from('split_group_transactions').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', txId);
   }
 
-  /// Update a share's settlement status.
-  Future<void> updateShareStatus({
+  /// Update a share's settlement status. Returns true only if a row was
+  /// actually updated — an RLS policy that excludes the row (e.g. a stale
+  /// participant link) makes Postgres silently affect 0 rows rather than
+  /// throw, so callers must check this instead of assuming success just
+  /// because no exception was raised.
+  Future<bool> updateShareStatus({
     required String shareId,
     required String status,
     String? proofNote,
@@ -869,13 +873,32 @@ class WalletService {
       if (extensionReason != null)        'extension_reason': extensionReason,
       if (extensionResponseMsg != null)   'extension_response_msg': extensionResponseMsg,
     };
+    List<dynamic> rows;
     if (shareId.isNotEmpty) {
-      await _db.from('split_shares').update(data).eq('id', shareId);
+      rows = await _db.from('split_shares').update(data).eq('id', shareId).select('id');
     } else if (transactionId != null && participantId != null) {
-      await _db.from('split_shares').update(data)
+      rows = await _db.from('split_shares').update(data)
           .eq('transaction_id', transactionId)
-          .eq('participant_id', participantId);
+          .eq('participant_id', participantId)
+          .select('id');
+    } else {
+      return false;
     }
+    return rows.isNotEmpty;
+  }
+
+  /// Every past extension request for a share, newest first — populated
+  /// automatically by a DB trigger (163_split_share_extension_history.sql)
+  /// whenever a share's status transitions to 'extension_requested', so
+  /// this reflects every request even though split_shares itself only
+  /// keeps the latest one.
+  Future<List<Map<String, dynamic>>> fetchExtensionHistory(String shareId) async {
+    final rows = await _db
+        .from('split_share_extension_history')
+        .select()
+        .eq('share_id', shareId)
+        .order('requested_at', ascending: false);
+    return List<Map<String, dynamic>>.from(rows);
   }
 
   /// Upload a payment proof image to Supabase Storage and return a signed URL
@@ -932,6 +955,28 @@ class WalletService {
     required double amount,
   }) async {
     await _db.rpc(AppRpc.sendSplitExtensionNotification, params: {
+      'p_group_id': groupId,
+      'p_recipient_user_id': recipientUserId,
+      'p_family_id': familyId,
+      'p_actor_name': actorName,
+      'p_actor_emoji': actorEmoji,
+      'p_group_name': groupName,
+      'p_amount': amount,
+    });
+  }
+
+  /// Notifies the payer that a debtor submitted payment proof — same
+  /// pattern as [sendSplitExtensionNotification], just for proof submission.
+  Future<void> sendSplitProofNotification({
+    required String groupId,
+    required String recipientUserId,
+    String? familyId,
+    required String actorName,
+    required String actorEmoji,
+    required String groupName,
+    required double amount,
+  }) async {
+    await _db.rpc(AppRpc.sendSplitProofNotification, params: {
       'p_group_id': groupId,
       'p_recipient_user_id': recipientUserId,
       'p_family_id': familyId,

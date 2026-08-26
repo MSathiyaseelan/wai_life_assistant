@@ -363,14 +363,18 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         surfBg: surfBg,
         tc: tc,
         sub: sub,
-        onSubmit: (note, imagePath) {
+        onSubmit: (note, imagePath) async {
           final proofDate = DateTime.now();
+          var anyFailed = false;
+          // Group by payer so submitting proof across several transactions
+          // owed to the same person sends one notification, not several.
+          final amountByPayer = <String, double>{};
           for (final e in pending) {
             e.share.status = SettleStatus.proofSubmitted;
             e.share.proofNote = note.isNotEmpty ? note : null;
             e.share.proofImagePath = imagePath;
             e.share.proofDate = proofDate;
-            _persistShareStatus(
+            final ok = await _persistShareStatus(
               share: e.share,
               txId: e.tx.id,
               status: 'proof_submitted',
@@ -378,6 +382,11 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               proofImagePath: imagePath,
               proofDate: proofDate,
             );
+            if (!ok) {
+              anyFailed = true;
+              continue;
+            }
+            amountByPayer[e.tx.addedById] = (amountByPayer[e.tx.addedById] ?? 0) + e.share.amount;
           }
           _addAndPersistMessage(
             text:
@@ -385,7 +394,12 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 '${note.isNotEmpty ? ': $note' : ''}',
             type: MsgType.settled,
           );
+          for (final entry in amountByPayer.entries) {
+            final payer = _group.participantById(entry.key);
+            if (payer != null) _notifyProofSubmitted(payer, entry.value);
+          }
           _update();
+          if (anyFailed) _showSaveFailedSnack();
         },
       ),
     );
@@ -586,24 +600,27 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (ctrl.text.trim().isEmpty) {
                           setSt(() => showReasonError = true);
                           return;
                         }
                         final reason = ctrl.text.trim();
+                        var anyFailed = false;
                         for (final e in pending) {
                           e.share.status = SettleStatus.extensionRequested;
                           e.share.extensionDate = pickedDate;
                           e.share.extensionReason = reason;
-                          _persistShareStatus(
+                          final ok = await _persistShareStatus(
                             share: e.share,
                             txId: e.tx.id,
                             status: 'extension_requested',
                             extensionDate: pickedDate,
                             extensionReason: reason,
                           );
+                          if (!ok) anyFailed = true;
                         }
+                        if (!context.mounted) return;
                         Navigator.pop(context);
                         _addAndPersistMessage(
                           text: '⏰ Requested extension till ${_fmtDate(pickedDate)}: $reason',
@@ -616,6 +633,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                           }
                         }
                         _update();
+                        if (anyFailed) _showSaveFailedSnack();
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF9C27B0),
@@ -636,7 +654,11 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   }
 
   // ── Persist share status to DB (fire-and-forget) ───────────────────────────
-  void _persistShareStatus({
+  /// Persists a share status change and returns whether it actually saved —
+  /// an RLS-excluded row updates 0 rows without throwing, so callers must
+  /// check this rather than assume success just because nothing threw, and
+  /// tell the user when the change silently didn't take.
+  Future<bool> _persistShareStatus({
     required SplitShare share,
     required String txId,
     required String status,
@@ -646,20 +668,34 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     String? proofNote,
     String? proofImagePath,
     DateTime? proofDate,
-  }) {
-    if (!AuthCoordinator.instance.isLoggedIn) return;
-    WalletService.instance.updateShareStatus(
-      shareId: share.id,
-      transactionId: txId,
-      participantId: share.participantId,
-      status: status,
-      extensionDate: extensionDate,
-      extensionReason: extensionReason,
-      extensionResponseMsg: extensionResponseMsg,
-      proofNote: proofNote,
-      proofImagePath: proofImagePath,
-      proofDate: proofDate,
-    ).catchError((e) => ErrorLogger.log(e, action: 'update_share_status'));
+  }) async {
+    if (!AuthCoordinator.instance.isLoggedIn) return false;
+    try {
+      final ok = await WalletService.instance.updateShareStatus(
+        shareId: share.id,
+        transactionId: txId,
+        participantId: share.participantId,
+        status: status,
+        extensionDate: extensionDate,
+        extensionReason: extensionReason,
+        extensionResponseMsg: extensionResponseMsg,
+        proofNote: proofNote,
+        proofImagePath: proofImagePath,
+        proofDate: proofDate,
+      );
+      if (!ok) ErrorLogger.warning('updateShareStatus affected 0 rows', action: 'update_share_status');
+      return ok;
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'update_share_status');
+      return false;
+    }
+  }
+
+  void _showSaveFailedSnack() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Couldn't save that change. Pull to refresh and try again.")),
+    );
   }
 
   // ── Add message locally + persist to DB ───────────────────────────────────
@@ -1507,6 +1543,35 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       groupName: _group.name,
       amount: amount,
     ).catchError((e, stack) => ErrorLogger.log(e, stackTrace: stack, action: 'send_split_extension_notification'));
+  }
+
+  /// Fire-and-forget push + in-app bell entry to the payer when a debtor
+  /// submits payment proof — same gap as extension requests had before
+  /// _notifyExtensionRequested above: only a group chat message, nothing
+  /// that would actually reach the payer unless they happened to open Chat.
+  void _notifyProofSubmitted(SplitParticipant payer, double amount) {
+    if (payer.userId == null) return;
+    final familyId = widget.family?.id;
+    FamilyNotificationTrigger.notify(
+      eventType: 'split.proof_submitted',
+      familyId: familyId,
+      splitGroupId: _group.id,
+      eventData: {
+        'member_name': _participantName(_myId),
+        'amount': amount.toStringAsFixed(0),
+        'group_name': _group.name,
+      },
+      targetUserId: payer.userId,
+    );
+    WalletService.instance.sendSplitProofNotification(
+      groupId: _group.id,
+      recipientUserId: payer.userId!,
+      familyId: familyId,
+      actorName: _participantName(_myId),
+      actorEmoji: _participantEmoji(_myId),
+      groupName: _group.name,
+      amount: amount,
+    ).catchError((e, stack) => ErrorLogger.log(e, stackTrace: stack, action: 'send_split_proof_notification'));
   }
 
   // ── Send chat message ──────────────────────────────────────────────────────
@@ -3042,7 +3107,7 @@ class _ShareRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (share.extensionDate != null)
+                    if (share.extensionDate != null) ...[
                       Text(
                         'Extension till: ${_fmtDate(share.extensionDate!)}',
                         style: TextStyle(
@@ -3052,6 +3117,23 @@ class _ShareRow extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      // Only a granted extension can actually lapse — a still-
+                      // pending request has no agreed date to be overdue against.
+                      if (st == SettleStatus.extensionGranted &&
+                          share.extensionDate!.isBefore(DateTime.now()))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '⚠️ Extension expired',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: AppColors.expense,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                    ],
                     if (share.extensionReason != null)
                       Text(
                         share.extensionReason!,
@@ -3085,6 +3167,20 @@ class _ShareRow extends StatelessWidget {
                         ],
                       ),
                     ],
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () => _showExtensionHistory(context),
+                      child: Text(
+                        'View extension history',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w700,
+                          color: color.withValues(alpha: 0.7),
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -3202,16 +3298,16 @@ class _ShareRow extends StatelessWidget {
     if (_iAmPayer && !_isMyShare) {
       if (st == SettleStatus.proofSubmitted) {
         actions.addAll([
-          _ActionBtn('✅ Mark Received', AppColors.income, () {
+          _ActionBtn('✅ Mark Received', AppColors.income, () async {
             share.status = SettleStatus.settled;
-            _persistShare(context, 'settled');
+            await _persistShare(context, 'settled');
             onAddChatMsg('Marked ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
             onUpdate();
           }),
-          _ActionBtn('❌ Dispute', AppColors.expense, () {
+          _ActionBtn('❌ Dispute', AppColors.expense, () async {
             share.status = SettleStatus.pending;
             share.proofNote = null;
-            _persistShare(context, 'pending');
+            await _persistShare(context, 'pending');
             onUpdate();
           }),
         ]);
@@ -3248,9 +3344,9 @@ class _ShareRow extends StatelessWidget {
     if (isAdmin && !_isMyShare && !_iAmPayer &&
         (st == SettleStatus.pending || st == SettleStatus.extensionRequested)) {
       actions.add(
-        _ActionBtn('✅ Mark Settled (Admin)', const Color(0xFF009688), () {
+        _ActionBtn('✅ Mark Settled (Admin)', const Color(0xFF009688), () async {
           share.status = SettleStatus.settled;
-          _persistShare(context, 'settled');
+          await _persistShare(context, 'settled');
           onAddChatMsg('Admin marked ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
           onUpdate();
         }),
@@ -3264,16 +3360,118 @@ class _ShareRow extends StatelessWidget {
     );
   }
 
-  void _persistShare(BuildContext context, String status, {String? responseMsg}) {
-    WalletService.instance.updateShareStatus(
-      shareId: share.id,
-      transactionId: tx.id,
-      participantId: share.participantId,
-      status: status,
-      extensionDate: share.extensionDate,
-      extensionReason: share.extensionReason,
-      extensionResponseMsg: responseMsg,
-    ).catchError((e) => ErrorLogger.log(e, action: 'persist_share_status'));
+  /// Returns whether the update actually saved — an RLS-excluded row
+  /// affects 0 rows without throwing, so callers must check this instead of
+  /// assuming success just because nothing threw.
+  Future<bool> _persistShare(BuildContext context, String status, {String? responseMsg}) async {
+    try {
+      final ok = await WalletService.instance.updateShareStatus(
+        shareId: share.id,
+        transactionId: tx.id,
+        participantId: share.participantId,
+        status: status,
+        extensionDate: share.extensionDate,
+        extensionReason: share.extensionReason,
+        extensionResponseMsg: responseMsg,
+      );
+      if (!ok) ErrorLogger.warning('updateShareStatus affected 0 rows', action: 'persist_share_status');
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't save that change. Pull to refresh and try again.")),
+        );
+      }
+      return ok;
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'persist_share_status');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't save that change. Pull to refresh and try again.")),
+        );
+      }
+      return false;
+    }
+  }
+
+  String _fmtHistoryDate(DateTime d) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  Future<void> _showExtensionHistory(BuildContext context) async {
+    List<Map<String, dynamic>> history;
+    try {
+      history = await WalletService.instance.fetchExtensionHistory(share.id);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'fetch_extension_history');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't load extension history. Please try again.")),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Extension History',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+            const SizedBox(height: 12),
+            if (history.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('No extension requests yet.',
+                    style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: history.length,
+                  separatorBuilder: (_, __) => const Divider(height: 20),
+                  itemBuilder: (_, i) {
+                    final h = history[i];
+                    final extDate = DateTime.tryParse(h['extension_date'] as String? ?? '');
+                    final requestedAt = DateTime.tryParse(h['requested_at'] as String? ?? '');
+                    final reason = h['extension_reason'] as String?;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          extDate != null ? 'Requested till ${_fmtHistoryDate(extDate)}' : 'Extension requested',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc),
+                        ),
+                        if (reason != null && reason.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(reason, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
+                        ],
+                        if (requestedAt != null) ...[
+                          const SizedBox(height: 2),
+                          Text('on ${_fmtHistoryDate(requestedAt)}',
+                              style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub.withValues(alpha: 0.7))),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showDebtorExtensionSheet(BuildContext context) {
@@ -3414,7 +3612,7 @@ class _ShareRow extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (ctrl.text.trim().isEmpty) {
                           setSt(() => showReasonError = true);
                           return;
@@ -3423,11 +3621,12 @@ class _ShareRow extends StatelessWidget {
                         share.status = SettleStatus.extensionRequested;
                         share.extensionDate = pickedDate;
                         share.extensionReason = reason;
-                        _persistShare(context, 'extension_requested');
+                        await _persistShare(context, 'extension_requested');
                         onAddChatMsg(
                           '⏰ Requested extension till ${_fmtShareDate(pickedDate)}: $reason',
                         );
                         onExtensionRequested?.call();
+                        if (!context.mounted) return;
                         Navigator.pop(context);
                         onUpdate();
                       },
@@ -3576,13 +3775,12 @@ class _ShareRow extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () {
+                    onPressed: () async {
                       final msg = ctrl.text.trim();
-                      Navigator.pop(context);
                       if (agree) {
                         share.status = SettleStatus.extensionGranted;
                         share.extensionResponseMsg = msg.isEmpty ? null : msg;
-                        _persistShare(context, 'extension_granted', responseMsg: msg.isEmpty ? null : msg);
+                        await _persistShare(context, 'extension_granted', responseMsg: msg.isEmpty ? null : msg);
                         onAddChatMsg(
                           '🤝 Extension granted for $personName till $dateStr'
                           '${msg.isNotEmpty ? ': $msg' : ''}',
@@ -3592,12 +3790,14 @@ class _ShareRow extends StatelessWidget {
                         share.extensionDate = null;
                         share.extensionReason = null;
                         share.extensionResponseMsg = msg.isEmpty ? null : msg;
-                        _persistShare(context, 'pending', responseMsg: msg.isEmpty ? null : msg);
+                        await _persistShare(context, 'pending', responseMsg: msg.isEmpty ? null : msg);
                         onAddChatMsg(
                           '❌ Extension declined for $personName'
                           '${msg.isNotEmpty ? ': $msg' : ''}',
                         );
                       }
+                      if (!context.mounted) return;
+                      Navigator.pop(context);
                       onUpdate();
                     },
                     style: FilledButton.styleFrom(
