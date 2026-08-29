@@ -27,6 +27,7 @@ class AppUpdateService {
       if (!info.flexibleUpdateAllowed) return;
 
       await InAppUpdate.startFlexibleUpdate();
+      if (context.mounted) _promptDownloading(context);
 
       _sub?.cancel();
       _sub = InAppUpdate.installUpdateListener.listen((status) {
@@ -40,6 +41,19 @@ class AppUpdateService {
       // an error to the user.
       ErrorLogger.log(e, stackTrace: stack, action: 'in_app_update_check');
     }
+  }
+
+  static void _promptDownloading(BuildContext context) {
+    // Flexible updates download silently with no OS-level progress UI, so
+    // without this the app just looks like nothing happened after tapping
+    // "Update" in Play's own dialog — this is purely a feedback cue, the
+    // actual download proceeds in the background regardless.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Downloading update in the background…'),
+        duration: Duration(seconds: 4),
+      ),
+    );
   }
 
   static void _promptRestart(BuildContext context) {
