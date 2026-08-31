@@ -33,7 +33,7 @@ class SubscriptionSheet extends StatefulWidget {
 }
 
 class _SubscriptionSheetState extends State<SubscriptionSheet> {
-  String _billingCycle = 'yearly';
+  String _billingCycle = 'monthly';
   List<SubscriptionPlanData>? _plans;
   bool _loading = true;
   bool _hasError = false;
@@ -884,7 +884,22 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   /// family wallet, so a user with no family yet has nothing to attach one
   /// to — direct them to create one first instead of a false "coming soon".
   void _goToPaywall(BuildContext context) {
-    final families = AppStateScope.of(context).families;
+    // AppStateScope.of() throws (uncaught, since its guard is an assert
+    // stripped from release builds) if no AppStateScope ancestor is found
+    // — seen once in production immediately after Play Store force-restarted
+    // the app mid-session to apply an update, a narrow timing window before
+    // the tree had fully settled. Not reproducible under normal conditions,
+    // but this turns that hard crash into a retryable message instead.
+    final List<FamilyModel> families;
+    try {
+      families = AppStateScope.of(context).families;
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'go_to_paywall_app_state');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again.')),
+      );
+      return;
+    }
     if (families.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -908,7 +923,13 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   void _confirmCancel(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      // Named (not discarded with `_`) so the action buttons below can pop
+      // this dialog specifically via its own context — popping with the
+      // outer SubscriptionSheet context instead was closing whichever
+      // route the shared Navigator considered "current" at the time,
+      // which could be the subscription bottom sheet itself rather than
+      // just this dialog.
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: _bg,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Cancel Subscription?',
@@ -924,7 +945,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text('Keep Plan',
                 style: TextStyle(
                     fontFamily: 'Nunito',
@@ -933,7 +954,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               _openPlayStoreSubscriptions(context);
             },
             child: const Text('Continue to Google Play',

@@ -90,16 +90,29 @@ class AuthCoordinator {
       final idToken = await userCred.user!.getIdToken();
 
       // Exchange Firebase ID token for a Supabase session via edge function.
-      final res = await _client.functions.invoke(
-        'firebase-verify',
-        body: {'id_token': idToken},
-      );
+      // functions.invoke() throws FunctionException itself for any non-2xx
+      // response (functions_client's invoke() never returns one with
+      // res.status set to an error code) — caught below and re-thrown with
+      // the edge function's actual error message instead of falling through
+      // to the outer catch's generic "sign-in couldn't finish" text.
+      final FunctionResponse res;
+      try {
+        res = await _client.functions.invoke(
+          'firebase-verify',
+          body: {'id_token': idToken},
+        );
+      } on FunctionException catch (e) {
+        final details = e.details;
+        throw AuthException(
+          details is Map && details['error'] is String
+              ? details['error'] as String
+              : 'Sign-in failed after verification.',
+        );
+      }
 
       final data = res.data as Map<String, dynamic>?;
-      if (res.status != 200 || data == null) {
-        throw AuthException(
-          data?['error'] as String? ?? 'Sign-in failed after verification.',
-        );
+      if (data == null) {
+        throw AuthException('Sign-in failed after verification.');
       }
 
       final accessToken  = data['access_token']  as String?;
@@ -112,6 +125,11 @@ class AuthCoordinator {
       if (kDebugMode) debugPrint('[Auth] Firebase OTP verified');
       final uid = _client.auth.currentUser?.id;
       if (uid != null) await SubscriptionService.instance.login(uid);
+    } on AuthException {
+      // Already a specific, real error message (e.g. from the
+      // FunctionException handling above) — preserve it as-is instead of
+      // overwriting it with the generic message below.
+      rethrow;
     } catch (_) {
       throw AuthException(
         "Your code was verified, but sign-in couldn't finish. "
@@ -141,13 +159,30 @@ class AuthCoordinator {
       final userCred = await _firebaseAuth.signInWithCredential(credential);
       final idToken = await userCred.user!.getIdToken();
 
-      final res = await _client.functions.invoke(
-        'change-phone',
-        body: {'id_token': idToken},
-      );
+      final FunctionResponse res;
+      try {
+        res = await _client.functions.invoke(
+          'change-phone',
+          body: {'id_token': idToken},
+        );
+      } on FunctionException catch (e) {
+        // invoke() throws FunctionException itself for any non-2xx response
+        // rather than returning it via res.status — the status/data check
+        // below was dead code for every real edge function error (rate
+        // limit, duplicate number, expired token, etc.), all of which fell
+        // through uncaught (not a FirebaseAuthException) to the caller's
+        // generic "Failed to verify OTP" fallback. Extract the edge
+        // function's real message from e.details instead.
+        final details = e.details;
+        throw AuthException(
+          details is Map && details['error'] is String
+              ? details['error'] as String
+              : 'Failed to change phone number',
+        );
+      }
 
       final data = res.data as Map<String, dynamic>?;
-      if (res.status != 200 || data?['success'] != true) {
+      if (data?['success'] != true) {
         throw AuthException(
           data?['error'] as String? ?? 'Failed to change phone number',
         );
