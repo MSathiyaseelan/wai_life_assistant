@@ -1796,8 +1796,18 @@ class _WalletScreenState extends State<WalletScreen>
               _splitGroups.insert(insertAt, group); // revert
             });
             _syncPinnedGroups();
+            // P0001 = a deliberate RAISE EXCEPTION from our own SQL (e.g.
+            // "Only the group creator or wallet admin can delete this
+            // group" — see 165_split_group_delete_creator_admin_only.sql)
+            // — safe to show directly, matching onSave's handling above.
+            final isOffline = !NetworkService.instance.isOnline.value;
+            final message = isOffline
+                ? 'No internet connection. The group wasn\'t deleted.'
+                : (e is PostgrestException && e.code == 'P0001')
+                    ? e.message
+                    : 'Failed to delete group. Please try again.';
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to delete group. Please try again.')),
+              SnackBar(content: Text(message)),
             );
           }
         }

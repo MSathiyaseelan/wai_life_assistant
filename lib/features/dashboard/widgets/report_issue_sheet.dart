@@ -42,14 +42,16 @@ class _ReportIssueSheetState extends State<ReportIssueSheet>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Handle
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle
           Padding(
             padding: const EdgeInsets.only(top: 12, bottom: 4),
             child: Center(
@@ -106,11 +108,15 @@ class _ReportIssueSheetState extends State<ReportIssueSheet>
               ],
             ),
           ),
-        ],
-      ),
-    );
+            ],
+          ),
+        ),
+      );
   }
 }
+
+
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NEW REPORT TAB

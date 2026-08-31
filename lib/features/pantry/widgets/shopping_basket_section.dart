@@ -264,31 +264,47 @@ class _GroceryList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(emptyEmoji, style: const TextStyle(fontSize: 32)),
-              const SizedBox(height: 6),
-              Text(
-                emptyMsg,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Nunito',
-                  color: isDark ? AppColors.subDark : AppColors.subLight,
+      // A bare Center has no Scrollable descendant, so the parent
+      // RefreshIndicator (in pantry_screen.dart's _buildBasketTab) has
+      // nothing to attach the pull gesture to — wrap in a scrollable
+      // (with AlwaysScrollableScrollPhysics so it's draggable even though
+      // its single child never overflows) so pull-to-refresh still works
+      // on an empty list.
+      return ListView(
+        primary: false,
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 80),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(emptyEmoji, style: const TextStyle(fontSize: 32)),
+                    const SizedBox(height: 6),
+                    Text(
+                      emptyMsg,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: isDark ? AppColors.subDark : AppColors.subLight,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 
     return ListView.builder(
       primary: false,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (ctx, i) {
