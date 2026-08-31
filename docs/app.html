@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RiyasHome — Family Life, Organized</title>
+<style>
+  :root{
+    --paper:#faf8f5;
+    --ink:#1f2420;
+    --ink-soft:#4b5249;
+    --rule:#dcd6cb;
+    --card:#ffffff;
+    --accent:#3d5a4c;
+    --accent-soft:#e8ede9;
+    --accent-ink:#2c4438;
+    --link:#2c5c46;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#15181a;
+      --ink:#e9e6de;
+      --ink-soft:#a9ada2;
+      --rule:#2c3129;
+      --card:#1c2020;
+      --accent:#84b39e;
+      --accent-soft:#212a24;
+      --accent-ink:#a9d3bf;
+      --link:#8fc9a9;
+    }
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:56px 24px 96px;
+  }
+
+  header.hero{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:18px;
+    padding-bottom:44px;
+    margin-bottom:44px;
+    border-bottom:1px solid var(--rule);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .brand img{
+    width:48px;
+    height:48px;
+    border-radius:12px;
+  }
+  .brand span{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:22px;
+    font-weight:600;
+  }
+  .eyebrow{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--accent-ink);
+    background:var(--accent-soft);
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:5px 10px;
+    border-radius:5px;
+    width:fit-content;
+  }
+  h1{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:clamp(30px,5vw,44px);
+    font-weight:600;
+    margin:6px 0 0;
+    text-wrap:balance;
+    letter-spacing:-.01em;
+    max-width:20ch;
+  }
+  .tagline{
+    font-size:16.5px;
+    color:var(--ink-soft);
+    max-width:56ch;
+    margin:0;
+  }
+  .cta-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-top:6px;
+  }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:var(--accent);
+    color:#fff;
+    text-decoration:none;
+    font-size:14.5px;
+    font-weight:600;
+    padding:11px 18px;
+    border-radius:9px;
+  }
+  .btn.secondary{
+    background:var(--card);
+    color:var(--ink);
+    border:1px solid var(--rule);
+  }
+
+  h2.section-head{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:22px;
+    font-weight:600;
+    margin:0 0 20px;
+  }
+
+  section{margin-bottom:52px;}
+
+  .feature-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:16px;
+  }
+  .feature-card{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:20px;
+  }
+  .feature-card .icon{
+    font-size:22px;
+    margin-bottom:10px;
+    display:block;
+  }
+  .feature-card h3{
+    font-size:15px;
+    font-weight:700;
+    margin:0 0 6px;
+  }
+  .feature-card p{
+    font-size:13.5px;
+    color:var(--ink-soft);
+    margin:0;
+  }
+
+  .plan-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:16px;
+  }
+  .plan-card{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:22px;
+  }
+  .plan-card.highlight{
+    border-color:var(--accent);
+    border-width:1.5px;
+  }
+  .plan-card h3{
+    font-size:16px;
+    font-weight:700;
+    margin:0 0 4px;
+  }
+  .plan-price{
+    font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+    font-size:26px;
+    font-weight:600;
+    margin:6px 0 2px;
+  }
+  .plan-price small{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    font-size:13px;
+    font-weight:400;
+    color:var(--ink-soft);
+  }
+  .plan-sub{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:0 0 14px;
+  }
+  .plan-card ul{
+    margin:0;
+    padding-left:0;
+    list-style:none;
+  }
+  .plan-card li{
+    position:relative;
+    padding-left:18px;
+    margin-bottom:8px;
+    color:var(--ink-soft);
+    font-size:13.5px;
+  }
+  .plan-card li::before{
+    content:"";
+    position:absolute;
+    left:2px;
+    top:8px;
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:var(--accent);
+  }
+
+  .callout{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:16px 18px;
+    font-size:14px;
+    color:var(--ink-soft);
+  }
+  .callout strong{color:var(--ink);}
+
+  a{color:var(--link);}
+
+  footer.doc-foot{
+    margin-top:48px;
+    padding-top:24px;
+    border-top:1px solid var(--rule);
+    font-size:13px;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  footer.doc-foot a{margin-right:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="brand">
+      <img src="assets/app_icon.png" alt="RiyasHome icon">
+      <span>RiyasHome</span>
+    </div>
+    <div class="eyebrow">by Riyas AI Labs</div>
+    <h1>Your family's life, organized in one app.</h1>
+    <p class="tagline">
+      RiyasHome brings your family's pantry, wallet, tasks, functions, health
+      records and more into one shared home — built for Indian households,
+      designed to keep everyone on the same page.
+    </p>
+    <div class="cta-row">
+      <a class="btn" href="https://play.google.com/store/apps/details?id=com.wai.lifeassistant">Get it on Google Play</a>
+      <a class="btn secondary" href="privacy-policy.html">Privacy Policy</a>
+      <a class="btn secondary" href="account-deletion.html">Account Deletion</a>
+    </div>
+  </header>
+
+  <section>
+    <h2 class="section-head">What's inside</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="icon">💰</span>
+        <h3>Wallet</h3>
+        <p>Track family spending, split bills, watch recurring payments, and parse transactions straight from SMS.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🥫</span>
+        <h3>Pantry</h3>
+        <p>Scan grocery bills, plan meals ahead, manage shopping lists, and get alerts before things expire.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">✅</span>
+        <h3>PlanIt</h3>
+        <p>Shared tasks, reminders, notes and special-day tracking the whole family can see and act on.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🎁</span>
+        <h3>Functions Tracker</h3>
+        <p>Keep track of moi (கொடுப்பினை) — gifts given and received at family functions and events.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🩺</span>
+        <h3>Health</h3>
+        <p>Medications, appointments, vitals, vaccination records and insurance — for every family member.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">📍</span>
+        <h3>Item Locator</h3>
+        <p>Never forget where you kept something — organize containers and the items inside them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-head">Plans</h2>
+    <div class="plan-grid">
+      <div class="plan-card">
+        <h3>Personal Free</h3>
+        <div class="plan-price">₹0</div>
+        <p class="plan-sub">Full personal account, no cost</p>
+        <ul>
+          <li>Core features for one person</li>
+          <li>Everyday usage limits</li>
+        </ul>
+      </div>
+      <div class="plan-card highlight">
+        <h3>Family Plus</h3>
+        <div class="plan-price">₹149<small>/mo</small></div>
+        <p class="plan-sub">or ₹999/year · up to 6 members</p>
+        <ul>
+          <li>Shared pantry, wallet &amp; hub</li>
+          <li>Generous monthly limits</li>
+        </ul>
+      </div>
+      <div class="plan-card">
+        <h3>Family Pro</h3>
+        <div class="plan-price">₹299<small>/mo</small></div>
+        <p class="plan-sub">or ₹1999/year · up to 15 members</p>
+        <ul>
+          <li>Near-unlimited usage</li>
+          <li>Priority for larger families</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-head">Contact &amp; support</h2>
+    <div class="callout">
+      Questions, feedback or support requests — <strong><a href="mailto:riyasailabs@gmail.com">riyasailabs@gmail.com</a></strong>. We respond within 7 business days.
+    </div>
+  </section>
+
+  <footer class="doc-foot">
+    <div>
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="account-deletion.html">Account Deletion</a>
+      <a href="mailto:riyasailabs@gmail.com">Contact</a>
+    </div>
+    <div>© Riyas AI Labs</div>
+  </footer>
+
+</div>
+</body>
+</html>
