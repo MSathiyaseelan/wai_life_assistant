@@ -70,9 +70,20 @@ class LifeAssistanceApp extends StatelessWidget {
   final EnvironmentConfig config;
   const LifeAssistanceApp({super.key, required this.config});
 
+  /// App-wide messenger, independent of any single screen's BuildContext.
+  /// AppUpdateService needs this: an in-app-update download can take
+  /// anywhere from seconds to minutes, and by the time it finishes the user
+  /// may have navigated away from (or the framework may have disposed) the
+  /// screen whose context originally started the check — showing the
+  /// "restart to apply" prompt through this key instead means it still
+  /// reaches the user wherever they currently are, rather than being
+  /// silently dropped or shown on a hidden, buried screen.
+  static final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: scaffoldMessengerKey,
       debugShowCheckedModeBanner: config.environment != AppEnvironment.prod,
       title: config.appName,
       theme: AppTheme.light(),

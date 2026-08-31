@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:in_app_update/in_app_update.dart';
 
+import '../../main.dart';
 import 'error_logger.dart';
 
 /// Checks Play Store for a newer version and, if available, downloads it as
@@ -15,8 +16,15 @@ class AppUpdateService {
 
   static StreamSubscription<InstallStatus>? _sub;
 
-  /// Call once from a long-lived screen (e.g. the dashboard, right after
-  /// login) so the "restart to update" prompt has a stable place to show.
+  /// [context] only needs to be valid for the initial "downloading" toast —
+  /// the actual restart prompt goes through
+  /// [LifeAssistanceApp.scaffoldMessengerKey] instead of this context, since
+  /// a flexible update's download can take anywhere from seconds to
+  /// minutes and the caller's screen may no longer be mounted or visible
+  /// (buried under other pushed screens) by the time it finishes. Using a
+  /// context tied to one screen was silently dropping the restart prompt —
+  /// it either never showed (context disposed) or showed on a hidden
+  /// scaffold the user had already navigated away from.
   static Future<void> checkAndStartFlexibleUpdate(BuildContext context) async {
     if (!Platform.isAndroid) return;
     try {
@@ -31,9 +39,7 @@ class AppUpdateService {
 
       _sub?.cancel();
       _sub = InAppUpdate.installUpdateListener.listen((status) {
-        if (status == InstallStatus.downloaded && context.mounted) {
-          _promptRestart(context);
-        }
+        if (status == InstallStatus.downloaded) _promptRestart();
       });
     } catch (e, stack) {
       // Never let a failed update check affect the app — this is a
@@ -56,8 +62,10 @@ class AppUpdateService {
     );
   }
 
-  static void _promptRestart(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
+  static void _promptRestart() {
+    final messenger = LifeAssistanceApp.scaffoldMessengerKey.currentState;
+    if (messenger == null) return;
+    messenger.showSnackBar(
       SnackBar(
         content: const Text('Update downloaded — restart to apply it.'),
         duration: const Duration(days: 1),
