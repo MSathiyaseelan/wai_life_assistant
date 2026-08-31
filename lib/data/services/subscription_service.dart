@@ -67,10 +67,28 @@ class SubscriptionService {
   /// one family. Returns the updated CustomerInfo on success, null if the
   /// user cancelled the purchase flow, and rethrows any other error so the
   /// caller can show a real error message.
-  Future<CustomerInfo?> purchasePackage(Package package, {required String walletId}) async {
+  ///
+  /// [oldProductIdentifier] — pass the currently active product's id (see
+  /// [activeProductId]) when this purchase is a plan change (e.g. Plus →
+  /// Pro), not a first-time subscribe. Without it, Google Play treats the
+  /// purchase as a brand new, unrelated subscription — the old one keeps
+  /// billing in parallel instead of being replaced/prorated.
+  Future<CustomerInfo?> purchasePackage(
+    Package package, {
+    required String walletId,
+    String? oldProductIdentifier,
+  }) async {
     try {
       await Purchases.setAttributes({'wai_wallet_id': walletId});
-      final result = await Purchases.purchase(PurchaseParams.package(package));
+      final result = await Purchases.purchase(PurchaseParams.package(
+        package,
+        productChangeInfo: oldProductIdentifier != null
+            ? StoreProductChangeInfo(
+                oldProductIdentifier,
+                replacementMode: StoreReplacementMode.withTimeProration,
+              )
+            : null,
+      ));
       return result.customerInfo;
     } on PlatformException catch (e) {
       if (PurchasesErrorHelper.getErrorCode(e) ==
@@ -78,6 +96,22 @@ class SubscriptionService {
         return null;
       }
       rethrow;
+    }
+  }
+
+  /// The product identifier backing the subscriber's current active
+  /// entitlement (family_plus or family_pro), if any — used as
+  /// [oldProductIdentifier] in [purchasePackage] so a plan change replaces
+  /// the existing subscription instead of stacking a second one. Returns
+  /// null when not configured or the subscriber has no active entitlement.
+  Future<String?> activeProductId() async {
+    if (!_configured) return null;
+    try {
+      final info = await Purchases.getCustomerInfo();
+      if (info.entitlements.active.isEmpty) return null;
+      return info.entitlements.active.values.first.productIdentifier;
+    } catch (_) {
+      return null;
     }
   }
 

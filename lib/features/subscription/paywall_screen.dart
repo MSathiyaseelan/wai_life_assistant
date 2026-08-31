@@ -73,9 +73,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (!widget.isAdmin || _purchasingPackage != null) return;
     setState(() => _purchasingPackage = package);
     try {
+      // If the admin already has an active plan (e.g. upgrading Plus → Pro
+      // or downgrading Pro → Plus), pass its product id so Google Play
+      // replaces/prorates it instead of stacking a second parallel
+      // subscription — see purchasePackage()'s doc comment.
+      final oldProductId = await SubscriptionService.instance.activeProductId();
       final info = await SubscriptionService.instance.purchasePackage(
         package,
         walletId: widget.walletId,
+        oldProductIdentifier: oldProductId != package.storeProduct.identifier
+            ? oldProductId
+            : null,
       );
       if (!mounted) return;
       if (info != null) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -743,7 +744,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
                     title: 'Payment & Billing',
                     subtitle: 'Update payment method · View invoices',
                     color: _planColor,
-                    onTap: () => _showComingSoon(context, 'Payment & Billing'),
+                    onTap: () => _openPlayStoreSubscriptions(context),
                     roundTop: true),
                 Divider(height: 1, color: _div, indent: 56),
                 _manageRow(context,
@@ -823,13 +824,25 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature — payment integration coming soon'),
-        behavior: SnackBarBehavior.floating,
-      ),
+  /// Opens Google Play's own subscription management page — updating a
+  /// payment method, viewing invoices, and cancelling all happen there,
+  /// not through any RevenueCat/Play Billing API our app could call
+  /// in-app. https://play.google.com/store/account/subscriptions
+  Future<void> _openPlayStoreSubscriptions(BuildContext context) async {
+    final uri = Uri.parse(
+      'https://play.google.com/store/account/subscriptions'
+      '?package=com.wai.lifeassistant',
     );
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) throw Exception('launchUrl returned false');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'subscription_open_play_billing');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the Play Store.')),
+      );
+    }
   }
 
   /// Routes to the real purchase flow (PaywallScreen) for the family the
@@ -870,8 +883,9 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
                 fontWeight: FontWeight.w900,
                 color: _tc)),
         content: Text(
-          'You\'ll keep your WAI $_planName benefits until the end of your '
-          'current billing period. After that, your account will revert to Personal (Free).',
+          'You\'ll be taken to Google Play to cancel. You\'ll keep your WAI '
+          '$_planName benefits until the end of your current billing period — '
+          'after that, your account reverts to Personal (Free).',
           style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: _sub),
         ),
         actions: [
@@ -886,9 +900,9 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _showComingSoon(context, 'Cancel subscription');
+              _openPlayStoreSubscriptions(context);
             },
-            child: const Text('Cancel Subscription',
+            child: const Text('Continue to Google Play',
                 style: TextStyle(
                     fontFamily: 'Nunito',
                     fontWeight: FontWeight.w800,
