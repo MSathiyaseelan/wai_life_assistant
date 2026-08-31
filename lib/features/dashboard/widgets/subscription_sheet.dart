@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -7,6 +8,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/subscription/subscription_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
+import 'package:wai_life_assistant/data/services/subscription_service.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import 'package:wai_life_assistant/features/subscription/paywall_screen.dart';
 
@@ -35,6 +37,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   List<SubscriptionPlanData>? _plans;
   bool _loading = true;
   bool _hasError = false;
+  Offerings? _offerings;
 
   // ── colours ────────────────────────────────────────────────────────────────
   Color get _bg   => widget.isDark ? AppColors.cardDark  : AppColors.cardLight;
@@ -74,6 +77,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   void initState() {
     super.initState();
     _loadPlans();
+    _loadOfferings();
   }
 
   Future<void> _loadPlans() async {
@@ -85,6 +89,34 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
       ErrorLogger.log(e, stackTrace: stack, action: 'load_subscription_plans');
       if (mounted) setState(() { _loading = false; _hasError = true; });
     }
+  }
+
+  /// Live RevenueCat/Play Store pricing — the single source of truth for
+  /// what a plan actually costs. subscription_plans.price_monthly/yearly
+  /// (used in [_upgradeTile] as a fallback) is a manually-maintained
+  /// display mirror that can drift from real Play Console prices; this
+  /// keeps that from being the primary source. Fetched separately from
+  /// [_loadPlans] (non-blocking, best-effort) so a slow/failed store
+  /// fetch doesn't hold up rendering the feature comparison table.
+  Future<void> _loadOfferings() async {
+    final offerings = await SubscriptionService.instance.getOfferings();
+    if (mounted) setState(() => _offerings = offerings);
+  }
+
+  /// The store's formatted price string (e.g. "₹149.00") for [planKey]'s
+  /// [period] ('monthly' or 'yearly') package — matches the package
+  /// identifiers set up in RevenueCat's default offering (plus_monthly,
+  /// plus_yearly, pro_monthly, pro_yearly). Null when offerings haven't
+  /// loaded yet or the package isn't found, so callers can fall back to
+  /// the DB price.
+  String? _livePrice(String planKey, String period) {
+    final packages = _offerings?.current?.availablePackages;
+    if (packages == null) return null;
+    final tier = planKey == 'family_plus' ? 'plus' : 'pro';
+    final pkg = packages
+        .where((p) => p.identifier == '${tier}_$period')
+        .firstOrNull;
+    return pkg?.storeProduct.priceString;
   }
 
   // ── feature rows definition ────────────────────────────────────────────────
@@ -598,12 +630,14 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
     final txCount     = SubscriptionPlanData.limitLabel(plan.walletTransactionsMonth);
     final description = 'Up to $memberCount members · $txCount tx/mo · $aiCalls AI calls';
 
-    final monthlyPrice = plan.priceMonthly > 0
-        ? '${AppPrefs.cs}${plan.priceMonthly.toStringAsFixed(0)}'
-        : 'TBD';
-    final yearlyPrice = plan.priceYearly > 0
-        ? '${AppPrefs.cs}${plan.priceYearly.toStringAsFixed(0)}'
-        : 'TBD';
+    final monthlyPrice = _livePrice(plan.planKey, 'monthly') ??
+        (plan.priceMonthly > 0
+            ? '${AppPrefs.cs}${plan.priceMonthly.toStringAsFixed(0)}'
+            : 'TBD');
+    final yearlyPrice = _livePrice(plan.planKey, 'yearly') ??
+        (plan.priceYearly > 0
+            ? '${AppPrefs.cs}${plan.priceYearly.toStringAsFixed(0)}'
+            : 'TBD');
 
     return Container(
       decoration: BoxDecoration(
