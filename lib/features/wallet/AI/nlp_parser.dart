@@ -247,9 +247,12 @@ class NlpParser {
     String? amountToken; // matched substring, stripped later when building title
 
     // "5k" / "2.5k" / "1L" / "50k"
-    final shortMatch = RegExp(r'(\d+(?:\.\d+)?)\s*[kK]').firstMatch(lower);
+    // \b after the suffix is required — without it, "150 lunch" or "150 kg"
+    // would match the 'l'/'k' from the following word and silently inflate
+    // the amount by 1000x/100000x (e.g. "150 lunch" parsed as ₹15,000,000).
+    final shortMatch = RegExp(r'(\d+(?:\.\d+)?)\s*[kK]\b').firstMatch(lower);
     final lakhMatch = RegExp(
-      r'(\d+(?:\.\d+)?)\s*[lL](?:akh|ac)?',
+      r'(\d+(?:\.\d+)?)\s*[lL](?:akh|ac)?\b',
     ).firstMatch(lower);
     // plain number  "500" / "1299" / "2.50"
     final numMatch = RegExp(r'\b(\d+(?:\.\d{1,2})?)\b').firstMatch(lower);
@@ -331,12 +334,13 @@ class NlpParser {
     }
 
     // ── 3. Category detection ─────────────────────────────────────────────
+    // The matched keyword is deliberately left in `remaining` for title
+    // extraction below (see the comment there) rather than captured into
+    // its own token to strip.
     String? category;
-    String? categoryToken;
     for (final entry in _catMap.entries) {
       if (lower.contains(entry.key)) {
         category = entry.value;
-        categoryToken = entry.key;
         break;
       }
     }
@@ -351,13 +355,24 @@ class NlpParser {
     }
 
     // ── 4. Person extraction — name after "to/from/with/for/by" ──────────
+    // `caseSensitive: false` is needed so the preposition itself matches
+    // regardless of case ("For John" / "for john"), but it also defeats
+    // `[A-Z]`'s job of requiring the captured word to actually be a proper
+    // noun — a case-insensitive character class matches lowercase too, so
+    // e.g. "for dinner" would wrongly capture person="dinner" and strip
+    // the whole phrase out of the title. Match case-insensitively, then
+    // verify the captured word was actually capitalized in the original
+    // text before trusting it as a name.
     String? person;
     final personMatch = RegExp(
-      r'(?:to|from|with|lent to|borrowed from|gave to|split with|for)\s+([A-Z][a-z]+)',
+      r'(?:to|from|with|lent to|borrowed from|gave to|split with|for)\s+([A-Za-z][a-z]+)',
       caseSensitive: false,
     ).firstMatch(text);
     if (personMatch != null) {
-      person = personMatch.group(1);
+      final candidate = personMatch.group(1)!;
+      if (candidate == candidate[0].toUpperCase() + candidate.substring(1)) {
+        person = candidate;
+      }
     }
 
     // ── 5. PayMode ────────────────────────────────────────────────────────
@@ -384,6 +399,14 @@ class NlpParser {
     // e.g. "oil 220 yesterday in gpay" → "Oil". Falls back to null (blank
     // title, user fills it in) rather than ever dumping the raw input into
     // note like this used to.
+    //
+    // categoryToken is deliberately NOT stripped here: for input like
+    // "250 gpay for dinner" the word "dinner" is both the category match
+    // ('Food') and the only meaningful word in the sentence — stripping it
+    // for category purposes would leave nothing behind for the title,
+    // which is exactly the "title comes back blank" bug this comment
+    // used to not explain. A word like "dinner"/"petrol"/"rent" is
+    // legitimate title text even though it also drove the category guess.
     var remaining = ' $lower ';
     void strip(String? token) {
       if (token == null || token.isEmpty) return;
@@ -392,7 +415,6 @@ class NlpParser {
 
     strip(amountToken);
     strip(dateToken);
-    strip(categoryToken);
     strip(payModeToken);
     if (person != null) {
       remaining = remaining.replaceAll(
