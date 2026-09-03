@@ -1,0 +1,21 @@
+-- ============================================================
+--  168_fix_notifications_tx_id_fk.sql
+--
+--  notifications.tx_id was defined as `REFERENCES transactions(id)` (see
+--  036_notifications.sql), but the column is used polymorphically — the
+--  family-invite RPCs (122_fix_family_invite_tx_id_type_mismatch.sql /
+--  132_invite_returns_target_user.sql) store `family_invites.id` in it,
+--  not a transactions.id. Every such insert violates the FK constraint
+--  and throws, and that error is silently swallowed by the RPC's own
+--  `EXCEPTION WHEN OTHERS THEN NULL` handler — so an invite's in-app
+--  notification row is NEVER actually created. The push notification
+--  still fires (separate code path, the client's own call to the
+--  send-notification edge function), which is why the invited person
+--  sees a push/banner but nothing in the Dashboard bell/inbox.
+--
+--  Fix: drop the FK so tx_id can hold an id from any of the tables this
+--  feature already treats it as pointing to (transactions, family_invites,
+--  and potentially others later) without silently failing.
+-- ============================================================
+
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_tx_id_fkey;

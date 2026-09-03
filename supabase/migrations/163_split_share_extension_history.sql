@@ -19,12 +19,13 @@ CREATE TABLE IF NOT EXISTS split_share_extension_history (
   requested_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_split_share_ext_history_share ON split_share_extension_history(share_id, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_split_share_ext_history_share ON split_share_extension_history(share_id, requested_at DESC);
 
 ALTER TABLE split_share_extension_history ENABLE ROW LEVEL SECURITY;
 
 -- Same visibility as the parent share: any participant of the group the
 -- share's transaction belongs to.
+DROP POLICY IF EXISTS "split_share_extension_history: select" ON split_share_extension_history;
 CREATE POLICY "split_share_extension_history: select" ON split_share_extension_history
   FOR SELECT USING (
     EXISTS (
