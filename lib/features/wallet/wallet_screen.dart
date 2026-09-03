@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/data/services/app_config_service.dart';
 import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:flutter/material.dart';
@@ -124,6 +125,10 @@ class _WalletScreenState extends State<WalletScreen>
   // Privacy toggle — eye icon hides all amounts across card + transaction list
   bool _amountsHidden = true;
 
+  // Local NLP-parser shortcut/fallback — off (AI-only) by default and
+  // until loaded; see AppConfigService.fetchNlpParserEnabled.
+  bool _nlpParserEnabled = false;
+
   // Drag-and-drop state
   TxModel? _draggingTx;
   final GlobalKey _txListKey = GlobalKey();
@@ -224,6 +229,9 @@ class _WalletScreenState extends State<WalletScreen>
     WalletService.txChangeSignal.addListener(_onExternalTxChange);
     _tabCtrl = TabController(length: kV1WalletTabs.length, vsync: this);
     _tabCtrl.addListener(_onTabChanged);
+    AppConfigService.instance.fetchNlpParserEnabled().then((enabled) {
+      if (mounted) setState(() => _nlpParserEnabled = enabled);
+    });
   }
 
   @override
@@ -1183,7 +1191,7 @@ class _WalletScreenState extends State<WalletScreen>
     // payment-mode keyword — e.g. "Coffee 15 gpay", "Tea 25 gpay", "Spend 15
     // gpay for Coffee") never need an AI call at all. Skipped for split-like
     // text, since NlpParser only understands single expense/income entries.
-    if (!isSplit) {
+    if (_nlpParserEnabled && !isSplit) {
       final localIntent = NlpParser.parse(text);
       if (localIntent.confidence >= 0.75) {
         IntentConfirmSheet.show(
@@ -1245,12 +1253,20 @@ class _WalletScreenState extends State<WalletScreen>
       intent = isSplit
           ? _splitResultToIntent(result.data!, result.parseLogId)
           : _aiResultToIntent(result.data!, result.parseLogId);
-    } else {
+    } else if (_nlpParserEnabled) {
       debugPrint(
         '⚠️ AI failed, falling back to NlpParser. Reason: ${result.error}',
       );
       pendingError = result.error;
       intent = NlpParser.parse(text);
+    } else {
+      // NLP parser disabled and AI failed — hand back a blank intent
+      // (nothing guessed) rather than trust the local parser's possibly
+      // wrong output. User fills the confirm sheet manually; pendingError
+      // still surfaces why AI parsing didn't happen.
+      debugPrint('⚠️ AI failed, NLP parser disabled. Reason: ${result.error}');
+      pendingError = result.error;
+      intent = const ParsedIntent(flowType: FlowType.expense, confidence: 0.0);
     }
 
     if (!mounted) return;

@@ -41,4 +41,24 @@ class AppConfigService {
       return 30;
     }
   }
+
+  /// Whether the local deterministic NLP parser (Dashboard AI Assistant's
+  /// and Wallet quick-add's pre-AI shortcut, and Wallet's on-AI-failure
+  /// fallback) is allowed to run at all. Defaults to false (AI-only) on
+  /// any error, when not configured, and as the seeded default — flip to
+  /// 'true' in app_config once the local parser has been validated enough
+  /// to trust again.
+  Future<bool> fetchNlpParserEnabled() async {
+    try {
+      final row = await _db
+          .from('app_config')
+          .select('value')
+          .eq('key', 'nlp_parser_enabled')
+          .maybeSingle();
+      return (row?['value'] as String?) == 'true';
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_nlp_parser_enabled');
+      return false;
+    }
+  }
 }

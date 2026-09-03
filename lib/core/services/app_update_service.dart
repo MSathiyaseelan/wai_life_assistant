@@ -29,6 +29,26 @@ class AppUpdateService {
     if (!Platform.isAndroid) return;
     try {
       final info = await InAppUpdate.checkForUpdate();
+
+      // A flexible update from a PREVIOUS app session may already be
+      // downloading, or fully downloaded — Play Core reports this as
+      // developerTriggeredUpdateInProgress, not updateAvailable. The
+      // static `_sub` listener that would normally catch the `downloaded`
+      // event doesn't survive the app process being backgrounded/killed
+      // mid-download, so without this check the restart prompt is lost
+      // forever: the user taps "Update" once, the app is backgrounded
+      // before the download finishes, and reopening it never re-offers
+      // the restart — the only way out is manually updating via Play
+      // Store. `installStatus` is only meaningful in this branch.
+      if (info.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress) {
+        if (info.installStatus == InstallStatus.downloaded) {
+          _promptRestart();
+        } else {
+          _listenForDownloadCompletion();
+        }
+        return;
+      }
+
       if (info.updateAvailability != UpdateAvailability.updateAvailable) {
         return;
       }
@@ -36,17 +56,20 @@ class AppUpdateService {
 
       await InAppUpdate.startFlexibleUpdate();
       if (context.mounted) _promptDownloading(context);
-
-      _sub?.cancel();
-      _sub = InAppUpdate.installUpdateListener.listen((status) {
-        if (status == InstallStatus.downloaded) _promptRestart();
-      });
+      _listenForDownloadCompletion();
     } catch (e, stack) {
       // Never let a failed update check affect the app — this is a
       // best-effort background nicety, not something that should surface
       // an error to the user.
       ErrorLogger.log(e, stackTrace: stack, action: 'in_app_update_check');
     }
+  }
+
+  static void _listenForDownloadCompletion() {
+    _sub?.cancel();
+    _sub = InAppUpdate.installUpdateListener.listen((status) {
+      if (status == InstallStatus.downloaded) _promptRestart();
+    });
   }
 
   static void _promptDownloading(BuildContext context) {

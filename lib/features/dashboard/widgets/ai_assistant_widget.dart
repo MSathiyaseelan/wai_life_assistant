@@ -31,6 +31,7 @@ import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
+import 'package:wai_life_assistant/data/services/app_config_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AIAssistantWidget
@@ -96,6 +97,10 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
   int _monthlyUsed = 0;
   int _monthlyLimit = 20;
 
+  // Local NLP-parser shortcut — off (AI-only) by default and until loaded;
+  // see AppConfigService.fetchNlpParserEnabled.
+  bool _nlpParserEnabled = false;
+
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
 
@@ -122,6 +127,9 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     WidgetsBinding.instance.addObserver(this);
     ContactService.instance.preload();
     _checkLimitOnOpen();
+    AppConfigService.instance.fetchNlpParserEnabled().then((enabled) {
+      if (mounted) setState(() => _nlpParserEnabled = enabled);
+    });
   }
 
   @override
@@ -269,7 +277,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     // + category keyword + payment-mode keyword), so entries like these never
     // need an AI call at all. Skipped for anything that reads like a question
     // (needs live data only Gemini + context can answer).
-    if (!_looksLikeQuestion(question)) {
+    if (_nlpParserEnabled && !_looksLikeQuestion(question)) {
       final localIntent = NlpParser.parse(question);
       if (localIntent.confidence >= 0.75) {
         _hideSuggestions();
