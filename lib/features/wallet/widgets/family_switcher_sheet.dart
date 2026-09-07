@@ -1435,6 +1435,17 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     if (_deleteDialogOpen) return;
     _deleteDialogOpen = true;
     var removing = false;
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final members = widget.existing!.members;
+    final myMember = members.firstWhere(
+      (m) => m.userId == uid,
+      orElse: () => members.first,
+    );
+    final otherMembers = members.where((m) => m.id != myMember.id).toList();
+    // Other members still around — deleting wipes the group for all of
+    // them too, so offer the less destructive "step down" path first.
+    final hasOtherMembers = otherMembers.isNotEmpty;
+
     showDialog(
       context: ctx,
       builder: (_) => StatefulBuilder(
@@ -1444,7 +1455,9 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
             style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
           ),
           content: Text(
-            'Remove "${widget.existing!.name}"? All data will be lost.',
+            hasOtherMembers
+                ? 'Remove "${widget.existing!.name}" for everyone? All data will be lost for every member.\n\nIf you\'d rather step down and let the others keep using it, transfer admin to another member instead.'
+                : 'Remove "${widget.existing!.name}"? All data will be lost.',
             style: const TextStyle(fontFamily: 'Nunito'),
           ),
           actions: [
@@ -1452,6 +1465,20 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
               onPressed: removing ? null : () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
+            if (hasOtherMembers)
+              TextButton(
+                onPressed: removing
+                    ? null
+                    : () {
+                        setDialogState(() => removing = true);
+                        Navigator.pop(ctx);
+                        _showTransferAdminDialog(myMember, otherMembers);
+                      },
+                child: const Text(
+                  'Transfer Admin',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
             TextButton(
               onPressed: removing
                   ? null
@@ -1485,15 +1512,72 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                         }
                       }
                     },
-              child: const Text(
-                'Remove',
-                style: TextStyle(color: AppColors.expense),
+              child: Text(
+                hasOtherMembers ? 'Remove for Everyone' : 'Remove',
+                style: const TextStyle(color: AppColors.expense),
               ),
             ),
           ],
         ),
       ),
     ).then((_) => _deleteDialogOpen = false);
+  }
+
+  /// Lets the sole admin step down instead of deleting the group outright —
+  /// promotes [otherMembers]'s pick to admin, removes [myMember], then
+  /// closes this Edit Family sheet since the current user no longer
+  /// belongs to it.
+  void _showTransferAdminDialog(FamilyMember myMember, List<FamilyMember> otherMembers) {
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text(
+          'Transfer Admin',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Select a member to become the new admin:',
+              style: TextStyle(fontSize: 12, fontFamily: 'Nunito'),
+            ),
+            const SizedBox(height: 8),
+            ...otherMembers.map((m) => ListTile(
+                  leading: EmojiOrImage(value: m.emoji, size: 18),
+                  title: Text(m.name, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito')),
+                  onTap: () async {
+                    Navigator.pop(dCtx);
+                    final messenger = ScaffoldMessenger.of(context);
+                    widget.appState.switchWallet(
+                      widget.appState.wallets
+                          .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                          .id,
+                    );
+                    try {
+                      await ProfileService.instance.transferAdminAndLeave(
+                        newAdminMemberId: m.id,
+                        myMemberId: myMember.id,
+                      );
+                      if (mounted) {
+                        await widget.appState.reload();
+                        if (mounted) Navigator.pop(context);
+                      }
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_and_leave');
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(friendlyError(e, 'Failed to transfer admin. Please try again.')),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
   }
 
   void _addMember(BuildContext ctx, bool isDark, Color surfBg) =>

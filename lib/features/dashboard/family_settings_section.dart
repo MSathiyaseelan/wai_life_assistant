@@ -1712,6 +1712,16 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
   }
 
   Future<void> _confirmDeleteFamily(BuildContext context, FamilyModel family) async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final myMember = family.members.firstWhere(
+      (m) => m.userId == uid,
+      orElse: () => family.members.first,
+    );
+    final otherMembers = family.members.where((m) => m.id != myMember.id).toList();
+    // Other members still around — deleting wipes the group for all of
+    // them too, so offer the less destructive "step down" path first.
+    final hasOtherMembers = otherMembers.isNotEmpty;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
@@ -1725,7 +1735,9 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
           ),
         ),
         content: Text(
-          'Delete "${family.name}"? The family and all its transactions will be archived and hidden. This cannot be undone.',
+          hasOtherMembers
+              ? 'Delete "${family.name}" for everyone? All data will be archived and hidden, and the group will stop working for every member. This cannot be undone.\n\nIf you\'d rather step down and let the others keep using it, transfer admin to another member instead.'
+              : 'Delete "${family.name}"? The family and all its transactions will be archived and hidden. This cannot be undone.',
           style: const TextStyle(fontSize: 13, fontFamily: 'Nunito'),
         ),
         actions: [
@@ -1734,11 +1746,22 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
             child: const Text('Cancel',
                 style: TextStyle(fontFamily: 'Nunito')),
           ),
+          if (hasOtherMembers)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogCtx, false);
+                _showTransferAdminDialog(context, family, myMember, otherMembers);
+              },
+              child: const Text(
+                'Transfer Admin Instead',
+                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+              ),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(
+            child: Text(
+              hasOtherMembers ? 'Delete for Everyone' : 'Delete',
+              style: const TextStyle(
                 color: Colors.red,
                 fontFamily: 'Nunito',
                 fontWeight: FontWeight.w800,
