@@ -347,7 +347,7 @@ class _DashboardAiBarState extends State<DashboardAiBar>
                               colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
                             ).createShader(r),
                             child: const Text(
-                              '✦ WAI',
+                              '✦ AI Assistant',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontFamily: 'Nunito',

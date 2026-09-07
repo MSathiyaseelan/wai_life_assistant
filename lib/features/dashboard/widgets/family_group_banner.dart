@@ -58,7 +58,7 @@ class FamilyGroupBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Add your family to WAI',
+                  'Add your family to RiyasHome',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,

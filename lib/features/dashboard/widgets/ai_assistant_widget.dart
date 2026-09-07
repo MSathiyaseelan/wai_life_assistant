@@ -627,7 +627,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                     colors: [Color(0xFFA5B4FC), Color(0xFFE0E7FF)],
                   ).createShader(r),
                   child: const Text(
-                    '✦ WAI Assistant',
+                    '✦ AI Assistant',
                     style: TextStyle(
                       fontSize: 13,
                       fontFamily: 'Nunito',

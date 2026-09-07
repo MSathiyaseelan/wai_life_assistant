@@ -286,7 +286,7 @@ class SMSParserService {
     await plugin.show(
       body.hashCode.abs() % 100000,
       title,
-      'Tap to add to WAI Wallet',
+      'Tap to add to RiyasHome Wallet',
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'wai_sms_channel',

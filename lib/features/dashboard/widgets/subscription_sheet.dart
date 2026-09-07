@@ -740,7 +740,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
                   elevation: 0,
                 ),
                 child: Text(
-                  'Upgrade to WAI $title',
+                  'Upgrade to RiyasHome $title',
                   style: const TextStyle(
                       fontSize: 14,
                       fontFamily: 'Nunito',
@@ -938,7 +938,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
                 fontWeight: FontWeight.w900,
                 color: _tc)),
         content: Text(
-          'You\'ll be taken to Google Play to cancel. You\'ll keep your WAI '
+          'You\'ll be taken to Google Play to cancel. You\'ll keep your RiyasHome '
           '$_planName benefits until the end of your current billing period — '
           'after that, your account reverts to Personal (Free).',
           style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: _sub),

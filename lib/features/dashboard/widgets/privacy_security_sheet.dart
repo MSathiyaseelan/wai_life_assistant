@@ -552,8 +552,8 @@ class _PrivacySecuritySheetState extends State<PrivacySecuritySheet> {
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
-          subject: 'My WAI data export',
-          text: 'Here is your exported WAI Life Assistant data.',
+          subject: 'My RiyasHome data export',
+          text: 'Here is your exported RiyasHome data.',
         ),
       );
     } catch (e, stack) {
