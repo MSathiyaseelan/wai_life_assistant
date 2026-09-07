@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:in_app_update/in_app_update.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../main.dart';
 import 'error_logger.dart';
@@ -41,6 +42,22 @@ class AppUpdateService {
       // the restart — the only way out is manually updating via Play
       // Store. `installStatus` is only meaningful in this branch.
       if (info.updateAvailability == UpdateAvailability.developerTriggeredUpdateInProgress) {
+        // Play Core can keep reporting a stale in-progress session from a
+        // PREVIOUS flexible-update attempt that was never explicitly
+        // completed via completeFlexibleUpdate() — e.g. the user manually
+        // updated through the Play Store app instead of tapping our
+        // "Restart" prompt. That abandoned session's target version can
+        // already be behind (or equal to) what's actually running, in
+        // which case its installStatus will never reach `downloaded` —
+        // waiting on it is waiting forever. Cross-check the reported
+        // target against the currently running build; if we're already on
+        // it or newer, this session is moot.
+        final target = info.availableVersionCode;
+        if (target != null) {
+          final pkg = await PackageInfo.fromPlatform();
+          final current = int.tryParse(pkg.buildNumber);
+          if (current != null && current >= target) return;
+        }
         if (info.installStatus == InstallStatus.downloaded) {
           _promptRestart();
         } else {
