@@ -264,6 +264,33 @@ class ProfileService {
     await _db.rpc(AppRpc.deleteFamily, params: {'p_family_id': familyId});
   }
 
+  /// Groups the current user deleted (and is still admin of) that are still
+  /// within the recycle-bin retention window and can be restored.
+  Future<List<DeletedFamilyInfo>> getDeletedFamilies() async {
+    final rows = await _db
+        .from('families')
+        .select('id, name, emoji, deleted_at, family_members!inner(user_id, role)')
+        .eq('is_archived', true)
+        .eq('family_members.user_id', _uid)
+        .eq('family_members.role', 'admin')
+        .order('deleted_at', ascending: false);
+    return (rows as List)
+        .map((r) => DeletedFamilyInfo(
+              id: r['id'] as String,
+              name: r['name'] as String,
+              emoji: r['emoji'] as String,
+              deletedAt: DateTime.parse(r['deleted_at'] as String),
+            ))
+        .toList();
+  }
+
+  /// Restore a family this admin previously deleted, within the retention
+  /// window enforced server-side. Throws [PostgrestException] if the window
+  /// has passed.
+  Future<void> restoreFamily(String familyId) async {
+    await _db.rpc(AppRpc.restoreFamily, params: {'p_family_id': familyId});
+  }
+
   // ── Member CRUD ───────────────────────────────────────────────────────────
 
   /// Add a member to a family via RPC (SECURITY DEFINER bypasses RLS).

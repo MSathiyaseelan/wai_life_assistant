@@ -351,6 +351,22 @@ class FamilyModel {
   bool get canDelete => permDelete == 'any_member' || isAdmin;
 }
 
+/// A soft-deleted family group still within the recycle-bin retention
+/// window, as returned by [ProfileService.getDeletedFamilies].
+class DeletedFamilyInfo {
+  final String id;
+  final String name;
+  final String emoji;
+  final DateTime deletedAt;
+
+  const DeletedFamilyInfo({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    required this.deletedAt,
+  });
+}
+
 // ── Budget ────────────────────────────────────────────────────────────────────
 
 /// Monthly spending limit for a single expense category in a wallet.

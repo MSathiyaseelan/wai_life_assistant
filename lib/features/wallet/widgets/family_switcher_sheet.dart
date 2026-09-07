@@ -62,6 +62,53 @@ class FamilySwitcherSheet extends StatefulWidget {
 }
 
 class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
+  List<DeletedFamilyInfo>? _deletedFamilies;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AuthCoordinator.instance.isLoggedIn) _loadDeletedFamilies();
+  }
+
+  Future<void> _loadDeletedFamilies() async {
+    try {
+      final deleted = await ProfileService.instance.getDeletedFamilies();
+      if (mounted) setState(() => _deletedFamilies = deleted);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_deleted_families');
+      if (mounted) setState(() => _deletedFamilies = []);
+    }
+  }
+
+  Future<void> _restoreFamily(DeletedFamilyInfo family) async {
+    try {
+      await ProfileService.instance.restoreFamily(family.id);
+      if (!mounted) return;
+      await widget.appState.reload();
+      if (!mounted) return;
+      setState(() {
+        _deletedFamilies = _deletedFamilies!.where((f) => f.id != family.id).toList();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${family.name}" restored'),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'restore_family');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyError(e, 'Failed to restore group. Please try again.')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -279,6 +326,60 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
                         ),
                       ),
                   ],
+                  if (_deletedFamilies != null && _deletedFamilies!.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _Label('RECENTLY DELETED', sub),
+                    const SizedBox(height: 6),
+                    ..._deletedFamilies!.map(
+                      (f) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: surfBg,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              EmojiOrImage(value: f.emoji, size: 22, borderRadius: 6),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      f.name,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: tc,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Deleted ${_relativeTime(f.deletedAt)}',
+                                      style: TextStyle(fontSize: 10.5, fontFamily: 'Nunito', color: sub),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _restoreFamily(f),
+                                child: const Text(
+                                  'Restore',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: AppColors.income,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                 ],
               ),
@@ -287,6 +388,14 @@ class _FamilySwitcherSheetState extends State<FamilySwitcherSheet> {
         ],
       ),
     );
+  }
+
+  static String _relativeTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays >= 1) return '${diff.inDays}d ago';
+    if (diff.inHours >= 1) return '${diff.inHours}h ago';
+    if (diff.inMinutes >= 1) return '${diff.inMinutes}m ago';
+    return 'just now';
   }
 }
 
@@ -1320,59 +1429,71 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     );
   }
 
+  bool _deleteDialogOpen = false;
+
   void _confirmDelete(BuildContext ctx) {
+    if (_deleteDialogOpen) return;
+    _deleteDialogOpen = true;
+    var removing = false;
     showDialog(
       context: ctx,
-      builder: (_) => AlertDialog(
-        title: const Text(
-          'Remove Group?',
-          style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
-        ),
-        content: Text(
-          'Remove "${widget.existing!.name}"? All data will be lost.',
-          style: const TextStyle(fontFamily: 'Nunito'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+      builder: (_) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          title: const Text(
+            'Remove Group?',
+            style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              if (!AuthCoordinator.instance.isLoggedIn) {
-                // Bypass mode: mutate mock globals
-                mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
-                familyWallets.removeWhere((w) => w.id == widget.existing!.id);
-                if (mounted) Navigator.pop(context);
-                return;
-              }
-              try {
-                await ProfileService.instance.deleteFamily(widget.existing!.id);
-                if (mounted) {
-                  await widget.appState.reload();
-                  if (mounted) Navigator.pop(context);
-                }
-              } catch (e, stack) {
-                ErrorLogger.log(e, stackTrace: stack, action: 'family_delete');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(friendlyError(e, 'Failed to remove group. Please try again.')),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text(
-              'Remove',
-              style: TextStyle(color: AppColors.expense),
+          content: Text(
+            'Remove "${widget.existing!.name}"? All data will be lost.',
+            style: const TextStyle(fontFamily: 'Nunito'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: removing ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
             ),
-          ),
-        ],
+            TextButton(
+              onPressed: removing
+                  ? null
+                  : () async {
+                      // Guards against a second tap landing before the pop
+                      // below visually dismisses the dialog.
+                      setDialogState(() => removing = true);
+                      Navigator.pop(ctx);
+                      if (!AuthCoordinator.instance.isLoggedIn) {
+                        // Bypass mode: mutate mock globals
+                        mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
+                        familyWallets.removeWhere((w) => w.id == widget.existing!.id);
+                        if (mounted) Navigator.pop(context);
+                        return;
+                      }
+                      try {
+                        await ProfileService.instance.deleteFamily(widget.existing!.id);
+                        if (mounted) {
+                          await widget.appState.reload();
+                          if (mounted) Navigator.pop(context);
+                        }
+                      } catch (e, stack) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'family_delete');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(friendlyError(e, 'Failed to remove group. Please try again.')),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: AppColors.expense),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
+    ).then((_) => _deleteDialogOpen = false);
   }
 
   void _addMember(BuildContext ctx, bool isDark, Color surfBg) =>
