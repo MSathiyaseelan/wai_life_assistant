@@ -50,6 +50,7 @@ import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_shee
 import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/family_group_banner.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/family_plan_expiry_banner.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
@@ -101,6 +102,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Transactions — merged list from all loaded wallets
   List<TxModel> _transactions = [];
   final Set<String> _loadedWalletIds = {};
+
+  // Billing state of the currently active family wallet (null for personal
+  // wallets, or a family wallet never on a paid plan) — drives the
+  // "plan about to expire" renewal banner.
+  String? _subLoadedForWalletId;
+  WalletSubscriptionInfo? _activeWalletSub;
 
   // Page controller for swipeable shopping list cards
   late final PageController _listPageController;
@@ -427,6 +434,37 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _loadTransactions(w.id),
       );
+    }
+  }
+
+  /// Keeps [_activeWalletSub] in sync with whichever wallet the dashboard is
+  /// currently scoped to — cleared for personal wallets, (re)fetched once
+  /// per family wallet id.
+  void _ensureWalletSubscriptionLoaded(String walletId, bool isPersonal) {
+    if (isPersonal || _isPlaceholder(walletId)) {
+      if (_subLoadedForWalletId != null) {
+        _subLoadedForWalletId = null;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _activeWalletSub = null);
+        });
+      }
+      return;
+    }
+    if (_subLoadedForWalletId == walletId) return;
+    _subLoadedForWalletId = walletId;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _loadWalletSubscription(walletId),
+    );
+  }
+
+  Future<void> _loadWalletSubscription(String walletId) async {
+    try {
+      final info = await ProfileService.instance.getWalletSubscription(walletId);
+      if (mounted && _subLoadedForWalletId == walletId) {
+        setState(() => _activeWalletSub = info);
+      }
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'load_wallet_subscription');
     }
   }
 
@@ -1226,6 +1264,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _ensurePlanItLoaded(appState.wallets);
     _ensureHealthLoaded(appState.wallets);
     _ensureMyListLoaded(appState.wallets);
+    _ensureWalletSubscriptionLoaded(walletId, appState.isPersonal);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.bgDark : AppColors.bgLight;
     final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -1411,6 +1450,46 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                               () => AppPrefs.instance.familyBannerDismissed = true),
                         ),
                         const SizedBox(height: 16),
+                      ],
+
+                      // ── Family plan about to lapse ────────────────────────────
+                      // Same slot as the "no family yet" banner above, for the
+                      // opposite audience: an admin of a family wallet whose
+                      // paid plan was cancelled and is within a week of expiry.
+                      if (!appState.loading &&
+                          !appState.isPersonal &&
+                          _activeWalletSub != null &&
+                          _activeWalletSub!.isLapsing) ...[
+                        Builder(builder: (_) {
+                          final family = appState.families
+                              .where((f) => f.walletId == appState.activeWalletId)
+                              .firstOrNull;
+                          final expiresAt = _activeWalletSub!.expiresAt;
+                          final daysLeft = _activeWalletSub!.daysUntilExpiry;
+                          if (family == null ||
+                              !family.isAdmin ||
+                              expiresAt == null ||
+                              daysLeft == null ||
+                              daysLeft < 0 ||
+                              daysLeft > appState.planExpiryBannerDays ||
+                              AppPrefs.instance.isFamilyExpiryDismissed(
+                                  appState.activeWalletId, expiresAt)) {
+                            return const SizedBox.shrink();
+                          }
+                          return Column(
+                            children: [
+                              FamilyPlanExpiryBanner(
+                                isDark: Theme.of(context).brightness == Brightness.dark,
+                                daysLeft: daysLeft,
+                                onRenew: _prefsTap(
+                                    context, Theme.of(context).brightness == Brightness.dark, 'Subscription'),
+                                onDismiss: () => setState(() => AppPrefs.instance
+                                    .dismissFamilyExpiry(appState.activeWalletId, expiresAt)),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          );
+                        }),
                       ],
 
                       // ── Needs Attention ───────────────────────────────────────

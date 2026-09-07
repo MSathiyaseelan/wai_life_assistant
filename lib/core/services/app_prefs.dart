@@ -169,6 +169,15 @@ class AppPrefs extends ChangeNotifier {
   bool get familyBannerDismissed    => _b('family_banner_dismissed',  def: false);
   set familyBannerDismissed(bool v) => _setB('family_banner_dismissed', v);
 
+  /// The dashboard's "Your plan is about to expire" renewal reminder.
+  /// Keyed per wallet + expiry date so dismissing this billing cycle's
+  /// reminder doesn't silently suppress the next one after a fresh renewal
+  /// (which carries a new expires_at) lapses again later.
+  bool isFamilyExpiryDismissed(String walletId, DateTime expiresAt) =>
+      _b('family_expiry_dismissed_${walletId}_${expiresAt.toIso8601String().substring(0, 10)}', def: false);
+  void dismissFamilyExpiry(String walletId, DateTime expiresAt) => _setB(
+      'family_expiry_dismissed_${walletId}_${expiresAt.toIso8601String().substring(0, 10)}', true);
+
   // ── AI Parser ──────────────────────────────────────────────────────────────
 
   bool get aiAlwaysConfirm    => _b('ai_always_confirm',  def: true);

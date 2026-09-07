@@ -18,6 +18,7 @@ class AppStateNotifier extends ChangeNotifier {
   String _activeWalletId = '';
   int _maxFamilyGroups = 1; // V1 safe default
   int _maxFamilyMembers = 0; // 0 = personal_free (no family allowed)
+  int _planExpiryBannerDays = 7; // V1 safe default
 
   /// userId → "emoji name" for ALL family members, including removed ones.
   /// Used so past transactions/entries still show the correct name after
@@ -38,6 +39,10 @@ class AppStateNotifier extends ChangeNotifier {
   /// Max members per family group from the user's subscription plan.
   /// 0 means the user's plan does not allow family groups.
   int get maxFamilyMembers => _maxFamilyMembers;
+
+  /// Server-controlled lead time (days) for the dashboard's "plan about to
+  /// expire" renewal banner.
+  int get planExpiryBannerDays => _planExpiryBannerDays;
 
   String get activeWalletId => _activeWalletId;
 
@@ -110,9 +115,11 @@ class AppStateNotifier extends ChangeNotifier {
           else Future.value(null),
           if (loggedIn) ProfileService.instance.fetchMaxFamilyMembers()
           else Future.value(0),
+          AppConfigService.instance.fetchPlanExpiryBannerDays(),
         ]);
         _maxFamilyGroups = fetched[0] as int;
         if (loggedIn) _maxFamilyMembers = fetched[2] as int;
+        _planExpiryBannerDays = fetched[3] as int;
 
         if (!loggedIn) {
           RealtimeSyncService.instance.unsubscribeAll();

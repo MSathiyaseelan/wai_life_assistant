@@ -291,6 +291,24 @@ class ProfileService {
     await _db.rpc(AppRpc.restoreFamily, params: {'p_family_id': familyId});
   }
 
+  /// The billing state of a family wallet's paid plan — null for personal
+  /// wallets, or a family wallet with no subscription row (never been on a
+  /// paid plan). RLS ("Family members can read their wallet subscription")
+  /// allows any member of that wallet to read this, not just the admin.
+  Future<WalletSubscriptionInfo?> getWalletSubscription(String walletId) async {
+    final row = await _db
+        .from('wallet_subscriptions')
+        .select('status, expires_at, auto_renew')
+        .eq('wallet_id', walletId)
+        .maybeSingle();
+    if (row == null) return null;
+    return WalletSubscriptionInfo(
+      status: row['status'] as String,
+      expiresAt: row['expires_at'] != null ? DateTime.parse(row['expires_at'] as String) : null,
+      autoRenew: row['auto_renew'] as bool,
+    );
+  }
+
   // ── Member CRUD ───────────────────────────────────────────────────────────
 
   /// Add a member to a family via RPC (SECURITY DEFINER bypasses RLS).

@@ -351,6 +351,33 @@ class FamilyModel {
   bool get canDelete => permDelete == 'any_member' || isAdmin;
 }
 
+/// A family wallet's billing state, as returned by
+/// [ProfileService.getWalletSubscription]. Mirrors the `wallet_subscriptions`
+/// table row relevant to showing a renewal reminder.
+class WalletSubscriptionInfo {
+  final String status; // 'active' | 'trial' | 'expired' | 'cancelled'
+  final DateTime? expiresAt; // null = lifetime / never expires
+  final bool autoRenew;
+
+  const WalletSubscriptionInfo({
+    required this.status,
+    required this.expiresAt,
+    required this.autoRenew,
+  });
+
+  /// True when the subscription is cancelled (won't auto-renew) but access
+  /// hasn't lapsed yet — i.e. exactly the window revenuecat-webhook's
+  /// cancellation handler creates, and the one notify-plan-expiry pages
+  /// admins about at 3/1/0 days out.
+  bool get isLapsing => status == 'active' && !autoRenew && expiresAt != null;
+
+  int? get daysUntilExpiry {
+    if (expiresAt == null) return null;
+    final now = DateTime.now();
+    return expiresAt!.difference(DateTime(now.year, now.month, now.day)).inDays;
+  }
+}
+
 /// A soft-deleted family group still within the recycle-bin retention
 /// window, as returned by [ProfileService.getDeletedFamilies].
 class DeletedFamilyInfo {

@@ -42,6 +42,25 @@ class AppConfigService {
     }
   }
 
+  /// How many days before a cancelled family plan's expiry the dashboard's
+  /// renewal reminder banner starts showing. Wider than the 3/1/0-day
+  /// notify-plan-expiry push schedule since a persistent in-app banner is
+  /// less intrusive and can give earlier notice. Returns 7 (current
+  /// default) on any error or when not configured.
+  Future<int> fetchPlanExpiryBannerDays() async {
+    try {
+      final row = await _db
+          .from('app_config')
+          .select('value')
+          .eq('key', 'plan_expiry_banner_days')
+          .maybeSingle();
+      return int.tryParse(row?['value'] as String? ?? '') ?? 7;
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_plan_expiry_banner_days');
+      return 7;
+    }
+  }
+
   /// Whether the local deterministic NLP parser (Dashboard AI Assistant's
   /// and Wallet quick-add's pre-AI shortcut, and Wallet's on-AI-failure
   /// fallback) is allowed to run at all. Defaults to false (AI-only) on
