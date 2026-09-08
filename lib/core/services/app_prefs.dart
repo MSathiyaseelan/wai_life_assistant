@@ -36,6 +36,9 @@ class AppPrefs extends ChangeNotifier {
   bool _b(String key, {required bool def}) =>
       _prefs?.getBool('$_pfx$key') ?? def;
 
+  int _i(String key, {required int def}) =>
+      _prefs?.getInt('$_pfx$key') ?? def;
+
   Future<void> _setS(String key, String v) async {
     await _prefs?.setString('$_pfx$key', v);
     notifyListeners();
@@ -43,6 +46,11 @@ class AppPrefs extends ChangeNotifier {
 
   Future<void> _setB(String key, bool v) async {
     await _prefs?.setBool('$_pfx$key', v);
+    notifyListeners();
+  }
+
+  Future<void> _setI(String key, int v) async {
+    await _prefs?.setInt('$_pfx$key', v);
     notifyListeners();
   }
 
@@ -177,6 +185,13 @@ class AppPrefs extends ChangeNotifier {
       _b('family_expiry_dismissed_${walletId}_${expiresAt.toIso8601String().substring(0, 10)}', def: false);
   void dismissFamilyExpiry(String walletId, DateTime expiresAt) => _setB(
       'family_expiry_dismissed_${walletId}_${expiresAt.toIso8601String().substring(0, 10)}', true);
+
+  /// The highest build number (pubspec.yaml's version suffix, e.g. 1.0.0+24
+  /// → 24) the user has already seen a "What's New" sheet for — see
+  /// [WhatsNew]. 0 means never shown, which also covers a fresh install
+  /// (no changelog noise on first launch, only on updates).
+  int get lastSeenBuildNumber    => _i('last_seen_build_number', def: 0);
+  set lastSeenBuildNumber(int v) => _setI('last_seen_build_number', v);
 
   // ── AI Parser ──────────────────────────────────────────────────────────────
 

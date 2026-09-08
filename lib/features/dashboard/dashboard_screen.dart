@@ -18,6 +18,8 @@ import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/app_update_service.dart';
+import 'package:wai_life_assistant/core/whats_new.dart';
+import 'package:wai_life_assistant/features/dashboard/widgets/whats_new_sheet.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/core/error/friendly_error.dart';
 import 'package:wai_life_assistant/features/AppStateNotifier.dart';
@@ -178,6 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _loadUnreadCount();
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _appVersion = 'v${info.version}');
+      _checkWhatsNew(info);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) AppUpdateService.checkAndStartFlexibleUpdate(context);
@@ -466,6 +469,44 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'load_wallet_subscription');
     }
+  }
+
+  /// Shows the "What's New" sheet once per update — see
+  /// AppPrefs.lastSeenBuildNumber and lib/core/whats_new.dart. If the user
+  /// skipped several versions between opens, shows the union of every
+  /// version's entries in the gap (most recent first). A fresh install, or
+  /// the first launch after this feature ships (lastSeenBuildNumber == 0
+  /// in both cases — indistinguishable, and neither should dump history),
+  /// just starts tracking silently.
+  Future<void> _checkWhatsNew(PackageInfo info) async {
+    final current = int.tryParse(info.buildNumber);
+    if (current == null) return;
+    // AppPrefs is also initialized inside _loadProfile(), running
+    // concurrently from the same initState — this call is idempotent
+    // (no-ops once already loaded) and guarantees readiness regardless of
+    // which caller wins the race.
+    await AppPrefs.instance.init();
+    final lastSeen = AppPrefs.instance.lastSeenBuildNumber;
+    if (lastSeen == 0 || current <= lastSeen) {
+      if (current != lastSeen) AppPrefs.instance.lastSeenBuildNumber = current;
+      return;
+    }
+    final changes = <String>[];
+    for (var b = current; b > lastSeen; b--) {
+      final e = WhatsNew.entries[b];
+      if (e != null) changes.addAll(e);
+    }
+    AppPrefs.instance.lastSeenBuildNumber = current;
+    if (changes.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      WhatsNewSheet.show(
+        context,
+        isDark: Theme.of(context).brightness == Brightness.dark,
+        versionLabel: 'Version ${info.version} (${info.buildNumber})',
+        changes: changes,
+      );
+    });
   }
 
   void _ensurePlanItLoaded(List<WalletModel> wallets) {
