@@ -126,6 +126,29 @@ class AppConfigService {
     }
   }
 
+  /// Runtime override for FeatureFlags.healthSpaceEnabled — lets ops
+  /// disable Health Space in prod (e.g. a Play Console compliance issue)
+  /// instantly, without shipping a build, while the build-time
+  /// --dart-define default still protects prod if this table is ever
+  /// unreachable. Returns null (no override — caller should fall back to
+  /// the build-time flag) when the row is absent, its value is the
+  /// sentinel 'inherit', or the fetch fails.
+  Future<bool?> fetchHealthSpaceEnabledOverride() async {
+    try {
+      final row = await _db
+          .from('app_config')
+          .select('value')
+          .eq('key', 'health_space_enabled_override')
+          .maybeSingle();
+      final v = row?['value'] as String?;
+      if (v == null || v == 'inherit') return null;
+      return v == 'true';
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_health_space_enabled_override');
+      return null;
+    }
+  }
+
   /// Whether the local deterministic NLP parser (Dashboard AI Assistant's
   /// and Wallet quick-add's pre-AI shortcut, and Wallet's on-AI-failure
   /// fallback) is allowed to run at all. Defaults to false (AI-only) on

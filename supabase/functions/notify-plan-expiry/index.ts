@@ -142,6 +142,34 @@ async function cleanupDeadTokens(
   }
 }
 
+// ── Config ──────────────────────────────────────────────────────────────────
+
+/** Mirrors the client's AppConfigService pattern: reads a comma-separated
+ * days-ahead schedule (e.g. "0,1,3") from app_config so it can be tuned
+ * without redeploying this function. Falls back to [fallback] if the key
+ * is absent, malformed, or the query fails. */
+async function fetchNotifyDays(
+  supabase: ReturnType<typeof createClient>,
+  key: string,
+  fallback: number[],
+): Promise<number[]> {
+  try {
+    const { data, error } = await supabase
+      .from("app_config")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    if (error || !data?.value) return fallback;
+    const parsed = (data.value as string)
+      .split(",")
+      .map((s) => parseInt(s.trim(), 10))
+      .filter((n) => !isNaN(n));
+    return parsed.length ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 // ── Notification copy per days-remaining ─────────────────────────────────────
 
 function notifContent(daysAhead: number): { title: string; body: string } {
@@ -183,7 +211,8 @@ serve(async (req) => {
   let totalSent = 0;
   let fcmToken: string | null = null;
 
-  for (const daysAhead of [0, 1, 3]) {
+  const notifyDays = await fetchNotifyDays(supabase, "plan_expiry_notify_days", [0, 1, 3]);
+  for (const daysAhead of notifyDays) {
     const dayStart = new Date(now);
     dayStart.setUTCDate(dayStart.getUTCDate() + daysAhead);
     const dayEnd = new Date(dayStart);

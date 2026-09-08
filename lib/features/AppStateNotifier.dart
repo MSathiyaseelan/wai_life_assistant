@@ -4,6 +4,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/data/services/app_config_service.dart';
+import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/realtime_sync_service.dart';
 
@@ -121,11 +122,14 @@ class AppStateNotifier extends ChangeNotifier {
           else Future.value(0),
           AppConfigService.instance.fetchPlanExpiryBannerDays(),
           AppConfigService.instance.fetchPlanExpiryBannerCopy(),
+          if (loggedIn) AppConfigService.instance.fetchHealthSpaceEnabledOverride()
+          else Future.value(null),
         ]);
         _maxFamilyGroups = fetched[0] as int;
         if (loggedIn) _maxFamilyMembers = fetched[2] as int;
         _planExpiryBannerDays = fetched[3] as int;
         _planExpiryBannerCopy = fetched[4] as PlanExpiryBannerCopy;
+        FeatureFlags.applyHealthSpaceEnabledOverride(fetched[5] as bool?);
 
         if (!loggedIn) {
           RealtimeSyncService.instance.unsubscribeAll();

@@ -580,7 +580,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _onHealthChange();
+    if (state == AppLifecycleState.resumed) {
+      _onHealthChange();
+      // Re-check Play Core on every resume, not just cold launch — a
+      // flexible update's installUpdateListener stream can miss the
+      // `downloaded` event while the app was backgrounded (OS-throttled
+      // platform channels, some OEMs), which would otherwise leave the
+      // "Restart" prompt never shown even though the update finished
+      // downloading. checkForUpdate() re-derives the true status from
+      // Play Core directly instead of relying on that stream.
+      AppUpdateService.checkAndStartFlexibleUpdate(context);
+    }
   }
 
   void _onMealChange() {
