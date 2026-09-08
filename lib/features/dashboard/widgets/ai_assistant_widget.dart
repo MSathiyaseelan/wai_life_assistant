@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
@@ -24,7 +22,6 @@ import 'package:wai_life_assistant/features/dashboard/ai_assistant/assistant_res
 import 'package:wai_life_assistant/features/dashboard/ai_assistant/action_executor.dart';
 import 'package:wai_life_assistant/features/wallet/ai/IntentConfirmSheet.dart';
 import 'package:wai_life_assistant/features/wallet/ai/nlp_parser.dart';
-import 'package:wai_life_assistant/features/wallet/screens/sms_history_import_screen.dart';
 import 'package:wai_life_assistant/features/wallet/services/sms_parser_service.dart';
 import 'package:wai_life_assistant/features/wallet/conversation_screen.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
@@ -588,12 +585,6 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     );
   }
 
-  // ── Import past transactions ───────────────────────────────────────────────
-
-  void _openImport() {
-    SmsHistoryImportScreen.show(context, walletId: _selectedWalletId);
-  }
-
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
@@ -897,7 +888,7 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                 ),
               ),
               const SizedBox(height: 8),
-              // ── Action chips (SMS & import) ────────────────────────────────
+              // ── Action chips (SMS) ──────────────────────────────────────────
               Row(
                 children: [
                   _ActionChip(
@@ -905,16 +896,12 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
                     label: _smsLoading ? 'Reading…' : 'Paste bank SMS',
                     onTap: _smsLoading ? null : _pasteSms,
                   ),
-                  // Import-from-SMS-history is Android only (iOS apps can't
-                  // read the device's SMS inbox).
-                  if (Platform.isAndroid) ...[
-                    const SizedBox(width: 8),
-                    _ActionChip(
-                      icon: Icons.history_rounded,
-                      label: 'Import transactions',
-                      onTap: _openImport,
-                    ),
-                  ],
+                  // Import-from-SMS-history needs READ_SMS, which is
+                  // currently commented out of AndroidManifest.xml pending
+                  // Play Store's SMS-permission policy declaration approval
+                  // (see the manifest and app_bootstrap.dart's SMS auto-scan
+                  // note). Hidden rather than shown-but-broken until that's
+                  // resolved and the permission is restored.
                 ],
               ),
             ],
