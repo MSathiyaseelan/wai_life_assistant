@@ -5,31 +5,32 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 // FAMILY PLAN EXPIRY BANNER
 // Shown in the same dashboard slot as FamilyGroupBanner, but for the
 // opposite audience: a family-plan admin whose paid plan was cancelled
-// (auto_renew=false) and is about to lapse. Mirrors the copy/urgency tiers
-// of the notify-plan-expiry push notification, but as a persistent in-app
+// (auto_renew=false) and is about to lapse. Mirrors the urgency tiers of
+// the notify-plan-expiry push notification, but as a persistent in-app
 // nudge while the plan is still within its recycle window. Dismissible per
-// billing cycle — see AppPrefs.dismissFamilyExpiry.
+// billing cycle — see AppPrefs.dismissFamilyExpiry. Copy (title/subtitle/
+// CTA) comes from app_config via AppConfigService.fetchPlanExpiryBannerCopy
+// — see AppStateNotifier.planExpiryBannerCopy — so wording can be changed
+// without an app release.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class FamilyPlanExpiryBanner extends StatelessWidget {
   final bool isDark;
-  final int daysLeft; // 0 = expires today; negative won't be passed in
+  final String title;
+  final String subtitle;
+  final String ctaLabel;
   final VoidCallback onRenew;
   final VoidCallback onDismiss;
 
   const FamilyPlanExpiryBanner({
     super.key,
     required this.isDark,
-    required this.daysLeft,
+    required this.title,
+    required this.subtitle,
+    required this.ctaLabel,
     required this.onRenew,
     required this.onDismiss,
   });
-
-  String get _title {
-    if (daysLeft <= 0) return 'Your family plan expires today';
-    if (daysLeft == 1) return 'Your family plan expires tomorrow';
-    return 'Your family plan expires in $daysLeft days';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +71,7 @@ class FamilyPlanExpiryBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _title,
+                  title,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -80,7 +81,7 @@ class FamilyPlanExpiryBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Renew to keep your family group\'s features active.',
+                  subtitle,
                   style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
                 ),
                 const SizedBox(height: 10),
@@ -92,9 +93,9 @@ class FamilyPlanExpiryBanner extends StatelessWidget {
                       color: warn,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Text(
-                      'Renew Now',
-                      style: TextStyle(
+                    child: Text(
+                      ctaLabel,
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                         fontFamily: 'Nunito',

@@ -1480,7 +1480,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             children: [
                               FamilyPlanExpiryBanner(
                                 isDark: Theme.of(context).brightness == Brightness.dark,
-                                daysLeft: daysLeft,
+                                title: appState.planExpiryBannerCopy.title(daysLeft),
+                                subtitle: appState.planExpiryBannerCopy.subtitle,
+                                ctaLabel: appState.planExpiryBannerCopy.cta,
                                 onRenew: _prefsTap(
                                     context, Theme.of(context).brightness == Brightness.dark, 'Subscription'),
                                 onDismiss: () => setState(() => AppPrefs.instance

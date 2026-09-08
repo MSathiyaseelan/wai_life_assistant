@@ -19,6 +19,7 @@ class AppStateNotifier extends ChangeNotifier {
   int _maxFamilyGroups = 1; // V1 safe default
   int _maxFamilyMembers = 0; // 0 = personal_free (no family allowed)
   int _planExpiryBannerDays = 7; // V1 safe default
+  PlanExpiryBannerCopy _planExpiryBannerCopy = PlanExpiryBannerCopy.defaults;
 
   /// userId → "emoji name" for ALL family members, including removed ones.
   /// Used so past transactions/entries still show the correct name after
@@ -43,6 +44,9 @@ class AppStateNotifier extends ChangeNotifier {
   /// Server-controlled lead time (days) for the dashboard's "plan about to
   /// expire" renewal banner.
   int get planExpiryBannerDays => _planExpiryBannerDays;
+
+  /// Server-controlled wording for the same banner.
+  PlanExpiryBannerCopy get planExpiryBannerCopy => _planExpiryBannerCopy;
 
   String get activeWalletId => _activeWalletId;
 
@@ -116,10 +120,12 @@ class AppStateNotifier extends ChangeNotifier {
           if (loggedIn) ProfileService.instance.fetchMaxFamilyMembers()
           else Future.value(0),
           AppConfigService.instance.fetchPlanExpiryBannerDays(),
+          AppConfigService.instance.fetchPlanExpiryBannerCopy(),
         ]);
         _maxFamilyGroups = fetched[0] as int;
         if (loggedIn) _maxFamilyMembers = fetched[2] as int;
         _planExpiryBannerDays = fetched[3] as int;
+        _planExpiryBannerCopy = fetched[4] as PlanExpiryBannerCopy;
 
         if (!loggedIn) {
           RealtimeSyncService.instance.unsubscribeAll();

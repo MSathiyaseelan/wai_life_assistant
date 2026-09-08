@@ -1,6 +1,42 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 
+/// Wording for the dashboard's "plan about to expire" renewal banner, as
+/// returned by [AppConfigService.fetchPlanExpiryBannerCopy]. [titleTemplate]
+/// is used for anything beyond tomorrow and must contain a `{days}`
+/// placeholder.
+class PlanExpiryBannerCopy {
+  final String titleToday;
+  final String titleTomorrow;
+  final String titleTemplate;
+  final String subtitle;
+  final String cta;
+
+  const PlanExpiryBannerCopy({
+    required this.titleToday,
+    required this.titleTomorrow,
+    required this.titleTemplate,
+    required this.subtitle,
+    required this.cta,
+  });
+
+  static const defaults = PlanExpiryBannerCopy(
+    titleToday: 'Your family plan expires today',
+    titleTomorrow: 'Your family plan expires tomorrow',
+    titleTemplate: 'Your family plan expires in {days} days',
+    subtitle: 'Renew to keep your family group\'s features active.',
+    cta: 'Renew Now',
+  );
+
+  /// Resolves the right title for [daysLeft] (0 = today, 1 = tomorrow,
+  /// otherwise [titleTemplate] with `{days}` substituted).
+  String title(int daysLeft) {
+    if (daysLeft <= 0) return titleToday;
+    if (daysLeft == 1) return titleTomorrow;
+    return titleTemplate.replaceAll('{days}', '$daysLeft');
+  }
+}
+
 /// Fetches server-controlled configuration from the `app_config` table.
 /// Values default to their V1 safe values if the table is unreachable.
 class AppConfigService {
@@ -58,6 +94,35 @@ class AppConfigService {
     } catch (e) {
       ErrorLogger.warning(e, action: 'fetch_plan_expiry_banner_days');
       return 7;
+    }
+  }
+
+  /// Copy shown on the dashboard's "plan about to expire" renewal banner —
+  /// kept in app_config (rather than hardcoded) so wording can be tuned or
+  /// A/B'd without an app release. Falls back to [PlanExpiryBannerCopy.defaults]
+  /// per-field when a key is missing, and entirely on any error.
+  Future<PlanExpiryBannerCopy> fetchPlanExpiryBannerCopy() async {
+    const keys = [
+      'plan_expiry_banner_title_today',
+      'plan_expiry_banner_title_tomorrow',
+      'plan_expiry_banner_title_template',
+      'plan_expiry_banner_subtitle',
+      'plan_expiry_banner_cta',
+    ];
+    try {
+      final rows = await _db.from('app_config').select('key, value').inFilter('key', keys);
+      final map = {for (final r in rows as List) r['key'] as String: r['value'] as String};
+      const d = PlanExpiryBannerCopy.defaults;
+      return PlanExpiryBannerCopy(
+        titleToday: map['plan_expiry_banner_title_today'] ?? d.titleToday,
+        titleTomorrow: map['plan_expiry_banner_title_tomorrow'] ?? d.titleTomorrow,
+        titleTemplate: map['plan_expiry_banner_title_template'] ?? d.titleTemplate,
+        subtitle: map['plan_expiry_banner_subtitle'] ?? d.subtitle,
+        cta: map['plan_expiry_banner_cta'] ?? d.cta,
+      );
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_plan_expiry_banner_copy');
+      return PlanExpiryBannerCopy.defaults;
     }
   }
 

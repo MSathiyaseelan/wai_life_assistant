@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wallet/wallet_models.dart';
 import '../models/subscription/subscription_models.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
+import 'package:wai_life_assistant/data/services/app_config_service.dart';
 
 /// Handles profile setup, personal vs family selection, and family management.
 /// All methods throw [PostgrestException] / [Exception] on failure.
@@ -265,14 +266,19 @@ class ProfileService {
   }
 
   /// Groups the current user deleted (and is still admin of) that are still
-  /// within the recycle-bin retention window and can be restored.
+  /// within the recycle-bin retention window and can be restored. Filtered
+  /// to the same window restore_family() enforces server-side, so a group
+  /// never lingers here with a "Restore" button that would just fail.
   Future<List<DeletedFamilyInfo>> getDeletedFamilies() async {
+    final retentionDays = await AppConfigService.instance.fetchRecycleBinRetentionDays();
+    final cutoff = DateTime.now().toUtc().subtract(Duration(days: retentionDays));
     final rows = await _db
         .from('families')
         .select('id, name, emoji, deleted_at, family_members!inner(user_id, role)')
         .eq('is_archived', true)
         .eq('family_members.user_id', _uid)
         .eq('family_members.role', 'admin')
+        .gte('deleted_at', cutoff.toIso8601String())
         .order('deleted_at', ascending: false);
     return (rows as List)
         .map((r) => DeletedFamilyInfo(
