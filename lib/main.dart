@@ -80,10 +80,19 @@ class LifeAssistanceApp extends StatelessWidget {
   /// silently dropped or shown on a hidden, buried screen.
   static final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
+  /// App-wide navigator, for the same reason as [scaffoldMessengerKey] —
+  /// AppUpdateService's "restart to apply" prompt is now a proper modal
+  /// sheet (UpdateReadySheet) rather than a SnackBar, which needs a
+  /// BuildContext with a Navigator above it to call showModalBottomSheet,
+  /// independent of whichever screen happens to be active when the
+  /// download finishes.
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       scaffoldMessengerKey: scaffoldMessengerKey,
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: config.environment != AppEnvironment.prod,
       title: config.appName,
       theme: AppTheme.light(),

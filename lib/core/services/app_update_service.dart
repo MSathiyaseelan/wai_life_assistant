@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wai_life_assistant/shared/widgets/update_ready_sheet.dart';
 
 import '../../main.dart';
 import 'error_logger.dart';
@@ -17,15 +18,20 @@ class AppUpdateService {
 
   static StreamSubscription<InstallStatus>? _sub;
 
+  /// Guards against showing UpdateReadySheet more than once at a time — the
+  /// stream listener and a subsequent resume re-check can both observe
+  /// InstallStatus.downloaded / installStatus == downloaded independently.
+  static bool _restartSheetShowing = false;
+
   /// [context] only needs to be valid for the initial "downloading" toast —
-  /// the actual restart prompt goes through
-  /// [LifeAssistanceApp.scaffoldMessengerKey] instead of this context, since
-  /// a flexible update's download can take anywhere from seconds to
-  /// minutes and the caller's screen may no longer be mounted or visible
-  /// (buried under other pushed screens) by the time it finishes. Using a
-  /// context tied to one screen was silently dropping the restart prompt —
-  /// it either never showed (context disposed) or showed on a hidden
-  /// scaffold the user had already navigated away from.
+  /// the actual restart prompt (UpdateReadySheet) goes through
+  /// [LifeAssistanceApp.navigatorKey] instead of this context, since a
+  /// flexible update's download can take anywhere from seconds to minutes
+  /// and the caller's screen may no longer be mounted or visible (buried
+  /// under other pushed screens) by the time it finishes. Using a context
+  /// tied to one screen was silently dropping the restart prompt — it
+  /// either never showed (context disposed) or showed on a hidden scaffold
+  /// the user had already navigated away from.
   static Future<void> checkAndStartFlexibleUpdate(BuildContext context) async {
     if (!Platform.isAndroid) return;
     try {
@@ -102,24 +108,30 @@ class AppUpdateService {
     );
   }
 
-  static void _promptRestart() {
-    final messenger = LifeAssistanceApp.scaffoldMessengerKey.currentState;
-    if (messenger == null) return;
-    messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Update downloaded — restart to apply it.'),
-        duration: const Duration(days: 1),
-        action: SnackBarAction(
-          label: 'Restart',
-          onPressed: () async {
-            try {
-              await InAppUpdate.completeFlexibleUpdate();
-            } catch (e, stack) {
-              ErrorLogger.log(e, stackTrace: stack, action: 'in_app_update_complete');
-            }
-          },
-        ),
-      ),
-    );
+  static Future<void> _promptRestart() async {
+    if (_restartSheetShowing) return;
+    // Goes through the app-wide navigatorKey rather than a context tied to
+    // one screen, for the same reason as scaffoldMessengerKey — see the
+    // class-level doc comment on checkAndStartFlexibleUpdate.
+    final context = LifeAssistanceApp.navigatorKey.currentContext;
+    if (context == null) return;
+    _restartSheetShowing = true;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!context.mounted) return;
+      await UpdateReadySheet.show(
+        context,
+        versionLabel: 'V ${info.version} (${info.buildNumber})',
+        onRestartNow: () async {
+          try {
+            await InAppUpdate.completeFlexibleUpdate();
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'in_app_update_complete');
+          }
+        },
+      );
+    } finally {
+      _restartSheetShowing = false;
+    }
   }
 }
