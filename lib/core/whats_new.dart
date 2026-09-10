@@ -13,9 +13,8 @@ class WhatsNew {
   WhatsNew._();
 
   static const Map<int, List<String>> entries = {
-    // 24: [
-    //   'Fixed the family group delete confirmation getting stuck after a quick double-tap.',
-    //   'Group admins can now transfer admin to someone else instead of deleting the whole group.',
-    // ],
+    25: [
+      'Redesigned the update-ready prompt into a clearer "Restart to update" screen.',
+    ],
   };
 }
