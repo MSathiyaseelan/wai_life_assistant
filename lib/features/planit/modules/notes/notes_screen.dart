@@ -256,9 +256,13 @@ class _NotesScreenState extends State<NotesScreen> {
         ErrorLogger.log(e, stackTrace: stack, action: 'note_load');
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to load notes')),
-          );
+          // The persistent offline banner already tells the user why nothing
+          // loaded — piling this on top is redundant.
+          if (NetworkService.instance.isOnline.value) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to load notes')),
+            );
+          }
         }
       }
       return;
@@ -277,9 +281,11 @@ class _NotesScreenState extends State<NotesScreen> {
       ErrorLogger.log(e, stackTrace: stack, action: 'note_load');
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load notes')),
-        );
+        if (NetworkService.instance.isOnline.value) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load notes')),
+          );
+        }
       }
     }
   }
@@ -337,21 +343,29 @@ class _NotesScreenState extends State<NotesScreen> {
   /// Fire-and-forget push to other family members when a note is added, if
   /// this note's wallet belongs to a family.
   void _notifyFamilyOfNote(NoteModel note) {
-    final appState = AppStateScope.read(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == note.walletId);
-    if (matches.isEmpty) return;
-    final family = matches.first;
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
-    FamilyNotificationTrigger.notify(
-      eventType: 'planit.note_added',
-      familyId: family.id,
-      eventData: {
-        'member_name': memberName,
-        'note_title': note.title,
-      },
-    );
+    // Genuinely fire-and-forget: called inside _saveNote's try/catch, so any
+    // failure here (e.g. AppStateScope.read(context) on a torn-down context)
+    // must not propagate, or a successful save gets reported as failed.
+    try {
+      if (!mounted) return;
+      final appState = AppStateScope.read(context);
+      if (appState.isPersonal || appState.families.isEmpty) return;
+      final matches = appState.families.where((f) => f.walletId == note.walletId);
+      if (matches.isEmpty) return;
+      final family = matches.first;
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+      FamilyNotificationTrigger.notify(
+        eventType: 'planit.note_added',
+        familyId: family.id,
+        eventData: {
+          'member_name': memberName,
+          'note_title': note.title,
+        },
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'note_notify_family');
+    }
   }
 
   Future<void> _deleteNote(NoteModel note) async {

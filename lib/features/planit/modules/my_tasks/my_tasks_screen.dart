@@ -130,9 +130,13 @@ class _MyTasksScreenState extends State<MyTasksScreen>
         ErrorLogger.log(e, stackTrace: stack, action: 'task_load');
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to load tasks')),
-          );
+          // The persistent offline banner already tells the user why nothing
+          // loaded — piling this on top is redundant.
+          if (NetworkService.instance.isOnline.value) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to load tasks')),
+            );
+          }
         }
       }
       return;
@@ -154,9 +158,11 @@ class _MyTasksScreenState extends State<MyTasksScreen>
       ErrorLogger.log(e, stackTrace: stack, action: 'task_load');
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load tasks')),
-        );
+        if (NetworkService.instance.isOnline.value) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load tasks')),
+          );
+        }
       }
     }
   }
@@ -237,22 +243,31 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   /// Fire-and-forget push to other family members for a task add/complete,
   /// if this task's wallet belongs to a family.
   void _notifyFamilyOfTask(TaskModel t, {String eventType = 'planit.task_added'}) {
-    final appState = AppStateScope.read(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == t.walletId);
-    if (matches.isEmpty) return;
-    final family = matches.first;
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
-    FamilyNotificationTrigger.notify(
-      eventType: eventType,
-      familyId: family.id,
-      eventData: {
-        'member_name': memberName,
-        'task_title': t.title,
-        'assignee': t.assignedTo,
-      },
-    );
+    // Genuinely fire-and-forget: this runs inside the same try/catch as the
+    // actual save (see _add/_updateStatus), so any failure here — including
+    // AppStateScope.read(context) throwing on a torn-down context — must not
+    // propagate, or a successful save gets reported to the user as failed.
+    try {
+      if (!mounted) return;
+      final appState = AppStateScope.read(context);
+      if (appState.isPersonal || appState.families.isEmpty) return;
+      final matches = appState.families.where((f) => f.walletId == t.walletId);
+      if (matches.isEmpty) return;
+      final family = matches.first;
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+      FamilyNotificationTrigger.notify(
+        eventType: eventType,
+        familyId: family.id,
+        eventData: {
+          'member_name': memberName,
+          'task_title': t.title,
+          'assignee': t.assignedTo,
+        },
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'task_notify_family');
+    }
   }
 
   Future<void> _toggleSubtask(SubTask st) async {

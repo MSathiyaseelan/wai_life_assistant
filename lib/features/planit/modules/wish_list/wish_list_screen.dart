@@ -112,7 +112,11 @@ class _WishListScreenState extends State<WishListScreen>
         });
       } catch (e, stack) {
         ErrorLogger.log(e, stackTrace: stack, action: 'wish_load');
-        if (mounted) {
+        // The persistent offline banner already tells the user why nothing
+        // loaded — piling this on top is redundant and reads like a second,
+        // unrelated problem. _onNetworkChange retries automatically once
+        // back online, so no Retry action is needed here either.
+        if (mounted && NetworkService.instance.isOnline.value) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Failed to load wishes')),
           );
@@ -132,7 +136,7 @@ class _WishListScreenState extends State<WishListScreen>
       });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'wish_load');
-      if (mounted) {
+      if (mounted && NetworkService.instance.isOnline.value) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to load wishes')),
         );

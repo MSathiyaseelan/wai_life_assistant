@@ -12,6 +12,7 @@ import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/wish_service.dart';
 import 'package:wai_life_assistant/data/services/note_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/planit/modules/alert_me/alert_me_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/my_tasks/my_tasks_screen.dart';
 import 'package:wai_life_assistant/features/planit/modules/special_days/special_days_screen.dart';
@@ -171,6 +172,10 @@ class _PlanItScreenState extends State<PlanItScreen> {
       ErrorLogger.log(e, stackTrace: stack, action: 'planit_load_all_data');
       _loadedKey = null; // allow retry — this load never completed
       if (!mounted) return;
+      // The persistent offline banner (bottom_nav_screen.dart) already tells
+      // the user why nothing loaded — piling "Failed to load PlanIt data" on
+      // top of it is redundant and reads like a second, unrelated problem.
+      if (!NetworkService.instance.isOnline.value) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Failed to load PlanIt data'),

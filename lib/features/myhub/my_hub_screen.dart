@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/features/lifestyle/modules/health_space/healt
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import 'package:wai_life_assistant/core/services/dash_nav_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 
 class MyHubScreen extends StatefulWidget {
@@ -132,9 +133,15 @@ class _MyHubScreenState extends State<MyHubScreen> {
     }
   }
 
+  // Mirrors the placeholder guard used by Dashboard/Wallet/Pantry/PlanIt/
+  // Wardrobe — without it, a fresh install could call fetch*(id) with the
+  // 'personal' sentinel before AppStateNotifier resolves a real wallet UUID,
+  // hitting a uuid column with "personal" and throwing a PostgrestException.
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   Future<void> _loadData() async {
     final wid = widget.activeWalletId;
-    if (wid.isEmpty) return;
+    if (_isPlaceholder(wid)) return;
     // Functions intentionally merges in every family wallet for the Personal
     // view (celebrations make sense to see across your whole life). Item
     // Locator and Wardrobe are about physical belongings tied to a specific
@@ -200,6 +207,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
       ErrorLogger.log(e, stackTrace: stack, action: 'myhub_load_data');
       _loadedKey = null; // allow retry — this load never completed
       if (!mounted) return;
+      // The persistent offline banner (bottom_nav_screen.dart) already tells
+      // the user why nothing loaded — piling "Failed to load MyHub data" on
+      // top of it is redundant and reads like a second, unrelated problem.
+      if (!NetworkService.instance.isOnline.value) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Failed to load MyHub data'),

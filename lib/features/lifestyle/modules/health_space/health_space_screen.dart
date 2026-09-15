@@ -13,6 +13,7 @@ import 'package:wai_life_assistant/data/models/health/health_models.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/network_service.dart';
 import '../../widgets/life_widgets.dart';
 
 const _healthColor = Color(0xFF00BFA5);
@@ -148,12 +149,17 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
       debugPrint('[HealthSpace] loadProfile error: $e');
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Failed to load Health Space data'),
-          action: SnackBarAction(label: 'Retry', onPressed: _loadData),
-        ),
-      );
+      // The persistent offline banner already tells the user why nothing
+      // loaded — piling this on top is redundant and reads like a second,
+      // unrelated problem.
+      if (NetworkService.instance.isOnline.value) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Failed to load Health Space data'),
+            action: SnackBarAction(label: 'Retry', onPressed: _loadData),
+          ),
+        );
+      }
     }
 
     medsFuture.then((rows) {

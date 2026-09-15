@@ -143,9 +143,13 @@ class _AlertMeScreenState extends State<AlertMeScreen>
         ErrorLogger.log(e, stackTrace: stack, action: 'reminder_load');
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to load reminders')),
-          );
+          // The persistent offline banner already tells the user why nothing
+          // loaded — piling this on top is redundant.
+          if (NetworkService.instance.isOnline.value) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to load reminders')),
+            );
+          }
         }
       }
       return;
@@ -168,9 +172,11 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       ErrorLogger.log(e, stackTrace: stack, action: 'reminder_load');
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load reminders')),
-        );
+        if (NetworkService.instance.isOnline.value) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load reminders')),
+          );
+        }
       }
     }
   }
@@ -197,7 +203,15 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       // widget.reminders reference — without this, a reminder added via
       // Quick Add wouldn't show on the main screen until a full reload.
       widget.reminders.add(saved);
-      NotificationService.instance.schedule(saved);
+      // Local notification scheduling and the family push below are both
+      // best-effort side effects of a successful save — neither should be
+      // able to turn a successful save into a false "Failed to save
+      // reminder" if the device denies notification permission or similar.
+      try {
+        NotificationService.instance.schedule(saved);
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'reminder_notify_schedule');
+      }
       _notifyFamilyOfReminder(saved);
     } catch (e, stack) {
       final isLimitError = e is ReminderLimitExceededException;
@@ -215,22 +229,30 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   /// Fire-and-forget push to other family members when a reminder is added,
   /// if this reminder's wallet belongs to a family.
   void _notifyFamilyOfReminder(ReminderModel r) {
-    final appState = AppStateScope.read(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == r.walletId);
-    if (matches.isEmpty) return;
-    final family = matches.first;
-    final uid = Supabase.instance.client.auth.currentUser?.id;
-    final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
-    FamilyNotificationTrigger.notify(
-      eventType: 'planit.reminder_added',
-      familyId: family.id,
-      eventData: {
-        'member_name': memberName,
-        'reminder_title': r.title,
-        'time': '${r.dueTime.hour.toString().padLeft(2, '0')}:${r.dueTime.minute.toString().padLeft(2, '0')}',
-      },
-    );
+    // Genuinely fire-and-forget: called inside _add's try/catch, so any
+    // failure here (e.g. AppStateScope.read(context) on a torn-down context)
+    // must not propagate, or a successful save gets reported as failed.
+    try {
+      if (!mounted) return;
+      final appState = AppStateScope.read(context);
+      if (appState.isPersonal || appState.families.isEmpty) return;
+      final matches = appState.families.where((f) => f.walletId == r.walletId);
+      if (matches.isEmpty) return;
+      final family = matches.first;
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      final memberName = (uid != null ? appState.allMemberNames[uid] : null) ?? 'Someone';
+      FamilyNotificationTrigger.notify(
+        eventType: 'planit.reminder_added',
+        familyId: family.id,
+        eventData: {
+          'member_name': memberName,
+          'reminder_title': r.title,
+          'time': '${r.dueTime.hour.toString().padLeft(2, '0')}:${r.dueTime.minute.toString().padLeft(2, '0')}',
+        },
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'reminder_notify_family');
+    }
   }
 
   Future<void> _delete(ReminderModel r) async {

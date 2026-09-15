@@ -393,9 +393,13 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
         ErrorLogger.log(e, stackTrace: stack, action: 'special_day_load');
         if (mounted) {
           setState(() => _loading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to load special days')),
-          );
+          // The persistent offline banner already tells the user why nothing
+          // loaded — piling this on top is redundant.
+          if (NetworkService.instance.isOnline.value) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to load special days')),
+            );
+          }
         }
       }
       return;
@@ -416,9 +420,11 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
       ErrorLogger.log(e, stackTrace: stack, action: 'special_day_load');
       if (mounted) {
         setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load special days')),
-        );
+        if (NetworkService.instance.isOnline.value) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to load special days')),
+          );
+        }
       }
     }
   }
