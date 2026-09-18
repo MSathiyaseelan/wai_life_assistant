@@ -16,5 +16,9 @@ class WhatsNew {
     25: [
       'Redesigned the update-ready prompt into a clearer "Restart to update" screen.',
     ],
+    26: [
+      'Fixed a crash on My Hub for some fresh installs.',
+      'Fixed a few screens (My Hub, PlanIt, Health Space) showing "Failed to save/load" when the real cause was just being offline.',
+    ],
   };
 }

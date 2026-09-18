@@ -376,8 +376,12 @@ serve(async (req) => {
     // straight to them.
     memberIds = [target_user_id];
   } else {
-    // Get linked family members (user_id NOT NULL) excluding the triggering user.
-    // Note: family_members has no status column — filter by user_id IS NOT NULL.
+    // Get linked family members (user_id NOT NULL, not removed) excluding
+    // the triggering user. removeMember() soft-deletes via deleted_at
+    // rather than dropping the row, so that must be excluded here too —
+    // see 121_fix_family_switcher_deleted_members.sql, which fixed the
+    // same class of bug for the switcher/settings view but missed this
+    // notification path, leaving removed members still getting alerts.
     const { data: members, error: membersErr } = await supabase
       .from("family_members")
       .select("user_id")
@@ -385,6 +389,7 @@ serve(async (req) => {
       // target_user_id, and split_group_id mode always requires it above.
       .eq("family_id", family_id as string)
       .not("user_id", "is", null)
+      .is("deleted_at", null)
       .neq("user_id", triggered_by);
 
     console.log(`[notify] members found=${members?.length ?? 0} error=${membersErr?.message ?? "none"}`);

@@ -1,0 +1,398 @@
+<!doctype html>
+<title>RiyasHome Promo Tracker</title>
+<style>
+  :root {
+    --bg: oklch(0.975 0.006 55);
+    --surface: oklch(0.995 0.003 55);
+    --surface-2: oklch(0.955 0.009 55);
+    --border: oklch(0.87 0.012 55);
+    --text: oklch(0.24 0.02 265);
+    --text-muted: oklch(0.50 0.016 265);
+    --accent: oklch(0.60 0.15 30);
+    --accent-ink: oklch(0.99 0.005 30);
+    --accent-2: oklch(0.55 0.14 265);
+    --success: oklch(0.55 0.13 150);
+    --success-ink: oklch(0.99 0.005 150);
+    --track-bg: oklch(0.90 0.012 55);
+    --chip-l: 0.58;
+    --chip-c: 0.11;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: oklch(0.18 0.014 265);
+      --surface: oklch(0.225 0.018 265);
+      --surface-2: oklch(0.27 0.02 265);
+      --border: oklch(0.34 0.022 265);
+      --text: oklch(0.95 0.01 265);
+      --text-muted: oklch(0.66 0.02 265);
+      --accent: oklch(0.72 0.14 30);
+      --accent-ink: oklch(0.16 0.02 30);
+      --accent-2: oklch(0.72 0.11 265);
+      --success: oklch(0.70 0.13 150);
+      --success-ink: oklch(0.14 0.02 150);
+      --track-bg: oklch(0.30 0.02 265);
+      --chip-l: 0.75;
+      --chip-c: 0.10;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: oklch(0.18 0.014 265);
+    --surface: oklch(0.225 0.018 265);
+    --surface-2: oklch(0.27 0.02 265);
+    --border: oklch(0.34 0.022 265);
+    --text: oklch(0.95 0.01 265);
+    --text-muted: oklch(0.66 0.02 265);
+    --accent: oklch(0.72 0.14 30);
+    --accent-ink: oklch(0.16 0.02 30);
+    --accent-2: oklch(0.72 0.11 265);
+    --success: oklch(0.70 0.13 150);
+    --success-ink: oklch(0.14 0.02 150);
+    --track-bg: oklch(0.30 0.02 265);
+    --chip-l: 0.75;
+    --chip-c: 0.10;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0 20px;
+    padding-block: 32px 64px;
+  }
+  h1, h2 { font-family: 'Space Grotesk', system-ui, sans-serif; text-wrap: balance; }
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  header { margin-bottom: 28px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent-2);
+    margin: 0 0 8px;
+  }
+  h1 { font-size: clamp(28px, 6vw, 38px); font-weight: 700; margin: 0 0 6px; color: var(--text); }
+  .lede { color: var(--text-muted); font-size: 15px; margin: 0 0 22px; max-width: 62ch; }
+
+  .stats {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .stat {
+    flex: 1 1 140px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .stat .n { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .stat .l { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .bar-track { height: 8px; border-radius: 6px; background: var(--track-bg); overflow: hidden; margin: 18px 0 26px; }
+  .bar-fill { height: 100%; background: var(--success); border-radius: 6px; width: 0%; transition: width 0.3s ease; }
+
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 30px; }
+  .filter-chip {
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-muted);
+    border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  }
+  .filter-chip[aria-pressed="true"] {
+    background: var(--accent-2); color: var(--accent-ink); border-color: var(--accent-2);
+  }
+  .filter-chip:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+  .week { margin-bottom: 30px; }
+  .week-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .week-head h2 { font-size: 17px; margin: 0; }
+  .week-head .wc { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .row {
+    display: grid;
+    grid-template-columns: 6px 30px 1fr auto;
+    align-items: start;
+    gap: 14px;
+    padding: 12px 10px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .row .swatch { align-self: stretch; border-radius: 4px; background: oklch(var(--chip-l) var(--chip-c) var(--hue)); }
+  .row .idx { font-family: 'Space Grotesk', system-ui, sans-serif; font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .row .content { min-width: 0; }
+  .row .title-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+  .row .title { font-weight: 700; font-size: 14.5px; }
+  .row .badge {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 7px; border-radius: 5px;
+    background: oklch(var(--chip-l) var(--chip-c) var(--hue) / 0.18);
+    color: oklch(calc(var(--chip-l) - 0.28) var(--chip-c) var(--hue));
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .row .badge { color: oklch(calc(var(--chip-l) + 0.15) var(--chip-c) var(--hue)); }
+  }
+  :root[data-theme="dark"] .row .badge { color: oklch(calc(var(--chip-l) + 0.15) var(--chip-c) var(--hue)); }
+  .row .vo { font-size: 13px; color: var(--text-muted); font-style: italic; line-height: 1.4; }
+  .row.done { opacity: 0.6; }
+  .row.done .title { text-decoration: line-through; text-decoration-color: var(--text-muted); }
+
+  .toggles { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  .toggle {
+    font-family: inherit; font-size: 11.5px; font-weight: 700;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
+    border-radius: 7px; padding: 5px 10px; cursor: pointer; white-space: nowrap;
+  }
+  .toggle[aria-pressed="true"] { background: var(--success); color: var(--success-ink); border-color: var(--success); }
+  .toggle:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+  .hidden { display: none !important; }
+
+  footer { color: var(--text-muted); font-size: 12.5px; text-align: center; margin-top: 20px; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Manrope:wght@500;600;700&display=swap">
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">RiyasHome &middot; Promo Production</p>
+    <h1>Clip Tracker</h1>
+    <p class="lede">37 clips across 6 tabs plus 10 master hooks. Mark each clip filmed, then posted, as you go &mdash; your progress is saved on this device.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="n" id="stat-total">37</div><div class="l">Total clips</div></div>
+      <div class="stat"><div class="n" id="stat-filmed">0</div><div class="l">Filmed</div></div>
+      <div class="stat"><div class="n" id="stat-posted">0</div><div class="l">Posted</div></div>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+
+    <div class="filters" id="filters" role="group" aria-label="Filter by category"></div>
+  </header>
+
+  <main id="weeks"></main>
+
+  <footer>Stored only in this browser &mdash; clearing site data resets progress.</footer>
+</div>
+
+<script>
+(function () {
+  var CATS = {
+    master:    { label: 'Master',    hue: 30  },
+    dashboard: { label: 'Dashboard', hue: 265 },
+    wallet:    { label: 'Wallet',    hue: 165 },
+    pantry:    { label: 'Pantry',    hue: 100 },
+    myhub:     { label: 'MyHub',     hue: 335 },
+    planit:    { label: 'PlanIt',    hue: 230 },
+    settings:  { label: 'Settings',  hue: 40  }
+  };
+
+  var DATA = [
+    { week: 1, title: 'One App, Everything', cat: 'master', vo: 'Money. Meals. Family. Tasks. Reminders. Notes. One app, everything you need.' },
+    { week: 1, title: 'This Is an AI App', cat: 'master', vo: 'Most apps make you tap through menus. RiyasHome just listens.' },
+    { week: 1, title: 'AI Assistant (Dashboard)', cat: 'dashboard', vo: 'Just type or speak — it knows exactly where it goes.' },
+    { week: 1, title: 'Personal vs Family', cat: 'master', vo: 'Everything you see... works just for you. Or switch — and it works for your whole family.' },
+    { week: 1, title: 'Free vs Paid', cat: 'master', vo: 'Start free. Upgrade anytime for more AI, more planning ahead, more family members.' },
+
+    { week: 2, title: 'Add Expense / Income', cat: 'wallet', vo: 'Track every rupee — spent or received.' },
+    { week: 2, title: 'Speech-to-Text + AI Parser', cat: 'master', vo: 'One sentence. Fully understood — amount, category, even the split.' },
+    { week: 2, title: 'Split Expenses', cat: 'wallet', vo: 'Splitting a bill with friends? Done in seconds.' },
+    { week: 2, title: 'Scan a Bill', cat: 'wallet', vo: 'Scan a bill — it fills in the details for you.' },
+    { week: 2, title: 'Paste Your Bank SMS', cat: 'master', vo: 'Got a bank SMS? Paste it. Done — no typing needed.' },
+    { week: 2, title: 'Budgets', cat: 'wallet', vo: 'Set budgets and stay on track.' },
+    { week: 2, title: 'Wallet Reports', cat: 'wallet', vo: 'See where your money actually goes.' },
+    { week: 2, title: 'Family Wallet Switch', cat: 'wallet', vo: 'Switch between personal and family spending instantly.' },
+
+    { week: 3, title: 'No More Manual Forms', cat: 'master', vo: 'Forget dropdowns and date pickers. Just say what happened.' },
+    { week: 3, title: 'Weekly Meal Planner', cat: 'pantry', vo: "Plan your whole week's meals." },
+    { week: 3, title: 'Recipe Box', cat: 'pantry', vo: 'Save your own recipes, ready when you need them.' },
+    { week: 3, title: 'Grocery List', cat: 'pantry', vo: 'Your grocery list, always up to date.' },
+    { week: 3, title: 'Speak It, Done', cat: 'master', vo: "Don't type. Just talk — to your wallet, your tasks, your groceries." },
+
+    { week: 4, title: 'My Functions', cat: 'myhub', vo: 'Plan every celebration — gifts and all.' },
+    { week: 4, title: 'Item Locator', cat: 'myhub', vo: "Never say 'where did I keep that' again." },
+    { week: 4, title: 'Wardrobe', cat: 'myhub', vo: 'Your whole wardrobe, organized.' },
+    { week: 4, title: 'Onboarding in Under a Minute', cat: 'master', vo: 'Sign up in under a minute. No forms, no fuss.' },
+
+    { week: 5, title: 'Alert Me', cat: 'planit', vo: 'Set it, and forget it — literally.' },
+    { week: 5, title: 'My Tasks', cat: 'planit', vo: 'Assign tasks to anyone in the family.' },
+    { week: 5, title: 'Special Days', cat: 'planit', vo: 'Never miss a birthday again.' },
+    { week: 5, title: 'Wish List', cat: 'planit', vo: 'Keep track of everything you want.' },
+    { week: 5, title: 'Notes', cat: 'planit', vo: "Jot it down before you forget." },
+    { week: 5, title: 'My Schedule', cat: 'planit', vo: 'Your schedule, always in your pocket.' },
+
+    { week: 6, title: 'Family Groups & Invites', cat: 'settings', vo: 'Invite your family and share everything in one tap.' },
+    { week: 6, title: 'Theme Switch', cat: 'settings', vo: 'Light or dark — your choice.' },
+    { week: 6, title: 'Currency & Locale', cat: 'settings', vo: 'Set your currency, date format, and language.' },
+    { week: 6, title: 'App Lock', cat: 'settings', vo: 'Keep it private with app lock.' },
+    { week: 6, title: 'Notifications', cat: 'settings', vo: 'Control exactly what notifies you.' },
+    { week: 6, title: 'Privacy & Security', cat: 'settings', vo: 'Your data, your rules.' },
+    { week: 6, title: 'Recycle Bin', cat: 'settings', vo: 'Deleted something by mistake? Get it back.' },
+    { week: 6, title: 'Data Export', cat: 'settings', vo: 'Export your data anytime.' },
+    { week: 6, title: 'Real-Time, Always Synced', cat: 'master', vo: 'Add it here. See it there. Instantly.' }
+  ].map(function (d, i) { d.id = 'c' + (i + 1); d.idx = i + 1; return d; });
+
+  var STORE_KEY = 'riyashome-promo-tracker-v1';
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { state = {}; }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function getStatus(id) { return state[id] || { filmed: false, posted: false }; }
+  function setStatus(id, patch) {
+    state[id] = Object.assign({}, getStatus(id), patch);
+    if (!state[id].filmed && state[id].posted) state[id].posted = false;
+    save();
+    renderStats();
+    renderRowState(id);
+  }
+
+  var activeFilter = 'all';
+
+  var filtersEl = document.getElementById('filters');
+  function makeChip(key, label) {
+    var b = document.createElement('button');
+    b.className = 'filter-chip';
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', key === activeFilter ? 'true' : 'false');
+    b.addEventListener('click', function () {
+      activeFilter = key;
+      Array.prototype.forEach.call(filtersEl.children, function (c) {
+        c.setAttribute('aria-pressed', c === b ? 'true' : 'false');
+      });
+      applyFilter();
+    });
+    return b;
+  }
+  filtersEl.appendChild(makeChip('all', 'All'));
+  Object.keys(CATS).forEach(function (k) { filtersEl.appendChild(makeChip(k, CATS[k].label)); });
+
+  function applyFilter() {
+    document.querySelectorAll('.row').forEach(function (r) {
+      var show = activeFilter === 'all' || r.dataset.cat === activeFilter;
+      r.classList.toggle('hidden', !show);
+    });
+    document.querySelectorAll('.week').forEach(function (w) {
+      var anyVisible = w.querySelectorAll('.row:not(.hidden)').length > 0;
+      w.classList.toggle('hidden', !anyVisible);
+    });
+  }
+
+  var weeksEl = document.getElementById('weeks');
+  var weekNums = [];
+  DATA.forEach(function (d) { if (weekNums.indexOf(d.week) === -1) weekNums.push(d.week); });
+
+  weekNums.forEach(function (wn) {
+    var items = DATA.filter(function (d) { return d.week === wn; });
+    var section = document.createElement('section');
+    section.className = 'week';
+
+    var head = document.createElement('div');
+    head.className = 'week-head';
+    var h2 = document.createElement('h2');
+    h2.textContent = 'Week ' + wn;
+    var wc = document.createElement('span');
+    wc.className = 'wc';
+    wc.id = 'wc-' + wn;
+    head.appendChild(h2);
+    head.appendChild(wc);
+    section.appendChild(head);
+
+    items.forEach(function (d) {
+      var row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.cat = d.cat;
+      row.dataset.id = d.id;
+      row.style.setProperty('--hue', CATS[d.cat].hue);
+
+      var swatch = document.createElement('div');
+      swatch.className = 'swatch';
+
+      var idx = document.createElement('div');
+      idx.className = 'idx';
+      idx.textContent = String(d.idx).padStart(2, '0');
+
+      var content = document.createElement('div');
+      content.className = 'content';
+      var titleLine = document.createElement('div');
+      titleLine.className = 'title-line';
+      var title = document.createElement('span');
+      title.className = 'title';
+      title.textContent = d.title;
+      var badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = CATS[d.cat].label;
+      titleLine.appendChild(title);
+      titleLine.appendChild(badge);
+      var vo = document.createElement('div');
+      vo.className = 'vo';
+      vo.textContent = '“' + d.vo + '”';
+      content.appendChild(titleLine);
+      content.appendChild(vo);
+
+      var toggles = document.createElement('div');
+      toggles.className = 'toggles';
+      var filmedBtn = document.createElement('button');
+      filmedBtn.type = 'button';
+      filmedBtn.className = 'toggle';
+      filmedBtn.textContent = 'Filmed';
+      filmedBtn.addEventListener('click', function () {
+        var s = getStatus(d.id);
+        setStatus(d.id, { filmed: !s.filmed });
+      });
+      var postedBtn = document.createElement('button');
+      postedBtn.type = 'button';
+      postedBtn.className = 'toggle';
+      postedBtn.textContent = 'Posted';
+      postedBtn.addEventListener('click', function () {
+        var s = getStatus(d.id);
+        if (!s.filmed) return;
+        setStatus(d.id, { posted: !s.posted });
+      });
+      toggles.appendChild(filmedBtn);
+      toggles.appendChild(postedBtn);
+
+      row.appendChild(swatch);
+      row.appendChild(idx);
+      row.appendChild(content);
+      row.appendChild(toggles);
+      section.appendChild(row);
+    });
+
+    weeksEl.appendChild(section);
+  });
+
+  function renderRowState(id) {
+    var s = getStatus(id);
+    var row = document.querySelector('.row[data-id="' + id + '"]');
+    if (!row) return;
+    row.classList.toggle('done', s.posted);
+    var filmedBtn = row.querySelector('.toggle:nth-child(1)');
+    var postedBtn = row.querySelector('.toggle:nth-child(2)');
+    filmedBtn.setAttribute('aria-pressed', s.filmed ? 'true' : 'false');
+    postedBtn.setAttribute('aria-pressed', s.posted ? 'true' : 'false');
+    postedBtn.style.opacity = s.filmed ? '1' : '0.5';
+    postedBtn.style.cursor = s.filmed ? 'pointer' : 'not-allowed';
+  }
+
+  function renderStats() {
+    var filmed = 0, posted = 0;
+    DATA.forEach(function (d) { var s = getStatus(d.id); if (s.filmed) filmed++; if (s.posted) posted++; });
+    document.getElementById('stat-filmed').textContent = filmed;
+    document.getElementById('stat-posted').textContent = posted;
+    document.getElementById('bar-fill').style.width = Math.round((posted / DATA.length) * 100) + '%';
+
+    weekNums.forEach(function (wn) {
+      var items = DATA.filter(function (d) { return d.week === wn; });
+      var p = items.filter(function (d) { return getStatus(d.id).posted; }).length;
+      document.getElementById('wc-' + wn).textContent = p + ' / ' + items.length + ' posted';
+    });
+  }
+
+  DATA.forEach(function (d) { renderRowState(d.id); });
+  renderStats();
+})();
+</script>

@@ -244,11 +244,15 @@ async function familyMembersWithPrefs(
   supabase: ReturnType<typeof createClient>,
   familyId: string,
 ): Promise<Array<{ user_id: string } & MemberNotifPrefs>> {
+  // removeMember() soft-deletes via deleted_at rather than dropping the
+  // row — see 121_fix_family_switcher_deleted_members.sql and
+  // send-notification/index.ts's familyMembers query for the same fix.
   const { data: members } = await supabase
     .from("family_members")
     .select("user_id")
     .eq("family_id", familyId)
-    .not("user_id", "is", null);
+    .not("user_id", "is", null)
+    .is("deleted_at", null);
   if (!members?.length) return [];
 
   const memberIds = members.map((m: { user_id: string }) => m.user_id);

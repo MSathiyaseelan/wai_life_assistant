@@ -1,0 +1,188 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@500;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #ffd7c9; } a:hover { color: #ffffff; }
+
+    .rh-root {
+      width: 1080px;
+      height: 1920px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 56px;
+      padding: 96px 64px;
+      background:
+        radial-gradient(120% 90% at 15% 10%, oklch(0.30 0.07 20) 0%, transparent 55%),
+        linear-gradient(160deg, oklch(0.20 0.05 265) 0%, oklch(0.16 0.04 270) 55%, oklch(0.19 0.06 300) 100%);
+      font-family: 'Manrope', system-ui, sans-serif;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .rh-headline {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 88px;
+      line-height: 1.02;
+      letter-spacing: -0.01em;
+      color: oklch(0.97 0.01 265);
+      text-align: center;
+      margin: 0;
+    }
+
+    .rh-sub {
+      font-size: 30px;
+      font-weight: 500;
+      color: oklch(0.82 0.03 265);
+      text-align: center;
+      margin: 0;
+      opacity: 0.85;
+    }
+
+    /* ---- cluttered grid (before) ---- */
+    .rh-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 22px;
+      width: 620px;
+      animation: rhGridPhase 6s ease-in-out infinite;
+    }
+
+    .rh-chip {
+      width: 128px;
+      height: 128px;
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 24px oklch(0.10 0.02 270 / 0.35);
+      animation: rhChipFloat 5s ease-in-out infinite;
+    }
+    .rh-chip svg { width: 52px; height: 52px; }
+
+    .rh-chip:nth-child(4n+1) { background: oklch(0.42 0.07 265); animation-delay: 0.0s; }
+    .rh-chip:nth-child(4n+2) { background: oklch(0.46 0.08 20);  animation-delay: 0.3s; }
+    .rh-chip:nth-child(4n+3) { background: oklch(0.40 0.05 300); animation-delay: 0.6s; }
+    .rh-chip:nth-child(4n)   { background: oklch(0.48 0.07 45);  animation-delay: 0.9s; }
+    .rh-chip:nth-child(odd)  { transform: rotate(-4deg); }
+    .rh-chip:nth-child(even) { transform: rotate(3deg); }
+    .rh-chip:nth-child(3n)   { transform: rotate(-2deg) translateY(6px); }
+
+    /* ---- connector ---- */
+    .rh-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      animation: rhArrowPulse 6s ease-in-out infinite;
+    }
+    .rh-connector svg { width: 64px; height: 96px; }
+
+    /* ---- single glowing icon (after) ---- */
+    .rh-icon-wrap {
+      width: 320px;
+      height: 320px;
+      border-radius: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(155deg, {{iconAccent}} 0%, oklch(0.55 0.16 265) 100%);
+      box-shadow:
+        0 0 0 0 oklch(0.70 0.17 30 / 0.0),
+        0 24px 60px oklch(0.10 0.02 270 / 0.55);
+      animation: rhIconPhase 6s ease-in-out infinite;
+    }
+    .rh-icon-wrap svg { width: 148px; height: 148px; }
+
+    @keyframes rhChipFloat {
+      0%, 100% { translate: 0 0; }
+      50% { translate: 0 -6px; }
+    }
+
+    @keyframes rhGridPhase {
+      0%, 38% { opacity: 1; transform: scale(1); }
+      52%, 100% { opacity: 0; transform: scale(0.78); }
+    }
+
+    @keyframes rhArrowPulse {
+      0%, 34% { opacity: 0.35; }
+      48% { opacity: 1; }
+      62%, 100% { opacity: 0.35; }
+    }
+
+    @keyframes rhIconPhase {
+      0%, 40% { opacity: 0; transform: scale(0.6); box-shadow: 0 0 0 0 oklch(0.70 0.17 30 / 0.0), 0 24px 60px oklch(0.10 0.02 270 / 0.55); }
+      58% { opacity: 1; transform: scale(1.06); box-shadow: 0 0 60px 14px oklch(0.70 0.17 30 / 0.55), 0 24px 60px oklch(0.10 0.02 270 / 0.55); }
+      75%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 30px 6px oklch(0.70 0.17 30 / 0.35), 0 24px 60px oklch(0.10 0.02 270 / 0.55); }
+    }
+  </style>
+</helmet>
+
+<div class="rh-root">
+
+  <div style="display:flex; flex-direction:column; align-items:center; gap:14px;">
+    <p class="rh-headline">13 Apps.</p>
+    <p class="rh-sub">Wallet · Tasks · Notes · Meals · Reminders...</p>
+  </div>
+
+  <div class="rh-grid">
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="7"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="5" width="14" height="14" rx="3"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 L20 18 L4 18 Z"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><path d="M4 12 Q8 4 12 12 T20 12"/></svg></div>
+
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="8" x2="19" y2="8"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="16" x2="12" y2="16"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="6" width="16" height="12" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><path d="M12 3 v18 M3 12 h18"/></svg></div>
+
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="4"/><circle cx="15" cy="15" r="4"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 8 L14 15 L20 6"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><rect x="6" y="4" width="12" height="16" rx="3"/></svg></div>
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><path d="M5 12 a7 7 0 1 0 14 0 a7 7 0 1 0 -14 0"/><line x1="12" y1="12" x2="12" y2="7"/></svg></div>
+
+    <div class="rh-chip"><svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><path d="M4 6 h16 M4 12 h10 M4 18 h14"/></svg></div>
+  </div>
+
+  <div class="rh-connector">
+    <svg viewBox="0 0 24 36" fill="none" stroke="oklch(0.85 0.05 30)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="2" x2="12" y2="28"/>
+      <path d="M4 20 L12 30 L20 20"/>
+    </svg>
+  </div>
+
+  <div class="rh-icon-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3 L20 7.5 V16.5 L12 21 L4 16.5 V7.5 Z"/>
+      <path d="M12 3 V21"/>
+      <path d="M4 7.5 L12 12 L20 7.5"/>
+    </svg>
+  </div>
+
+  <div style="display:flex; flex-direction:column; align-items:center; gap:14px;">
+    <p class="rh-headline">1 App.</p>
+    <p class="rh-sub">RiyasHome</p>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"iconAccent":{"editor":"color","default":"oklch(0.68 0.17 30)","options":["oklch(0.68 0.17 30)","oklch(0.65 0.18 265)","oklch(0.70 0.15 60)"]}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { iconAccent: this.props.iconAccent ?? 'oklch(0.68 0.17 30)' };
+  }
+}
+</script>
+</body>
+</html>
