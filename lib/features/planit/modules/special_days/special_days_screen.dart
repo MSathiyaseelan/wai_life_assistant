@@ -2847,7 +2847,12 @@ class _DayNlpParser {
         ).firstMatch(lower);
         final dayNum = int.tryParse(dayM?.group(1) ?? dayM?.group(2) ?? '');
         if (dayNum != null) {
-          date = DateTime(now.year, mi + 1, dayNum);
+          // An explicit year (e.g. "15 March 1995") must be preserved —
+          // otherwise this silently dropped birth years, always landing on
+          // the current year regardless of what was typed.
+          final yearMatch = RegExp(r'(19|20)\d{2}').firstMatch(lower);
+          final year = yearMatch != null ? int.parse(yearMatch.group(0)!) : now.year;
+          date = DateTime(year, mi + 1, dayNum);
         }
         break;
       }
