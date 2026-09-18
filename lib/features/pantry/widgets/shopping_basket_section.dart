@@ -943,17 +943,31 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
 
   // ── Pick image ──────────────────────────────────────────────────────────────
 
+  bool _picking = false;
+
   Future<void> _pick(ImageSource source) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, imageQuality: 85);
-    if (!mounted || picked == null) return;
-    final file = File(picked.path);
-    setState(() {
-      _image = file;
-      _phase = 'loading';
-      _error = null;
-    });
-    await _analyze(file);
+    // A quick double-tap on the gallery/camera button re-enters this before
+    // the native picker's first invocation resolves — Android's image
+    // picker throws PlatformException(already_active) rather than queuing
+    // the second call, which was surfacing as an unhandled crash.
+    if (_picking) return;
+    _picking = true;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: source, imageQuality: 85);
+      if (!mounted || picked == null) return;
+      final file = File(picked.path);
+      setState(() {
+        _image = file;
+        _phase = 'loading';
+        _error = null;
+      });
+      await _analyze(file);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'scan_bill_pick_image');
+    } finally {
+      _picking = false;
+    }
   }
 
   // ── Call Edge Function via AIParser ─────────────────────────────────────────

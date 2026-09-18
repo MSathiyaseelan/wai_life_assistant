@@ -189,7 +189,13 @@ class _OtpScreenState extends State<OtpScreen> {
 
                 // Back button
                 GestureDetector(
-                  onTap: () => Navigator.pop(context),
+                  // A buffered/duplicate tap event can still fire this after
+                  // the first tap already popped and disposed this screen —
+                  // seen in production as a null-check crash inside
+                  // Navigator.pop's StatefulElement lookup.
+                  onTap: () {
+                    if (context.mounted) Navigator.pop(context);
+                  },
                   child: Container(
                     width: 40,
                     height: 40,

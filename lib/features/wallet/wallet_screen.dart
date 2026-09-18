@@ -754,6 +754,14 @@ class _WalletScreenState extends State<WalletScreen>
     if (!AuthCoordinator.instance.isLoggedIn) {
       return;
     }
+    if (_isPlaceholderWalletId(tx.walletId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
+        );
+      }
+      return;
+    }
     if (!NetworkService.instance.isOnline.value) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1620,6 +1628,14 @@ class _WalletScreenState extends State<WalletScreen>
 
   Future<void> _persistSplitGroup(SplitGroup group) async {
     if (!AuthCoordinator.instance.isLoggedIn) return;
+    if (_isPlaceholderWalletId(group.walletId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
+        );
+      }
+      return;
+    }
     try {
       final row = await WalletService.instance.createSplitGroup(
         walletId: group.walletId,
@@ -3510,6 +3526,13 @@ class _WalletScreenState extends State<WalletScreen>
             final idx = _transactions.indexWhere((t) => t.id == updated.id);
             if (idx >= 0) _transactions[idx] = updated;
           });
+          // A just-added transaction still carries its local, temporary id
+          // (a millisecond timestamp, not a UUID) until its own save
+          // round-trip resolves and swaps in the real one — editing it in
+          // that brief window would send a non-UUID id straight into a
+          // uuid column and fail. The edit above is already applied
+          // locally; skip the server round-trip rather than crash on it.
+          if (!_isDbId(updated.id)) return;
           WalletService.instance.ensureCategory(updated.category, updated.type.name)
               .catchError((e) => ErrorLogger.warning(e, action: 'ensure_category'));
           try {

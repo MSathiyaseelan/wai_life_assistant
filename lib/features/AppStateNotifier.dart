@@ -274,14 +274,27 @@ class AppStateScope extends InheritedNotifier<AppStateNotifier> {
 
   static AppStateNotifier of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppStateScope>();
+    // assert() alone is not enough here — it's stripped from release builds,
+    // so a torn-down/disposed context (common in fire-and-forget callers
+    // like family-notification triggers) would fall straight through to a
+    // null-check crash on `scope!` in production instead of a clear,
+    // catchable error. Several callers wrap this in try/catch specifically
+    // to swallow exactly this kind of failure — they need a real exception
+    // to catch, not a debug-only assertion.
     assert(scope != null, 'No AppStateScope found in widget tree');
-    return scope!.notifier!;
+    if (scope == null) {
+      throw StateError('No AppStateScope found in widget tree');
+    }
+    return scope.notifier!;
   }
 
   /// Use this when you only want to READ without rebuilding on every change
   static AppStateNotifier read(BuildContext context) {
     final scope = context.getInheritedWidgetOfExactType<AppStateScope>();
     assert(scope != null, 'No AppStateScope found in widget tree');
-    return scope!.notifier!;
+    if (scope == null) {
+      throw StateError('No AppStateScope found in widget tree');
+    }
+    return scope.notifier!;
   }
 }

@@ -996,19 +996,32 @@ class _PantryScreenState extends State<PantryScreen>
     required String walletId,
     required Map<String, dynamic> eventData,
   }) {
-    final appState = AppStateScope.of(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == walletId);
-    final family = matches.isNotEmpty ? matches.first : appState.families.first;
-    FamilyNotificationTrigger.notify(
-      eventType: eventType,
-      familyId: family.id,
-      eventData: eventData,
-    );
+    // Genuinely fire-and-forget — called right after the triggering save's
+    // own try/catch already resolved successfully, so a failure here (e.g.
+    // AppStateScope.of(context) on a torn-down context) must not
+    // propagate, or a successful save would surface as an error.
+    try {
+      if (!mounted) return;
+      final appState = AppStateScope.of(context);
+      if (appState.isPersonal || appState.families.isEmpty) return;
+      final matches = appState.families.where((f) => f.walletId == walletId);
+      final family = matches.isNotEmpty ? matches.first : appState.families.first;
+      FamilyNotificationTrigger.notify(
+        eventType: eventType,
+        familyId: family.id,
+        eventData: eventData,
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'notify_family_of_meal_event');
+    }
   }
 
   // Adds a meal: optimistic insert → persist to DB → replace with real UUID row.
   Future<void> _addMeal(MealEntry m) async {
+    if (_isPlaceholder(m.walletId)) {
+      _showSavedSnack('Account still loading. Please try again in a moment.', AppColors.subLight);
+      return;
+    }
     setState(() => _meals.add(m)); // optimistic
     try {
       final row = await PantryService.instance.addMealEntry(
@@ -1745,6 +1758,10 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _addGrocery(GroceryItem i) async {
+    if (_isPlaceholder(widget.activeWalletId)) {
+      _showSavedSnack('Account still loading. Please try again in a moment.', AppColors.subLight);
+      return;
+    }
     // Duplicate check: merge with existing same-name item in the same section
     final section = i.inStock ? 'inStock' : 'toBuy';
     final existingIdx = _groceries.indexWhere((g) =>
@@ -1804,18 +1821,27 @@ class _PantryScreenState extends State<PantryScreen>
   /// Fire-and-forget push to other family members when an item is added to
   /// the shared ToBuy list, if the active wallet belongs to a family.
   void _notifyFamilyOfBasketItem(GroceryItem i) {
-    final appState = AppStateScope.of(context);
-    if (appState.isPersonal || appState.families.isEmpty) return;
-    final matches = appState.families.where((f) => f.walletId == widget.activeWalletId);
-    final family = matches.isNotEmpty ? matches.first : appState.families.first;
-    FamilyNotificationTrigger.notify(
-      eventType: 'pantry.basket_item_added',
-      familyId: family.id,
-      eventData: {
-        'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
-        'item_name': i.name,
-      },
-    );
+    // Genuinely fire-and-forget: called right after _addGrocery's own
+    // try/catch already resolved successfully, so a failure here (e.g.
+    // AppStateScope.of(context) on a torn-down context) must not
+    // propagate, or a successful save would surface as an error.
+    try {
+      if (!mounted) return;
+      final appState = AppStateScope.of(context);
+      if (appState.isPersonal || appState.families.isEmpty) return;
+      final matches = appState.families.where((f) => f.walletId == widget.activeWalletId);
+      final family = matches.isNotEmpty ? matches.first : appState.families.first;
+      FamilyNotificationTrigger.notify(
+        eventType: 'pantry.basket_item_added',
+        familyId: family.id,
+        eventData: {
+          'member_name': _currentUserName.isNotEmpty ? _currentUserName : 'Someone',
+          'item_name': i.name,
+        },
+      );
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'notify_family_of_basket_item');
+    }
   }
 
   Future<void> _deleteGrocery(GroceryItem i) async {
@@ -1834,6 +1860,12 @@ class _PantryScreenState extends State<PantryScreen>
   /// Returns true on success — callers that show their own follow-up
   /// success message should check this first, since failure is already
   /// reported here and shouldn't also be reported as success.
+  static final _uuidPattern = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
+  bool _isValidUuid(String id) => _uuidPattern.hasMatch(id);
+
   Future<bool> _updateGrocery(GroceryItem i, Map<String, dynamic> updates) async {
     // Apply optimistically
     setState(() {
@@ -1851,6 +1883,13 @@ class _PantryScreenState extends State<PantryScreen>
         );
       }
     });
+    // A just-added item still carries the local, temporary id assigned in
+    // _submit() (a millisecond timestamp, not a UUID) until its
+    // addGroceryItem() round-trip resolves and swaps in the real one —
+    // editing it in that brief window would send a non-UUID id straight
+    // into a uuid column and fail every time. The edit above is already
+    // applied locally; skip the server round-trip rather than crash on it.
+    if (!_isValidUuid(i.id)) return true;
     try {
       await PantryService.instance.updateGroceryItem(i.id, updates);
       return true;

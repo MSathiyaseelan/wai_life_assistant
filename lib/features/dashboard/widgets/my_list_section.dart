@@ -629,6 +629,12 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
+    if (widget.walletId.isEmpty || widget.walletId == 'personal') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await PantryService.instance.addGroceryItem(

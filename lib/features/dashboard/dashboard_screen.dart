@@ -804,7 +804,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   void _ensureMealsLoaded(List<WalletModel> wallets) {
     for (final w in wallets) {
-      if (w.id.isEmpty || _loadedMealWalletIds.contains(w.id)) continue;
+      if (_isPlaceholder(w.id) || _loadedMealWalletIds.contains(w.id)) continue;
       _loadedMealWalletIds.add(w.id);
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _loadTodayMeals(w.id),
@@ -835,7 +835,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   }
 
   Future<void> _loadTodayMeals(String walletId) async {
-    if (walletId.isEmpty) return;
+    if (_isPlaceholder(walletId)) return;
     _loadedMealWalletIds.add(walletId);
     try {
       final rows = await PantryService.instance.fetchMealEntriesForDay(

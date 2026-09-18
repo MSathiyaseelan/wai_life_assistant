@@ -118,8 +118,13 @@ class _AlertMeScreenState extends State<AlertMeScreen>
   /// pull-to-refresh gesture, otherwise the body swaps from the
   /// TabBarView/RefreshIndicator to a bare spinner mid-pull, which tears
   /// down the RefreshIndicator and breaks the gesture.
+  // Mirrors AppStateNotifier._isPlaceholder — before the real wallet id
+  // resolves, widget.walletId can briefly be the 'personal' placeholder
+  // sentinel rather than empty, which a uuid column rejects.
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   Future<void> _loadReminders({bool force = false, bool showSpinner = true}) async {
-    if (widget.walletId.isEmpty) {
+    if (_isPlaceholder(widget.walletId)) {
       if (showSpinner) setState(() => _loading = false);
       return;
     }
@@ -183,6 +188,12 @@ class _AlertMeScreenState extends State<AlertMeScreen>
 
   // ── Mutators ──────────────────────────────────────────────────────────────
   Future<void> _add(ReminderModel r) async {
+    if (_isPlaceholder(r.walletId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
+      );
+      return;
+    }
     try {
       final row = await ReminderService.instance.addReminder(
         walletId: r.walletId,

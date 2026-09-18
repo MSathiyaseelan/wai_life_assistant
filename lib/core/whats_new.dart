@@ -20,5 +20,10 @@ class WhatsNew {
       'Fixed a crash on My Hub for some fresh installs.',
       'Fixed a few screens (My Hub, PlanIt, Health Space) showing "Failed to save/load" when the real cause was just being offline.',
     ],
+    27: [
+      'Fixed removed family members still getting transaction and reminder alerts.',
+      'Fixed reminders occasionally failing to save.',
+      'Fixed function dates sometimes showing the wrong year.',
+    ],
   };
 }

@@ -130,6 +130,13 @@ class ContextFetcher {
     String walletId, {
     DashboardAiCache? cache,
   }) async {
+    // Before the real wallet id resolves, walletId can briefly be the
+    // 'personal' placeholder sentinel (AppStateNotifier._isPlaceholder) —
+    // every uuid-typed query below would fail identically, so skip
+    // straight to an empty context rather than firing doomed queries.
+    if (walletId.isEmpty || walletId == 'personal') {
+      return const HouseholdContext();
+    }
     final sources = intent.dataSources;
     final isCrossTab = sources.contains(DataSource.crossTab);
 

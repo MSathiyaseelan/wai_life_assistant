@@ -93,8 +93,13 @@ class _WishListScreenState extends State<WishListScreen>
     super.dispose();
   }
 
+  // Mirrors AppStateNotifier._isPlaceholder — before the real wallet id
+  // resolves, widget.walletId can briefly be the 'personal' placeholder
+  // sentinel rather than empty, which a uuid column rejects.
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   Future<void> _loadWishes({bool force = false}) async {
-    if (widget.walletId.isEmpty) {
+    if (_isPlaceholder(widget.walletId)) {
       return;
     }
     if (widget.familyWalletNames.isNotEmpty) {
@@ -151,6 +156,12 @@ class _WishListScreenState extends State<WishListScreen>
   // deleted via Quick Add wouldn't show on the main screen until a full
   // reload.
   Future<void> _add(WishModel w) async {
+    if (_isPlaceholder(w.walletId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
+      );
+      return;
+    }
     try {
       final row = await WishService.instance.addWish(w.toRow());
       final saved = WishModel.fromRow(row);

@@ -23,6 +23,15 @@ class AppUpdateService {
   /// InstallStatus.downloaded / installStatus == downloaded independently.
   static bool _restartSheetShowing = false;
 
+  /// Guards against checkAndStartFlexibleUpdate running twice concurrently.
+  /// A cold launch can fire an initial AppLifecycleState.resumed transition
+  /// almost immediately after Dashboard's own initState — both call this,
+  /// and without this guard each independently calls
+  /// InAppUpdate.startFlexibleUpdate(), which re-triggers Play Store's own
+  /// update-consent dialog every time it's called, surfacing as the same
+  /// dialog opening twice in a row.
+  static bool _checking = false;
+
   /// [context] only needs to be valid for the initial "downloading" toast —
   /// the actual restart prompt (UpdateReadySheet) goes through
   /// [LifeAssistanceApp.navigatorKey] instead of this context, since a
@@ -34,6 +43,8 @@ class AppUpdateService {
   /// the user had already navigated away from.
   static Future<void> checkAndStartFlexibleUpdate(BuildContext context) async {
     if (!Platform.isAndroid) return;
+    if (_checking) return;
+    _checking = true;
     try {
       final info = await InAppUpdate.checkForUpdate();
 
@@ -85,6 +96,8 @@ class AppUpdateService {
       // best-effort background nicety, not something that should surface
       // an error to the user.
       ErrorLogger.log(e, stackTrace: stack, action: 'in_app_update_check');
+    } finally {
+      _checking = false;
     }
   }
 

@@ -106,8 +106,13 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   /// TabBarView (and the RefreshIndicator driving the gesture) for a
   /// Center(CircularProgressIndicator) — the RefreshIndicator already shows
   /// its own spinner while refreshing.
+  // Mirrors AppStateNotifier._isPlaceholder — before the real wallet id
+  // resolves, widget.walletId can briefly be the 'personal' placeholder
+  // sentinel rather than empty, which a uuid column rejects.
+  bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
   Future<void> _loadTasks({bool force = false, bool showSpinner = true}) async {
-    if (widget.walletId.isEmpty) {
+    if (_isPlaceholder(widget.walletId)) {
       if (showSpinner) setState(() => _loading = false);
       return;
     }
@@ -177,6 +182,12 @@ class _MyTasksScreenState extends State<MyTasksScreen>
   // invisible on the main My Tasks screen until a full reload, since that
   // instance's _tasks is seeded from widget.tasks on init.
   Future<void> _add(TaskModel t) async {
+    if (_isPlaceholder(t.walletId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
+      );
+      return;
+    }
     try {
       final row = await TaskService.instance.addTask(t.toRow());
       final saved = TaskModel.fromRow(row);
