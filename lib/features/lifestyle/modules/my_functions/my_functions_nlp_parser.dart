@@ -51,12 +51,18 @@ class _FunctionAIParser {
           raw.toString().isNotEmpty &&
           raw.toString() != 'null') {
         final parsed = DateTime.parse(raw.toString());
-        // Sanity check: reject years far outside the current range (e.g. AI hallucination)
+        // Accept any plausible calendar year — this parser is shared by
+        // Our Functions and Attended Functions, where a genuinely old date
+        // (a wedding hosted/attended years ago) is completely normal, not
+        // an AI error. Narrowly rejecting anything outside a near-future
+        // window used to silently discard a correct explicit year (e.g.
+        // "9 Sep 2013") and force-shift it to next year's date instead.
+        // Only truly implausible years (broken/hallucinated output) fall
+        // back to a day/month-only, next-occurrence guess.
         final now = DateTime.now();
-        if (parsed.year >= now.year - 1 && parsed.year <= now.year + 10) {
+        if (parsed.year >= 1900 && parsed.year <= now.year + 50) {
           date = parsed;
         } else {
-          // Try to fix a 2-digit-year misparse (e.g. AI returned 2016 instead of 2026)
           final fixed = DateTime(now.year, parsed.month, parsed.day);
           if (fixed.isBefore(now)) {
             date = DateTime(now.year + 1, parsed.month, parsed.day);
