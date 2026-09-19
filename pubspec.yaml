@@ -77,6 +77,53 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  flutter_flavorizr: ^2.6.0
+
+# Config for flutter_flavorizr — generates the iOS Xcode build configurations,
+# schemes, and per-flavor GoogleService-Info.plist wiring that mirror the
+# Android product flavors already defined in android/app/build.gradle.kts.
+# Run with `dart run flutter_flavorizr -p ios` (iOS-only: the `-p ios` flag
+# skips regenerating Android, which is already hand-configured and working).
+# This must run on a machine with Xcode/Ruby available (i.e. the CI's macOS
+# runner), since it edits ios/Runner.xcodeproj/project.pbxproj directly.
+flavorizr:
+  flavors:
+    dev:
+      app:
+        name: "RiyasHome Dev"
+      android:
+        applicationId: "com.wai.lifeassistant.dev"
+      ios:
+        bundleId: "com.wai.lifeassistant.dev"
+        firebase:
+          config: "ios/Runner/Firebase/dev/GoogleService-Info.plist"
+    qa:
+      app:
+        name: "RiyasHome QA"
+      android:
+        applicationId: "com.wai.lifeassistant.qa"
+      ios:
+        bundleId: "com.wai.lifeassistant.qa"
+        firebase:
+          config: "ios/Runner/Firebase/qa/GoogleService-Info.plist"
+    uat:
+      app:
+        name: "RiyasHome UAT"
+      android:
+        applicationId: "com.wai.lifeassistant.uat"
+      ios:
+        bundleId: "com.wai.lifeassistant.uat"
+        firebase:
+          config: "ios/Runner/Firebase/uat/GoogleService-Info.plist"
+    prod:
+      app:
+        name: "RiyasHome"
+      android:
+        applicationId: "com.wai.lifeassistant"
+      ios:
+        bundleId: "com.wai.lifeassistant"
+        firebase:
+          config: "ios/Runner/Firebase/prod/GoogleService-Info.plist"
 
 # Config for flutter_launcher_icons — run `dart run flutter_launcher_icons`
 # to (re)generate all platform icon sizes from assets/icon/app_icon*.png.

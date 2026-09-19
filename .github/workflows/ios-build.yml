@@ -1,0 +1,39 @@
+name: iOS Build Check
+
+# Compile-time verification that the app still builds for iOS, for every push
+# and PR against main. Builds unsigned (--no-codesign) since Apple signing
+# certificates/profiles aren't wired into CI yet — this only proves the
+# Flutter/Dart/CocoaPods/Xcode build succeeds, not that the result is
+# installable on a device. Once signing is set up, this can be upgraded to
+# `flutter build ipa` + TestFlight upload.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        flavor: [dev, prod]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.0"
+          channel: "stable"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        run: pod install --repo-update
+        working-directory: ios
+
+      - name: Build iOS (${{ matrix.flavor }}, unsigned)
+        run: flutter build ios --release --no-codesign --flavor ${{ matrix.flavor }} -t lib/main.dart
