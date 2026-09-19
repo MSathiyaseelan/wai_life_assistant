@@ -33,9 +33,11 @@ jobs:
       # (which overwrite lib/ with flavorizr's own template app) and the
       # android:*/assets:download instructions (Android flavors are already
       # hand-configured and working) -- only the iOS Xcode project pieces run.
+      # --force skips the interactive "Do you want to proceed?" confirmation,
+      # which otherwise hangs/fails since CI has no terminal attached to stdin.
       - name: Generate iOS flavor configuration
         run: >
-          dart run flutter_flavorizr -p
+          dart run flutter_flavorizr --force -p
           ios:podfile,ios:xcconfig,ios:buildTargets,ios:schema,ios:plist,google:firebase
 
       - name: Commit generated project changes
