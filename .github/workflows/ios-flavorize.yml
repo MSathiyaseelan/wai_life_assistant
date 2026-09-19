@@ -28,8 +28,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # -p takes a comma-separated list of flutter_flavorizr "instructions",
+      # not a platform name. This deliberately excludes flutter:app/pages/main
+      # (which overwrite lib/ with flavorizr's own template app) and the
+      # android:*/assets:download instructions (Android flavors are already
+      # hand-configured and working) -- only the iOS Xcode project pieces run.
       - name: Generate iOS flavor configuration
-        run: dart run flutter_flavorizr -p ios
+        run: >
+          dart run flutter_flavorizr -p
+          ios:podfile,ios:xcconfig,ios:buildTargets,ios:schema,ios:plist,google:firebase
 
       - name: Commit generated project changes
         run: |
