@@ -17,6 +17,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _nameFocus = FocusNode();
 
   DateTime? _dob;
+  String? _gender;
   bool _loading = false;
   String? _error;
 
@@ -79,7 +80,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           : '${_dob!.year}-'
             '${_dob!.month.toString().padLeft(2, '0')}-'
             '${_dob!.day.toString().padLeft(2, '0')}';
-      await ProfileService.instance.updateProfile(name: name, dob: dob);
+      await ProfileService.instance.updateProfile(
+        name: name,
+        dob: dob,
+        gender: _gender,
+      );
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
@@ -276,6 +281,33 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         ),
                       ),
 
+                      const SizedBox(height: 16),
+
+                      // Gender (optional)
+                      _FieldLabel('Gender (optional)', sub),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final g in const [
+                            ('male', 'Male'),
+                            ('female', 'Female'),
+                            ('transgender', 'Transgender'),
+                            ('other', 'Other'),
+                          ])
+                            _GenderChip(
+                              label: g.$2,
+                              selected: _gender == g.$1,
+                              fieldBg: fieldBg,
+                              tc: tc,
+                              sub: sub,
+                              onTap: () => setState(
+                                  () => _gender = _gender == g.$1 ? null : g.$1),
+                            ),
+                        ],
+                      ),
+
                       if (_error != null) ...[
                         const SizedBox(height: 10),
                         Row(
@@ -386,6 +418,51 @@ class _FieldLabel extends StatelessWidget {
           fontWeight: FontWeight.w700,
           fontFamily: 'Nunito',
           color: color,
+        ),
+      );
+}
+
+class _GenderChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color fieldBg;
+  final Color tc;
+  final Color sub;
+  final VoidCallback onTap;
+
+  const _GenderChip({
+    required this.label,
+    required this.selected,
+    required this.fieldBg,
+    required this.tc,
+    required this.sub,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.12)
+                : fieldBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? AppColors.primary : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              fontFamily: 'Nunito',
+              color: selected ? AppColors.primary : sub,
+            ),
+          ),
         ),
       );
 }

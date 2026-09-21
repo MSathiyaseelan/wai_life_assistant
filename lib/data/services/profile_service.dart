@@ -73,17 +73,19 @@ class ProfileService {
         .maybeSingle();
   }
 
-  /// Update display name, emoji, date of birth, and/or photo URL.
+  /// Update display name, emoji, date of birth, gender, and/or photo URL.
   Future<void> updateProfile({
     String? name,
     String? emoji,
     String? dob,
+    String? gender,
     String? photoUrl,
   }) async {
     await _db.from('profiles').update({
       if (name != null)     'name': name,
       if (emoji != null)    'emoji': emoji,
       if (dob != null)      'dob': dob,
+      if (gender != null)   'gender': gender,
       if (photoUrl != null) 'photo_url': photoUrl,
     }).eq('id', _uid);
   }

@@ -90,6 +90,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   String _userName = '';
   String _userPhone = '';
   String _userDob = '';
+  String _userGender = '';
   String _userPlan = 'personal_free';
   String _userPhotoUrl = '';
   bool _balanceHidden = true;
@@ -322,6 +323,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           if (name.isNotEmpty) _userName = name;
           _userPhone = (profile['phone'] as String?) ?? '';
           _userDob = (profile['dob'] as String?) ?? '';
+          _userGender = (profile['gender'] as String?) ?? '';
           _userPlan = (profile['plan'] as String?) ?? 'personal_free';
           _userPhotoUrl = (profile['photo_url'] as String?) ?? '';
         });
@@ -3474,6 +3476,108 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                             ),
                                             Icon(
                                               Icons.edit_calendar_rounded,
+                                              size: 14,
+                                              color: isDark
+                                                  ? AppColors.subDark
+                                                  : AppColors.subLight,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    // Gender
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final picked = await showModalBottomSheet<String>(
+                                          context: ctx,
+                                          backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
+                                          shape: const RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                          ),
+                                          builder: (sheetCtx) => SafeArea(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                for (final g in const [
+                                                  ('male', 'Male'),
+                                                  ('female', 'Female'),
+                                                  ('transgender', 'Transgender'),
+                                                  ('other', 'Other'),
+                                                ])
+                                                  ListTile(
+                                                    title: Text(
+                                                      g.$2,
+                                                      style: TextStyle(
+                                                        fontFamily: 'Nunito',
+                                                        fontWeight: FontWeight.w700,
+                                                        color: isDark ? AppColors.textDark : AppColors.textLight,
+                                                      ),
+                                                    ),
+                                                    trailing: _userGender == g.$1
+                                                        ? const Icon(Icons.check_rounded, color: AppColors.primary)
+                                                        : null,
+                                                    onTap: () => Navigator.pop(sheetCtx, g.$1),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                        if (picked != null && mounted) {
+                                          final original = _userGender;
+                                          setState(() => _userGender = picked);
+                                          ss(() {});
+                                          try {
+                                            await ProfileService.instance.updateProfile(gender: picked);
+                                          } catch (e, stack) {
+                                            ErrorLogger.log(e, stackTrace: stack, action: 'save_profile_gender');
+                                            if (mounted) {
+                                              setState(() => _userGender = original);
+                                              ss(() {});
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Failed to save gender')),
+                                              );
+                                            }
+                                          }
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 14,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isDark
+                                              ? Colors.white.withValues(alpha: 0.06)
+                                              : Colors.black.withValues(alpha: 0.04),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.wc_rounded,
+                                              size: 16,
+                                              color: isDark
+                                                  ? AppColors.subDark
+                                                  : AppColors.subLight,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                _userGender.isEmpty
+                                                    ? 'Gender'
+                                                    : _userGender[0].toUpperCase() + _userGender.substring(1),
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontFamily: 'Nunito',
+                                                  color: _userGender.isEmpty
+                                                      ? (isDark ? AppColors.subDark : AppColors.subLight)
+                                                      : (isDark ? AppColors.textDark : AppColors.textLight),
+                                                ),
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.edit_rounded,
                                               size: 14,
                                               color: isDark
                                                   ? AppColors.subDark
