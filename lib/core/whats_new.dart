@@ -25,5 +25,11 @@ class WhatsNew {
       'Fixed reminders occasionally failing to save.',
       'Fixed function dates sometimes showing the wrong year.',
     ],
+    28: [
+      'Fixed scanning a bill sometimes failing to save to your personal wallet.',
+      'Fixed a blank Messages tab on function detail screens.',
+      'Fixed tapping a family member under Wardrobe not showing their outfit.',
+      'Added gender to your profile, with a bigger, better-organized set of wardrobe categories to match.',
+    ],
   };
 }
