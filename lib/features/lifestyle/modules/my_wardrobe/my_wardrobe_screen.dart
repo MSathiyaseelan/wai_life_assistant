@@ -783,7 +783,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
   final _colorCtrl  = TextEditingController();
   final _notesCtrl  = TextEditingController();
   final _sourceCtrl = TextEditingController();
-  String  _cat       = 'topwear';
+  String  _cat       = 'unisex_accessories';
   String? _photoPath;
   List<WardrobeCategory> _categories = WardrobeCategory.fallback;
 
@@ -799,7 +799,17 @@ class _AddClothingSheetState extends State<AddClothingSheet>
     super.initState();
     _tab = TabController(length: 2, vsync: this);
     WardrobeService.instance.fetchCategories().then((list) {
-      if (mounted) setState(() => _categories = list);
+      if (!mounted) return;
+      setState(() {
+        _categories = list;
+        // _cat's initial value may not exist once the real catalog loads
+        // (or a category was removed server-side) — fall back to the
+        // first category actually visible for this member.
+        final visible = _visibleCategoriesFor(widget.memberGender, list);
+        if (visible.isNotEmpty && !visible.any((c) => c.key == _cat)) {
+          _cat = visible.first.key;
+        }
+      });
     });
   }
 
@@ -818,48 +828,78 @@ class _AddClothingSheetState extends State<AddClothingSheet>
 
   // ── Infer category from AI response ──────────────────────────────────────
 
+  /// Maps free-text AI output to a key from the current wardrobe_categories
+  /// catalog (unisex_* / male_* / female_*). Uses [widget.memberGender] to
+  /// pick between a male- and female-specific category when the garment
+  /// type itself doesn't disambiguate (e.g. "kurta"); defaults to the
+  /// unisex/generic option when gender is unset, transgender, or other.
   String _inferCategory(String? itemType, String? occasion) {
     final t = (itemType ?? '').toLowerCase();
     final o = (occasion ?? '').toLowerCase();
-    if (o.contains('formal') || o.contains('office') || o.contains('business')) {
-      return 'formal';
-    }
+    final isMale = widget.memberGender == 'male';
+    final isFemale = widget.memberGender == 'female';
+
     if (o.contains('sport') || o.contains('gym') || o.contains('workout') || o.contains('active')) {
-      return 'sportswear';
+      return 'unisex_sportswear';
     }
-    if (o.contains('winter') || o.contains('cold') || t.contains('jacket') ||
-        t.contains('coat') || t.contains('hoodie')) {
-      return 'winterwear';
+    if (t.contains('jacket') || t.contains('hoodie')) return 'unisex_jackets';
+    if (o.contains('winter') || o.contains('cold') || t.contains('coat')) {
+      return 'unisex_winterwear';
     }
     if (o.contains('night') || o.contains('sleep') || t.contains('pyjama') ||
         t.contains('pajama') || t.contains('nightwear')) {
-      return 'nightwear';
+      return 'unisex_nightwear';
     }
     if (t.contains('shoe') || t.contains('sandal') || t.contains('sneaker') ||
         t.contains('boot') || t.contains('slipper') || t.contains('heel')) {
-      return 'footwear';
+      return 'unisex_footwear';
     }
-    if (t.contains('pant') || t.contains('jean') || t.contains('trouser') ||
-        t.contains('skirt') || t.contains('short') || t.contains('legging')) {
-      return 'bottomwear';
+    if (t.contains('sock')) return 'unisex_socks';
+    if (t.contains('cap') || t.contains('hat')) return 'unisex_caps';
+    if (t.contains('bag')) return 'unisex_bags';
+
+    if (t.contains('sherwani')) return 'male_sherwani';
+    if (t.contains('dhoti') || t.contains('lungi') || t.contains('veshti')) return 'male_veshti';
+    if (t.contains('suit') || t.contains('blazer')) return 'male_suits';
+
+    if (t.contains('saree')) return 'female_sarees';
+    if (t.contains('lehenga')) return 'female_lehengas';
+    if (t.contains('salwar')) return 'female_salwar';
+    if (t.contains('dupatta')) return 'female_dupattas';
+    if (t.contains('blouse')) return isMale ? 'male_shirts' : 'female_blouses';
+    if (t.contains('kurti')) return 'female_kurtis';
+    if (t.contains('kurta')) return isFemale ? 'female_kurtis' : 'male_kurtas';
+    if (t.contains('dress')) return 'female_dresses';
+    if (t.contains('skirt')) return 'female_skirts';
+    if (t.contains('legging')) return 'female_leggings';
+
+    if (t.contains('jean')) return 'unisex_jeans';
+    if (t.contains('short')) return isMale ? 'male_shorts' : 'female_skirts';
+    if (t.contains('trouser') || t.contains('pant')) {
+      return isFemale ? 'female_leggings' : 'male_trousers';
     }
-    if (t.contains('saree') || t.contains('kurta') || t.contains('lehenga') ||
-        t.contains('dhoti') || t.contains('lungi') || t.contains('dupatta') ||
-        t.contains('salwar') || t.contains('ethnic')) {
-      return 'ethnic';
-    }
+
     if (t.contains('brief') || t.contains('bra') || t.contains('underwear') ||
         t.contains('inner') || t.contains('innerwear')) {
-      return 'innerwear';
+      return isMale ? 'male_innerwear' : 'female_innerwear';
     }
-    if (t.contains('ring') || t.contains('necklace') || t.contains('watch') ||
-        t.contains('bracelet') || t.contains('earring') || t.contains('belt') ||
-        t.contains('bag') || t.contains('scarf') || t.contains('cap') ||
-        t.contains('hat') || t.contains('accessory')) {
-      return 'accessories';
+
+    if (t.contains('ring') || t.contains('necklace') || t.contains('bracelet') ||
+        t.contains('earring') || t.contains('jewellery') || t.contains('jewelry')) {
+      return isFemale ? 'female_jewellery' : 'unisex_accessories';
     }
-    if (t.contains('uniform')) return 'schoolUniform';
-    return 'topwear';
+    if (t.contains('watch') || t.contains('belt') || t.contains('scarf') ||
+        t.contains('accessory')) {
+      return 'unisex_accessories';
+    }
+
+    if (t.contains('tshirt') || t.contains('t-shirt') || t.contains('tee')) {
+      return isFemale ? 'female_tops' : 'male_tshirts';
+    }
+    if (t.contains('shirt')) return isFemale ? 'female_tops' : 'male_shirts';
+    if (t.contains('top')) return 'female_tops';
+
+    return 'unisex_accessories';
   }
 
   // ── AI parse ─────────────────────────────────────────────────────────────

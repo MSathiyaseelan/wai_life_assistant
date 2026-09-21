@@ -79,7 +79,7 @@ class WardrobeService {
       final rows = await _db
           .from('wardrobe_categories')
           .select()
-          .order('sort_order');
+          .order('sort_order', ascending: true);
       final list = (rows as List)
           .map((r) => WardrobeCategory(
                 key: r['key'] as String,

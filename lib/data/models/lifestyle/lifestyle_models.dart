@@ -200,20 +200,42 @@ class WardrobeCategory {
   });
 
   /// Used before the first successful fetch, or if wardrobe_categories is
-  /// ever unreachable — today's 12 categories, unchanged.
+  /// ever unreachable — mirrors 182_wardrobe_categories_replace.sql.
   static const List<WardrobeCategory> fallback = [
-    WardrobeCategory(key: 'topwear', emoji: '👕', label: 'Topwear'),
-    WardrobeCategory(key: 'bottomwear', emoji: '👖', label: 'Bottomwear'),
-    WardrobeCategory(key: 'ethnic', emoji: '🛕', label: 'Ethnic / Traditional'),
-    WardrobeCategory(key: 'footwear', emoji: '👟', label: 'Footwear'),
-    WardrobeCategory(key: 'innerwear', emoji: '🩲', label: 'Innerwear'),
-    WardrobeCategory(key: 'accessories', emoji: '💍', label: 'Accessories'),
-    WardrobeCategory(key: 'formal', emoji: '👔', label: 'Formal / Office'),
-    WardrobeCategory(key: 'sportswear', emoji: '🏃', label: 'Sportswear'),
-    WardrobeCategory(key: 'winterwear', emoji: '🧥', label: 'Winter / Outerwear'),
-    WardrobeCategory(key: 'nightwear', emoji: '🌙', label: 'Nightwear'),
-    WardrobeCategory(key: 'schoolUniform', emoji: '🏫', label: 'School Uniform'),
-    WardrobeCategory(key: 'adaptive', emoji: '♿', label: 'Medical / Adaptive'),
+    // Unisex
+    WardrobeCategory(key: 'unisex_footwear', emoji: '👟', label: 'Footwear'),
+    WardrobeCategory(key: 'unisex_sportswear', emoji: '🏃', label: 'Sportswear'),
+    WardrobeCategory(key: 'unisex_nightwear', emoji: '😴', label: 'Nightwear'),
+    WardrobeCategory(key: 'unisex_winterwear', emoji: '🧥', label: 'Winter Wear'),
+    WardrobeCategory(key: 'unisex_jeans', emoji: '👖', label: 'Jeans'),
+    WardrobeCategory(key: 'unisex_jackets', emoji: '🧥', label: 'Jackets'),
+    WardrobeCategory(key: 'unisex_socks', emoji: '🧦', label: 'Socks'),
+    WardrobeCategory(key: 'unisex_caps', emoji: '🧢', label: 'Caps & Hats'),
+    WardrobeCategory(key: 'unisex_bags', emoji: '🎒', label: 'Bags'),
+    WardrobeCategory(key: 'unisex_accessories', emoji: '⌚', label: 'Accessories'),
+    // Male
+    WardrobeCategory(key: 'male_tshirts', emoji: '👕', label: 'T-Shirts', gender: 'male'),
+    WardrobeCategory(key: 'male_shirts', emoji: '👔', label: 'Shirts', gender: 'male'),
+    WardrobeCategory(key: 'male_trousers', emoji: '👖', label: 'Trousers', gender: 'male'),
+    WardrobeCategory(key: 'male_shorts', emoji: '🩳', label: 'Shorts', gender: 'male'),
+    WardrobeCategory(key: 'male_kurtas', emoji: '👘', label: 'Kurtas', gender: 'male'),
+    WardrobeCategory(key: 'male_veshti', emoji: '🩲', label: 'Dhoti / Veshti', gender: 'male'),
+    WardrobeCategory(key: 'male_sherwani', emoji: '🤵', label: 'Sherwanis', gender: 'male'),
+    WardrobeCategory(key: 'male_suits', emoji: '🕴️', label: 'Suits & Blazers', gender: 'male'),
+    WardrobeCategory(key: 'male_innerwear', emoji: '🩲', label: 'Innerwear', gender: 'male'),
+    // Female
+    WardrobeCategory(key: 'female_sarees', emoji: '🥻', label: 'Sarees', gender: 'female'),
+    WardrobeCategory(key: 'female_blouses', emoji: '👚', label: 'Blouses', gender: 'female'),
+    WardrobeCategory(key: 'female_salwar', emoji: '👗', label: 'Salwar Suits', gender: 'female'),
+    WardrobeCategory(key: 'female_kurtis', emoji: '👚', label: 'Kurtis', gender: 'female'),
+    WardrobeCategory(key: 'female_lehengas', emoji: '💃', label: 'Lehengas', gender: 'female'),
+    WardrobeCategory(key: 'female_tops', emoji: '👚', label: 'Tops', gender: 'female'),
+    WardrobeCategory(key: 'female_dresses', emoji: '👗', label: 'Dresses', gender: 'female'),
+    WardrobeCategory(key: 'female_skirts', emoji: '👗', label: 'Skirts', gender: 'female'),
+    WardrobeCategory(key: 'female_leggings', emoji: '🩱', label: 'Leggings', gender: 'female'),
+    WardrobeCategory(key: 'female_dupattas', emoji: '🧣', label: 'Dupattas', gender: 'female'),
+    WardrobeCategory(key: 'female_innerwear', emoji: '🩱', label: 'Innerwear', gender: 'female'),
+    WardrobeCategory(key: 'female_jewellery', emoji: '💍', label: 'Jewellery', gender: 'female'),
   ];
 }
 
