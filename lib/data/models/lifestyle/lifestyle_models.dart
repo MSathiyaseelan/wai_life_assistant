@@ -183,32 +183,69 @@ final List<VehicleModel> mockVehicles = [
 
 enum ClothingGender { male, female, kids, unisex }
 
-enum ClothingCategory {
-  // Core (all genders/ages)
-  topwear('👕', 'Topwear'),
-  bottomwear('👖', 'Bottomwear'),
-  ethnic('🛕', 'Ethnic / Traditional'),
-  footwear('👟', 'Footwear'),
-  innerwear('🩲', 'Innerwear'),
-  accessories('💍', 'Accessories'),
+/// A wardrobe category, sourced from the wardrobe_categories table (see
+/// 181_wardrobe_categories_table.sql) rather than hardcoded, so new
+/// gender-specific categories can be added without an app release.
+class WardrobeCategory {
+  final String key;
+  final String emoji;
+  final String label;
+  final String gender; // 'male' / 'female' / 'unisex'
 
-  // Activity / Occasion
-  formal('👔', 'Formal / Office'),
-  sportswear('🏃', 'Sportswear'),
-  winterwear('🧥', 'Winter / Outerwear'),
-  nightwear('🌙', 'Nightwear'),
+  const WardrobeCategory({
+    required this.key,
+    required this.emoji,
+    required this.label,
+    this.gender = 'unisex',
+  });
 
-  // Person-specific
-  schoolUniform('🏫', 'School Uniform'),
-  adaptive('♿', 'Medical / Adaptive');
+  /// Used before the first successful fetch, or if wardrobe_categories is
+  /// ever unreachable — today's 12 categories, unchanged.
+  static const List<WardrobeCategory> fallback = [
+    WardrobeCategory(key: 'topwear', emoji: '👕', label: 'Topwear'),
+    WardrobeCategory(key: 'bottomwear', emoji: '👖', label: 'Bottomwear'),
+    WardrobeCategory(key: 'ethnic', emoji: '🛕', label: 'Ethnic / Traditional'),
+    WardrobeCategory(key: 'footwear', emoji: '👟', label: 'Footwear'),
+    WardrobeCategory(key: 'innerwear', emoji: '🩲', label: 'Innerwear'),
+    WardrobeCategory(key: 'accessories', emoji: '💍', label: 'Accessories'),
+    WardrobeCategory(key: 'formal', emoji: '👔', label: 'Formal / Office'),
+    WardrobeCategory(key: 'sportswear', emoji: '🏃', label: 'Sportswear'),
+    WardrobeCategory(key: 'winterwear', emoji: '🧥', label: 'Winter / Outerwear'),
+    WardrobeCategory(key: 'nightwear', emoji: '🌙', label: 'Nightwear'),
+    WardrobeCategory(key: 'schoolUniform', emoji: '🏫', label: 'School Uniform'),
+    WardrobeCategory(key: 'adaptive', emoji: '♿', label: 'Medical / Adaptive'),
+  ];
+}
 
-  final String emoji, label;
-  const ClothingCategory(this.emoji, this.label);
+/// Live cache of wardrobe_categories, refreshed via [update] once fetched.
+/// Starts out holding [WardrobeCategory.fallback] so every screen has
+/// something to render before the first fetch completes.
+class WardrobeCategoryCache {
+  WardrobeCategoryCache._();
+  static List<WardrobeCategory> _categories = WardrobeCategory.fallback;
+
+  static List<WardrobeCategory> get all => _categories;
+
+  static void update(List<WardrobeCategory> categories) {
+    if (categories.isNotEmpty) _categories = categories;
+  }
+
+  /// Looks up [key], falling back to a generic entry (so an item whose
+  /// category was deleted/renamed server-side still renders something
+  /// sensible instead of crashing).
+  static WardrobeCategory of(String key) => _categories.firstWhere(
+        (c) => c.key == key,
+        orElse: () => WardrobeCategory(
+          key: key,
+          emoji: '🧺',
+          label: key.isEmpty ? 'Other' : key[0].toUpperCase() + key.substring(1),
+        ),
+      );
 }
 
 class ClothingItem {
   String id, memberId, name, walletId;
-  ClothingCategory category;
+  String category; // wardrobe_categories.key — see WardrobeCategoryCache
   ClothingGender gender;
   String? brand, size, color, photoPath, notes;
   bool wishlist;
@@ -238,7 +275,7 @@ class ClothingItem {
     'wallet_id': walletId,
     'member_id': memberId,
     'name': name,
-    'category': category.name,
+    'category': category,
     'gender': gender.name,
     if (brand != null) 'brand': brand,
     if (size != null) 'size': size,
@@ -256,10 +293,7 @@ class ClothingItem {
     walletId: j['wallet_id'] as String,
     memberId: j['member_id'] as String,
     name: j['name'] as String,
-    category: ClothingCategory.values.firstWhere(
-      (e) => e.name == j['category'],
-      orElse: () => ClothingCategory.topwear,
-    ),
+    category: j['category'] as String? ?? 'topwear',
     gender: ClothingGender.values.firstWhere(
       (e) => e.name == j['gender'],
       orElse: () => ClothingGender.unisex,
@@ -320,7 +354,7 @@ final List<ClothingItem> mockClothes = [
     memberId: 'me',
     walletId: 'personal',
     name: 'White Oxford Shirt',
-    category: ClothingCategory.topwear,
+    category: 'topwear',
     gender: ClothingGender.male,
     brand: 'Arrow',
     size: 'L',
@@ -332,7 +366,7 @@ final List<ClothingItem> mockClothes = [
     memberId: 'me',
     walletId: 'personal',
     name: 'Navy Chinos',
-    category: ClothingCategory.bottomwear,
+    category: 'bottomwear',
     gender: ClothingGender.male,
     brand: 'Levi\'s',
     size: '32',
@@ -344,7 +378,7 @@ final List<ClothingItem> mockClothes = [
     memberId: 'me',
     walletId: 'personal',
     name: 'Floral Kurta',
-    category: ClothingCategory.ethnic,
+    category: 'ethnic',
     gender: ClothingGender.male,
     brand: 'Manyavar',
     size: 'L',
@@ -355,7 +389,7 @@ final List<ClothingItem> mockClothes = [
     memberId: 'dau',
     walletId: 'personal',
     name: 'Blue Salwar',
-    category: ClothingCategory.ethnic,
+    category: 'ethnic',
     gender: ClothingGender.female,
     brand: 'Fabindia',
     size: 'M',
@@ -366,7 +400,7 @@ final List<ClothingItem> mockClothes = [
     memberId: 'me',
     walletId: 'personal',
     name: 'Burgundy Blazer',
-    category: ClothingCategory.formal,
+    category: 'formal',
     gender: ClothingGender.male,
     wishlist: true,
     wishlistSource: 'Seen at Zara, ₹4,500',

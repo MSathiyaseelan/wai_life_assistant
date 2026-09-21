@@ -15,20 +15,17 @@ import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
 
-/// Categories visible for [gender] given a key->gender map from
-/// wardrobe_categories ('male' / 'female' / 'unisex'). Falls back to
-/// showing everything when [gender] isn't exactly 'male' or 'female'
-/// (unset, transgender, other) — never guess which categories fit someone
-/// without a clean male/female signal.
-List<ClothingCategory> _visibleCategoriesFor(
+/// Categories from [all] visible for [gender]. Falls back to showing
+/// everything when [gender] isn't exactly 'male' or 'female' (unset,
+/// transgender, other) — never guess which categories fit someone without
+/// a clean male/female signal.
+List<WardrobeCategory> _visibleCategoriesFor(
   String? gender,
-  Map<String, String> categoryGender,
+  List<WardrobeCategory> all,
 ) {
-  if (gender != 'male' && gender != 'female') return ClothingCategory.values;
+  if (gender != 'male' && gender != 'female') return all;
   final excluded = gender == 'male' ? 'female' : 'male';
-  return ClothingCategory.values
-      .where((c) => (categoryGender[c.name] ?? 'unisex') != excluded)
-      .toList();
+  return all.where((c) => c.gender != excluded).toList();
 }
 
 // ── Photo picker (camera or gallery) ─────────────────────────────────────────
@@ -156,16 +153,16 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
   final List<OutfitLog> _outfitLogs = [];
   bool _loading = true;
   late String _selectedMember;
-  ClothingCategory? _filterCat;
+  String? _filterCat;
   bool _searchActive = false;
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
-  Map<String, String> _categoryGender = {};
+  List<WardrobeCategory> _categories = WardrobeCategory.fallback;
 
   bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
 
-  List<ClothingCategory> _visibleCategories(String? gender) =>
-      _visibleCategoriesFor(gender, _categoryGender);
+  List<WardrobeCategory> _visibleCategories(String? gender) =>
+      _visibleCategoriesFor(gender, _categories);
 
   String? _genderOf(String memberId) => widget.members
       .firstWhere(
@@ -220,16 +217,17 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     try {
       final svc = WardrobeService.instance;
       final skipItems = widget.initialItems != null;
-      final categoryGendersFuture = svc.fetchCategoryGenders();
+      final categoriesFuture = svc.fetchCategories();
       final results = await Future.wait([
         if (!skipItems) svc.fetchItems(widget.walletId),
         svc.fetchOutfitLogs(widget.walletId),
       ]);
-      final categoryGenders = await categoryGendersFuture;
+      final categories = await categoriesFuture;
+      WardrobeCategoryCache.update(categories);
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _categoryGender = categoryGenders;
+        _categories = categories;
         _clothes.clear();
         if (skipItems) {
           _clothes.addAll(widget.initialItems!);
@@ -482,10 +480,10 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                       (c) => _CatChip(
                                         label: c.label,
                                         emoji: c.emoji,
-                                        selected: _filterCat == c,
+                                        selected: _filterCat == c.key,
                                         color: _wardrobeColor,
                                         onTap: () =>
-                                            setState(() => _filterCat = c),
+                                            setState(() => _filterCat = c.key),
                                       ),
                                     ),
                                   ],
@@ -785,23 +783,23 @@ class _AddClothingSheetState extends State<AddClothingSheet>
   final _colorCtrl  = TextEditingController();
   final _notesCtrl  = TextEditingController();
   final _sourceCtrl = TextEditingController();
-  ClothingCategory _cat      = ClothingCategory.topwear;
-  String?          _photoPath;
-  Map<String, String> _categoryGender = {};
+  String  _cat       = 'topwear';
+  String? _photoPath;
+  List<WardrobeCategory> _categories = WardrobeCategory.fallback;
 
   // AI tab
   final _aiCtrl = TextEditingController();
   bool _parsing = false;
 
-  List<ClothingCategory> get _visibleCategories =>
-      _visibleCategoriesFor(widget.memberGender, _categoryGender);
+  List<WardrobeCategory> get _visibleCategories =>
+      _visibleCategoriesFor(widget.memberGender, _categories);
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
-    WardrobeService.instance.fetchCategoryGenders().then((map) {
-      if (mounted) setState(() => _categoryGender = map);
+    WardrobeService.instance.fetchCategories().then((list) {
+      if (mounted) setState(() => _categories = list);
     });
   }
 
@@ -820,48 +818,48 @@ class _AddClothingSheetState extends State<AddClothingSheet>
 
   // ── Infer category from AI response ──────────────────────────────────────
 
-  ClothingCategory _inferCategory(String? itemType, String? occasion) {
+  String _inferCategory(String? itemType, String? occasion) {
     final t = (itemType ?? '').toLowerCase();
     final o = (occasion ?? '').toLowerCase();
     if (o.contains('formal') || o.contains('office') || o.contains('business')) {
-      return ClothingCategory.formal;
+      return 'formal';
     }
     if (o.contains('sport') || o.contains('gym') || o.contains('workout') || o.contains('active')) {
-      return ClothingCategory.sportswear;
+      return 'sportswear';
     }
     if (o.contains('winter') || o.contains('cold') || t.contains('jacket') ||
         t.contains('coat') || t.contains('hoodie')) {
-      return ClothingCategory.winterwear;
+      return 'winterwear';
     }
     if (o.contains('night') || o.contains('sleep') || t.contains('pyjama') ||
         t.contains('pajama') || t.contains('nightwear')) {
-      return ClothingCategory.nightwear;
+      return 'nightwear';
     }
     if (t.contains('shoe') || t.contains('sandal') || t.contains('sneaker') ||
         t.contains('boot') || t.contains('slipper') || t.contains('heel')) {
-      return ClothingCategory.footwear;
+      return 'footwear';
     }
     if (t.contains('pant') || t.contains('jean') || t.contains('trouser') ||
         t.contains('skirt') || t.contains('short') || t.contains('legging')) {
-      return ClothingCategory.bottomwear;
+      return 'bottomwear';
     }
     if (t.contains('saree') || t.contains('kurta') || t.contains('lehenga') ||
         t.contains('dhoti') || t.contains('lungi') || t.contains('dupatta') ||
         t.contains('salwar') || t.contains('ethnic')) {
-      return ClothingCategory.ethnic;
+      return 'ethnic';
     }
     if (t.contains('brief') || t.contains('bra') || t.contains('underwear') ||
         t.contains('inner') || t.contains('innerwear')) {
-      return ClothingCategory.innerwear;
+      return 'innerwear';
     }
     if (t.contains('ring') || t.contains('necklace') || t.contains('watch') ||
         t.contains('bracelet') || t.contains('earring') || t.contains('belt') ||
         t.contains('bag') || t.contains('scarf') || t.contains('cap') ||
         t.contains('hat') || t.contains('accessory')) {
-      return ClothingCategory.accessories;
+      return 'accessories';
     }
-    if (t.contains('uniform')) return ClothingCategory.schoolUniform;
-    return ClothingCategory.topwear;
+    if (t.contains('uniform')) return 'schoolUniform';
+    return 'topwear';
   }
 
   // ── AI parse ─────────────────────────────────────────────────────────────
@@ -1207,19 +1205,19 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                             children: [
                               for (final c in _visibleCategories)
                                 GestureDetector(
-                                  onTap: () => setState(() => _cat = c),
+                                  onTap: () => setState(() => _cat = c.key),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 120),
                                     margin: const EdgeInsets.only(right: 8),
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 10, vertical: 6),
                                     decoration: BoxDecoration(
-                                      color: _cat == c
+                                      color: _cat == c.key
                                           ? _wardrobeColor.withValues(alpha: 0.15)
                                           : surfBg,
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: _cat == c
+                                        color: _cat == c.key
                                             ? _wardrobeColor
                                             : Colors.transparent,
                                       ),
@@ -1233,7 +1231,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
                                             fontFamily: 'Nunito',
-                                            color: _cat == c
+                                            color: _cat == c.key
                                                 ? _wardrobeColor
                                                 : sub,
                                           )),
@@ -1469,7 +1467,7 @@ class _ClothingGrid extends StatelessWidget {
                               height: double.infinity,
                             )
                           : Text(
-                              item.category.emoji,
+                              WardrobeCategoryCache.of(item.category).emoji,
                               style: const TextStyle(fontSize: 40),
                             ),
                     ),
@@ -1504,7 +1502,7 @@ class _ClothingGrid extends StatelessWidget {
                       Row(
                         children: [
                           LifeBadge(
-                            text: item.category.label,
+                            text: WardrobeCategoryCache.of(item.category).label,
                             color: _wardrobeColor,
                           ),
                           if (item.matchWith.isNotEmpty) ...[
@@ -1571,7 +1569,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
           // Header
           Row(
             children: [
-              Text(item.category.emoji, style: const TextStyle(fontSize: 32)),
+              Text(WardrobeCategoryCache.of(item.category).emoji, style: const TextStyle(fontSize: 32)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1669,7 +1667,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          item.category.emoji,
+                          WardrobeCategoryCache.of(item.category).emoji,
                           style: const TextStyle(fontSize: 50),
                         ),
                         const SizedBox(height: 6),
@@ -1768,7 +1766,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                           )
                         else
                           Text(
-                            m.category.emoji,
+                            WardrobeCategoryCache.of(m.category).emoji,
                             style: const TextStyle(fontSize: 24),
                           ),
                         const SizedBox(height: 3),
@@ -1898,10 +1896,10 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   ),
                 )
               else
-                for (final cat in ClothingCategory.values) ...[
+                for (final cat in WardrobeCategoryCache.all) ...[
                   Builder(builder: (_) {
                     final catItems =
-                        others.where((c) => c.category == cat).toList();
+                        others.where((c) => c.category == cat.key).toList();
                     if (catItems.isEmpty) return const SizedBox.shrink();
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1956,7 +1954,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                                         )
                                       else
                                         Text(
-                                          c.category.emoji,
+                                          WardrobeCategoryCache.of(c.category).emoji,
                                           style: const TextStyle(fontSize: 22),
                                         ),
                                       const SizedBox(height: 3),
@@ -2127,7 +2125,7 @@ class _SearchResultsList extends StatelessWidget {
                             fit: BoxFit.cover,
                           )
                         : Text(
-                            item.category.emoji,
+                            WardrobeCategoryCache.of(item.category).emoji,
                             style: const TextStyle(fontSize: 28),
                           ),
                   ),
@@ -2159,7 +2157,7 @@ class _SearchResultsList extends StatelessWidget {
                       Row(
                         children: [
                           LifeBadge(
-                            text: item.category.label,
+                            text: WardrobeCategoryCache.of(item.category).label,
                             color: _wardrobeColor,
                           ),
                           if (lastWorn != null) ...[
@@ -2212,7 +2210,7 @@ class _SearchResultsList extends StatelessWidget {
                                       )
                                     : Center(
                                         child: Text(
-                                          p.category.emoji,
+                                          WardrobeCategoryCache.of(p.category).emoji,
                                           style: const TextStyle(fontSize: 18),
                                         ),
                                       ),
@@ -2248,7 +2246,7 @@ class _SearchResultsList extends StatelessWidget {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    '${w.category.emoji} ${w.name}',
+                                    '${WardrobeCategoryCache.of(w.category).emoji} ${w.name}',
                                     style: const TextStyle(
                                       fontSize: 9,
                                       fontFamily: 'Nunito',
@@ -2344,7 +2342,7 @@ class _OutfitLogTab extends StatelessWidget {
                 )
               : Center(
                   child: Text(
-                    item.category.emoji,
+                    WardrobeCategoryCache.of(item.category).emoji,
                     style: const TextStyle(fontSize: 26),
                   ),
                 ),
@@ -2625,7 +2623,7 @@ class _OutfitLogTab extends StatelessWidget {
                         )
                       else
                         Text(
-                          mItems.map((c) => c.category.emoji).join(' '),
+                          mItems.map((c) => WardrobeCategoryCache.of(c.category).emoji).join(' '),
                           style: const TextStyle(fontSize: 14),
                           textAlign: TextAlign.center,
                         ),
@@ -2734,7 +2732,7 @@ class _OutfitLogTab extends StatelessWidget {
                                           )
                                         : Center(
                                             child: Text(
-                                              item.category.emoji,
+                                              WardrobeCategoryCache.of(item.category).emoji,
                                               style: const TextStyle(
                                                 fontSize: 18,
                                               ),
@@ -2827,9 +2825,9 @@ class _OutfitLogTab extends StatelessWidget {
             ],
 
             // Items grouped by category
-            ...ClothingCategory.values.map((cat) {
+            ...WardrobeCategoryCache.all.map((cat) {
               final catItems =
-                  logItems.where((c) => c.category == cat).toList();
+                  logItems.where((c) => c.category == cat.key).toList();
               if (catItems.isEmpty) return const SizedBox.shrink();
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3025,10 +3023,10 @@ class _OutfitLogTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                for (final cat in ClothingCategory.values) ...[
+                for (final cat in WardrobeCategoryCache.all) ...[
                   Builder(builder: (_) {
                     final catItems =
-                        myItems.where((c) => c.category == cat).toList();
+                        myItems.where((c) => c.category == cat.key).toList();
                     if (catItems.isEmpty) return const SizedBox.shrink();
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3083,7 +3081,7 @@ class _OutfitLogTab extends StatelessWidget {
                                         )
                                       else
                                         Text(
-                                          item.category.emoji,
+                                          WardrobeCategoryCache.of(item.category).emoji,
                                           style: const TextStyle(fontSize: 22),
                                         ),
                                       const SizedBox(height: 3),
@@ -3218,7 +3216,7 @@ class _WishlistCard extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(
-              item.category.emoji,
+              WardrobeCategoryCache.of(item.category).emoji,
               style: const TextStyle(fontSize: 26),
             ),
           ),
@@ -3236,7 +3234,7 @@ class _WishlistCard extends StatelessWidget {
                     color: tc,
                   ),
                 ),
-                LifeBadge(text: item.category.label, color: _wardrobeColor),
+                LifeBadge(text: WardrobeCategoryCache.of(item.category).label, color: _wardrobeColor),
                 if (item.wishlistSource != null) ...[
                   const SizedBox(height: 3),
                   Text(

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
+import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
 
 /// Thrown by [WardrobeService.addItem] when the caller's standing wardrobe
 /// item count cap (personal or shared family pool) is exhausted — deleting
@@ -72,36 +73,25 @@ class WardrobeService {
 
   // ── Categories ───────────────────────────────────────────────────────────────
 
-  /// Falls back to today's 12 categories, all shown to everyone, if the
-  /// table is unreachable — matches wardrobe_categories' seed data.
-  static const _fallbackCategoryGenders = <String, String>{
-    'topwear': 'unisex',
-    'bottomwear': 'unisex',
-    'ethnic': 'unisex',
-    'footwear': 'unisex',
-    'innerwear': 'unisex',
-    'accessories': 'unisex',
-    'formal': 'unisex',
-    'sportswear': 'unisex',
-    'winterwear': 'unisex',
-    'nightwear': 'unisex',
-    'schoolUniform': 'unisex',
-    'adaptive': 'unisex',
-  };
-
-  /// Category key -> gender scope ('male' / 'female' / 'unisex'), from the
-  /// wardrobe_categories table so new/gender-specific categories can be
-  /// added without an app release.
-  Future<Map<String, String>> fetchCategoryGenders() async {
+  /// Falls back to [WardrobeCategory.fallback] if the table is unreachable.
+  Future<List<WardrobeCategory>> fetchCategories() async {
     try {
-      final rows = await _db.from('wardrobe_categories').select('key, gender');
-      final map = {
-        for (final r in rows as List) r['key'] as String: r['gender'] as String,
-      };
-      return map.isEmpty ? _fallbackCategoryGenders : map;
+      final rows = await _db
+          .from('wardrobe_categories')
+          .select()
+          .order('sort_order');
+      final list = (rows as List)
+          .map((r) => WardrobeCategory(
+                key: r['key'] as String,
+                emoji: r['emoji'] as String,
+                label: r['label'] as String,
+                gender: r['gender'] as String? ?? 'unisex',
+              ))
+          .toList();
+      return list.isEmpty ? WardrobeCategory.fallback : list;
     } catch (e) {
-      ErrorLogger.warning(e, action: 'fetch_wardrobe_category_genders');
-      return _fallbackCategoryGenders;
+      ErrorLogger.warning(e, action: 'fetch_wardrobe_categories');
+      return WardrobeCategory.fallback;
     }
   }
 
