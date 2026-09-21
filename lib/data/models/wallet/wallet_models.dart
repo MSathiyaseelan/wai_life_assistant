@@ -272,6 +272,7 @@ class FamilyMember {
   String? phone;
   String? relation; // e.g. "Wife", "Son", "Colleague"
   String? photoPath; // local file path or remote URL
+  String? gender;    // 'male' / 'female' / 'transgender' / 'other', synced from profiles.gender
 
   FamilyMember({
     required this.id,
@@ -282,6 +283,7 @@ class FamilyMember {
     this.phone,
     this.relation,
     this.photoPath,
+    this.gender,
   });
 
   FamilyMember copyWith({
@@ -292,6 +294,7 @@ class FamilyMember {
     String? phone,
     String? relation,
     String? photoPath,
+    String? gender,
   }) => FamilyMember(
     id: id,
     userId: userId ?? this.userId,
@@ -301,6 +304,7 @@ class FamilyMember {
     phone: phone ?? this.phone,
     relation: relation ?? this.relation,
     photoPath: photoPath ?? this.photoPath,
+    gender: gender ?? this.gender,
   );
 }
 

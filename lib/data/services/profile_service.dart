@@ -185,6 +185,7 @@ class ProfileService {
           role:     _parseRole(mm['role'] as String?),
           phone:    mm['phone'] as String?,
           relation: mm['relation'] as String?,
+          gender:   mm['gender'] as String?,
         );
       }).toList();
 

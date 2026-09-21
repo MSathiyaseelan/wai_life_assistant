@@ -7,7 +7,13 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 
 class LifeMember {
   final String id, name, emoji;
-  const LifeMember({required this.id, required this.name, required this.emoji});
+  final String? gender; // 'male' / 'female' / 'transgender' / 'other', when known
+  const LifeMember({
+    required this.id,
+    required this.name,
+    required this.emoji,
+    this.gender,
+  });
 }
 
 const mockLifeMembers = [

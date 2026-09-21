@@ -15,6 +15,22 @@ import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
 
+/// Categories visible for [gender] given a key->gender map from
+/// wardrobe_categories ('male' / 'female' / 'unisex'). Falls back to
+/// showing everything when [gender] isn't exactly 'male' or 'female'
+/// (unset, transgender, other) — never guess which categories fit someone
+/// without a clean male/female signal.
+List<ClothingCategory> _visibleCategoriesFor(
+  String? gender,
+  Map<String, String> categoryGender,
+) {
+  if (gender != 'male' && gender != 'female') return ClothingCategory.values;
+  final excluded = gender == 'male' ? 'female' : 'male';
+  return ClothingCategory.values
+      .where((c) => (categoryGender[c.name] ?? 'unisex') != excluded)
+      .toList();
+}
+
 // ── Photo picker (camera or gallery) ─────────────────────────────────────────
 Future<String?> _pickPhoto(BuildContext ctx) async {
   ImageSource? source;
@@ -144,8 +160,19 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
   bool _searchActive = false;
   String _searchQuery = '';
   final _searchCtrl = TextEditingController();
+  Map<String, String> _categoryGender = {};
 
   bool _isPlaceholder(String id) => id.isEmpty || id == 'personal';
+
+  List<ClothingCategory> _visibleCategories(String? gender) =>
+      _visibleCategoriesFor(gender, _categoryGender);
+
+  String? _genderOf(String memberId) => widget.members
+      .firstWhere(
+        (m) => m.id == memberId,
+        orElse: () => const LifeMember(id: '', name: '', emoji: ''),
+      )
+      .gender;
 
   @override
   void initState() {
@@ -193,13 +220,16 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     try {
       final svc = WardrobeService.instance;
       final skipItems = widget.initialItems != null;
+      final categoryGendersFuture = svc.fetchCategoryGenders();
       final results = await Future.wait([
         if (!skipItems) svc.fetchItems(widget.walletId),
         svc.fetchOutfitLogs(widget.walletId),
       ]);
+      final categoryGenders = await categoryGendersFuture;
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _categoryGender = categoryGenders;
         _clothes.clear();
         if (skipItems) {
           _clothes.addAll(widget.initialItems!);
@@ -448,7 +478,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                       onTap: () =>
                                           setState(() => _filterCat = null),
                                     ),
-                                    ...ClothingCategory.values.map(
+                                    ..._visibleCategories(_genderOf(_selectedMember)).map(
                                       (c) => _CatChip(
                                         label: c.label,
                                         emoji: c.emoji,
@@ -683,6 +713,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
       ctx,
       walletId: widget.walletId,
       memberId: _selectedMember,
+      memberGender: _genderOf(_selectedMember),
       isWishlist: _tab.index == 2,
       onItemAdded: (saved) {
         if (mounted) setState(() => _clothes.insert(0, saved));
@@ -701,6 +732,7 @@ void showAddClothingSheet(
   BuildContext ctx, {
   required String walletId,
   required String memberId,
+  String? memberGender,
   bool isWishlist = false,
   void Function(ClothingItem saved)? onItemAdded,
 }) {
@@ -714,6 +746,7 @@ void showAddClothingSheet(
       isWishlist: isWishlist,
       walletId: walletId,
       memberId: memberId,
+      memberGender: memberGender,
       onItemAdded: onItemAdded,
     ),
   );
@@ -724,6 +757,7 @@ class AddClothingSheet extends StatefulWidget {
   final bool isWishlist;
   final String walletId;
   final String memberId;
+  final String? memberGender;
   final void Function(ClothingItem saved)? onItemAdded;
 
   const AddClothingSheet({
@@ -732,6 +766,7 @@ class AddClothingSheet extends StatefulWidget {
     required this.isWishlist,
     required this.walletId,
     required this.memberId,
+    this.memberGender,
     this.onItemAdded,
   });
 
@@ -752,15 +787,22 @@ class _AddClothingSheetState extends State<AddClothingSheet>
   final _sourceCtrl = TextEditingController();
   ClothingCategory _cat      = ClothingCategory.topwear;
   String?          _photoPath;
+  Map<String, String> _categoryGender = {};
 
   // AI tab
   final _aiCtrl = TextEditingController();
   bool _parsing = false;
 
+  List<ClothingCategory> get _visibleCategories =>
+      _visibleCategoriesFor(widget.memberGender, _categoryGender);
+
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
+    WardrobeService.instance.fetchCategoryGenders().then((map) {
+      if (mounted) setState(() => _categoryGender = map);
+    });
   }
 
   @override
@@ -1163,7 +1205,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                           child: ListView(
                             scrollDirection: Axis.horizontal,
                             children: [
-                              for (final c in ClothingCategory.values)
+                              for (final c in _visibleCategories)
                                 GestureDetector(
                                   onTap: () => setState(() => _cat = c),
                                   child: AnimatedContainer(

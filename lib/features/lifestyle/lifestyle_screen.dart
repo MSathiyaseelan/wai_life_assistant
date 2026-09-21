@@ -57,7 +57,7 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
         // auth uid — every "who is this outfit for" check downstream
         // compares against the real logged-in uid, so using the row id here
         // makes every viewer collapse to the same wrong default member.
-        .map((m) => LifeMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji))
+        .map((m) => LifeMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji, gender: m.gender))
         .toList();
     return members.isNotEmpty
         ? members

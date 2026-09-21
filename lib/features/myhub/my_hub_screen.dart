@@ -436,6 +436,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
                         context,
                         walletId: _currentWallet.id,
                         memberId: _wardrobeMembers.first.id,
+                        memberGender: _wardrobeMembers.first.gender,
                         onItemAdded: (saved) =>
                             setState(() => _wardrobeItems.insert(0, saved)),
                       ),
@@ -688,7 +689,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
         // auth uid — every "who is this outfit/record for" check downstream
         // compares against the real logged-in uid, so using the row id here
         // makes every viewer collapse to the same wrong default member.
-        .map((m) => LifeMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji))
+        .map((m) => LifeMember(id: m.userId ?? m.id, name: m.name, emoji: m.emoji, gender: m.gender))
         .toList();
     return members.isNotEmpty
         ? members

@@ -70,6 +70,41 @@ class WardrobeService {
     }
   }
 
+  // ── Categories ───────────────────────────────────────────────────────────────
+
+  /// Falls back to today's 12 categories, all shown to everyone, if the
+  /// table is unreachable — matches wardrobe_categories' seed data.
+  static const _fallbackCategoryGenders = <String, String>{
+    'topwear': 'unisex',
+    'bottomwear': 'unisex',
+    'ethnic': 'unisex',
+    'footwear': 'unisex',
+    'innerwear': 'unisex',
+    'accessories': 'unisex',
+    'formal': 'unisex',
+    'sportswear': 'unisex',
+    'winterwear': 'unisex',
+    'nightwear': 'unisex',
+    'schoolUniform': 'unisex',
+    'adaptive': 'unisex',
+  };
+
+  /// Category key -> gender scope ('male' / 'female' / 'unisex'), from the
+  /// wardrobe_categories table so new/gender-specific categories can be
+  /// added without an app release.
+  Future<Map<String, String>> fetchCategoryGenders() async {
+    try {
+      final rows = await _db.from('wardrobe_categories').select('key, gender');
+      final map = {
+        for (final r in rows as List) r['key'] as String: r['gender'] as String,
+      };
+      return map.isEmpty ? _fallbackCategoryGenders : map;
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'fetch_wardrobe_category_genders');
+      return _fallbackCategoryGenders;
+    }
+  }
+
   // ── Clothing Items ──────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchItems(String walletId) async {
