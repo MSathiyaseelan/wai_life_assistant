@@ -678,7 +678,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
 
   List<LifeMember> get _wardrobeMembers {
     if (_isPersonal) {
-      return const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+      return [LifeMember(id: 'me', name: 'Me', emoji: '🧑', gender: _appState.myGender)];
     }
     final family = _appState.families.firstWhere(
       (f) => f.walletId == _currentWallet.id,
@@ -693,7 +693,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
         .toList();
     return members.isNotEmpty
         ? members
-        : const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+        : [LifeMember(id: 'me', name: 'Me', emoji: '🧑', gender: _appState.myGender)];
   }
 
   void _openWardrobe(BuildContext context) {

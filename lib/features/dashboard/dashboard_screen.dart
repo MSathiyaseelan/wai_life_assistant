@@ -3529,6 +3529,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                           ss(() {});
                                           try {
                                             await ProfileService.instance.updateProfile(gender: picked);
+                                            // AppStateNotifier caches this for the personal
+                                            // wallet's 'me' member (wardrobe category
+                                            // filtering reads it) — refresh so it doesn't
+                                            // wait for the next app restart.
+                                            if (mounted) AppStateScope.of(context).reload();
                                           } catch (e, stack) {
                                             ErrorLogger.log(e, stackTrace: stack, action: 'save_profile_gender');
                                             if (mounted) {

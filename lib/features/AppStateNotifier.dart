@@ -27,6 +27,12 @@ class AppStateNotifier extends ChangeNotifier {
   /// a member leaves the group.
   Map<String, String> _allMemberNames = {};
 
+  /// The signed-in user's own gender ('male' / 'female' / 'transgender' /
+  /// 'other'), when set — needed for the PERSONAL wallet's single 'me'
+  /// member, which otherwise has no gender source at all (unlike family
+  /// members, who carry it via family_members.gender).
+  String? _myGender;
+
   List<WalletModel> get wallets => _wallets;
   List<FamilyModel> get families => _families;
   bool get loading => _loading;
@@ -34,6 +40,9 @@ class AppStateNotifier extends ChangeNotifier {
   /// Full member name map including removed members — use this for display,
   /// not [families] members, to handle left members gracefully.
   Map<String, String> get allMemberNames => _allMemberNames;
+
+  /// The signed-in user's own gender, when set. See [_myGender].
+  String? get myGender => _myGender;
 
   /// Server-controlled limit on how many family/group wallets a user can create.
   int get maxFamilyGroups => _maxFamilyGroups;
@@ -135,6 +144,7 @@ class AppStateNotifier extends ChangeNotifier {
           RealtimeSyncService.instance.unsubscribeAll();
           _wallets = [personalWallet];
           _families = [];
+          _myGender = null;
           if (_activeWalletId.isEmpty || !_wallets.any((w) => w.id == _activeWalletId)) {
             _activeWalletId = personalWallet.id;
           }
@@ -147,6 +157,7 @@ class AppStateNotifier extends ChangeNotifier {
           final parsed = ProfileService.instance.parseSwitcherData(row);
           _wallets = [parsed.personal, ...parsed.familyWallets];
           _families = parsed.families;
+          _myGender = row['gender'] as String?;
           debugPrint('[AppState] wallets=${_wallets.length} families=${_families.length}');
           if (_activeWalletId.isEmpty ||
               !_wallets.any((w) => w.id == _activeWalletId)) {

@@ -46,7 +46,7 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
 
   List<LifeMember> get _wardrobeMembers {
     if (_currentWallet.isPersonal) {
-      return const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+      return [LifeMember(id: 'me', name: 'Me', emoji: '🧑', gender: _appState.myGender)];
     }
     final family = _appState.families.firstWhere(
       (f) => f.walletId == _currentWallet.id,
@@ -61,7 +61,7 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
         .toList();
     return members.isNotEmpty
         ? members
-        : const [LifeMember(id: 'me', name: 'Me', emoji: '🧑')];
+        : [LifeMember(id: 'me', name: 'Me', emoji: '🧑', gender: _appState.myGender)];
   }
 
   @override
