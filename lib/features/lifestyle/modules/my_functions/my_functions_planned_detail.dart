@@ -278,30 +278,28 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 ),
 
                 // MESSAGES
-                Expanded(
-                  child: ChatWidget(
-                    messages: fn.chat,
-                    isDark: isDark,
-                    textOf: (m) => (m as FunctionChatMessage).text,
-                    senderOf: (m) => (m as FunctionChatMessage).senderId,
-                    onSend: (text) async {
-                      setState(
-                        () => fn.chat.add(
-                          FunctionChatMessage(
-                            id: DateTime.now().millisecondsSinceEpoch.toString(),
-                            senderId: 'me',
-                            text: text,
-                            at: DateTime.now(),
-                          ),
+                ChatWidget(
+                  messages: fn.chat,
+                  isDark: isDark,
+                  textOf: (m) => (m as FunctionChatMessage).text,
+                  senderOf: (m) => (m as FunctionChatMessage).senderId,
+                  onSend: (text) async {
+                    setState(
+                      () => fn.chat.add(
+                        FunctionChatMessage(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          senderId: 'me',
+                          text: text,
+                          at: DateTime.now(),
                         ),
-                      );
-                      try {
-                        await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
-                      } catch (e, stack) {
-                        ErrorLogger.log(e, stackTrace: stack, action: 'function_chat_send');
-                      }
-                    },
-                  ),
+                      ),
+                    );
+                    try {
+                      await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                    } catch (e, stack) {
+                      ErrorLogger.log(e, stackTrace: stack, action: 'function_chat_send');
+                    }
+                  },
                 ),
               ],
             ),

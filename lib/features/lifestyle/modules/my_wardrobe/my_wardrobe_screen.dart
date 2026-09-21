@@ -2540,7 +2540,11 @@ class _OutfitLogTab extends StatelessWidget {
                         .toList()
                     : <ClothingItem>[];
 
-                return Container(
+                return GestureDetector(
+                  onTap: log == null
+                      ? null
+                      : () => _showOutfitDetail(context, log, mItems, sub),
+                  child: Container(
                   margin: const EdgeInsets.only(right: 10),
                   width: 90,
                   padding: const EdgeInsets.all(8),
@@ -2584,6 +2588,7 @@ class _OutfitLogTab extends StatelessWidget {
                           textAlign: TextAlign.center,
                         ),
                     ],
+                  ),
                   ),
                 );
               }).toList(),

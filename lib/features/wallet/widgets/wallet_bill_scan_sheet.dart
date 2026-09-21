@@ -11,6 +11,7 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/wallet_service.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 
 // ── Wallet "Scan Bill" sheet ───────────────────────────────────────────────────
 // Mirrors the Pantry ScanBillSheet (shopping_basket_section.dart) — pick a
@@ -240,6 +241,23 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
     final selected = _scannedItems.where((i) => i.selected).toList();
     if (selected.isEmpty || _saving) return;
 
+    // Resolve real wallet ID — widget.walletId may still be the placeholder
+    // 'personal' if AppState hadn't propagated to the caller yet, which would
+    // otherwise send the literal string "personal" into a uuid column.
+    final resolvedWalletId = (widget.walletId.isEmpty || widget.walletId == 'personal')
+        ? AppStateScope.of(context).activeWalletId
+        : widget.walletId;
+
+    if (resolvedWalletId.isEmpty || resolvedWalletId == 'personal') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wallet not ready — please wait a moment and try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       final saved = <TxModel>[];
@@ -253,7 +271,7 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
             : item.titleCtrl.text.trim();
         try {
           final row = await WalletService.instance.addTransaction(
-            walletId: widget.walletId,
+            walletId: resolvedWalletId,
             type: item.isIncome ? 'income' : 'expense',
             amount: amount,
             category: item.category,
@@ -273,7 +291,7 @@ class _WalletBillScanSheetState extends State<WalletBillScanSheet> {
       var finalTxs = saved;
       if (saved.length > 1) {
         final groupRow = await WalletService.instance.createTxGroup(
-          walletId: widget.walletId,
+          walletId: resolvedWalletId,
           name: (_merchant != null && _merchant!.trim().isNotEmpty)
               ? _merchant!.trim()
               : 'Scanned Bill',
