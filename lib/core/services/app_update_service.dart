@@ -32,6 +32,32 @@ class AppUpdateService {
   /// dialog opening twice in a row.
   static bool _checking = false;
 
+  /// Debounces back-to-back calls that land moments apart rather than
+  /// truly concurrently — [_checking] alone doesn't catch this. Dashboard's
+  /// initState (cold launch) and its didChangeAppLifecycleState(resumed)
+  /// (which Flutter/the OS also fires once right after launch, on top of
+  /// every real background→foreground transition) can each call this
+  /// function a few hundred ms apart: the first call's synchronous guard
+  /// window closes (via its `finally`) well before its own
+  /// startFlexibleUpdate()/download actually finishes, so the second call
+  /// sees `_checking == false` and runs a second, independent check —
+  /// this was surfacing as the update prompt appearing twice, and as the
+  /// "restart ready" sheet from the second (faster) call's developer-
+  /// triggered-in-progress branch racing ahead of the "downloading in the
+  /// background" toast from the first call's fresh updateAvailable branch.
+  static DateTime? _lastCheckStartedAt;
+  static const _checkDebounce = Duration(seconds: 5);
+
+  /// Cooldown before re-showing UpdateReadySheet for the *same* build —
+  /// on top of [_restartSheetShowing] (which only blocks a truly
+  /// concurrent second call), this stops the sheet reappearing seconds
+  /// later when the installUpdateListener stream and a resume-triggered
+  /// re-check both independently observe the same already-downloaded
+  /// update in quick succession.
+  static int? _lastPromptedBuild;
+  static DateTime? _lastPromptedAt;
+  static const _promptCooldown = Duration(seconds: 15);
+
   /// [context] only needs to be valid for the initial "downloading" toast —
   /// the actual restart prompt (UpdateReadySheet) goes through
   /// [LifeAssistanceApp.navigatorKey] instead of this context, since a
@@ -44,6 +70,10 @@ class AppUpdateService {
   static Future<void> checkAndStartFlexibleUpdate(BuildContext context) async {
     if (!Platform.isAndroid) return;
     if (_checking) return;
+    final now = DateTime.now();
+    final last = _lastCheckStartedAt;
+    if (last != null && now.difference(last) < _checkDebounce) return;
+    _lastCheckStartedAt = now;
     _checking = true;
     try {
       final info = await InAppUpdate.checkForUpdate();
@@ -131,6 +161,21 @@ class AppUpdateService {
     _restartSheetShowing = true;
     try {
       final info = await PackageInfo.fromPlatform();
+      final build = int.tryParse(info.buildNumber);
+
+      // Don't re-show for the same downloaded build within the cooldown —
+      // the installUpdateListener stream and a resume-triggered re-check
+      // can both independently land on `downloaded` for the same update a
+      // few seconds apart, which otherwise pops the sheet a second time
+      // right after the user already dismissed (or acted on) it once.
+      final lastAt = _lastPromptedAt;
+      if (build != null && build == _lastPromptedBuild && lastAt != null &&
+          DateTime.now().difference(lastAt) < _promptCooldown) {
+        return;
+      }
+      _lastPromptedBuild = build;
+      _lastPromptedAt = DateTime.now();
+
       if (!context.mounted) return;
       await UpdateReadySheet.show(
         context,
@@ -140,6 +185,21 @@ class AppUpdateService {
             await InAppUpdate.completeFlexibleUpdate();
           } catch (e, stack) {
             ErrorLogger.log(e, stackTrace: stack, action: 'in_app_update_complete');
+            // completeFlexibleUpdate() can silently no-op on some OEMs
+            // instead of throwing (a known Play Core flakiness, not
+            // something this app can force), so an exception here is the
+            // only signal we get — surface it instead of leaving the user
+            // staring at an app that just... didn't restart, with no
+            // explanation and no path forward.
+            final ctx = LifeAssistanceApp.navigatorKey.currentContext;
+            if (ctx != null && ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(
+                  content: Text("Couldn't restart automatically — please close and reopen the app to finish updating."),
+                  duration: Duration(seconds: 6),
+                ),
+              );
+            }
           }
         },
       );
