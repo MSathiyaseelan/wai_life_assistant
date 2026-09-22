@@ -21,6 +21,7 @@ import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_sheet.dart';
 import 'package:wai_life_assistant/features/wallet/splits/split_group_detail_screen.dart';
+import 'package:wai_life_assistant/features/wallet/splits/split_export.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'flow_selector_sheet.dart';
 import 'conversation_screen.dart';
@@ -2884,6 +2885,7 @@ class _WalletScreenState extends State<WalletScreen>
                       onMove: _canManageSplitGroup(g) ? () => _moveSplitGroupPrompt(g) : null,
                       onAddExpense: () =>
                           _openGroupDetail(g, autoAddExpense: true),
+                      onExport: () => SplitExportService.export(context, g),
                     ),
                   );
                 }
@@ -2917,6 +2919,7 @@ class _WalletScreenState extends State<WalletScreen>
                     onMove: _canManageSplitGroup(g) ? () => _moveSplitGroupPrompt(g) : null,
                     onAddExpense: () =>
                         _openGroupDetail(g, autoAddExpense: true),
+                    onExport: () => SplitExportService.export(context, g),
                   ),
                 );
               }, childCount: itemCount),
@@ -4244,7 +4247,7 @@ class _SplitGroupCard extends StatelessWidget {
   final SplitGroup group;
   final bool isDark;
   final Color cardBg, surfBg, tc, sub;
-  final VoidCallback onTap, onAddExpense;
+  final VoidCallback onTap, onAddExpense, onExport;
 
   /// Rename group, toggle "Pin to Dashboard", add/remove participants —
   /// available to any participant of the group.
@@ -4264,6 +4267,7 @@ class _SplitGroupCard extends StatelessWidget {
     this.onEdit,
     this.onMove,
     required this.onAddExpense,
+    required this.onExport,
   });
 
   @override
@@ -4480,8 +4484,11 @@ class _SplitGroupCard extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // Actions row: Add Expense + settlement progress
-            Row(
+            // Actions row: Add Expense + Export, then settlement progress
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 // Quick add expense button
                 GestureDetector(
@@ -4523,41 +4530,82 @@ class _SplitGroupCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Spacer(),
+                // Export group expenses as CSV
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    onExport();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: surfBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: sub.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.ios_share_rounded,
+                          size: 13,
+                          color: sub,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Export',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 // Settlement progress
-                if (group.transactions.isNotEmpty) ...[
-                  Text(
-                    '${group.transactions.where((t) => t.isFullySettled).length}'
-                    '/${group.transactions.length} settled',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'Nunito',
-                      color: sub,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 60,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(
-                        value: group.transactions.isEmpty
-                            ? 0
-                            : group.transactions
-                                      .where((t) => t.isFullySettled)
-                                      .length /
-                                  group.transactions.length,
-                        backgroundColor: AppColors.expense.withValues(
-                          alpha: 0.15,
+                if (group.transactions.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${group.transactions.where((t) => t.isFullySettled).length}'
+                        '/${group.transactions.length} settled',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'Nunito',
+                          color: sub,
                         ),
-                        valueColor: const AlwaysStoppedAnimation(
-                          AppColors.income,
-                        ),
-                        minHeight: 5,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 60,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: group.transactions.isEmpty
+                                ? 0
+                                : group.transactions
+                                          .where((t) => t.isFullySettled)
+                                          .length /
+                                      group.transactions.length,
+                            backgroundColor: AppColors.expense.withValues(
+                              alpha: 0.15,
+                            ),
+                            valueColor: const AlwaysStoppedAnimation(
+                              AppColors.income,
+                            ),
+                            minHeight: 5,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
               ],
             ),
           ],
