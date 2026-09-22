@@ -9,7 +9,6 @@ abstract final class AppRpc {
   // ── Profile / account ──────────────────────────────────────────────────────
   static const String bootstrapNewUser      = 'bootstrap_new_user';
   static const String deleteMyAccount       = 'delete_my_account';
-  static const String devLinkProfileByPhone = 'dev_link_profile_by_phone';
   static const String markOnboarded         = 'mark_onboarded';
 
   // ── Family ─────────────────────────────────────────────────────────────────

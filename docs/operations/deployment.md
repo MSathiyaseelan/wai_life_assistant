@@ -256,10 +256,10 @@ supabase functions deploy parse --project-ref <project-ref>
 
 | Item | Status | Notes |
 |---|---|---|
-| `AuthCoordinator.bypassVerify()` removed | ⚠️ Pending | Currently not gated — must remove before production |
-| `dev_link_profile_by_phone` dropped from DB | ⚠️ Pending | Migration `009` left in production schema |
+| `AuthCoordinator.bypassVerify()` removed | ✅ Done | Hard-gated on `kDebugMode` (throws in release builds regardless of caller) and not wired to any UI — see `auth_coordinator.dart` |
+| `dev_link_profile_by_phone` dropped from DB | ✅ Done | Locked to `service_role` in `072_rls_security_fixes.sql`, then fully dropped in `187_drop_dev_link_profile.sql` (dead code — the Dart wrapper had zero callers, removed alongside it) |
 | `anonKey` moved to `--dart-define` | ✅ Done | `SupabaseConfig` now reads `SUPABASE_URL`/`SUPABASE_ANON_KEY` via `--dart-define-from-file=env/<name>.json`, with the original dev value only as a fallback default |
-| `notes` table RLS policy verified | ⚠️ Investigate | Policy references `family_members.wallet_id` which doesn't exist |
+| `notes` table RLS policy verified | ✅ Done | The broken `family_members.wallet_id` reference was fixed in `074_rls_fixes.sql` (corrected to `family_members.family_id → wallets.family_id`) and further tightened (creator-or-admin on UPDATE/DELETE) in `116_planit_edit_delete_perms.sql` |
 | No test files | ⚠️ Known | `test/` directory does not exist — no automated tests |
 
 ---

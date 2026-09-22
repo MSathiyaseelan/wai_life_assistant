@@ -36,16 +36,6 @@ class ProfileService {
     return Map<String, dynamic>.from(result as Map);
   }
 
-  /// Dev-bypass: find any existing profile mapped to [phone] and migrate all
-  /// its data (wallets, transactions, families, etc.) to the current user.
-  /// Returns true if a migration happened, false if no old profile was found.
-  Future<bool> linkProfileByPhone(String phone) async {
-    final result = await _db.rpc(AppRpc.devLinkProfileByPhone, params: {
-      'p_phone': phone,
-    });
-    return result as bool? ?? false;
-  }
-
   /// Returns true if the current user has already been onboarded.
   Future<bool> isOnboarded() async {
     final row = await _db
