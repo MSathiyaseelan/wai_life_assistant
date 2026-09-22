@@ -27,15 +27,19 @@ CREATE INDEX IF NOT EXISTS idx_function_dishes_deleted_at ON function_dishes (de
 
 ALTER TABLE function_dishes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "function_dishes: wallet members read" ON function_dishes;
 CREATE POLICY "function_dishes: wallet members read" ON function_dishes
   FOR SELECT USING (auth.uid() = user_id OR function_row_wallet_accessible(function_id));
 
+DROP POLICY IF EXISTS "function_dishes: wallet members insert" ON function_dishes;
 CREATE POLICY "function_dishes: wallet members insert" ON function_dishes
   FOR INSERT WITH CHECK (auth.uid() = user_id AND (function_row_wallet_accessible(function_id) OR function_id IS NULL));
 
+DROP POLICY IF EXISTS "function_dishes: wallet members update" ON function_dishes;
 CREATE POLICY "function_dishes: wallet members update" ON function_dishes
   FOR UPDATE USING (auth.uid() = user_id OR function_row_wallet_accessible(function_id));
 
+DROP POLICY IF EXISTS "function_dishes: creator or admin delete" ON function_dishes;
 CREATE POLICY "function_dishes: creator or admin delete" ON function_dishes
   FOR DELETE USING (auth.uid() = user_id OR function_row_wallet_admin(function_id));
 

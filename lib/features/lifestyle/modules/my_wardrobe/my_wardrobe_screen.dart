@@ -875,6 +875,9 @@ class _AddClothingSheetState extends State<AddClothingSheet>
 
     if (t.contains('jean')) return 'unisex_jeans';
     if (t.contains('short')) return isMale ? 'male_shorts' : 'female_skirts';
+    if (isMale && t.contains('formal') && (t.contains('trouser') || t.contains('pant'))) {
+      return 'male_formal_pants';
+    }
     if (t.contains('trouser') || t.contains('pant')) {
       return isFemale ? 'female_leggings' : 'male_trousers';
     }
