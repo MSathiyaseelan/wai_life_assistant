@@ -31,5 +31,13 @@ class WhatsNew {
       'Fixed tapping a family member under Wardrobe not showing their outfit.',
       'Added gender to your profile, with a bigger, better-organized set of wardrobe categories to match.',
     ],
+    31: [
+      'Item Locator: move containers between Personal and Family groups.',
+      'Wardrobe: edit and delete items and outfit logs, full-image viewer, and share items across Personal/Family.',
+      'Fixed the update prompt sometimes appearing twice, or restart not working, after downloading an update.',
+      'Functions: added a Dishes tab.',
+      'Pantry: added a Beverages meal type.',
+      'Wallet: export transactions and split groups to CSV.',
+    ],
   };
 }
