@@ -31,6 +31,8 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
   final List<FunctionParticipant> _participants = [];
   // Clothing families
   final List<ClothingFamily> _clothingFamilies = [];
+  // Dishes
+  final List<FunctionDish> _dishes = [];
   // Bridal essentials
   final List<BridalEssential> _bridals = [];
   // Return gifts
@@ -41,7 +43,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 7, vsync: this);
+    _tab = TabController(length: 8, vsync: this);
     _loadAll();
   }
 
@@ -60,6 +62,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
         svc.fetchClothingFamilies(id),
         svc.fetchBridalEssentials(id),
         svc.fetchReturnGifts(id),
+        svc.fetchDishes(id),
       ]);
       if (!mounted) return;
       setState(() {
@@ -75,6 +78,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
         _returnGifts
           ..clear()
           ..addAll(results[3].map((r) => FunctionReturnGift.fromJson(r)));
+        _dishes
+          ..clear()
+          ..addAll(results[4].map((r) => FunctionDish.fromJson(r)));
         _loading = false;
       });
     } catch (e, stack) {
@@ -130,6 +136,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
             Tab(text: 'Info'),
             Tab(text: 'Participants'),
             Tab(text: 'Clothing Gifts'),
+            Tab(text: 'Dishes'),
             Tab(text: 'Bridal Essentials'),
             Tab(text: 'Return Gift'),
             Tab(text: 'Vendors'),
@@ -249,6 +256,13 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 _ClothingGiftsTab(
                   functionId: fn.id,
                   families: _clothingFamilies,
+                  isDark: isDark,
+                  surfBg: surfBg,
+                  onChanged: () => setState(() {}),
+                ),
+                _DishesTab(
+                  functionId: fn.id,
+                  dishes: _dishes,
                   isDark: isDark,
                   surfBg: surfBg,
                   onChanged: () => setState(() {}),
@@ -1773,6 +1787,270 @@ class _ReturnGiftsTab extends StatelessWidget {
                               Text('${AppPrefs.cs}${g.approxPrice!.toStringAsFixed(0)}/item', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                             if (g.totalCost > 0)
                               Text('${AppPrefs.cs}${g.totalCost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
+                          ]),
+                        ]),
+                      ),
+                    ),
+                  ),
+                )),
+              ],
+            ),
+    );
+  }
+}
+
+class _DishesTab extends StatelessWidget {
+  final String functionId;
+  final List<FunctionDish> dishes;
+  final bool isDark;
+  final Color surfBg;
+  final VoidCallback onChanged;
+
+  const _DishesTab({
+    required this.functionId,
+    required this.dishes,
+    required this.isDark,
+    required this.surfBg,
+    required this.onChanged,
+  });
+
+  static const _categories = ['Starter', 'Main Course', 'Dessert', 'Beverage', 'Other'];
+
+  MealTime? _dishMealTime(FunctionDish d) {
+    if (d.mealTime == null) return null;
+    return MealTime.values.where((t) => t.name == d.mealTime).firstOrNull;
+  }
+
+  void _showAddEdit(BuildContext ctx, {FunctionDish? existing}) {
+    final nameCtrl = TextEditingController(text: existing?.dishName ?? '');
+    final costCtrl = TextEditingController(text: existing?.approxCost?.toString() ?? '');
+    final vendorCtrl = TextEditingController(text: existing?.vendor ?? '');
+    final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+    final qtyCtrl = TextEditingController(text: existing?.quantity.toString() ?? '1');
+    var category = existing?.category ?? _categories.first;
+    MealTime? mealTime = existing?.mealTime == null
+        ? null
+        : MealTime.values.firstWhere(
+            (t) => t.name == existing!.mealTime,
+            orElse: () => MealTime.lunch,
+          );
+    final svc = FunctionsService.instance;
+
+    showPlanSheet(ctx, child: StatefulBuilder(builder: (sheetCtx, ss) {
+      return Padding(
+        padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(existing == null ? 'Add Dish' : 'Edit Dish',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+            const SizedBox(height: 12),
+            const SheetLabel(text: 'DISH NAME *'),
+            PlanInputField(controller: nameCtrl, hint: 'e.g. Paneer Butter Masala'),
+            const SizedBox(height: 12),
+            const SheetLabel(text: 'CATEGORY'),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: _categories.map((c) {
+                  final sel = category == c;
+                  return GestureDetector(
+                    onTap: () => ss(() => category = c),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: sel ? _funcColor.withValues(alpha: 0.15) : surfBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: sel ? _funcColor : Colors.transparent),
+                      ),
+                      child: Text(
+                        c,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'Nunito',
+                          color: sel ? _funcColor : (isDark ? AppColors.subDark : AppColors.subLight),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const SheetLabel(text: 'MEAL TYPE'),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: MealTime.values.map((mt) {
+                  final sel = mealTime == mt;
+                  return GestureDetector(
+                    onTap: () => ss(() => mealTime = sel ? null : mt),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: sel ? mt.color.withValues(alpha: 0.15) : surfBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: sel ? mt.color : Colors.transparent),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(mt.emoji, style: const TextStyle(fontSize: 13)),
+                        const SizedBox(width: 5),
+                        Text(
+                          mt.label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: sel ? mt.color : (isDark ? AppColors.subDark : AppColors.subLight),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                SheetLabel(text: 'APPROX COST (${AppPrefs.cs})'),
+                PlanInputField(controller: costCtrl, hint: '${AppPrefs.cs} per item', inputType: TextInputType.number),
+              ])),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const SheetLabel(text: 'QUANTITY'),
+                PlanInputField(controller: qtyCtrl, hint: 'How many', inputType: TextInputType.number),
+              ])),
+            ]),
+            const SizedBox(height: 8),
+            const SheetLabel(text: 'VENDOR / CATERER'),
+            PlanInputField(controller: vendorCtrl, hint: 'Caterer name / contact'),
+            const SizedBox(height: 8),
+            const SheetLabel(text: 'NOTES'),
+            PlanInputField(controller: notesCtrl, hint: 'Spice level, allergies, etc.'),
+            const SizedBox(height: 8),
+            SaveButton(
+              label: existing == null ? 'Add Dish' : 'Save Changes',
+              color: _funcColor,
+              onTap: () async {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) return;
+                final data = FunctionDish(
+                  id: existing?.id ?? '',
+                  functionId: functionId,
+                  dishName: name,
+                  category: category,
+                  mealTime: mealTime?.name,
+                  approxCost: double.tryParse(costCtrl.text),
+                  vendor: vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
+                  notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                  quantity: int.tryParse(qtyCtrl.text) ?? 1,
+                );
+                try {
+                  if (existing == null) {
+                    final row = await svc.addDish(data.toJson());
+                    dishes.add(FunctionDish.fromJson(row));
+                  } else {
+                    await svc.updateDish(existing.id, data.toJson());
+                    final idx = dishes.indexOf(existing);
+                    if (idx >= 0) dishes[idx] = FunctionDish.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
+                  }
+                  onChanged();
+                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
+                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    }));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final totalCost = dishes.fold(0.0, (s, d) => s + d.totalCost);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddEdit(context),
+        backgroundColor: _funcColor,
+        icon: const Icon(Icons.restaurant_menu_rounded, color: Colors.white),
+        label: const Text('Add Dish', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+      ),
+      body: dishes.isEmpty
+          ? const PlanEmptyState(emoji: '🍽️', title: 'No dishes planned', subtitle: 'Add the catering menu for this function')
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: _funcColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _funcColor.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(children: [
+                    const Text('🍽️', style: TextStyle(fontSize: 22)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${dishes.length} dishes planned', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+                      if (totalCost > 0)
+                        Text('${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated total', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                    ])),
+                  ]),
+                ),
+                ...dishes.map((d) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: SwipeTile(
+                    onDelete: () async {
+                      await FunctionsService.instance.deleteDish(d.id);
+                      dishes.remove(d);
+                      onChanged();
+                    },
+                    child: GestureDetector(
+                      onTap: () => _showAddEdit(context, existing: d),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
+                        child: Row(children: [
+                          Container(
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(color: _funcColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                            alignment: Alignment.center,
+                            child: Text(_dishMealTime(d)?.emoji ?? '🍽️', style: const TextStyle(fontSize: 18)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(d.dishName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+                            Text(
+                              [
+                                if (_dishMealTime(d) != null) _dishMealTime(d)!.label,
+                                if (d.category != null) d.category!,
+                                'Qty: ${d.quantity}',
+                                if (d.vendor != null) d.vendor!,
+                              ].join(' • '),
+                              style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub),
+                            ),
+                          ])),
+                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                            if (d.approxCost != null)
+                              Text('${AppPrefs.cs}${d.approxCost!.toStringAsFixed(0)}/item', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                            if (d.totalCost > 0)
+                              Text('${AppPrefs.cs}${d.totalCost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
                           ]),
                         ]),
                       ),

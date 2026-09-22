@@ -3,7 +3,7 @@ import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
-enum MealTime { breakfast, lunch, snack, dinner }
+enum MealTime { breakfast, lunch, dinner, snack, beverages }
 
 extension MealTimeExt on MealTime {
   String get label {
@@ -12,10 +12,12 @@ extension MealTimeExt on MealTime {
         return 'Breakfast';
       case MealTime.lunch:
         return 'Lunch';
-      case MealTime.snack:
-        return 'Snacks';
       case MealTime.dinner:
         return 'Dinner';
+      case MealTime.snack:
+        return 'Snacks';
+      case MealTime.beverages:
+        return 'Beverages';
     }
   }
 
@@ -25,10 +27,12 @@ extension MealTimeExt on MealTime {
         return '🌅';
       case MealTime.lunch:
         return '☀️';
-      case MealTime.snack:
-        return '🍎';
       case MealTime.dinner:
         return '🌙';
+      case MealTime.snack:
+        return '🍎';
+      case MealTime.beverages:
+        return '☕';
     }
   }
 
@@ -38,10 +42,12 @@ extension MealTimeExt on MealTime {
         return const Color(0xFFFF9800);
       case MealTime.lunch:
         return const Color(0xFF4CAF50);
-      case MealTime.snack:
-        return const Color(0xFF9C27B0);
       case MealTime.dinner:
         return const Color(0xFF1565C0);
+      case MealTime.snack:
+        return const Color(0xFF9C27B0);
+      case MealTime.beverages:
+        return const Color(0xFF795548);
     }
   }
 }
@@ -554,7 +560,7 @@ class MasterRecipe {
 
   /// Convert to a RecipeModel to save in the user's Recipe Box.
   RecipeModel toRecipeModel() {
-    // Map raw meal_type strings to MealTime enum (skip 'beverage', 'dessert')
+    // Map raw meal_type strings to MealTime enum (skip 'dessert')
     final suitableFor = mealTypes
         .map((t) {
           switch (t) {
@@ -562,6 +568,7 @@ class MasterRecipe {
             case 'lunch':     return MealTime.lunch;
             case 'dinner':    return MealTime.dinner;
             case 'snacks':    return MealTime.snack;
+            case 'beverage':  return MealTime.beverages;
             default:          return null;
           }
         })

@@ -62,6 +62,7 @@ const _kTables = [
   ('function_clothing_families','Functions',['family_name']),
   ('function_bridal_essentials','Functions',['item', 'category']),
   ('function_return_gifts',    'Functions', ['gift_name']),
+  ('function_dishes',          'Functions', ['dish_name']),
   ('attended_function_groups', 'Functions', ['name']),
   ('item_locator_containers',  'Locator',   ['name', 'location']),
   ('item_locator_items',       'Locator',   ['name', 'description']),
@@ -91,6 +92,7 @@ const _kParentJoins = {
   'function_clothing_families': ('functions_my', 'wallet_id'),
   'function_bridal_essentials': ('functions_my', 'wallet_id'),
   'function_return_gifts':      ('functions_my', 'wallet_id'),
+  'function_dishes':            ('functions_my', 'wallet_id'),
   'meal_reactions':              ('meal_entries', 'wallet_id'),
 };
 

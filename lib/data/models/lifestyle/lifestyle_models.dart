@@ -1492,6 +1492,57 @@ class FunctionReturnGift {
   double get totalCost => (approxPrice ?? 0) * quantity;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FUNCTION — DISHES (catering menu)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class FunctionDish {
+  String id, functionId, dishName;
+  String? category, vendor, notes;
+  /// MealTime.name (breakfast/lunch/dinner/snack/beverages) — which meal
+  /// this dish is served at, e.g. for a wedding's multi-meal catering menu.
+  String? mealTime;
+  double? approxCost;
+  int quantity;
+
+  FunctionDish({
+    required this.id,
+    required this.functionId,
+    required this.dishName,
+    this.category,
+    this.vendor,
+    this.notes,
+    this.mealTime,
+    this.approxCost,
+    this.quantity = 1,
+  });
+
+  factory FunctionDish.fromJson(Map<String, dynamic> j) => FunctionDish(
+    id: j['id'] as String,
+    functionId: j['function_id'] as String,
+    dishName: j['dish_name'] as String,
+    category: j['category'] as String?,
+    vendor: j['vendor'] as String?,
+    notes: j['notes'] as String?,
+    mealTime: j['meal_time'] as String?,
+    approxCost: (j['approx_cost'] as num?)?.toDouble(),
+    quantity: j['quantity'] as int? ?? 1,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'function_id': functionId,
+    'dish_name': dishName,
+    if (category != null) 'category': category,
+    if (vendor != null) 'vendor': vendor,
+    if (notes != null) 'notes': notes,
+    if (mealTime != null) 'meal_time': mealTime,
+    if (approxCost != null) 'approx_cost': approxCost,
+    'quantity': quantity,
+  };
+
+  double get totalCost => (approxCost ?? 0) * quantity;
+}
+
 // Mock data
 final List<AttendedFunction> mockAttended = [];
 

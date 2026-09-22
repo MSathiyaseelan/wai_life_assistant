@@ -418,7 +418,7 @@ class _DayColumn extends StatelessWidget {
 
           // Meal time coverage indicators
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: MealTime.values.map((mt) {
@@ -426,21 +426,21 @@ class _DayColumn extends StatelessWidget {
                 return Tooltip(
                   message: mt.label,
                   child: Container(
-                    width: 26,
-                    height: 26,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
                       color: hasIt ? mt.color.withValues(alpha: 0.2) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(7),
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: hasIt ? mt.color.withValues(alpha: 0.7) : Colors.grey.withValues(alpha: 0.25),
-                        width: 1.2,
+                        width: 1.1,
                       ),
                     ),
                     child: Center(
                       child: Text(
                         mt.emoji,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 10,
                           color: hasIt ? null : Colors.grey.withValues(alpha: 0.35),
                         ),
                       ),

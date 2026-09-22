@@ -433,6 +433,35 @@ class FunctionsService {
     await _db.from('function_return_gifts').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
+  // ── Dishes ────────────────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchDishes(String functionId) async {
+    final rows = await _db
+        .from('function_dishes')
+        .select()
+        .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addDish(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_dishes')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateDish(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_dishes').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteDish(String id) async {
+    await _db.from('function_dishes').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
   // ── Moi Entries ──────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchMoiEntries(String functionId) async {

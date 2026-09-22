@@ -11,6 +11,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/shared/widgets/emoji_or_image.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
+import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart' show MealTime, MealTimeExt;
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';

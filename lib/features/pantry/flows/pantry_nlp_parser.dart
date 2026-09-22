@@ -114,11 +114,16 @@ class PantryNlpParser {
     'noon': MealTime.lunch,
     'snack': MealTime.snack,
     'evening': MealTime.snack,
-    'tea time': MealTime.snack,
     'dinner': MealTime.dinner,
     'night': MealTime.dinner,
     'supper': MealTime.dinner,
     'brunch': MealTime.breakfast,
+    'beverage': MealTime.beverages,
+    'beverages': MealTime.beverages,
+    'tea': MealTime.beverages,
+    'tea time': MealTime.beverages,
+    'coffee': MealTime.beverages,
+    'juice': MealTime.beverages,
   };
 
   // ── Grocery category keyword map ──────────────────────────────────────────

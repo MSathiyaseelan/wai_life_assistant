@@ -38,12 +38,33 @@ class _FunctionDetailState extends State<_FunctionDetail>
   final List<FunctionReturnGift> _returnGifts = [];
   bool _planningLoading = false;
 
+  // Dishes — shown next to Gifts regardless of showPlanningTabs
+  final List<FunctionDish> _dishes = [];
+  bool _dishesLoading = true;
+
   @override
   void initState() {
     super.initState();
-    final tabCount = widget.showPlanningTabs ? 10 : 6;
+    final tabCount = (widget.showPlanningTabs ? 10 : 6) + 1;
     _tab = TabController(length: tabCount, vsync: this);
     if (widget.showPlanningTabs) _loadPlanningData();
+    _loadDishes();
+  }
+
+  Future<void> _loadDishes() async {
+    try {
+      final rows = await FunctionsService.instance.fetchDishes(widget.fn.id);
+      if (!mounted) return;
+      setState(() {
+        _dishes
+          ..clear()
+          ..addAll(rows.map(FunctionDish.fromJson));
+        _dishesLoading = false;
+      });
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'function_detail_dishes_load');
+      if (mounted) setState(() => _dishesLoading = false);
+    }
   }
 
   Future<void> _loadPlanningData() async {
@@ -126,6 +147,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
             const Tab(text: 'Cash'),
             const Tab(text: 'Gold / Silver'),
             const Tab(text: 'Gifts'),
+            const Tab(text: 'Dishes'),
             if (widget.showPlanningTabs) ...[
               Tab(text: 'Participants (${_participants.length})'),
               const Tab(text: 'Clothing Gifts'),
@@ -297,6 +319,17 @@ class _FunctionDetailState extends State<_FunctionDetail>
               types: _giftItemTypes,
             ),
           ),
+
+          // DISHES (catering menu) — always shown, next to Gifts
+          _dishesLoading
+              ? const Center(child: CircularProgressIndicator(color: _funcColor))
+              : _DishesTab(
+                  functionId: fn.id,
+                  dishes: _dishes,
+                  isDark: isDark,
+                  surfBg: surfBg,
+                  onChanged: () => setState(() {}),
+                ),
 
           // PLANNING TABS (only when showPlanningTabs == true)
           if (widget.showPlanningTabs) ...[
