@@ -101,7 +101,9 @@ class WardrobeService {
     final rows = await _db
         .from('wardrobe_items')
         .select()
-        .eq('wallet_id', walletId)
+        // Includes items whose home wallet is [walletId] *and* items shared
+        // into it from another wallet (see shared_wallet_id / 190 migration).
+        .or('wallet_id.eq.$walletId,shared_wallet_id.eq.$walletId')
         .isFilter('deleted_at', null)
         .order('added_on', ascending: false);
     return List<Map<String, dynamic>>.from(rows);
@@ -157,7 +159,7 @@ class WardrobeService {
     var query = _db
         .from('wardrobe_outfit_logs')
         .select()
-        .eq('wallet_id', walletId)
+        .or('wallet_id.eq.$walletId,shared_wallet_id.eq.$walletId')
         .isFilter('deleted_at', null);
     if (months != -1) {
       final now = DateTime.now();

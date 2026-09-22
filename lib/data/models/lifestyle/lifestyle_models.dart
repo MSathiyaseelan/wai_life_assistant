@@ -272,6 +272,11 @@ class ClothingItem {
   String? brand, size, color, photoPath, notes;
   bool wishlist;
   String? wishlistSource; // online URL or description
+  /// When set, this item is also visible from this other wallet's Wardrobe
+  /// (e.g. a Personal item shared into a Family wallet) — a read-only
+  /// visibility toggle, not a transfer of ownership; edit/delete stay with
+  /// the original wallet/member.
+  String? sharedWalletId;
   List<String> matchWith; // ids of matching items
   DateTime addedOn;
   ClothingItem({
@@ -288,6 +293,7 @@ class ClothingItem {
     this.notes,
     this.wishlist = false,
     this.wishlistSource,
+    this.sharedWalletId,
     List<String>? matchWith,
     DateTime? addedOn,
   }) : matchWith = matchWith ?? [],
@@ -306,6 +312,7 @@ class ClothingItem {
     if (notes != null) 'notes': notes,
     'wishlist': wishlist,
     if (wishlistSource != null) 'wishlist_source': wishlistSource,
+    'shared_wallet_id': sharedWalletId,
     'match_with': matchWith,
     'added_on': addedOn.toIso8601String().substring(0, 10),
   };
@@ -325,6 +332,7 @@ class ClothingItem {
     color: j['color'] as String?,
     photoPath: j['photo_path'] as String?,
     notes: j['notes'] as String?,
+    sharedWalletId: j['shared_wallet_id'] as String?,
     wishlist: j['wishlist'] as bool? ?? false,
     wishlistSource: j['wishlist_source'] as String?,
     matchWith: (j['match_with'] as List<dynamic>? ?? []).cast<String>(),
@@ -340,6 +348,9 @@ class OutfitLog {
   DateTime date;
   String? notes;
   String? photoPath;
+  /// See ClothingItem.sharedWalletId — same read-only cross-wallet
+  /// visibility toggle, applied to a logged outfit.
+  String? sharedWalletId;
   OutfitLog({
     required this.id,
     required this.walletId,
@@ -348,6 +359,7 @@ class OutfitLog {
     required this.date,
     this.notes,
     this.photoPath,
+    this.sharedWalletId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -357,6 +369,7 @@ class OutfitLog {
     'date': date.toIso8601String().substring(0, 10),
     if (notes != null) 'notes': notes,
     if (photoPath != null) 'photo_url': photoPath,
+    'shared_wallet_id': sharedWalletId,
   };
 
   factory OutfitLog.fromJson(Map<String, dynamic> j) => OutfitLog(
@@ -367,6 +380,7 @@ class OutfitLog {
     date: DateTime.parse(j['date'] as String),
     notes: j['notes'] as String?,
     photoPath: j['photo_url'] as String?,
+    sharedWalletId: j['shared_wallet_id'] as String?,
   );
 }
 

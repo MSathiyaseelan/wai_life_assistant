@@ -12,6 +12,7 @@ import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
@@ -698,6 +699,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                               }
                             }();
                           },
+                          onChanged: () => setState(() {}),
                         ),
 
                         // WISHLIST TAB
@@ -1844,6 +1846,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          _buildShareRow(context, tc, sub, surfBg),
           const SizedBox(height: 12),
 
           // Photo area
@@ -2054,6 +2058,80 @@ class _ClothingDetailState extends State<_ClothingDetail> {
               LifeInfoRow(icon: Icons.notes_rounded, label: item.notes!),
             ],
           ],
+        ],
+      ),
+    );
+  }
+
+  // ── Share with another wallet ────────────────────────────────────────────
+  // Read-only visibility toggle: the item still belongs to (and is only
+  // editable/deletable from) its original wallet/member — sharing just also
+  // surfaces it in another wallet's Wardrobe (e.g. Personal -> Family).
+  Widget _buildShareRow(BuildContext context, Color tc, Color sub, Color surfBg) {
+    final item = widget.item;
+    final otherWallets = AppStateScope.of(context).wallets
+        .where((w) => w.id != item.walletId)
+        .toList();
+    if (otherWallets.isEmpty) return const SizedBox.shrink();
+
+    Future<void> setShare(String? walletId) async {
+      final previous = item.sharedWalletId;
+      setState(() => item.sharedWalletId = walletId);
+      widget.onUpdate();
+      try {
+        await WardrobeService.instance.updateItem(item.id, {'shared_wallet_id': walletId});
+      } catch (e) {
+        ErrorLogger.warning(e, action: 'wardrobe_share_item');
+        if (mounted) {
+          setState(() => item.sharedWalletId = previous);
+          widget.onUpdate();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update sharing. Please try again.')),
+          );
+        }
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(Icons.ios_share_rounded, size: 14, color: sub),
+          const SizedBox(width: 8),
+          Text('Share with',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: otherWallets.map((w) {
+                final active = item.sharedWalletId == w.id;
+                return GestureDetector(
+                  onTap: () => setShare(active ? null : w.id),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: active ? _wardrobeColor : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: active ? _wardrobeColor : sub.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      w.isPersonal ? 'Personal' : w.name,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: active ? Colors.white : tc,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ),
     );
@@ -2529,6 +2607,7 @@ class _OutfitLogTab extends StatelessWidget {
   final List<LifeMember> allMembers;
   final void Function(OutfitLog) onLog;
   final void Function(OutfitLog) onDelete;
+  final VoidCallback onChanged;
 
   const _OutfitLogTab({
     required this.isDark,
@@ -2539,6 +2618,7 @@ class _OutfitLogTab extends StatelessWidget {
     required this.allMembers,
     required this.onLog,
     required this.onDelete,
+    required this.onChanged,
   });
 
   @override
@@ -3018,15 +3098,98 @@ class _OutfitLogTab extends StatelessWidget {
     );
   }
 
+  // ── Share with another wallet ────────────────────────────────────────────
+  // Same read-only visibility toggle as ClothingItem.sharedWalletId —
+  // [rebuild] is the enclosing sheet's own setState (a StatefulBuilder's
+  // `ss`), so the chip's active state updates immediately in that sheet.
+  Widget _shareRow(
+    BuildContext context,
+    OutfitLog log,
+    Color tc,
+    Color sub,
+    Color surfBg,
+    void Function(VoidCallback) rebuild,
+  ) {
+    final otherWallets = AppStateScope.of(context).wallets
+        .where((w) => w.id != log.walletId)
+        .toList();
+    if (otherWallets.isEmpty) return const SizedBox.shrink();
+
+    Future<void> setShare(String? walletId) async {
+      final previous = log.sharedWalletId;
+      rebuild(() => log.sharedWalletId = walletId);
+      onChanged();
+      try {
+        await WardrobeService.instance.updateOutfitLog(log.id, {'shared_wallet_id': walletId});
+      } catch (e) {
+        ErrorLogger.warning(e, action: 'wardrobe_share_outfit_log');
+        rebuild(() => log.sharedWalletId = previous);
+        onChanged();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update sharing. Please try again.')),
+          );
+        }
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(Icons.ios_share_rounded, size: 14, color: sub),
+          const SizedBox(width: 8),
+          Text('Share with',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: otherWallets.map((w) {
+                final active = log.sharedWalletId == w.id;
+                return GestureDetector(
+                  onTap: () => setShare(active ? null : w.id),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: active ? _wardrobeColor : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: active ? _wardrobeColor : sub.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      w.isPersonal ? 'Personal' : w.name,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Nunito',
+                        color: active ? Colors.white : tc,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showOutfitDetail(
     BuildContext ctx,
     OutfitLog log,
     List<ClothingItem> logItems,
     Color sub,
   ) {
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     showLifeSheet(
       ctx,
-      child: Padding(
+      child: StatefulBuilder(
+        builder: (sheetCtx, ss) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -3070,7 +3233,9 @@ class _OutfitLogTab extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
+            _shareRow(sheetCtx, log, tc, sub, surfBg, ss),
+            const SizedBox(height: 4),
 
             // Outfit selfie
             if (log.photoPath != null) ...[
@@ -3178,6 +3343,7 @@ class _OutfitLogTab extends StatelessWidget {
             }),
           ],
         ),
+        ),
       ),
     );
   }
@@ -3208,6 +3374,7 @@ class _OutfitLogTab extends StatelessWidget {
     Color sub,
   ) {
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final selected = <String>{...?existing?.itemIds};
     String? pickedLocalPath;
     bool saving = false;
@@ -3388,6 +3555,8 @@ class _OutfitLogTab extends StatelessWidget {
                   onTap: doSave,
                 ),
                 if (existing != null) ...[
+                  const SizedBox(height: 10),
+                  _shareRow(ctx2, existing, tc, sub, surfBg, ss),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
