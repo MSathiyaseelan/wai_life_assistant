@@ -3,16 +3,21 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/wallet_bill_scan_sheet.dart';
+import 'package:wai_life_assistant/features/wallet/widgets/wallet_export_sheet.dart';
 
 class FlowSelectorSheet extends StatelessWidget {
   final void Function(FlowType) onSelect;
   final String walletId;
+  final String walletName;
+  final List<TxModel> transactions;
   final void Function(List<TxModel>) onScanBillSaved;
 
   const FlowSelectorSheet({
     super.key,
     required this.onSelect,
     required this.walletId,
+    required this.walletName,
+    required this.transactions,
     required this.onScanBillSaved,
   });
 
@@ -21,6 +26,8 @@ class FlowSelectorSheet extends StatelessWidget {
     BuildContext context, {
     required void Function(FlowType) onSelect,
     required String walletId,
+    required String walletName,
+    required List<TxModel> transactions,
     required void Function(List<TxModel>) onScanBillSaved,
   }) {
     return showModalBottomSheet(
@@ -30,6 +37,8 @@ class FlowSelectorSheet extends StatelessWidget {
       builder: (_) => FlowSelectorSheet(
         onSelect: onSelect,
         walletId: walletId,
+        walletName: walletName,
+        transactions: transactions,
         onScanBillSaved: onScanBillSaved,
       ),
     );
@@ -125,6 +134,19 @@ class FlowSelectorSheet extends StatelessWidget {
                       );
                     },
                   ),
+                  // Export likewise isn't a conversational flow — opens the
+                  // CSV export sheet directly.
+                  _ExportCard(
+                    onTap: () {
+                      Navigator.pop(context);
+                      WalletExportSheet.show(
+                        context,
+                        walletId: walletId,
+                        walletName: walletName,
+                        transactions: transactions,
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -183,6 +205,68 @@ class _ScanBillCardState extends State<_ScanBillCard> {
             SizedBox(height: 8),
             Text(
               'Scan Bill',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+                color: c,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportCard extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _ExportCard({required this.onTap});
+
+  @override
+  State<_ExportCard> createState() => _ExportCardState();
+}
+
+class _ExportCardState extends State<_ExportCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const c = AppColors.primary;
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        transform: Matrix4.identity()..scale(_pressed ? 0.93 : 1.0),
+        transformAlignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: _pressed ? c.withOpacity(0.2) : c.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: c.withOpacity(0.3), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: c.withOpacity(_pressed ? 0.18 : 0.06),
+              blurRadius: _pressed ? 12 : 6,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('📤', style: TextStyle(fontSize: 28)),
+            SizedBox(height: 8),
+            Text(
+              'Export',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 11,

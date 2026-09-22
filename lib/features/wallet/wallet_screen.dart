@@ -671,11 +671,14 @@ class _WalletScreenState extends State<WalletScreen>
             ? widget.activeWalletId
             : readyWallets.first.id)
         : (_allWallets.isNotEmpty ? _allWallets.first.id : 'personal');
+    final activeName = _allWallets.where((w) => w.id == activeId).firstOrNull?.name ?? 'Wallet';
 
     FlowSelectorSheet.show(
       context,
       onSelect: (flowType) => _openConversation(flowType),
       walletId: activeId,
+      walletName: activeName,
+      transactions: _transactions,
       onScanBillSaved: (txs) {
         for (final tx in txs) {
           _onTransactionSaved(tx);
