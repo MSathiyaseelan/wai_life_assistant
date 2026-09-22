@@ -11,6 +11,7 @@ import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import '../../widgets/life_widgets.dart';
 
 const _wardrobeColor = Color(0xFFFF5CA8);
@@ -97,6 +98,48 @@ Future<String?> _pickPhoto(BuildContext ctx) async {
   if (source == null) return null;
   final img = await ImagePicker().pickImage(source: source!, imageQuality: 75);
   return img?.path;
+}
+
+/// Opens [path] (local file or network URL) full-size in a bottom sheet,
+/// pinch-zoomable, unlike the small BoxFit.cover previews used everywhere
+/// else in this screen which crop a portrait photo down to a sliver.
+void _showFullImage(BuildContext ctx, String path) {
+  showModalBottomSheet(
+    context: ctx,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (sheetCtx) => Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(sheetCtx).size.height * 0.88,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Flexible(
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 4,
+              child: _WardrobePhoto(path: path, fit: BoxFit.contain, width: double.infinity),
+            ),
+          ),
+          SizedBox(height: MediaQuery.of(sheetCtx).padding.bottom + 16),
+        ],
+      ),
+    ),
+  );
 }
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
@@ -516,6 +559,11 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                               isDark: isDark,
                                               allItems: _clothes,
                                               onUpdate: () => setState(() {}),
+                                              onDelete: () => _deleteClothingItem(item),
+                                              onEdit: () {
+                                                Navigator.pop(context);
+                                                _showEditItem(context, item);
+                                              },
                                             ),
                                           ),
                                         )
@@ -541,6 +589,11 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                               isDark: isDark,
                                               allItems: _clothes,
                                               onUpdate: () => setState(() {}),
+                                              onDelete: () => _deleteClothingItem(item),
+                                              onEdit: () {
+                                                Navigator.pop(context);
+                                                _showEditItem(context, item);
+                                              },
                                             ),
                                           ),
                                         ),
@@ -629,6 +682,22 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                               }
                             }();
                           },
+                          onDelete: (log) {
+                            setState(() => _outfitLogs.removeWhere((l) => l.id == log.id));
+                            () async {
+                              try {
+                                await WardrobeService.instance.deleteOutfitLog(log.id);
+                              } catch (e) {
+                                ErrorLogger.warning(e, action: 'wardrobe_delete_outfit_log');
+                                if (mounted) {
+                                  setState(() => _outfitLogs.add(log));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Failed to delete. Please try again.')),
+                                  );
+                                }
+                              }
+                            }();
+                          },
                         ),
 
                         // WISHLIST TAB
@@ -705,6 +774,22 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     );
   }
 
+  // ── Delete clothing item ─────────────────────────────────────────────────────
+  Future<void> _deleteClothingItem(ClothingItem item) async {
+    setState(() => _clothes.removeWhere((c) => c.id == item.id));
+    try {
+      await WardrobeService.instance.deleteItem(item.id);
+    } catch (e) {
+      ErrorLogger.warning(e, action: 'wardrobe_delete_item');
+      if (mounted) {
+        setState(() => _clothes.add(item));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete. Please try again.')),
+        );
+      }
+    }
+  }
+
   // ── Add clothing item ──────────────────────────────────────────────────────
   void _showAddItem(BuildContext ctx, bool isDark, Color surfBg) {
     showAddClothingSheet(
@@ -715,6 +800,26 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
       isWishlist: _tab.index == 2,
       onItemAdded: (saved) {
         if (mounted) setState(() => _clothes.insert(0, saved));
+      },
+    );
+  }
+
+  // ── Edit clothing item ───────────────────────────────────────────────────────
+  void _showEditItem(BuildContext ctx, ClothingItem item) {
+    showAddClothingSheet(
+      ctx,
+      walletId: item.walletId,
+      memberId: item.memberId,
+      memberGender: _genderOf(item.memberId),
+      isWishlist: item.wishlist,
+      existing: item,
+      onItemUpdated: (saved) {
+        if (mounted) {
+          setState(() {
+            final i = _clothes.indexWhere((c) => c.id == saved.id);
+            if (i >= 0) _clothes[i] = saved;
+          });
+        }
       },
     );
   }
@@ -732,7 +837,9 @@ void showAddClothingSheet(
   required String memberId,
   String? memberGender,
   bool isWishlist = false,
+  ClothingItem? existing,
   void Function(ClothingItem saved)? onItemAdded,
+  void Function(ClothingItem saved)? onItemUpdated,
 }) {
   final isDark = Theme.of(ctx).brightness == Brightness.dark;
   showModalBottomSheet(
@@ -745,7 +852,9 @@ void showAddClothingSheet(
       walletId: walletId,
       memberId: memberId,
       memberGender: memberGender,
+      existing: existing,
       onItemAdded: onItemAdded,
+      onItemUpdated: onItemUpdated,
     ),
   );
 }
@@ -756,7 +865,9 @@ class AddClothingSheet extends StatefulWidget {
   final String walletId;
   final String memberId;
   final String? memberGender;
+  final ClothingItem? existing;
   final void Function(ClothingItem saved)? onItemAdded;
+  final void Function(ClothingItem saved)? onItemUpdated;
 
   const AddClothingSheet({
     super.key,
@@ -765,7 +876,9 @@ class AddClothingSheet extends StatefulWidget {
     required this.walletId,
     required this.memberId,
     this.memberGender,
+    this.existing,
     this.onItemAdded,
+    this.onItemUpdated,
   });
 
   @override
@@ -797,7 +910,22 @@ class _AddClothingSheetState extends State<AddClothingSheet>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    final existing = widget.existing;
+    _tab = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: existing != null ? 1 : 0,
+    );
+    if (existing != null) {
+      _nameCtrl.text = existing.name;
+      _brandCtrl.text = existing.brand ?? '';
+      _sizeCtrl.text = existing.size ?? '';
+      _colorCtrl.text = existing.color ?? '';
+      _notesCtrl.text = existing.notes ?? '';
+      _sourceCtrl.text = existing.wishlistSource ?? '';
+      _cat = existing.category;
+      _photoPath = existing.photoPath;
+    }
     WardrobeService.instance.fetchCategories().then((list) {
       if (!mounted) return;
       setState(() {
@@ -951,15 +1079,49 @@ class _AddClothingSheetState extends State<AddClothingSheet>
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
     final localPath = _photoPath;
+    final existing = widget.existing;
     final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     () async {
       try {
         final svc = WardrobeService.instance;
-        String? photoUrl;
-        if (localPath != null) {
+        // Editing an item whose photo was never changed re-passes its
+        // already-uploaded remote URL through _photoPath — only re-upload
+        // when it's actually a local file path.
+        String? photoUrl = localPath;
+        if (localPath != null && !localPath.startsWith('http')) {
           photoUrl = await svc.uploadPhoto(localPath, memberId: widget.memberId);
         }
+        final brand = _brandCtrl.text.trim().isEmpty ? null : _brandCtrl.text.trim();
+        final size = _sizeCtrl.text.trim().isEmpty ? null : _sizeCtrl.text.trim();
+        final color = _colorCtrl.text.trim().isEmpty ? null : _colorCtrl.text.trim();
+        final notes = _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim();
+        final source = _sourceCtrl.text.trim().isEmpty ? null : _sourceCtrl.text.trim();
+
+        if (existing != null) {
+          await svc.updateItem(existing.id, {
+            'name': name,
+            'category': _cat,
+            'brand': brand,
+            'size': size,
+            'color': color,
+            'notes': notes,
+            'photo_path': photoUrl,
+            if (widget.isWishlist) 'wishlist_source': source,
+          });
+          existing
+            ..name = name
+            ..category = _cat
+            ..brand = brand
+            ..size = size
+            ..color = color
+            ..notes = notes
+            ..photoPath = photoUrl;
+          if (widget.isWishlist) existing.wishlistSource = source;
+          widget.onItemUpdated?.call(existing);
+          return;
+        }
+
         final item = ClothingItem(
           id:             '',
           memberId:       widget.memberId,
@@ -967,13 +1129,13 @@ class _AddClothingSheetState extends State<AddClothingSheet>
           name:           name,
           category:       _cat,
           gender:         ClothingGender.unisex,
-          brand:          _brandCtrl.text.trim().isEmpty ? null : _brandCtrl.text.trim(),
-          size:           _sizeCtrl.text.trim().isEmpty  ? null : _sizeCtrl.text.trim(),
-          color:          _colorCtrl.text.trim().isEmpty ? null : _colorCtrl.text.trim(),
-          notes:          _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          brand:          brand,
+          size:           size,
+          color:          color,
+          notes:          notes,
           photoPath:      photoUrl,
           wishlist:       widget.isWishlist,
-          wishlistSource: _sourceCtrl.text.trim().isEmpty ? null : _sourceCtrl.text.trim(),
+          wishlistSource: source,
         );
         final row   = await svc.addItem(item.toJson());
         final saved = ClothingItem.fromJson(row);
@@ -981,10 +1143,10 @@ class _AddClothingSheetState extends State<AddClothingSheet>
       } catch (e) {
         final isLimitError = e is WardrobeLimitExceededException;
         if (!isLimitError) {
-          ErrorLogger.warning(e, action: 'wardrobe_add_item');
+          ErrorLogger.warning(e, action: existing != null ? 'wardrobe_update_item' : 'wardrobe_add_item');
         }
         messenger.showSnackBar(
-          SnackBar(content: Text(isLimitError ? e.toString() : 'Failed to add item')),
+          SnackBar(content: Text(isLimitError ? e.toString() : (existing != null ? 'Failed to save changes' : 'Failed to add item'))),
         );
       }
     }();
@@ -1028,7 +1190,9 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                     style: const TextStyle(fontSize: 22)),
                 const SizedBox(width: 10),
                 Text(
-                  widget.isWishlist ? 'Add to Wishlist' : 'Add Clothing Item',
+                  widget.existing != null
+                      ? 'Edit Clothing Item'
+                      : (widget.isWishlist ? 'Add to Wishlist' : 'Add Clothing Item'),
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
                 ),
@@ -1379,7 +1543,7 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                         const SizedBox(height: 16),
 
                         LifeSaveButton(
-                          label: 'Save Item',
+                          label: widget.existing != null ? 'Save Changes' : 'Save Item',
                           color: _wardrobeColor,
                           onTap: _submit,
                         ),
@@ -1579,11 +1743,15 @@ class _ClothingDetail extends StatefulWidget {
   final bool isDark;
   final List<ClothingItem> allItems;
   final VoidCallback onUpdate;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
   const _ClothingDetail({
     required this.item,
     required this.isDark,
     required this.allItems,
     required this.onUpdate,
+    required this.onDelete,
+    required this.onEdit,
   });
   @override
   State<_ClothingDetail> createState() => _ClothingDetailState();
@@ -1659,6 +1827,21 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                     ),
                   ),
                 ),
+              IconButton(
+                icon: Icon(Icons.edit_rounded, color: _wardrobeColor),
+                tooltip: 'Edit',
+                onPressed: widget.onEdit,
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
+                tooltip: 'Delete',
+                onPressed: () async {
+                  final confirmed = await confirmDelete(context);
+                  if (!confirmed) return;
+                  widget.onDelete();
+                  if (context.mounted) Navigator.pop(context);
+                },
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1681,6 +1864,25 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                         _WardrobePhoto(
                           path: item.photoPath!,
                           fit: BoxFit.cover,
+                        ),
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: GestureDetector(
+                            onTap: () => _showFullImage(context, item.photoPath!),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.open_in_full_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                         ),
                         Positioned(
                           bottom: 8,
@@ -2326,6 +2528,7 @@ class _OutfitLogTab extends StatelessWidget {
   final List<OutfitLog> outfitLogs;
   final List<LifeMember> allMembers;
   final void Function(OutfitLog) onLog;
+  final void Function(OutfitLog) onDelete;
 
   const _OutfitLogTab({
     required this.isDark,
@@ -2335,6 +2538,7 @@ class _OutfitLogTab extends StatelessWidget {
     required this.outfitLogs,
     required this.allMembers,
     required this.onLog,
+    required this.onDelete,
   });
 
   @override
@@ -2482,13 +2686,16 @@ class _OutfitLogTab extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                     if (todayLog.photoPath != null) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: _WardrobePhoto(
-                          path: todayLog.photoPath!,
-                          width: double.infinity,
-                          height: 130,
-                          fit: BoxFit.cover,
+                      GestureDetector(
+                        onTap: () => _showFullImage(context, todayLog.photoPath!),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: _WardrobePhoto(
+                            path: todayLog.photoPath!,
+                            width: double.infinity,
+                            height: 130,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -2828,26 +3035,38 @@ class _OutfitLogTab extends StatelessWidget {
             // Header
             Row(
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${_weekday(log.date)}, ${log.date.day} ${_monthName(log.date.month)} ${log.date.year}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        fontFamily: 'Nunito',
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_weekday(log.date)}, ${log.date.day} ${_monthName(log.date.month)} ${log.date.year}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Nunito',
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${logItems.length} item${logItems.length == 1 ? '' : 's'} worn',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'Nunito',
-                        color: sub,
+                      Text(
+                        '${logItems.length} item${logItems.length == 1 ? '' : 's'} worn',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'Nunito',
+                          color: sub,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
+                  tooltip: 'Delete',
+                  onPressed: () async {
+                    final confirmed = await confirmDelete(ctx);
+                    if (!confirmed) return;
+                    onDelete(log);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
                 ),
               ],
             ),
@@ -2855,13 +3074,16 @@ class _OutfitLogTab extends StatelessWidget {
 
             // Outfit selfie
             if (log.photoPath != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: _WardrobePhoto(
-                  path: log.photoPath!,
-                  width: double.infinity,
-                  height: 200,
-                  fit: BoxFit.cover,
+              GestureDetector(
+                onTap: () => _showFullImage(ctx, log.photoPath!),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: _WardrobePhoto(
+                    path: log.photoPath!,
+                    width: double.infinity,
+                    height: 200,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
@@ -3165,6 +3387,27 @@ class _OutfitLogTab extends StatelessWidget {
                   color: _wardrobeColor,
                   onTap: doSave,
                 ),
+                if (existing != null) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              final confirmed = await confirmDelete(ctx2);
+                              if (!confirmed) return;
+                              onDelete(existing);
+                              if (ctx2.mounted) Navigator.pop(ctx2);
+                            },
+                      style: TextButton.styleFrom(foregroundColor: AppColors.expense),
+                      child: const Text(
+                        'Delete Outfit Log',
+                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           );

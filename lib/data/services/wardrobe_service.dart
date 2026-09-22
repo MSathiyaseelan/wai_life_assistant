@@ -157,7 +157,8 @@ class WardrobeService {
     var query = _db
         .from('wardrobe_outfit_logs')
         .select()
-        .eq('wallet_id', walletId);
+        .eq('wallet_id', walletId)
+        .isFilter('deleted_at', null);
     if (months != -1) {
       final now = DateTime.now();
       final cutoff = DateTime(now.year, now.month - months, now.day);
@@ -178,5 +179,9 @@ class WardrobeService {
 
   Future<void> updateOutfitLog(String id, Map<String, dynamic> updates) async {
     await _db.from('wardrobe_outfit_logs').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteOutfitLog(String id) async {
+    await _db.from('wardrobe_outfit_logs').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 }
