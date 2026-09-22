@@ -1495,65 +1495,163 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     ).then((_) => setState(() {}));
   }
 
+  // -- Shared bottom-sheet chrome (handle bar + rounded card) ---------------
+  Widget _sheetShell(BuildContext sheetCtx, List<Widget> children) {
+    final cardBg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  // A Cancel / destructive-action button row, shared by the confirm sheets.
+  Widget _sheetActionRow({
+    required VoidCallback onCancel,
+    required VoidCallback? onConfirm,
+    required String confirmLabel,
+    Color confirmColor = Colors.red,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: onCancel,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _tc,
+              backgroundColor: _surfBg,
+              side: BorderSide.none,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('Cancel',
+                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: confirmColor,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: confirmColor.withValues(alpha: 0.3),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: Text(confirmLabel,
+                style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sheetHeader(String title, {Color? color}) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            fontFamily: 'Nunito',
+            color: color ?? _tc,
+          ),
+        ),
+      ),
+    ],
+  );
+
   void _showChangeRoleDialog(
     BuildContext context,
     FamilyMember member,
     FamilyModel family,
   ) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: Text(
-          'Change Role â€” ${member.name}',
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Nunito',
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: MemberRole.values.map((role) {
-            final selected = role == member.role;
-            return ListTile(
-              leading: Text(role.emoji,
-                  style: const TextStyle(fontSize: 20)),
-              title: Text(
-                role.label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w700,
-                ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogCtx) => _sheetShell(dialogCtx, [
+        _sheetHeader('Change Role - ${member.name}'),
+        const SizedBox(height: 14),
+        ...MemberRole.values.map((role) {
+          final selected = role == member.role;
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              final originalRole = member.role;
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(dialogCtx);
+              if (role == originalRole) return;
+              setState(() => member.role = role);
+              ProfileService.instance.updateMember(member.id, {
+                'role':     role.name,
+                'name':     member.name,
+                'emoji':    member.emoji,
+                'phone':    member.phone,
+                'relation': member.relation,
+              }).catchError((Object e, StackTrace stack) {
+                setState(() => member.role = originalRole);
+                ErrorLogger.log(e, stackTrace: stack, action: 'update_member_role');
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('Failed to update role. Please try again.'),
+                ));
+              });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primary.withValues(alpha: 0.1) : _surfBg,
+                borderRadius: BorderRadius.circular(14),
               ),
-              trailing: selected
-                  ? const Icon(Icons.check_rounded,
-                      color: AppColors.primary)
-                  : null,
-              onTap: () {
-                final originalRole = member.role;
-                final messenger = ScaffoldMessenger.of(context);
-                Navigator.pop(dialogCtx);
-                if (role == originalRole) return;
-                setState(() => member.role = role);
-                ProfileService.instance.updateMember(member.id, {
-                  'role':     role.name,
-                  'name':     member.name,
-                  'emoji':    member.emoji,
-                  'phone':    member.phone,
-                  'relation': member.relation,
-                }).catchError((Object e, StackTrace stack) {
-                  setState(() => member.role = originalRole);
-                  ErrorLogger.log(e, stackTrace: stack, action: 'update_member_role');
-                  messenger.showSnackBar(const SnackBar(
-                    content: Text('Failed to update role. Please try again.'),
-                  ));
-                });
-              },
-            );
-          }).toList(),
-        ),
-      ),
+              child: Row(
+                children: [
+                  Text(role.emoji, style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      role.label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w700,
+                        color: _tc,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    const Icon(Icons.check_rounded, color: AppColors.primary),
+                ],
+              ),
+            ),
+          );
+        }),
+      ]),
     );
   }
 
@@ -1562,61 +1660,42 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     FamilyMember member,
     FamilyModel family,
   ) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text(
-          'Remove Member',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Nunito',
-          ),
-        ),
-        content: Text(
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogCtx) => _sheetShell(dialogCtx, [
+        _sheetHeader('Remove Member'),
+        const SizedBox(height: 10),
+        Text(
           'Remove ${member.name} from the family? They will lose access to shared data.',
-          style: const TextStyle(
-            fontSize: 13,
-            fontFamily: 'Nunito',
-          ),
+          style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: _sub),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel',
-                style: TextStyle(fontFamily: 'Nunito')),
-          ),
-          TextButton(
-            onPressed: () {
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.pop(dialogCtx);
-              setState(() => family.members.remove(member));
-              ProfileService.instance.removeMember(member.id)
-                  .catchError((Object e, StackTrace stack) {
-                setState(() => family.members.add(member));
-                ErrorLogger.log(e, stackTrace: stack, action: 'remove_family_member');
-                messenger.showSnackBar(const SnackBar(
-                  content: Text('Failed to remove member. Please try again.'),
-                ));
-              });
-            },
-            child: const Text(
-              'Remove',
-              style: TextStyle(
-                color: Colors.red,
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+        const SizedBox(height: 22),
+        _sheetActionRow(
+          onCancel: () => Navigator.pop(dialogCtx),
+          confirmLabel: 'Remove',
+          onConfirm: () {
+            final messenger = ScaffoldMessenger.of(context);
+            Navigator.pop(dialogCtx);
+            setState(() => family.members.remove(member));
+            ProfileService.instance.removeMember(member.id)
+                .catchError((Object e, StackTrace stack) {
+              setState(() => family.members.add(member));
+              ErrorLogger.log(e, stackTrace: stack, action: 'remove_family_member');
+              messenger.showSnackBar(const SnackBar(
+                content: Text('Failed to remove member. Please try again.'),
+              ));
+            });
+          },
+        ),
+      ]),
     );
   }
 
   void _confirmLeaveFamily(BuildContext context, FamilyModel family) {
     if (family.members.isEmpty) {
-      // Data-consistency edge case (member list not yet synced) — nothing
+      // Data-consistency edge case (member list not yet synced) -- nothing
       // to leave from and no safe fallback member to act as.
       ErrorLogger.warning('confirmLeaveFamily called with empty member list',
           action: 'confirm_leave_family_empty');
@@ -1630,84 +1709,76 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     final amAdmin = myMember.role == MemberRole.admin;
     final adminCount = family.members.where((m) => m.role == MemberRole.admin).length;
     final otherMembers = family.members.where((m) => m.id != myMember.id).toList();
-    // Last admin with other members still present — must transfer first
+    // Last admin with other members still present -- must transfer first
     final mustTransfer = amAdmin && adminCount == 1 && otherMembers.isNotEmpty;
-    // Last member overall — leaving means deleting the family
+    // Last member overall -- leaving means deleting the family
     final isLastMember = family.members.length == 1;
 
     if (isLastMember) {
-      // No one left — offer to delete the family entirely instead of leaving
+      // No one left -- offer to delete the family entirely instead of leaving
       _confirmDeleteFamily(context, family);
       return;
     }
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      // Use the dialog's own builder context (dCtx) for Navigator.pop, not
-      // the outer `context` — reusing the outer one happened to work here
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      // Use the sheet's own builder context (dCtx) for Navigator.pop, not
+      // the outer `context` -- reusing the outer one happened to work here
       // but is the same fragile pattern that silently broke Delete Account
       // earlier (a context resolved from outside the route it's popping).
-      builder: (dCtx) => AlertDialog(
-        title: const Text(
-          'Leave Family',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
-        ),
-        content: Text(
+      builder: (dCtx) => _sheetShell(dCtx, [
+        _sheetHeader('Leave Family'),
+        const SizedBox(height: 10),
+        Text(
           mustTransfer
               ? 'You are the only admin. Transfer admin to another member before leaving.'
               : 'Are you sure you want to leave "${family.name}"?',
-          style: const TextStyle(fontSize: 13, fontFamily: 'Nunito'),
+          style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: _sub),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx),
-            child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
+        const SizedBox(height: 22),
+        if (!mustTransfer)
+          _sheetActionRow(
+            onCancel: () => Navigator.pop(dCtx),
+            confirmLabel: 'Leave',
+            onConfirm: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(dCtx);
+              widget.appState.switchWallet(
+                widget.appState.wallets
+                    .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                    .id,
+              );
+              try {
+                await ProfileService.instance.leaveFamily(myMember.id);
+                if (mounted) await widget.appState.reload();
+              } catch (e, stack) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'leave_family');
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('Failed to leave family. Please try again.'),
+                ));
+              }
+            },
           ),
-          if (!mustTransfer)
-            TextButton(
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
+        if (mustTransfer)
+          _sheetActionRow(
+            onCancel: () => Navigator.pop(dCtx),
+            confirmLabel: 'Transfer Admin',
+            confirmColor: AppColors.primary,
+            onConfirm: () {
+              try {
                 Navigator.pop(dCtx);
-                widget.appState.switchWallet(
-                  widget.appState.wallets
-                      .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
-                      .id,
-                );
-                try {
-                  await ProfileService.instance.leaveFamily(myMember.id);
-                  if (mounted) await widget.appState.reload();
-                } catch (e, stack) {
-                  ErrorLogger.log(e, stackTrace: stack, action: 'leave_family');
-                  messenger.showSnackBar(const SnackBar(
-                    content: Text('Failed to leave family. Please try again.'),
-                  ));
-                }
-              },
-              child: const Text(
-                'Leave',
-                style: TextStyle(color: Colors.red, fontFamily: 'Nunito', fontWeight: FontWeight.w800),
-              ),
-            ),
-          if (mustTransfer)
-            TextButton(
-              onPressed: () {
-                try {
-                  Navigator.pop(dCtx);
-                  _showTransferAdminDialog(context, family, myMember, otherMembers);
-                } catch (e, stack) {
-                  ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_open_dialog');
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Could not open transfer admin. Please try again.'),
-                  ));
-                }
-              },
-              child: const Text(
-                'Transfer Admin',
-                style: TextStyle(color: AppColors.primary, fontFamily: 'Nunito', fontWeight: FontWeight.w800),
-              ),
-            ),
-        ],
-      ),
+                _showTransferAdminDialog(context, family, myMember, otherMembers);
+              } catch (e, stack) {
+                ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_open_dialog');
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Could not open transfer admin. Please try again.'),
+                ));
+              }
+            },
+          ),
+      ]),
     );
   }
 
@@ -1718,58 +1789,50 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       orElse: () => family.members.first,
     );
     final otherMembers = family.members.where((m) => m.id != myMember.id).toList();
-    // Other members still around — deleting wipes the group for all of
+    // Other members still around -- deleting wipes the group for all of
     // them too, so offer the less destructive "step down" path first.
     final hasOtherMembers = otherMembers.isNotEmpty;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text(
-          'Delete Family',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Nunito',
-            color: Colors.red,
-          ),
-        ),
-        content: Text(
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dialogCtx) => _sheetShell(dialogCtx, [
+        _sheetHeader('Delete Family', color: Colors.red),
+        const SizedBox(height: 10),
+        Text(
           hasOtherMembers
               ? 'Delete "${family.name}" for everyone? All data will be archived and hidden, and the group will stop working for every member. This cannot be undone.\n\nIf you\'d rather step down and let the others keep using it, transfer admin to another member instead.'
               : 'Delete "${family.name}"? The family and all its transactions will be archived and hidden. This cannot be undone.',
-          style: const TextStyle(fontSize: 13, fontFamily: 'Nunito'),
+          style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: _sub),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Cancel',
-                style: TextStyle(fontFamily: 'Nunito')),
-          ),
-          if (hasOtherMembers)
-            TextButton(
+        const SizedBox(height: 22),
+        if (hasOtherMembers) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
               onPressed: () {
                 Navigator.pop(dialogCtx, false);
                 _showTransferAdminDialog(context, family, myMember, otherMembers);
               },
-              child: const Text(
-                'Transfer Admin Instead',
-                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: Text(
-              hasOtherMembers ? 'Delete for Everyone' : 'Delete',
-              style: const TextStyle(
-                color: Colors.red,
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w800,
-              ),
+              child: const Text('Transfer Admin Instead',
+                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 14)),
             ),
           ),
+          const SizedBox(height: 12),
         ],
-      ),
+        _sheetActionRow(
+          onCancel: () => Navigator.pop(dialogCtx, false),
+          confirmLabel: hasOtherMembers ? 'Delete for Everyone' : 'Delete',
+          onConfirm: () => Navigator.pop(dialogCtx, true),
+        ),
+      ]),
     );
     if (confirmed != true || !mounted || !context.mounted) return;
 
@@ -1803,49 +1866,57 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
     FamilyMember myMember,
     List<FamilyMember> otherMembers,
   ) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (dCtx) => AlertDialog(
-        title: const Text(
-          'Transfer Admin',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dCtx) => _sheetShell(dCtx, [
+        _sheetHeader('Transfer Admin'),
+        const SizedBox(height: 10),
+        Text(
+          'Select a member to become the new admin:',
+          style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: _sub),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select a member to become the new admin:',
-              style: TextStyle(fontSize: 12, fontFamily: 'Nunito'),
-            ),
-            const SizedBox(height: 8),
-            ...otherMembers.map((m) => ListTile(
-                  leading: EmojiOrImage(value: m.emoji, size: 18),
-                  title: Text(m.name, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito')),
-                  onTap: () async {
-                    Navigator.pop(dCtx);
-                    final messenger = ScaffoldMessenger.of(context);
-                    widget.appState.switchWallet(
-                      widget.appState.wallets
-                          .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
-                          .id,
-                    );
-                    try {
-                      await ProfileService.instance.transferAdminAndLeave(
-                        newAdminMemberId: m.id,
-                        myMemberId: myMember.id,
-                      );
-                      if (mounted) await widget.appState.reload();
-                    } catch (e, stack) {
-                      ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_and_leave');
-                      messenger.showSnackBar(const SnackBar(
-                        content: Text('Failed to transfer admin. Please try again.'),
-                      ));
-                    }
-                  },
-                )),
-          ],
-        ),
-      ),
+        const SizedBox(height: 10),
+        ...otherMembers.map((m) => InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () async {
+                Navigator.pop(dCtx);
+                final messenger = ScaffoldMessenger.of(context);
+                widget.appState.switchWallet(
+                  widget.appState.wallets
+                      .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                      .id,
+                );
+                try {
+                  await ProfileService.instance.transferAdminAndLeave(
+                    newAdminMemberId: m.id,
+                    myMemberId: myMember.id,
+                  );
+                  if (mounted) await widget.appState.reload();
+                } catch (e, stack) {
+                  ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_and_leave');
+                  messenger.showSnackBar(const SnackBar(
+                    content: Text('Failed to transfer admin. Please try again.'),
+                  ));
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(color: _surfBg, borderRadius: BorderRadius.circular(14)),
+                child: Row(
+                  children: [
+                    EmojiOrImage(value: m.emoji, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(m.name, style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: _tc)),
+                    ),
+                  ],
+                ),
+              ),
+            )),
+      ]),
     );
   }
 

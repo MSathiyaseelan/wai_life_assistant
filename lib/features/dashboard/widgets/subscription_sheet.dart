@@ -921,49 +921,88 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
   }
 
   void _confirmCancel(BuildContext context) {
-    showDialog(
+    final surfBg = widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       // Named (not discarded with `_`) so the action buttons below can pop
-      // this dialog specifically via its own context — popping with the
+      // this sheet specifically via its own context — popping with the
       // outer SubscriptionSheet context instead was closing whichever
       // route the shared Navigator considered "current" at the time,
       // which could be the subscription bottom sheet itself rather than
-      // just this dialog.
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Cancel Subscription?',
-            style: TextStyle(
-                fontFamily: 'Nunito',
-                fontWeight: FontWeight.w900,
-                color: _tc)),
-        content: Text(
-          'You\'ll be taken to Google Play to cancel. You\'ll keep your RiyasHome '
-          '$_planName benefits until the end of your current billing period — '
-          'after that, your account reverts to Personal (Free).',
-          style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: _sub),
+      // just this one.
+      builder: (dialogContext) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(dialogContext).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('Cancel Subscription?',
+                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17, color: _tc)),
+              const SizedBox(height: 10),
+              Text(
+                'You\'ll be taken to Google Play to cancel. You\'ll keep your RiyasHome '
+                '$_planName benefits until the end of your current billing period — '
+                'after that, your account reverts to Personal (Free).',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: _sub),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _planColor,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Keep Plan',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogContext);
+                        _openPlayStoreSubscriptions(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.expense,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Continue to Google Play',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 13)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Keep Plan',
-                style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontWeight: FontWeight.w800,
-                    color: _planColor)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              _openPlayStoreSubscriptions(context);
-            },
-            child: const Text('Continue to Google Play',
-                style: TextStyle(
-                    fontFamily: 'Nunito',
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.expense)),
-          ),
-        ],
       ),
     );
   }

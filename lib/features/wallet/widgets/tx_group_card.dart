@@ -231,48 +231,118 @@ class _TxGroupCardState extends State<TxGroupCard>
         TextEditingController(text: widget.group.name);
     final emojiCtrl =
         TextEditingController(text: widget.group.emoji);
-    showDialog(
+    final isDark = widget.isDark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename Group',
-            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emojiCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Emoji',
-                hintText: '📦',
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-              style: const TextStyle(fontSize: 24),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'Group name'),
-              style: const TextStyle(fontFamily: 'Nunito'),
-            ),
-          ],
+              Text('Rename Group',
+                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17, color: tc)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: emojiCtrl,
+                style: const TextStyle(fontSize: 24),
+                decoration: InputDecoration(
+                  labelText: 'Emoji',
+                  labelStyle: TextStyle(color: sub, fontFamily: 'Nunito'),
+                  hintText: '📦',
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                style: TextStyle(fontFamily: 'Nunito', color: tc),
+                decoration: InputDecoration(
+                  labelText: 'Group name',
+                  labelStyle: TextStyle(color: sub, fontFamily: 'Nunito'),
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tc,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final name = nameCtrl.text.trim();
+                        final emoji = emojiCtrl.text.trim();
+                        if (name.isNotEmpty) {
+                          widget.onRename(name, emoji.isEmpty ? '📦' : emoji);
+                        }
+                        Navigator.pop(ctx);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Save',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = nameCtrl.text.trim();
-              final emoji = emojiCtrl.text.trim();
-              if (name.isNotEmpty) {
-                widget.onRename(name, emoji.isEmpty ? '📦' : emoji);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }

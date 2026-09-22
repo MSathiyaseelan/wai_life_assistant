@@ -2651,29 +2651,85 @@ class _ExpenseTileState extends State<_ExpenseTile> {
   bool _expanded = false;
 
   void _confirmDelete(BuildContext context) {
-    showDialog(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Expense?',
-            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-        content: Text(
-          'This removes "${widget.tx.title}" (${AppPrefs.cs}${widget.tx.totalAmount.toStringAsFixed(0)}) from the group. This can\'t be undone.',
-          style: const TextStyle(fontFamily: 'Nunito'),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('Delete Expense?',
+                  style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17, color: tc)),
+              const SizedBox(height: 10),
+              Text(
+                'This removes "${widget.tx.title}" (${AppPrefs.cs}${widget.tx.totalAmount.toStringAsFixed(0)}) from the group. This can\'t be undone.',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tc,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        widget.onDelete!();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.expense,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Delete',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
-            onPressed: () {
-              Navigator.pop(ctx);
-              widget.onDelete!();
-            },
-            child: const Text('Delete'),
-          ),
-        ],
       ),
     );
   }

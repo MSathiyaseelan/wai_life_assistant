@@ -1615,48 +1615,87 @@ class _SplitGroupSheetState extends State<SplitGroupSheet>
 
   void _confirmDelete() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final nav = Navigator.of(context);
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.cardDark : AppColors.cardLight,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Delete Group?',
-          style: TextStyle(
-            fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
-        ),
-        content: const Text(
-          'This will permanently remove the group, all transactions and messages.',
-          style: TextStyle(fontFamily: 'Nunito', fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
-            ),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);  // close dialog using its own context
-              nav.pop();           // close sheet using pre-captured navigator
-              widget.onDelete?.call();
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.expense,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-            ),
-            child: const Text(
-              'Delete',
-              style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
-            ),
+              Text(
+                'Delete Group?',
+                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17, color: tc),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'This will permanently remove the group, all transactions and messages.',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tc,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);  // close sheet using its own context
+                        nav.pop();           // close parent sheet using pre-captured navigator
+                        widget.onDelete?.call();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.expense,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Delete',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

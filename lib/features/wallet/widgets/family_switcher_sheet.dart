@@ -1446,78 +1446,143 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     // them too, so offer the less destructive "step down" path first.
     final hasOtherMembers = otherMembers.isNotEmpty;
 
-    showDialog(
+    final cardBg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
       context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) => AlertDialog(
-          title: const Text(
-            'Remove Group?',
-            style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
-          ),
-          content: Text(
-            hasOtherMembers
-                ? 'Remove "${widget.existing!.name}" for everyone? All data will be lost for every member.\n\nIf you\'d rather step down and let the others keep using it, transfer admin to another member instead.'
-                : 'Remove "${widget.existing!.name}"? All data will be lost.',
-            style: const TextStyle(fontFamily: 'Nunito'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: removing ? null : () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+        builder: (dialogCtx, setDialogState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(dialogCtx).viewInsets.bottom),
+          child: Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            if (hasOtherMembers)
-              TextButton(
-                onPressed: removing
-                    ? null
-                    : () {
-                        setDialogState(() => removing = true);
-                        Navigator.pop(ctx);
-                        _showTransferAdminDialog(myMember, otherMembers);
-                      },
-                child: const Text(
-                  'Transfer Admin',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
-              ),
-            TextButton(
-              onPressed: removing
-                  ? null
-                  : () async {
-                      // Guards against a second tap landing before the pop
-                      // below visually dismisses the dialog.
-                      setDialogState(() => removing = true);
-                      Navigator.pop(ctx);
-                      if (!AuthCoordinator.instance.isLoggedIn) {
-                        // Bypass mode: mutate mock globals
-                        mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
-                        familyWallets.removeWhere((w) => w.id == widget.existing!.id);
-                        if (mounted) Navigator.pop(context);
-                        return;
-                      }
-                      try {
-                        await ProfileService.instance.deleteFamily(widget.existing!.id);
-                        if (mounted) {
-                          await widget.appState.reload();
-                          if (mounted) Navigator.pop(context);
-                        }
-                      } catch (e, stack) {
-                        ErrorLogger.log(e, stackTrace: stack, action: 'family_delete');
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(friendlyError(e, 'Failed to remove group. Please try again.')),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    },
-              child: Text(
-                hasOtherMembers ? 'Remove for Everyone' : 'Remove',
-                style: const TextStyle(color: AppColors.expense),
-              ),
+                Text(
+                  'Remove Group?',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  hasOtherMembers
+                      ? 'Remove "${widget.existing!.name}" for everyone? All data will be lost for every member.\n\nIf you\'d rather step down and let the others keep using it, transfer admin to another member instead.'
+                      : 'Remove "${widget.existing!.name}"? All data will be lost.',
+                  style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+                ),
+                const SizedBox(height: 22),
+                if (hasOtherMembers) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: removing
+                          ? null
+                          : () {
+                              setDialogState(() => removing = true);
+                              Navigator.pop(ctx);
+                              _showTransferAdminDialog(myMember, otherMembers);
+                            },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Transfer Admin',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: removing ? null : () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: tc,
+                          backgroundColor: surfBg,
+                          side: BorderSide.none,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Text('Cancel',
+                            style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: removing
+                            ? null
+                            : () async {
+                                // Guards against a second tap landing before the pop
+                                // below visually dismisses the sheet.
+                                setDialogState(() => removing = true);
+                                Navigator.pop(ctx);
+                                if (!AuthCoordinator.instance.isLoggedIn) {
+                                  // Bypass mode: mutate mock globals
+                                  mockFamilies.removeWhere((f) => f.id == widget.existing!.id);
+                                  familyWallets.removeWhere((w) => w.id == widget.existing!.id);
+                                  if (mounted) Navigator.pop(context);
+                                  return;
+                                }
+                                try {
+                                  await ProfileService.instance.deleteFamily(widget.existing!.id);
+                                  if (mounted) {
+                                    await widget.appState.reload();
+                                    if (mounted) Navigator.pop(context);
+                                  }
+                                } catch (e, stack) {
+                                  ErrorLogger.log(e, stackTrace: stack, action: 'family_delete');
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(friendlyError(e, 'Failed to remove group. Please try again.')),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.expense,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: AppColors.expense.withValues(alpha: 0.3),
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text(
+                          hasOtherMembers ? 'Remove for Everyone' : 'Remove',
+                          style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     ).then((_) => _deleteDialogOpen = false);
@@ -1528,53 +1593,94 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
   /// closes this Edit Family sheet since the current user no longer
   /// belongs to it.
   void _showTransferAdminDialog(FamilyMember myMember, List<FamilyMember> otherMembers) {
-    showDialog(
+    final cardBg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
       context: context,
-      builder: (dCtx) => AlertDialog(
-        title: const Text(
-          'Transfer Admin',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Select a member to become the new admin:',
-              style: TextStyle(fontSize: 12, fontFamily: 'Nunito'),
-            ),
-            const SizedBox(height: 8),
-            ...otherMembers.map((m) => ListTile(
-                  leading: EmojiOrImage(value: m.emoji, size: 18),
-                  title: Text(m.name, style: const TextStyle(fontSize: 13, fontFamily: 'Nunito')),
-                  onTap: () async {
-                    Navigator.pop(dCtx);
-                    final messenger = ScaffoldMessenger.of(context);
-                    widget.appState.switchWallet(
-                      widget.appState.wallets
-                          .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
-                          .id,
-                    );
-                    try {
-                      await ProfileService.instance.transferAdminAndLeave(
-                        newAdminMemberId: m.id,
-                        myMemberId: myMember.id,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dCtx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(dCtx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Transfer Admin',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Select a member to become the new admin:',
+                style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+              ),
+              const SizedBox(height: 10),
+              ...otherMembers.map((m) => InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () async {
+                      Navigator.pop(dCtx);
+                      final messenger = ScaffoldMessenger.of(context);
+                      widget.appState.switchWallet(
+                        widget.appState.wallets
+                            .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                            .id,
                       );
-                      if (mounted) {
-                        await widget.appState.reload();
-                        if (mounted) Navigator.pop(context);
+                      try {
+                        await ProfileService.instance.transferAdminAndLeave(
+                          newAdminMemberId: m.id,
+                          myMemberId: myMember.id,
+                        );
+                        if (mounted) {
+                          await widget.appState.reload();
+                          if (mounted) Navigator.pop(context);
+                        }
+                      } catch (e, stack) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_and_leave');
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(friendlyError(e, 'Failed to transfer admin. Please try again.')),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
                       }
-                    } catch (e, stack) {
-                      ErrorLogger.log(e, stackTrace: stack, action: 'transfer_admin_and_leave');
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(friendlyError(e, 'Failed to transfer admin. Please try again.')),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                )),
-          ],
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(14)),
+                      child: Row(
+                        children: [
+                          EmojiOrImage(value: m.emoji, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(m.name, style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: tc)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )),
+            ],
+          ),
         ),
       ),
     );

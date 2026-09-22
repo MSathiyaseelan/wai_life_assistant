@@ -2654,24 +2654,108 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
   // ── Settings ────────────────────────────────────────────────────────────────
   Future<void> _confirmLogout(BuildContext sheetCtx, {required bool allDevices}) async {
-    final confirmed = await showDialog<bool>(
+    final isDark = Theme.of(sheetCtx).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    final confirmed = await showModalBottomSheet<bool>(
       context: sheetCtx,
-      builder: (dCtx) => AlertDialog(
-        title: Text(allDevices ? 'Logout from all devices?' : 'Logout?'),
-        content: Text(allDevices
-            ? 'This will sign you out on all devices. You will need to verify your phone number again to log back in.'
-            : 'You will be signed out of this device.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx, false),
-            child: const Text('Cancel'),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dCtx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(dCtx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Logout'),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text('🚪', style: TextStyle(fontSize: 22)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      allDevices ? 'Logout from all devices?' : 'Logout?',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Nunito',
+                        color: tc,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                allDevices
+                    ? 'This will sign you out on all devices. You will need to verify your phone number again to log back in.'
+                    : 'You will be signed out of this device.',
+                style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(dCtx, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tc,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(dCtx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Logout',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
     if (confirmed != true) return;
@@ -2704,6 +2788,41 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     // whose context sits outside the subtree where AppStateScope is mounted
     // (bottom_nav_screen.dart) — that lookup throws a null-check error every
     // time, silently killing the tap before the confirmation dialog can open.
+    final isDark = Theme.of(sheetCtx).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    Widget sheetChrome({required List<Widget> children}) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            ...children,
+          ],
+        ),
+      ),
+    );
+
     final uid = Supabase.instance.client.auth.currentUser?.id;
     final families = appState.families;
     for (final family in families) {
@@ -2713,23 +2832,47 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       final hasOtherMembers = family.members.any((m) => m.id != myMember.id);
       if (adminCount == 1 && hasOtherMembers) {
         if (!sheetCtx.mounted) return;
-        await showDialog<void>(
+        await showModalBottomSheet<void>(
           context: sheetCtx,
-          builder: (dCtx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Transfer Admin First',
-                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900)),
-            content: Text(
-              'You are the only admin of "${family.name}". Transfer admin to another member before deleting your account, so the family isn\'t left without one.',
-              style: const TextStyle(fontFamily: 'Nunito', fontSize: 13),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dCtx),
-                child: const Text('OK', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (dCtx) => sheetChrome(children: [
+            Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: const Text('⚠️', style: TextStyle(fontSize: 22)),
               ),
-            ],
-          ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('Transfer Admin First',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Text(
+              'You are the only admin of "${family.name}". Transfer admin to another member before deleting your account, so the family isn\'t left without one.',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(dCtx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('OK', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+            ),
+          ]),
         );
         return;
       }
@@ -2742,69 +2885,95 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final localNav  = Navigator.of(sheetCtx);
     final messenger = ScaffoldMessenger.of(sheetCtx);
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: sheetCtx,
-      barrierDismissible: false,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       builder: (dCtx) => StatefulBuilder(
-        builder: (dCtx, ss) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Delete Account',
-              style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w900,
-                  color: Colors.red)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'This will permanently erase all your data — wallets, expenses, notes, pantry, reminders, and more.\n\nThis cannot be undone.',
-                style: TextStyle(fontFamily: 'Nunito', fontSize: 13),
+        builder: (dCtx, ss) => sheetChrome(children: [
+          Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
               ),
-              const SizedBox(height: 16),
-              const Text('Type DELETE to confirm:',
-                  style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                style: const TextStyle(fontFamily: 'Nunito'),
-                decoration: InputDecoration(
-                  hintText: 'DELETE',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+              alignment: Alignment.center,
+              child: const Text('🗑️', style: TextStyle(fontSize: 22)),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Delete Account',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: Colors.red)),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Text(
+            'This will permanently erase all your data — wallets, expenses, notes, pantry, reminders, and more.\n\nThis cannot be undone.',
+            style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+          ),
+          const SizedBox(height: 16),
+          Text('Type DELETE to confirm:',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: tc)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            style: TextStyle(fontFamily: 'Nunito', color: tc),
+            decoration: InputDecoration(
+              hintText: 'DELETE',
+              filled: true,
+              fillColor: surfBg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            ),
+            onChanged: (_) => ss(() {}),
+          ),
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(dCtx),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: tc,
+                    backgroundColor: surfBg,
+                    side: BorderSide.none,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Cancel',
+                      style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
                 ),
-                onChanged: (_) => ss(() {}),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: ctrl.text.trim().toUpperCase() == 'DELETE'
+                      ? () {
+                          confirmed = true;
+                          Navigator.pop(dCtx);
+                        }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.red.withValues(alpha: 0.3),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Delete Forever',
+                      style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 14)),
+                ),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dCtx),
-              child: const Text('Cancel',
-                  style: TextStyle(
-                      fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-            ),
-            TextButton(
-              onPressed: ctrl.text.trim().toUpperCase() == 'DELETE'
-                  ? () {
-                      confirmed = true;
-                      Navigator.pop(dCtx);
-                    }
-                  : null,
-              child: const Text('Delete Forever',
-                  style: TextStyle(
-                      fontFamily: 'Nunito',
-                      fontWeight: FontWeight.w900,
-                      color: Colors.red)),
-            ),
-          ],
-        ),
+        ]),
       ),
     );
 
@@ -2832,138 +3001,201 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
-  /// Two-step dialog: enter the new number, send an OTP to it, verify the
-  /// OTP, then rename this account to it via AuthCoordinator.verifyAndChangePhone
-  /// (which — unlike the login OTP flow — updates the current account
-  /// in place instead of switching to a different one).
+  /// Two-step bottom sheet: enter the new number, send an OTP to it, verify
+  /// the OTP, then rename this account to it via
+  /// AuthCoordinator.verifyAndChangePhone (which — unlike the login OTP flow —
+  /// updates the current account in place instead of switching to a
+  /// different one).
   Future<void> _showChangePhoneDialog(BuildContext context) async {
     final phoneCtrl = TextEditingController();
     final otpCtrl = TextEditingController();
     String phase = 'phone'; // 'phone' | 'otp'
     bool loading = false;
     String? error;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
-    await showDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      barrierDismissible: false,
-      builder: (dCtx) => StatefulBuilder(
-        builder: (dCtx, ss) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(
-            phase == 'phone' ? 'Change Phone Number' : 'Enter OTP',
-            style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, ss) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (phase == 'phone') ...[
-                const Text(
-                  'Enter your new mobile number. We\'ll send an OTP to verify it.',
-                  style: TextStyle(fontFamily: 'Nunito', fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: phoneCtrl,
-                  autofocus: true,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(fontFamily: 'Nunito'),
-                  decoration: InputDecoration(
-                    prefixText: '+91 ',
-                    counterText: '',
-                    hintText: '10-digit mobile number',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  onChanged: (_) => ss(() => error = null),
-                ),
-              ] else ...[
-                Text(
-                  'Enter the 6-digit OTP sent to +91${phoneCtrl.text.trim()}.',
-                  style: const TextStyle(fontFamily: 'Nunito', fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: otpCtrl,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: const TextStyle(fontFamily: 'Nunito', letterSpacing: 4),
-                  decoration: InputDecoration(
-                    counterText: '',
-                    hintText: '••••••',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  onChanged: (_) => ss(() => error = null),
-                ),
-              ],
-              if (error != null) ...[
-                const SizedBox(height: 8),
-                Text(error!, style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.red)),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: loading ? null : () => Navigator.pop(dCtx),
-              child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            TextButton(
-              onPressed: loading
-                  ? null
-                  : () async {
-                      if (phase == 'phone') {
-                        final phone = phoneCtrl.text.trim();
-                        if (phone.length != 10) {
-                          ss(() => error = 'Enter a valid 10-digit number');
-                          return;
-                        }
-                        ss(() { loading = true; error = null; });
-                        try {
-                          await AuthCoordinator.instance.sendOtp('+91$phone');
-                          ss(() { phase = 'otp'; loading = false; });
-                        } catch (e) {
-                          ss(() { loading = false; error = 'Failed to send OTP. Please try again.'; });
-                        }
-                      } else {
-                        final otp = otpCtrl.text.trim();
-                        if (otp.length != 6) {
-                          ss(() => error = 'Enter the 6-digit OTP');
-                          return;
-                        }
-                        ss(() { loading = true; error = null; });
-                        try {
-                          await AuthCoordinator.instance.verifyAndChangePhone(otp);
-                          if (!dCtx.mounted) return;
-                          Navigator.pop(dCtx);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Phone number updated')),
-                            );
-                          }
-                        } catch (e) {
-                          ss(() {
-                            loading = false;
-                            error = e is AuthException ? e.message : 'Failed to verify OTP. Please try again.';
-                          });
-                        }
-                      }
-                    },
-              child: loading
-                  ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(
-                      phase == 'phone' ? 'Send OTP' : 'Verify',
-                      style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
                     ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        phase == 'phone' ? 'Change Phone Number' : 'Enter OTP',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: 'Nunito',
+                          color: tc,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: loading ? null : () => Navigator.pop(sheetCtx),
+                      icon: Icon(Icons.close_rounded, color: sub),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (phase == 'phone') ...[
+                  Text(
+                    "Enter your new mobile number. We'll send an OTP to verify it.",
+                    style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: phoneCtrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: TextStyle(fontFamily: 'Nunito', color: tc),
+                    decoration: InputDecoration(
+                      prefixText: '+91 ',
+                      counterText: '',
+                      hintText: '10-digit mobile number',
+                      filled: true,
+                      fillColor: surfBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    ),
+                    onChanged: (_) => ss(() => error = null),
+                  ),
+                ] else ...[
+                  Text(
+                    'Enter the 6-digit OTP sent to +91${phoneCtrl.text.trim()}.',
+                    style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: otpCtrl,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    style: TextStyle(fontFamily: 'Nunito', letterSpacing: 4, color: tc),
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: '••••••',
+                      filled: true,
+                      fillColor: surfBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    ),
+                    onChanged: (_) => ss(() => error = null),
+                  ),
+                ],
+                if (error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(error!, style: const TextStyle(fontFamily: 'Nunito', fontSize: 12, color: Colors.red)),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: loading
+                        ? null
+                        : () async {
+                            if (phase == 'phone') {
+                              final phone = phoneCtrl.text.trim();
+                              if (phone.length != 10) {
+                                ss(() => error = 'Enter a valid 10-digit number');
+                                return;
+                              }
+                              ss(() { loading = true; error = null; });
+                              try {
+                                await AuthCoordinator.instance.sendOtp('+91$phone');
+                                ss(() { phase = 'otp'; loading = false; });
+                              } catch (e) {
+                                ss(() { loading = false; error = 'Failed to send OTP. Please try again.'; });
+                              }
+                            } else {
+                              final otp = otpCtrl.text.trim();
+                              if (otp.length != 6) {
+                                ss(() => error = 'Enter the 6-digit OTP');
+                                return;
+                              }
+                              ss(() { loading = true; error = null; });
+                              try {
+                                await AuthCoordinator.instance.verifyAndChangePhone(otp);
+                                if (!sheetCtx.mounted) return;
+                                Navigator.pop(sheetCtx);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Phone number updated')),
+                                  );
+                                }
+                              } catch (e) {
+                                ss(() {
+                                  loading = false;
+                                  error = e is AuthException ? e.message : 'Failed to verify OTP. Please try again.';
+                                });
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: loading
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text(
+                            phase == 'phone' ? 'Send OTP' : 'Verify',
+                            style: const TextStyle(
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

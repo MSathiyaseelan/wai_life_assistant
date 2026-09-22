@@ -131,90 +131,128 @@ class _BudgetSheetState extends State<BudgetSheet> {
     final tc   = isDark ? AppColors.textDark  : AppColors.textLight;
     final sub  = isDark ? AppColors.subDark   : AppColors.subLight;
 
-    final result = await showDialog<double>(
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+
+    final result = await showModalBottomSheet<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          existing != null ? 'Edit budget' : 'Set budget',
-          style: TextStyle(
-            fontFamily: 'Nunito', fontWeight: FontWeight.w800,
-            fontSize: 17, color: tc,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(walletCategoryEmoji(name), style: const TextStyle(fontSize: 22)),
-                const SizedBox(width: 8),
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontFamily: 'Nunito', fontWeight: FontWeight.w700,
-                    fontSize: 15, color: tc,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Monthly limit (${AppPrefs.cs})',
-              style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w600, color: sub),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: TextStyle(
-                fontFamily: 'Nunito', fontWeight: FontWeight.w800,
-                fontSize: 22, color: tc,
               ),
-              decoration: InputDecoration(
-                prefixText: '${AppPrefs.cs} ',
-                prefixStyle: TextStyle(
-                  fontFamily: 'Nunito', fontWeight: FontWeight.w700,
-                  fontSize: 20, color: sub,
+              Text(
+                existing != null ? 'Edit budget' : 'Set budget',
+                style: TextStyle(
+                  fontFamily: 'Nunito', fontWeight: FontWeight.w900,
+                  fontSize: 17, color: tc,
                 ),
-                hintText: '0',
-                hintStyle: TextStyle(color: sub),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: sub.withValues(alpha: 0.3)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.primary),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               ),
-            ),
-          ],
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Text(walletCategoryEmoji(name), style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 8),
+                  Text(
+                    name,
+                    style: TextStyle(
+                      fontFamily: 'Nunito', fontWeight: FontWeight.w700,
+                      fontSize: 15, color: tc,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Monthly limit (${AppPrefs.cs})',
+                style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w600, color: sub),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                style: TextStyle(
+                  fontFamily: 'Nunito', fontWeight: FontWeight.w800,
+                  fontSize: 22, color: tc,
+                ),
+                decoration: InputDecoration(
+                  prefixText: '${AppPrefs.cs} ',
+                  prefixStyle: TextStyle(
+                    fontFamily: 'Nunito', fontWeight: FontWeight.w700,
+                    fontSize: 20, color: sub,
+                  ),
+                  hintText: '0',
+                  hintStyle: TextStyle(color: sub),
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tc,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () {
+                        final v = double.tryParse(ctrl.text.trim());
+                        if (v != null && v > 0) Navigator.pop(ctx, v);
+                      },
+                      child: const Text('Save',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: sub, fontFamily: 'Nunito')),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              final v = double.tryParse(ctrl.text.trim());
-              if (v != null && v > 0) Navigator.pop(ctx, v);
-            },
-            child: const Text('Save', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
-          ),
-        ],
       ),
     );
 
@@ -265,49 +303,94 @@ class _BudgetSheetState extends State<BudgetSheet> {
     final sub  = isDark ? AppColors.subDark  : AppColors.subLight;
     final bg   = isDark ? AppColors.cardDark : AppColors.cardLight;
 
-    final name = await showDialog<String>(
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+
+    final name = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('New category',
-          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 17, color: tc)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 16, color: tc),
-          decoration: InputDecoration(
-            hintText: 'e.g. Dining Out',
-            hintStyle: TextStyle(color: sub),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: sub.withValues(alpha: 0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary),
-            ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text('New category',
+                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17, color: tc)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 16, color: tc),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Dining Out',
+                  hintStyle: TextStyle(color: sub),
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: tc,
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Cancel',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: () {
+                        final v = ctrl.text.trim();
+                        if (v.isNotEmpty) Navigator.pop(ctx, v);
+                      },
+                      child: const Text('Add',
+                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: sub, fontFamily: 'Nunito')),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              final v = ctrl.text.trim();
-              if (v.isNotEmpty) Navigator.pop(ctx, v);
-            },
-            child: const Text('Add', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
-          ),
-        ],
       ),
     );
 
