@@ -8,6 +8,7 @@ import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/shared/utils/overlay_toast.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '../../widgets/life_widgets.dart';
 
 const _locatorColor = Color(0xFF6C63FF);
@@ -829,6 +830,10 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     final notesCtrl = TextEditingController(text: c.notes ?? '');
     final colorCtrl = TextEditingController(text: c.color ?? '');
     var selType = c.type;
+    var selectedWalletId = c.walletId;
+    final appWallets = AppStateScope.of(context).wallets;
+    final personalWallet = appWallets.where((w) => w.isPersonal).firstOrNull;
+    final familyWallets = appWallets.where((w) => !w.isPersonal).toList();
 
     showLifeSheet(
       ctx,
@@ -931,22 +936,84 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                 maxLines: 2,
               ),
 
+              if (familyWallets.isNotEmpty && personalWallet != null) ...[
+                const SizedBox(height: 12),
+                const LifeLabel(text: 'MOVE TO GROUP'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    GestureDetector(
+                      onTap: () => ss(() => selectedWalletId = personalWallet.id),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: selectedWalletId == personalWallet.id ? _locatorColor.withValues(alpha: 0.15) : surfBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: selectedWalletId == personalWallet.id ? _locatorColor : Colors.transparent),
+                        ),
+                        child: Text(
+                          'Personal',
+                          style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito',
+                            color: selectedWalletId == personalWallet.id ? _locatorColor : (isDark ? AppColors.subDark : AppColors.subLight),
+                          ),
+                        ),
+                      ),
+                    ),
+                    ...familyWallets.map((w) => GestureDetector(
+                      onTap: () => ss(() => selectedWalletId = w.id),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: selectedWalletId == w.id ? _locatorColor.withValues(alpha: 0.15) : surfBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: selectedWalletId == w.id ? _locatorColor : Colors.transparent),
+                        ),
+                        child: Text(
+                          w.name,
+                          style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito',
+                            color: selectedWalletId == w.id ? _locatorColor : (isDark ? AppColors.subDark : AppColors.subLight),
+                          ),
+                        ),
+                      ),
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 4),
+              ],
+
               LifeSaveButton(
                 label: 'Save Changes',
                 color: selType.color,
                 onTap: () {
                   if (nameCtrl.text.trim().isEmpty) return;
+                  final originalWalletId = c.walletId;
+                  final moved = selectedWalletId != originalWalletId;
                   setState(() {
                     c.type = selType;
                     c.name = nameCtrl.text.trim();
                     c.location = locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim();
                     c.color = colorCtrl.text.trim().isEmpty ? null : colorCtrl.text.trim();
                     c.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                    c.walletId = selectedWalletId;
+                    if (moved) {
+                      for (final i in _items) {
+                        if (i.containerId == c.id) i.walletId = selectedWalletId;
+                      }
+                    }
                   });
                   Navigator.pop(ctx);
+                  if (moved && ctx.mounted) Navigator.pop(ctx);
                   () async {
                     try {
                       await ItemLocatorService.instance.updateContainer(c.id, c.toJson());
+                      if (moved) {
+                        await ItemLocatorService.instance.moveContainerItemsToWallet(c.id, selectedWalletId);
+                      }
                     } catch (e, stack) {
                       ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_update_container');
                       debugPrint('[ItemLocator] updateContainer error: $e');

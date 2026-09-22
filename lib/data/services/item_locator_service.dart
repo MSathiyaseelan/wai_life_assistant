@@ -77,6 +77,16 @@ class ItemLocatorService {
     await _db.from('item_locator_containers').update(updates).eq('id', id);
   }
 
+  /// Moves every item inside [containerId] to [newWalletId] — call
+  /// alongside updateContainer() (whose own payload already carries the
+  /// container's new wallet_id) when a container is moved to a different
+  /// wallet, e.g. Personal -> a Family group. item_locator_items carries
+  /// its own wallet_id independently of container_id, so without this the
+  /// container's items would keep filtering into the wallet it just left.
+  Future<void> moveContainerItemsToWallet(String containerId, String newWalletId) async {
+    await _db.from('item_locator_items').update({'wallet_id': newWalletId}).eq('container_id', containerId);
+  }
+
   Future<void> deleteContainer(String id) async {
     await _db.from('item_locator_containers').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
