@@ -121,6 +121,7 @@ class TermsOfServiceSheet extends StatelessWidget {
                     ),
                     _bullet('Supabase — data storage and backend'),
                     _bullet('Google Gemini — AI assistant features'),
+                    _bullet('RevenueCat — subscription purchase management'),
                     _para(
                       'We are not responsible for the practices of these third-party services.',
                     ),
@@ -231,7 +232,7 @@ class TermsOfServiceSheet extends StatelessWidget {
         Icon(Icons.verified_rounded, size: 14, color: AppColors.primary),
         const SizedBox(width: 6),
         Text(
-          'Last updated: June 2026',
+          'Last updated: September 2026',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,

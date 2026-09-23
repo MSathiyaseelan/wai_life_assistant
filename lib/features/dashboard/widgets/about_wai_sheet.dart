@@ -148,11 +148,15 @@ class AboutWaiSheet extends StatelessWidget {
                 label: 'Open Source Licences',
                 sub: _sub,
                 tc: _tc,
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: 'RiyasHome Life Assistance',
-                  applicationVersion: '1.0.0',
-                ),
+                onTap: () async {
+                  final info = await PackageInfo.fromPlatform();
+                  if (!context.mounted) return;
+                  showLicensePage(
+                    context: context,
+                    applicationName: 'RiyasHome Life Assistance',
+                    applicationVersion: '${info.version} (${info.buildNumber})',
+                  );
+                },
               ),
             ],
           ),
