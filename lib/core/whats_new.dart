@@ -39,5 +39,14 @@ class WhatsNew {
       'Pantry: added a Beverages meal type.',
       'Wallet: export transactions and split groups to CSV.',
     ],
+    32: [
+      'Fixed the OTP screen briefly flashing a red error right after requesting the code.',
+      'Fixed Wardrobe\'s full-image viewer sometimes showing a blank image.',
+      'Fixed tapping a recipe under "Your Recipes" in Add Recipe not opening its details.',
+      'Fixed slow/unresponsive number taps when setting your App Lock PIN.',
+      'Added a "Forgot PIN?" option to App Lock, plus biometric as a fallback there.',
+      'Privacy & Security: "Require Biometric" for Locked Notes and "Personalisation" now actually take effect.',
+      'Fixed Family Plus/Pro members sometimes seeing "Free scan limit reached" on Wallet bill scans.',
+    ],
   };
 }
