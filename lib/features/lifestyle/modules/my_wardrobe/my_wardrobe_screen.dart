@@ -130,10 +130,28 @@ void _showFullImage(BuildContext ctx, String path) {
             ),
           ),
           Flexible(
-            child: InteractiveViewer(
-              minScale: 1,
-              maxScale: 4,
-              child: _WardrobePhoto(path: path, fit: BoxFit.contain, width: double.infinity),
+            child: LayoutBuilder(
+              builder: (context, constraints) => InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                // InteractiveViewer needs its child to have a bounded,
+                // concrete size to lay out/pan correctly — width:
+                // double.infinity with no height (the previous approach)
+                // resolved to a zero-size image in release builds (the
+                // debug-only assertion that would've caught this is
+                // stripped in release), so the sheet opened but showed
+                // nothing.
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  height: constraints.maxHeight,
+                  child: _WardrobePhoto(
+                    path: path,
+                    fit: BoxFit.contain,
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                  ),
+                ),
+              ),
             ),
           ),
           SizedBox(height: MediaQuery.of(sheetCtx).padding.bottom + 16),
@@ -176,6 +194,7 @@ String _fmtDate(DateTime d) {
 class MyWardrobeScreen extends StatefulWidget {
   final String walletId;
   final List<LifeMember> members;
+
   /// Items MyHubScreen already fetched for its summary card — when
   /// provided, skips re-fetching just this one query (outfit logs are
   /// always fetched fresh, MyHub doesn't have those).
@@ -225,13 +244,13 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     // instead of showing separately under Family Today.
     final currentUid = Supabase.instance.client.auth.currentUser?.id;
     _selectedMember = widget.members
-            .firstWhere(
-              (m) => m.id == currentUid,
-              orElse: () => widget.members.isNotEmpty
-                  ? widget.members.first
-                  : const LifeMember(id: 'me', name: 'Me', emoji: '🧑'),
-            )
-            .id;
+        .firstWhere(
+          (m) => m.id == currentUid,
+          orElse: () => widget.members.isNotEmpty
+              ? widget.members.first
+              : const LifeMember(id: 'me', name: 'Me', emoji: '🧑'),
+        )
+        .id;
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() {
       setState(() {
@@ -442,61 +461,65 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
               color: _wardrobeColor,
               child: Column(
                 children: [
-                  // Member selector
-                  Container(
-                    color: cardBg,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-                    child: SizedBox(
-                      height: 52,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: widget.members.map((m) {
-                          final sel = m.id == _selectedMember;
-                          return GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedMember = m.id),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              margin: const EdgeInsets.only(right: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? _wardrobeColor.withValues(alpha: 0.12)
-                                    : surfBg,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
+                  // Member selector — only meaningful with more than one
+                  // member (Family groups); a Personal wallet always has
+                  // just the solo "Me" entry, so showing it there is just
+                  // a single fixed pill taking up space for nothing.
+                  if (widget.members.length > 1)
+                    Container(
+                      color: cardBg,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+                      child: SizedBox(
+                        height: 52,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: widget.members.map((m) {
+                            final sel = m.id == _selectedMember;
+                            return GestureDetector(
+                              onTap: () =>
+                                  setState(() => _selectedMember = m.id),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
                                   color: sel
-                                      ? _wardrobeColor
-                                      : Colors.transparent,
+                                      ? _wardrobeColor.withValues(alpha: 0.12)
+                                      : surfBg,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: sel
+                                        ? _wardrobeColor
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      m.emoji,
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      m.name,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: 'Nunito',
+                                        color: sel ? _wardrobeColor : sub,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    m.emoji,
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    m.name,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      fontFamily: 'Nunito',
-                                      color: sel ? _wardrobeColor : sub,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                  ),
                   Expanded(
                     child: TabBarView(
                       controller: _tab,
@@ -520,7 +543,9 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                       onTap: () =>
                                           setState(() => _filterCat = null),
                                     ),
-                                    ..._visibleCategories(_genderOf(_selectedMember)).map(
+                                    ..._visibleCategories(
+                                      _genderOf(_selectedMember),
+                                    ).map(
                                       (c) => _CatChip(
                                         label: c.label,
                                         emoji: c.emoji,
@@ -537,67 +562,71 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                             Expanded(
                               child: _searchQuery.isNotEmpty
                                   ? _filtered.isEmpty
-                                      ? ListView(
-                                          physics: const AlwaysScrollableScrollPhysics(),
-                                          children: [
-                                            LifeEmptyState(
-                                              emoji: '🔍',
-                                              title: 'No results',
-                                              subtitle:
-                                                  'No items match "$_searchQuery"',
+                                        ? ListView(
+                                            physics:
+                                                const AlwaysScrollableScrollPhysics(),
+                                            children: [
+                                              LifeEmptyState(
+                                                emoji: '🔍',
+                                                title: 'No results',
+                                                subtitle:
+                                                    'No items match "$_searchQuery"',
+                                              ),
+                                            ],
+                                          )
+                                        : _SearchResultsList(
+                                            items: _filtered,
+                                            allItems: _clothes,
+                                            outfitLogs: _outfitLogs,
+                                            isDark: isDark,
+                                            onTap: (item) => showLifeSheet(
+                                              context,
+                                              child: _ClothingDetail(
+                                                item: item,
+                                                isDark: isDark,
+                                                allItems: _clothes,
+                                                onUpdate: () => setState(() {}),
+                                                onDelete: () =>
+                                                    _deleteClothingItem(item),
+                                                onEdit: () {
+                                                  Navigator.pop(context);
+                                                  _showEditItem(context, item);
+                                                },
+                                              ),
                                             ),
-                                          ],
-                                        )
-                                      : _SearchResultsList(
-                                          items: _filtered,
-                                          allItems: _clothes,
-                                          outfitLogs: _outfitLogs,
-                                          isDark: isDark,
-                                          onTap: (item) => showLifeSheet(
-                                            context,
-                                            child: _ClothingDetail(
-                                              item: item,
-                                              isDark: isDark,
-                                              allItems: _clothes,
-                                              onUpdate: () => setState(() {}),
-                                              onDelete: () => _deleteClothingItem(item),
-                                              onEdit: () {
-                                                Navigator.pop(context);
-                                                _showEditItem(context, item);
-                                              },
-                                            ),
-                                          ),
-                                        )
+                                          )
                                   : _filtered.isEmpty
-                                      ? ListView(
-                                          physics: const AlwaysScrollableScrollPhysics(),
-                                          children: const [
-                                            LifeEmptyState(
-                                              emoji: '👗',
-                                              title: 'No items here',
-                                              subtitle:
-                                                  'Add dresses to your wardrobe',
-                                            ),
-                                          ],
-                                        )
-                                      : _ClothingGrid(
-                                          items: _filtered,
-                                          isDark: isDark,
-                                          onTap: (item) => showLifeSheet(
-                                            context,
-                                            child: _ClothingDetail(
-                                              item: item,
-                                              isDark: isDark,
-                                              allItems: _clothes,
-                                              onUpdate: () => setState(() {}),
-                                              onDelete: () => _deleteClothingItem(item),
-                                              onEdit: () {
-                                                Navigator.pop(context);
-                                                _showEditItem(context, item);
-                                              },
-                                            ),
-                                          ),
+                                  ? ListView(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      children: const [
+                                        LifeEmptyState(
+                                          emoji: '👗',
+                                          title: 'No items here',
+                                          subtitle:
+                                              'Add dresses to your wardrobe',
                                         ),
+                                      ],
+                                    )
+                                  : _ClothingGrid(
+                                      items: _filtered,
+                                      isDark: isDark,
+                                      onTap: (item) => showLifeSheet(
+                                        context,
+                                        child: _ClothingDetail(
+                                          item: item,
+                                          isDark: isDark,
+                                          allItems: _clothes,
+                                          onUpdate: () => setState(() {}),
+                                          onDelete: () =>
+                                              _deleteClothingItem(item),
+                                          onEdit: () {
+                                            Navigator.pop(context);
+                                            _showEditItem(context, item);
+                                          },
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ],
                         ),
@@ -636,11 +665,12 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                 if (existing != null) {
                                   await WardrobeService.instance
                                       .updateOutfitLog(existing.id, {
-                                    'item_ids': log.itemIds,
-                                    if (log.notes != null) 'notes': log.notes,
-                                    if (log.photoPath != null)
-                                      'photo_url': log.photoPath,
-                                  });
+                                        'item_ids': log.itemIds,
+                                        if (log.notes != null)
+                                          'notes': log.notes,
+                                        if (log.photoPath != null)
+                                          'photo_url': log.photoPath,
+                                      });
                                   if (mounted) {
                                     setState(() {
                                       final i = _outfitLogs.indexWhere(
@@ -679,21 +709,37 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                   }
                                 }
                               } catch (e) {
-                                ErrorLogger.warning(e, action: 'wardrobe_log_outfit');
+                                ErrorLogger.warning(
+                                  e,
+                                  action: 'wardrobe_log_outfit',
+                                );
                               }
                             }();
                           },
                           onDelete: (log) {
-                            setState(() => _outfitLogs.removeWhere((l) => l.id == log.id));
+                            setState(
+                              () => _outfitLogs.removeWhere(
+                                (l) => l.id == log.id,
+                              ),
+                            );
                             () async {
                               try {
-                                await WardrobeService.instance.deleteOutfitLog(log.id);
+                                await WardrobeService.instance.deleteOutfitLog(
+                                  log.id,
+                                );
                               } catch (e) {
-                                ErrorLogger.warning(e, action: 'wardrobe_delete_outfit_log');
+                                ErrorLogger.warning(
+                                  e,
+                                  action: 'wardrobe_delete_outfit_log',
+                                );
                                 if (mounted) {
                                   setState(() => _outfitLogs.add(log));
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Failed to delete. Please try again.')),
+                                    const SnackBar(
+                                      content: Text(
+                                        'Failed to delete. Please try again.',
+                                      ),
+                                    ),
                                   );
                                 }
                               }
@@ -733,15 +779,21 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                       final item = _wishlist[i];
                                       try {
                                         await WardrobeService.instance
-                                            .updateItem(item.id, {'wishlist': false});
+                                            .updateItem(item.id, {
+                                              'wishlist': false,
+                                            });
                                         if (mounted) {
                                           setState(() => item.wishlist = false);
                                         }
                                       } catch (e) {
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             const SnackBar(
-                                              content: Text('Failed to move item. Please try again.'),
+                                              content: Text(
+                                                'Failed to move item. Please try again.',
+                                              ),
                                             ),
                                           );
                                         }
@@ -750,15 +802,20 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                     onDelete: () async {
                                       final item = _wishlist[i];
                                       try {
-                                        await WardrobeService.instance.deleteItem(item.id);
+                                        await WardrobeService.instance
+                                            .deleteItem(item.id);
                                         if (mounted) {
                                           setState(() => _clothes.remove(item));
                                         }
                                       } catch (e) {
                                         if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             const SnackBar(
-                                              content: Text('Failed to remove item. Please try again.'),
+                                              content: Text(
+                                                'Failed to remove item. Please try again.',
+                                              ),
                                             ),
                                           );
                                         }
@@ -892,13 +949,13 @@ class _AddClothingSheetState extends State<AddClothingSheet>
   late final TabController _tab;
 
   // Manual form fields
-  final _nameCtrl   = TextEditingController();
-  final _brandCtrl  = TextEditingController();
-  final _sizeCtrl   = TextEditingController();
-  final _colorCtrl  = TextEditingController();
-  final _notesCtrl  = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _brandCtrl = TextEditingController();
+  final _sizeCtrl = TextEditingController();
+  final _colorCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
   final _sourceCtrl = TextEditingController();
-  String  _cat       = 'unisex_accessories';
+  String _cat = 'unisex_accessories';
   String? _photoPath;
   List<WardrobeCategory> _categories = WardrobeCategory.fallback;
 
@@ -969,19 +1026,29 @@ class _AddClothingSheetState extends State<AddClothingSheet>
     final isMale = widget.memberGender == 'male';
     final isFemale = widget.memberGender == 'female';
 
-    if (o.contains('sport') || o.contains('gym') || o.contains('workout') || o.contains('active')) {
+    if (o.contains('sport') ||
+        o.contains('gym') ||
+        o.contains('workout') ||
+        o.contains('active')) {
       return 'unisex_sportswear';
     }
     if (t.contains('jacket') || t.contains('hoodie')) return 'unisex_jackets';
     if (o.contains('winter') || o.contains('cold') || t.contains('coat')) {
       return 'unisex_winterwear';
     }
-    if (o.contains('night') || o.contains('sleep') || t.contains('pyjama') ||
-        t.contains('pajama') || t.contains('nightwear')) {
+    if (o.contains('night') ||
+        o.contains('sleep') ||
+        t.contains('pyjama') ||
+        t.contains('pajama') ||
+        t.contains('nightwear')) {
       return 'unisex_nightwear';
     }
-    if (t.contains('shoe') || t.contains('sandal') || t.contains('sneaker') ||
-        t.contains('boot') || t.contains('slipper') || t.contains('heel')) {
+    if (t.contains('shoe') ||
+        t.contains('sandal') ||
+        t.contains('sneaker') ||
+        t.contains('boot') ||
+        t.contains('slipper') ||
+        t.contains('heel')) {
       return 'unisex_footwear';
     }
     if (t.contains('sock')) return 'unisex_socks';
@@ -989,7 +1056,8 @@ class _AddClothingSheetState extends State<AddClothingSheet>
     if (t.contains('bag')) return 'unisex_bags';
 
     if (t.contains('sherwani')) return 'male_sherwani';
-    if (t.contains('dhoti') || t.contains('lungi') || t.contains('veshti')) return 'male_veshti';
+    if (t.contains('dhoti') || t.contains('lungi') || t.contains('veshti'))
+      return 'male_veshti';
     if (t.contains('suit') || t.contains('blazer')) return 'male_suits';
 
     if (t.contains('saree')) return 'female_sarees';
@@ -1005,23 +1073,34 @@ class _AddClothingSheetState extends State<AddClothingSheet>
 
     if (t.contains('jean')) return 'unisex_jeans';
     if (t.contains('short')) return isMale ? 'male_shorts' : 'female_skirts';
-    if (isMale && t.contains('formal') && (t.contains('trouser') || t.contains('pant'))) {
+    if (isMale &&
+        t.contains('formal') &&
+        (t.contains('trouser') || t.contains('pant'))) {
       return 'male_formal_pants';
     }
     if (t.contains('trouser') || t.contains('pant')) {
       return isFemale ? 'female_leggings' : 'male_trousers';
     }
 
-    if (t.contains('brief') || t.contains('bra') || t.contains('underwear') ||
-        t.contains('inner') || t.contains('innerwear')) {
+    if (t.contains('brief') ||
+        t.contains('bra') ||
+        t.contains('underwear') ||
+        t.contains('inner') ||
+        t.contains('innerwear')) {
       return isMale ? 'male_innerwear' : 'female_innerwear';
     }
 
-    if (t.contains('ring') || t.contains('necklace') || t.contains('bracelet') ||
-        t.contains('earring') || t.contains('jewellery') || t.contains('jewelry')) {
+    if (t.contains('ring') ||
+        t.contains('necklace') ||
+        t.contains('bracelet') ||
+        t.contains('earring') ||
+        t.contains('jewellery') ||
+        t.contains('jewelry')) {
       return isFemale ? 'female_jewellery' : 'unisex_accessories';
     }
-    if (t.contains('watch') || t.contains('belt') || t.contains('scarf') ||
+    if (t.contains('watch') ||
+        t.contains('belt') ||
+        t.contains('scarf') ||
         t.contains('accessory')) {
       return 'unisex_accessories';
     }
@@ -1092,13 +1171,26 @@ class _AddClothingSheetState extends State<AddClothingSheet>
         // when it's actually a local file path.
         String? photoUrl = localPath;
         if (localPath != null && !localPath.startsWith('http')) {
-          photoUrl = await svc.uploadPhoto(localPath, memberId: widget.memberId);
+          photoUrl = await svc.uploadPhoto(
+            localPath,
+            memberId: widget.memberId,
+          );
         }
-        final brand = _brandCtrl.text.trim().isEmpty ? null : _brandCtrl.text.trim();
-        final size = _sizeCtrl.text.trim().isEmpty ? null : _sizeCtrl.text.trim();
-        final color = _colorCtrl.text.trim().isEmpty ? null : _colorCtrl.text.trim();
-        final notes = _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim();
-        final source = _sourceCtrl.text.trim().isEmpty ? null : _sourceCtrl.text.trim();
+        final brand = _brandCtrl.text.trim().isEmpty
+            ? null
+            : _brandCtrl.text.trim();
+        final size = _sizeCtrl.text.trim().isEmpty
+            ? null
+            : _sizeCtrl.text.trim();
+        final color = _colorCtrl.text.trim().isEmpty
+            ? null
+            : _colorCtrl.text.trim();
+        final notes = _notesCtrl.text.trim().isEmpty
+            ? null
+            : _notesCtrl.text.trim();
+        final source = _sourceCtrl.text.trim().isEmpty
+            ? null
+            : _sourceCtrl.text.trim();
 
         if (existing != null) {
           await svc.updateItem(existing.id, {
@@ -1125,30 +1217,43 @@ class _AddClothingSheetState extends State<AddClothingSheet>
         }
 
         final item = ClothingItem(
-          id:             '',
-          memberId:       widget.memberId,
-          walletId:       widget.walletId,
-          name:           name,
-          category:       _cat,
-          gender:         ClothingGender.unisex,
-          brand:          brand,
-          size:           size,
-          color:          color,
-          notes:          notes,
-          photoPath:      photoUrl,
-          wishlist:       widget.isWishlist,
+          id: '',
+          memberId: widget.memberId,
+          walletId: widget.walletId,
+          name: name,
+          category: _cat,
+          gender: ClothingGender.unisex,
+          brand: brand,
+          size: size,
+          color: color,
+          notes: notes,
+          photoPath: photoUrl,
+          wishlist: widget.isWishlist,
           wishlistSource: source,
         );
-        final row   = await svc.addItem(item.toJson());
+        final row = await svc.addItem(item.toJson());
         final saved = ClothingItem.fromJson(row);
         widget.onItemAdded?.call(saved);
       } catch (e) {
         final isLimitError = e is WardrobeLimitExceededException;
         if (!isLimitError) {
-          ErrorLogger.warning(e, action: existing != null ? 'wardrobe_update_item' : 'wardrobe_add_item');
+          ErrorLogger.warning(
+            e,
+            action: existing != null
+                ? 'wardrobe_update_item'
+                : 'wardrobe_add_item',
+          );
         }
         messenger.showSnackBar(
-          SnackBar(content: Text(isLimitError ? e.toString() : (existing != null ? 'Failed to save changes' : 'Failed to add item'))),
+          SnackBar(
+            content: Text(
+              isLimitError
+                  ? e.toString()
+                  : (existing != null
+                        ? 'Failed to save changes'
+                        : 'Failed to add item'),
+            ),
+          ),
         );
       }
     }();
@@ -1159,13 +1264,15 @@ class _AddClothingSheetState extends State<AddClothingSheet>
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
-    final bg     = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final tc     = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: bg,
@@ -1176,7 +1283,8 @@ class _AddClothingSheetState extends State<AddClothingSheet>
           children: [
             // Handle
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 16),
               decoration: BoxDecoration(
                 color: Colors.grey.withValues(alpha: 0.3),
@@ -1187,25 +1295,34 @@ class _AddClothingSheetState extends State<AddClothingSheet>
             // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(children: [
-                Text(widget.isWishlist ? '🛍️' : '👗',
-                    style: const TextStyle(fontSize: 22)),
-                const SizedBox(width: 10),
-                Text(
-                  widget.existing != null
-                      ? 'Edit Clothing Item'
-                      : (widget.isWishlist ? 'Add to Wishlist' : 'Add Clothing Item'),
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
-                  iconSize: 20,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ]),
+              child: Row(
+                children: [
+                  Text(
+                    widget.isWishlist ? '🛍️' : '👗',
+                    style: const TextStyle(fontSize: 22),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.existing != null
+                        ? 'Edit Clothing Item'
+                        : (widget.isWishlist
+                              ? 'Add to Wishlist'
+                              : 'Add Clothing Item'),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Nunito',
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                    iconSize: 20,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
 
@@ -1255,8 +1372,12 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                       children: [
                         Text(
                           'Describe the clothing item',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-                              fontFamily: 'Nunito', color: tc),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Nunito',
+                            color: tc,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Container(
@@ -1264,21 +1385,30 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                             color: surfBg,
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                                color: _wardrobeColor.withValues(alpha: 0.3)),
+                              color: _wardrobeColor.withValues(alpha: 0.3),
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           child: TextField(
                             controller: _aiCtrl,
                             maxLines: 4,
                             minLines: 3,
                             style: TextStyle(
-                                fontSize: 13, fontFamily: 'Nunito', color: tc),
+                              fontSize: 13,
+                              fontFamily: 'Nunito',
+                              color: tc,
+                            ),
                             decoration: InputDecoration.collapsed(
                               hintText:
                                   'e.g. "Blue Levi\'s jeans size 32"\nor "Red Nike running shoes M"',
                               hintStyle: TextStyle(
-                                  fontSize: 12, fontFamily: 'Nunito', color: sub),
+                                fontSize: 12,
+                                fontFamily: 'Nunito',
+                                color: sub,
+                              ),
                             ),
                           ),
                         ),
@@ -1286,7 +1416,10 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                         Text(
                           'AI fills the form fields — you can review before saving',
                           style: TextStyle(
-                              fontSize: 10, fontFamily: 'Nunito', color: sub),
+                            fontSize: 10,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
                         ),
                         const SizedBox(height: 16),
 
@@ -1314,22 +1447,31 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                     fit: StackFit.expand,
                                     children: [
                                       _WardrobePhoto(
-                                          path: _photoPath!, fit: BoxFit.cover),
+                                        path: _photoPath!,
+                                        fit: BoxFit.cover,
+                                      ),
                                       Positioned(
-                                        bottom: 6, right: 8,
+                                        bottom: 6,
+                                        right: 8,
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 3),
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: Colors.black54,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
-                                          child: const Text('Tap to change',
-                                              style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 9,
-                                                  fontFamily: 'Nunito')),
+                                          child: const Text(
+                                            'Tap to change',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontFamily: 'Nunito',
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1337,17 +1479,24 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                 : Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.add_a_photo_rounded,
-                                          color: _wardrobeColor
-                                              .withValues(alpha: 0.5),
-                                          size: 28),
+                                      Icon(
+                                        Icons.add_a_photo_rounded,
+                                        color: _wardrobeColor.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                        size: 28,
+                                      ),
                                       const SizedBox(height: 4),
-                                      Text('Tap to add photo',
-                                          style: TextStyle(
-                                              fontSize: 11,
-                                              fontFamily: 'Nunito',
-                                              color: _wardrobeColor
-                                                  .withValues(alpha: 0.7))),
+                                      Text(
+                                        'Tap to add photo',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontFamily: 'Nunito',
+                                          color: _wardrobeColor.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ),
                           ),
@@ -1360,30 +1509,39 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _wardrobeColor,
                               foregroundColor: Colors.white,
-                              disabledBackgroundColor:
-                                  _wardrobeColor.withValues(alpha: 0.5),
+                              disabledBackgroundColor: _wardrobeColor
+                                  .withValues(alpha: 0.5),
                               elevation: 3,
-                              shadowColor: _wardrobeColor.withValues(alpha: 0.4),
+                              shadowColor: _wardrobeColor.withValues(
+                                alpha: 0.4,
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
                             child: _parsing
                                 ? const SizedBox(
-                                    width: 20, height: 20,
+                                    width: 20,
+                                    height: 20,
                                     child: CircularProgressIndicator(
-                                        color: Colors.white, strokeWidth: 2))
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
                                 : const Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text('✦',
-                                          style: TextStyle(fontSize: 14)),
+                                      Text('✦', style: TextStyle(fontSize: 14)),
                                       SizedBox(width: 6),
-                                      Text('Parse with AI',
-                                          style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w900,
-                                              fontFamily: 'Nunito')),
+                                      Text(
+                                        'Parse with AI',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                          fontFamily: 'Nunito',
+                                        ),
+                                      ),
                                     ],
                                   ),
                           ),
@@ -1399,13 +1557,16 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Category chips
-                        Text('CATEGORY',
-                            style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.1,
-                                fontFamily: 'Nunito',
-                                color: sub)),
+                        Text(
+                          'CATEGORY',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.1,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         SizedBox(
                           height: 40,
@@ -1419,10 +1580,14 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                     duration: const Duration(milliseconds: 120),
                                     margin: const EdgeInsets.only(right: 8),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 6),
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: _cat == c.key
-                                          ? _wardrobeColor.withValues(alpha: 0.15)
+                                          ? _wardrobeColor.withValues(
+                                              alpha: 0.15,
+                                            )
                                           : surfBg,
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
@@ -1431,11 +1596,15 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                             : Colors.transparent,
                                       ),
                                     ),
-                                    child: Row(children: [
-                                      Text(c.emoji,
-                                          style: const TextStyle(fontSize: 13)),
-                                      const SizedBox(width: 4),
-                                      Text(c.label,
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          c.emoji,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          c.label,
                                           style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w700,
@@ -1443,8 +1612,10 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                             color: _cat == c.key
                                                 ? _wardrobeColor
                                                 : sub,
-                                          )),
-                                    ]),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                             ],
@@ -1454,29 +1625,41 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                         LifeInput(controller: _nameCtrl, hint: 'Item name *'),
                         const SizedBox(height: 8),
                         LifeInput(
-                            controller: _brandCtrl, hint: 'Brand (optional)'),
+                          controller: _brandCtrl,
+                          hint: 'Brand (optional)',
+                        ),
                         const SizedBox(height: 8),
-                        Row(children: [
-                          Expanded(
+                        Row(
+                          children: [
+                            Expanded(
                               child: LifeInput(
-                                  controller: _sizeCtrl,
-                                  hint: 'Size (e.g. L, 32)')),
-                          const SizedBox(width: 8),
-                          Expanded(
-                              child:
-                                  LifeInput(controller: _colorCtrl, hint: 'Color')),
-                        ]),
+                                controller: _sizeCtrl,
+                                hint: 'Size (e.g. L, 32)',
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: LifeInput(
+                                controller: _colorCtrl,
+                                hint: 'Color',
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 8),
                         LifeInput(
-                            controller: _notesCtrl,
-                            hint: 'Notes (optional)',
-                            maxLines: 2),
+                          controller: _notesCtrl,
+                          hint: 'Notes (optional)',
+                          maxLines: 2,
+                        ),
                         if (widget.isWishlist) ...[
                           const SizedBox(height: 8),
                           LifeInput(
-                              controller: _sourceCtrl,
-                              hint: 'Source / URL (e.g. Zara, ${AppPrefs.cs}4500)',
-                              maxLines: 2),
+                            controller: _sourceCtrl,
+                            hint:
+                                'Source / URL (e.g. Zara, ${AppPrefs.cs}4500)',
+                            maxLines: 2,
+                          ),
                         ],
                         const SizedBox(height: 12),
 
@@ -1504,22 +1687,31 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                     fit: StackFit.expand,
                                     children: [
                                       _WardrobePhoto(
-                                          path: _photoPath!, fit: BoxFit.cover),
+                                        path: _photoPath!,
+                                        fit: BoxFit.cover,
+                                      ),
                                       Positioned(
-                                        bottom: 6, right: 8,
+                                        bottom: 6,
+                                        right: 8,
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 3),
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: Colors.black54,
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
-                                          child: const Text('Tap to change',
-                                              style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 9,
-                                                  fontFamily: 'Nunito')),
+                                          child: const Text(
+                                            'Tap to change',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontFamily: 'Nunito',
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1527,17 +1719,24 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                                 : Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.add_a_photo_rounded,
-                                          color: _wardrobeColor
-                                              .withValues(alpha: 0.5),
-                                          size: 28),
+                                      Icon(
+                                        Icons.add_a_photo_rounded,
+                                        color: _wardrobeColor.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                        size: 28,
+                                      ),
                                       const SizedBox(height: 4),
-                                      Text('Tap to add photo',
-                                          style: TextStyle(
-                                              fontSize: 11,
-                                              fontFamily: 'Nunito',
-                                              color: _wardrobeColor
-                                                  .withValues(alpha: 0.7))),
+                                      Text(
+                                        'Tap to add photo',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontFamily: 'Nunito',
+                                          color: _wardrobeColor.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ),
                           ),
@@ -1545,7 +1744,9 @@ class _AddClothingSheetState extends State<AddClothingSheet>
                         const SizedBox(height: 16),
 
                         LifeSaveButton(
-                          label: widget.existing != null ? 'Save Changes' : 'Save Item',
+                          label: widget.existing != null
+                              ? 'Save Changes'
+                              : 'Save Item',
                           color: _wardrobeColor,
                           onTap: _submit,
                         ),
@@ -1651,9 +1852,7 @@ class _ClothingGrid extends StatelessWidget {
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _wardrobeColor.withValues(alpha: 0.12),
-              ),
+              border: Border.all(color: _wardrobeColor.withValues(alpha: 0.12)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1782,7 +1981,10 @@ class _ClothingDetailState extends State<_ClothingDetail> {
           // Header
           Row(
             children: [
-              Text(WardrobeCategoryCache.of(item.category).emoji, style: const TextStyle(fontSize: 32)),
+              Text(
+                WardrobeCategoryCache.of(item.category).emoji,
+                style: const TextStyle(fontSize: 32),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1835,7 +2037,10 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                 onPressed: widget.onEdit,
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: AppColors.expense,
+                ),
                 tooltip: 'Delete',
                 onPressed: () async {
                   final confirmed = await confirmDelete(context);
@@ -1873,7 +2078,8 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                           top: 8,
                           left: 8,
                           child: GestureDetector(
-                            onTap: () => _showFullImage(context, item.photoPath!),
+                            onTap: () =>
+                                _showFullImage(context, item.photoPath!),
                             child: Container(
                               padding: const EdgeInsets.all(6),
                               decoration: const BoxDecoration(
@@ -1961,11 +2167,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.edit_rounded,
-                        size: 12,
-                        color: _wardrobeColor,
-                      ),
+                      Icon(Icons.edit_rounded, size: 12, color: _wardrobeColor),
                       SizedBox(width: 4),
                       Text(
                         'Edit',
@@ -2040,11 +2242,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
             const SizedBox(height: 6),
             Text(
               'No pairs set — tap Edit to choose.',
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'Nunito',
-                color: sub,
-              ),
+              style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
             ),
           ],
 
@@ -2067,11 +2265,16 @@ class _ClothingDetailState extends State<_ClothingDetail> {
   // Read-only visibility toggle: the item still belongs to (and is only
   // editable/deletable from) its original wallet/member — sharing just also
   // surfaces it in another wallet's Wardrobe (e.g. Personal -> Family).
-  Widget _buildShareRow(BuildContext context, Color tc, Color sub, Color surfBg) {
+  Widget _buildShareRow(
+    BuildContext context,
+    Color tc,
+    Color sub,
+    Color surfBg,
+  ) {
     final item = widget.item;
-    final otherWallets = AppStateScope.of(context).wallets
-        .where((w) => w.id != item.walletId)
-        .toList();
+    final otherWallets = AppStateScope.of(
+      context,
+    ).wallets.where((w) => w.id != item.walletId).toList();
     if (otherWallets.isEmpty) return const SizedBox.shrink();
 
     Future<void> setShare(String? walletId) async {
@@ -2079,14 +2282,18 @@ class _ClothingDetailState extends State<_ClothingDetail> {
       setState(() => item.sharedWalletId = walletId);
       widget.onUpdate();
       try {
-        await WardrobeService.instance.updateItem(item.id, {'shared_wallet_id': walletId});
+        await WardrobeService.instance.updateItem(item.id, {
+          'shared_wallet_id': walletId,
+        });
       } catch (e) {
         ErrorLogger.warning(e, action: 'wardrobe_share_item');
         if (mounted) {
           setState(() => item.sharedWalletId = previous);
           widget.onUpdate();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update sharing. Please try again.')),
+            const SnackBar(
+              content: Text('Failed to update sharing. Please try again.'),
+            ),
           );
         }
       }
@@ -2094,13 +2301,23 @@ class _ClothingDetailState extends State<_ClothingDetail> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: surfBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
           Icon(Icons.ios_share_rounded, size: 14, color: sub),
           const SizedBox(width: 8),
-          Text('Share with',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+          Text(
+            'Share with',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: sub,
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Wrap(
@@ -2112,11 +2329,18 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   onTap: () => setShare(active ? null : w.id),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 120),
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: active ? _wardrobeColor : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: active ? _wardrobeColor : sub.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: active
+                            ? _wardrobeColor
+                            : sub.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Text(
                       w.isPersonal ? 'Personal' : w.name,
@@ -2141,11 +2365,16 @@ class _ClothingDetailState extends State<_ClothingDetail> {
     final localPath = await _pickPhoto(context);
     if (localPath == null) return;
     final oldUrl = widget.item.photoPath;
-    setState(() => widget.item.photoPath = localPath); // optimistic local preview
+    setState(
+      () => widget.item.photoPath = localPath,
+    ); // optimistic local preview
     widget.onUpdate();
     try {
       final svc = WardrobeService.instance;
-      final url = await svc.uploadPhoto(localPath, memberId: widget.item.memberId);
+      final url = await svc.uploadPhoto(
+        localPath,
+        memberId: widget.item.memberId,
+      );
       await svc.updateItem(widget.item.id, {'photo_path': url});
       if (mounted) {
         setState(() => widget.item.photoPath = url);
@@ -2220,96 +2449,106 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                 )
               else
                 for (final cat in WardrobeCategoryCache.all) ...[
-                  Builder(builder: (_) {
-                    final catItems =
-                        others.where((c) => c.category == cat.key).toList();
-                    if (catItems.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LifeLabel(
-                          text: '${cat.emoji} ${cat.label.toUpperCase()}',
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 82,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: catItems.map((c) {
-                              final isSel = selected.contains(c.id);
-                              return GestureDetector(
-                                onTap: () => ss(() {
-                                  if (isSel) {
-                                    selected.remove(c.id);
-                                  } else {
-                                    selected.add(c.id);
-                                  }
-                                }),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 120),
-                                  margin: const EdgeInsets.only(right: 8),
-                                  width: 65,
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: isSel
-                                        ? _wardrobeColor.withValues(alpha: 0.12)
-                                        : surfBg,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
+                  Builder(
+                    builder: (_) {
+                      final catItems = others
+                          .where((c) => c.category == cat.key)
+                          .toList();
+                      if (catItems.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LifeLabel(
+                            text: '${cat.emoji} ${cat.label.toUpperCase()}',
+                          ),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 82,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: catItems.map((c) {
+                                final isSel = selected.contains(c.id);
+                                return GestureDetector(
+                                  onTap: () => ss(() {
+                                    if (isSel) {
+                                      selected.remove(c.id);
+                                    } else {
+                                      selected.add(c.id);
+                                    }
+                                  }),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    margin: const EdgeInsets.only(right: 8),
+                                    width: 65,
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
                                       color: isSel
-                                          ? _wardrobeColor
-                                          : Colors.transparent,
+                                          ? _wardrobeColor.withValues(
+                                              alpha: 0.12,
+                                            )
+                                          : surfBg,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isSel
+                                            ? _wardrobeColor
+                                            : Colors.transparent,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        if (c.photoPath != null)
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: _WardrobePhoto(
+                                              path: c.photoPath!,
+                                              width: 30,
+                                              height: 30,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            WardrobeCategoryCache.of(
+                                              c.category,
+                                            ).emoji,
+                                            style: const TextStyle(
+                                              fontSize: 22,
+                                            ),
+                                          ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          c.name,
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            fontFamily: 'Nunito',
+                                            color: isSel ? _wardrobeColor : sub,
+                                          ),
+                                        ),
+                                        if (isSel)
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 12,
+                                            color: _wardrobeColor,
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      if (c.photoPath != null)
-                                        ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: _WardrobePhoto(
-                                            path: c.photoPath!,
-                                            width: 30,
-                                            height: 30,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        )
-                                      else
-                                        Text(
-                                          WardrobeCategoryCache.of(c.category).emoji,
-                                          style: const TextStyle(fontSize: 22),
-                                        ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        c.name,
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 8,
-                                          fontFamily: 'Nunito',
-                                          color:
-                                              isSel ? _wardrobeColor : sub,
-                                        ),
-                                      ),
-                                      if (isSel)
-                                        const Icon(
-                                          Icons.check_circle_rounded,
-                                          size: 12,
-                                          color: _wardrobeColor,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
+                                );
+                              }).toList(),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    );
-                  }),
+                          const SizedBox(height: 8),
+                        ],
+                      );
+                    },
+                  ),
                 ],
 
               LifeSaveButton(
@@ -2333,17 +2572,15 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   () async {
                     try {
                       final svc = WardrobeService.instance;
-                      await svc.updateItem(
-                        item.id,
-                        {'match_with': item.matchWith},
-                      );
+                      await svc.updateItem(item.id, {
+                        'match_with': item.matchWith,
+                      });
                       for (final c in others) {
                         if (selected.contains(c.id) ||
                             item.matchWith.contains(c.id)) {
-                          await svc.updateItem(
-                            c.id,
-                            {'match_with': c.matchWith},
-                          );
+                          await svc.updateItem(c.id, {
+                            'match_with': c.matchWith,
+                          });
                         }
                       }
                     } catch (e) {
@@ -2394,28 +2631,28 @@ class _SearchResultsList extends StatelessWidget {
 
         final pairs = allItems.where((c) {
           if (c.id == item.id || c.wishlist) return false;
-          return item.matchWith.contains(c.id) ||
-              c.matchWith.contains(item.id);
+          return item.matchWith.contains(c.id) || c.matchWith.contains(item.id);
         }).toList();
 
-        final wornLogs = outfitLogs
-            .where(
-              (l) =>
-                  l.memberId == item.memberId &&
-                  l.itemIds.contains(item.id),
-            )
-            .toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
+        final wornLogs =
+            outfitLogs
+                .where(
+                  (l) =>
+                      l.memberId == item.memberId &&
+                      l.itemIds.contains(item.id),
+                )
+                .toList()
+              ..sort((a, b) => b.date.compareTo(a.date));
         final lastWorn = wornLogs.isNotEmpty ? wornLogs.first.date : null;
 
         final wornWith = wornLogs.isNotEmpty
             ? allItems
-                .where(
-                  (c) =>
-                      c.id != item.id &&
-                      wornLogs.first.itemIds.contains(c.id),
-                )
-                .toList()
+                  .where(
+                    (c) =>
+                        c.id != item.id &&
+                        wornLogs.first.itemIds.contains(c.id),
+                  )
+                  .toList()
             : <ClothingItem>[];
 
         return GestureDetector(
@@ -2426,9 +2663,7 @@ class _SearchResultsList extends StatelessWidget {
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _wardrobeColor.withValues(alpha: 0.12),
-              ),
+              border: Border.all(color: _wardrobeColor.withValues(alpha: 0.12)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2524,8 +2759,7 @@ class _SearchResultsList extends StatelessWidget {
                                 ),
                                 child: p.photoPath != null
                                     ? ClipRRect(
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(10),
                                         child: _WardrobePhoto(
                                           path: p.photoPath!,
                                           fit: BoxFit.cover,
@@ -2533,7 +2767,9 @@ class _SearchResultsList extends StatelessWidget {
                                       )
                                     : Center(
                                         child: Text(
-                                          WardrobeCategoryCache.of(p.category).emoji,
+                                          WardrobeCategoryCache.of(
+                                            p.category,
+                                          ).emoji,
                                           style: const TextStyle(fontSize: 18),
                                         ),
                                       ),
@@ -2564,8 +2800,9 @@ class _SearchResultsList extends StatelessWidget {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.income
-                                        .withValues(alpha: 0.1),
+                                    color: AppColors.income.withValues(
+                                      alpha: 0.1,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -2632,48 +2869,44 @@ class _OutfitLogTab extends StatelessWidget {
     final myItems = allItems.where((c) => c.memberId == memberId).toList();
 
     final todayLog = outfitLogs.cast<OutfitLog?>().firstWhere(
-          (l) => l!.memberId == memberId && _sameDay(l.date, today),
-          orElse: () => null,
-        );
+      (l) => l!.memberId == memberId && _sameDay(l.date, today),
+      orElse: () => null,
+    );
 
-    final pastLogs = outfitLogs
-        .where(
-          (l) => l.memberId == memberId && !_sameDay(l.date, today),
-        )
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final pastLogs =
+        outfitLogs
+            .where((l) => l.memberId == memberId && !_sameDay(l.date, today))
+            .toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
 
     final others = allMembers.where((m) => m.id != memberId).map((m) {
       final log = outfitLogs.cast<OutfitLog?>().firstWhere(
-            (l) => l!.memberId == m.id && _sameDay(l.date, today),
-            orElse: () => null,
-          );
+        (l) => l!.memberId == m.id && _sameDay(l.date, today),
+        orElse: () => null,
+      );
       return (member: m, log: log);
     }).toList();
 
     Widget itemThumb(ClothingItem item) => Container(
-          margin: const EdgeInsets.only(right: 8),
-          width: 54,
-          height: 54,
-          decoration: BoxDecoration(
-            color: _wardrobeColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: item.photoPath != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: _WardrobePhoto(
-                    path: item.photoPath!,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              : Center(
-                  child: Text(
-                    WardrobeCategoryCache.of(item.category).emoji,
-                    style: const TextStyle(fontSize: 26),
-                  ),
-                ),
-        );
+      margin: const EdgeInsets.only(right: 8),
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        color: _wardrobeColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: item.photoPath != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: _WardrobePhoto(path: item.photoPath!, fit: BoxFit.cover),
+            )
+          : Center(
+              child: Text(
+                WardrobeCategoryCache.of(item.category).emoji,
+                style: const TextStyle(fontSize: 26),
+              ),
+            ),
+    );
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -2693,11 +2926,7 @@ class _OutfitLogTab extends StatelessWidget {
             const Spacer(),
             Text(
               '${_weekday(today)}, ${today.day} ${_monthName(today.month)}',
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'Nunito',
-                color: sub,
-              ),
+              style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
             ),
           ],
         ),
@@ -2708,9 +2937,7 @@ class _OutfitLogTab extends StatelessWidget {
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: _wardrobeColor.withValues(alpha: 0.2),
-            ),
+            border: Border.all(color: _wardrobeColor.withValues(alpha: 0.2)),
           ),
           child: todayLog != null
               ? Column(
@@ -2767,7 +2994,8 @@ class _OutfitLogTab extends StatelessWidget {
                     const SizedBox(height: 10),
                     if (todayLog.photoPath != null) ...[
                       GestureDetector(
-                        onTap: () => _showFullImage(context, todayLog.photoPath!),
+                        onTap: () =>
+                            _showFullImage(context, todayLog.photoPath!),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: _WardrobePhoto(
@@ -2786,11 +3014,10 @@ class _OutfitLogTab extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         children: todayLog.itemIds
                             .map(
-                              (id) =>
-                                  allItems.cast<ClothingItem?>().firstWhere(
-                                        (c) => c!.id == id,
-                                        orElse: () => null,
-                                      ),
+                              (id) => allItems.cast<ClothingItem?>().firstWhere(
+                                (c) => c!.id == id,
+                                orElse: () => null,
+                              ),
                             )
                             .whereType<ClothingItem>()
                             .map<Widget>(itemThumb)
@@ -2803,11 +3030,10 @@ class _OutfitLogTab extends StatelessWidget {
                       runSpacing: 4,
                       children: todayLog.itemIds
                           .map(
-                            (id) =>
-                                allItems.cast<ClothingItem?>().firstWhere(
-                                      (c) => c!.id == id,
-                                      orElse: () => null,
-                                    ),
+                            (id) => allItems.cast<ClothingItem?>().firstWhere(
+                              (c) => c!.id == id,
+                              orElse: () => null,
+                            ),
                           )
                           .whereType<ClothingItem>()
                           .map(
@@ -2905,9 +3131,7 @@ class _OutfitLogTab extends StatelessWidget {
                 final m = entry.member;
                 final log = entry.log;
                 final mItems = log != null
-                    ? allItems
-                        .where((c) => log.itemIds.contains(c.id))
-                        .toList()
+                    ? allItems.where((c) => log.itemIds.contains(c.id)).toList()
                     : <ClothingItem>[];
 
                 return GestureDetector(
@@ -2915,50 +3139,56 @@ class _OutfitLogTab extends StatelessWidget {
                       ? null
                       : () => _showOutfitDetail(context, log, mItems, sub),
                   child: Container(
-                  margin: const EdgeInsets.only(right: 10),
-                  width: 90,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: log != null
-                          ? _wardrobeColor.withValues(alpha: 0.25)
-                          : surfBg,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(m.emoji, style: const TextStyle(fontSize: 22)),
-                      const SizedBox(height: 3),
-                      Text(
-                        m.name,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Nunito',
-                          color: tc,
-                        ),
+                    margin: const EdgeInsets.only(right: 10),
+                    width: 90,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: log != null
+                            ? _wardrobeColor.withValues(alpha: 0.25)
+                            : surfBg,
                       ),
-                      const SizedBox(height: 4),
-                      if (log == null)
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(m.emoji, style: const TextStyle(fontSize: 22)),
+                        const SizedBox(height: 3),
                         Text(
-                          'Not logged',
+                          m.name,
                           style: TextStyle(
-                            fontSize: 9,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                             fontFamily: 'Nunito',
-                            color: sub,
+                            color: tc,
                           ),
-                        )
-                      else
-                        Text(
-                          mItems.map((c) => WardrobeCategoryCache.of(c.category).emoji).join(' '),
-                          style: const TextStyle(fontSize: 14),
-                          textAlign: TextAlign.center,
                         ),
-                    ],
-                  ),
+                        const SizedBox(height: 4),
+                        if (log == null)
+                          Text(
+                            'Not logged',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          )
+                        else
+                          Text(
+                            mItems
+                                .map(
+                                  (c) => WardrobeCategoryCache.of(
+                                    c.category,
+                                  ).emoji,
+                                )
+                                .join(' '),
+                            style: const TextStyle(fontSize: 14),
+                            textAlign: TextAlign.center,
+                          ),
+                      ],
+                    ),
                   ),
                 );
               }).toList(),
@@ -2979,118 +3209,121 @@ class _OutfitLogTab extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...pastLogs.take(10).map((log) {
-            final logItems =
-                allItems.where((c) => log.itemIds.contains(c.id)).toList();
+            final logItems = allItems
+                .where((c) => log.itemIds.contains(c.id))
+                .toList();
             return GestureDetector(
               onTap: () => _showOutfitDetail(context, log, logItems, sub),
               child: Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _wardrobeColor.withValues(alpha: 0.1),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _wardrobeColor.withValues(alpha: 0.1),
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    alignment: Alignment.center,
-                    child: Column(
-                      children: [
-                        Text(
-                          '${log.date.day}',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            fontFamily: 'DM Mono',
-                            color: _wardrobeColor,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      alignment: Alignment.center,
+                      child: Column(
+                        children: [
+                          Text(
+                            '${log.date.day}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'DM Mono',
+                              color: _wardrobeColor,
+                            ),
                           ),
-                        ),
-                        Text(
-                          _monthName(log.date.month).substring(0, 3),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'Nunito',
-                            color: sub,
+                          Text(
+                            _monthName(log.date.month).substring(0, 3),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _weekday(log.date),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: sub,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        SizedBox(
-                          height: 40,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: logItems
-                                .map(
-                                  (item) => Container(
-                                    margin: const EdgeInsets.only(right: 6),
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      color: _wardrobeColor.withValues(
-                                        alpha: 0.07,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: item.photoPath != null
-                                        ? ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            child: _WardrobePhoto(
-                                              path: item.photoPath!,
-                                              fit: BoxFit.cover,
-                                            ),
-                                          )
-                                        : Center(
-                                            child: Text(
-                                              WardrobeCategoryCache.of(item.category).emoji,
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                              ),
-                                            ),
-                                          ),
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (log.photoPath != null) ...[
-                    const SizedBox(width: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: _WardrobePhoto(
-                        path: log.photoPath!,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
+                        ],
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _weekday(log.date),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          SizedBox(
+                            height: 40,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: logItems
+                                  .map(
+                                    (item) => Container(
+                                      margin: const EdgeInsets.only(right: 6),
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: _wardrobeColor.withValues(
+                                          alpha: 0.07,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: item.photoPath != null
+                                          ? ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: _WardrobePhoto(
+                                                path: item.photoPath!,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          : Center(
+                                              child: Text(
+                                                WardrobeCategoryCache.of(
+                                                  item.category,
+                                                ).emoji,
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                ),
+                                              ),
+                                            ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (log.photoPath != null) ...[
+                      const SizedBox(width: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: _WardrobePhoto(
+                          path: log.photoPath!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
             );
           }),
         ],
@@ -3110,9 +3343,9 @@ class _OutfitLogTab extends StatelessWidget {
     Color surfBg,
     void Function(VoidCallback) rebuild,
   ) {
-    final otherWallets = AppStateScope.of(context).wallets
-        .where((w) => w.id != log.walletId)
-        .toList();
+    final otherWallets = AppStateScope.of(
+      context,
+    ).wallets.where((w) => w.id != log.walletId).toList();
     if (otherWallets.isEmpty) return const SizedBox.shrink();
 
     Future<void> setShare(String? walletId) async {
@@ -3120,14 +3353,18 @@ class _OutfitLogTab extends StatelessWidget {
       rebuild(() => log.sharedWalletId = walletId);
       onChanged();
       try {
-        await WardrobeService.instance.updateOutfitLog(log.id, {'shared_wallet_id': walletId});
+        await WardrobeService.instance.updateOutfitLog(log.id, {
+          'shared_wallet_id': walletId,
+        });
       } catch (e) {
         ErrorLogger.warning(e, action: 'wardrobe_share_outfit_log');
         rebuild(() => log.sharedWalletId = previous);
         onChanged();
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update sharing. Please try again.')),
+            const SnackBar(
+              content: Text('Failed to update sharing. Please try again.'),
+            ),
           );
         }
       }
@@ -3135,13 +3372,23 @@ class _OutfitLogTab extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: surfBg,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         children: [
           Icon(Icons.ios_share_rounded, size: 14, color: sub),
           const SizedBox(width: 8),
-          Text('Share with',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sub)),
+          Text(
+            'Share with',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: sub,
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Wrap(
@@ -3153,11 +3400,18 @@ class _OutfitLogTab extends StatelessWidget {
                   onTap: () => setShare(active ? null : w.id),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 120),
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: active ? _wardrobeColor : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: active ? _wardrobeColor : sub.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: active
+                            ? _wardrobeColor
+                            : sub.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Text(
                       w.isPersonal ? 'Personal' : w.name,
@@ -3190,159 +3444,165 @@ class _OutfitLogTab extends StatelessWidget {
       ctx,
       child: StatefulBuilder(
         builder: (sheetCtx, ss) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${_weekday(log.date)}, ${log.date.day} ${_monthName(log.date.month)} ${log.date.year}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Nunito',
-                        ),
-                      ),
-                      Text(
-                        '${logItems.length} item${logItems.length == 1 ? '' : 's'} worn',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: sub,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
-                  tooltip: 'Delete',
-                  onPressed: () async {
-                    final confirmed = await confirmDelete(ctx);
-                    if (!confirmed) return;
-                    onDelete(log);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _shareRow(sheetCtx, log, tc, sub, surfBg, ss),
-            const SizedBox(height: 4),
-
-            // Outfit selfie
-            if (log.photoPath != null) ...[
-              GestureDetector(
-                onTap: () => _showFullImage(ctx, log.photoPath!),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: _WardrobePhoto(
-                    path: log.photoPath!,
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-            ],
-
-            // Items grouped by category
-            ...WardrobeCategoryCache.all.map((cat) {
-              final catItems =
-                  logItems.where((c) => c.category == cat.key).toList();
-              if (catItems.isEmpty) return const SizedBox.shrink();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Row(
                 children: [
-                  Text(
-                    '${cat.emoji} ${cat.label}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Nunito',
-                      color: _wardrobeColor,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_weekday(log.date)}, ${log.date.day} ${_monthName(log.date.month)} ${log.date.year}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito',
+                          ),
+                        ),
+                        Text(
+                          '${logItems.length} item${logItems.length == 1 ? '' : 's'} worn',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'Nunito',
+                            color: sub,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  ...catItems.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: _wardrobeColor.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: item.photoPath != null
-                                ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: _WardrobePhoto(
-                                      path: item.photoPath!,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : Center(
-                                    child: Text(
-                                      cat.emoji,
-                                      style: const TextStyle(fontSize: 24),
-                                    ),
-                                  ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.name,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'Nunito',
-                                  ),
-                                ),
-                                if (item.brand != null && item.brand!.isNotEmpty)
-                                  Text(
-                                    item.brand!,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontFamily: 'Nunito',
-                                      color: sub,
-                                    ),
-                                  ),
-                                if (item.color != null && item.color!.isNotEmpty)
-                                  Text(
-                                    item.color!,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontFamily: 'Nunito',
-                                      color: sub,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: AppColors.expense,
+                    ),
+                    tooltip: 'Delete',
+                    onPressed: () async {
+                      final confirmed = await confirmDelete(ctx);
+                      if (!confirmed) return;
+                      onDelete(log);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _shareRow(sheetCtx, log, tc, sub, surfBg, ss),
+              const SizedBox(height: 4),
+
+              // Outfit selfie
+              if (log.photoPath != null) ...[
+                GestureDetector(
+                  onTap: () => _showFullImage(ctx, log.photoPath!),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: _WardrobePhoto(
+                      path: log.photoPath!,
+                      width: double.infinity,
+                      height: 200,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              // Items grouped by category
+              ...WardrobeCategoryCache.all.map((cat) {
+                final catItems = logItems
+                    .where((c) => c.category == cat.key)
+                    .toList();
+                if (catItems.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${cat.emoji} ${cat.label}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: _wardrobeColor,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                ],
-              );
-            }),
-          ],
-        ),
+                    const SizedBox(height: 6),
+                    ...catItems.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: _wardrobeColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: item.photoPath != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: _WardrobePhoto(
+                                        path: item.photoPath!,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        cat.emoji,
+                                        style: const TextStyle(fontSize: 24),
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.name,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                  if (item.brand != null &&
+                                      item.brand!.isNotEmpty)
+                                    Text(
+                                      item.brand!,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  if (item.color != null &&
+                                      item.color!.isNotEmpty)
+                                    Text(
+                                      item.color!,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );
@@ -3352,20 +3612,20 @@ class _OutfitLogTab extends StatelessWidget {
       ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1];
 
   String _monthName(int m) => [
-        '',
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December',
-      ][m];
+    '',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ][m];
 
   void _logOutfit(
     BuildContext ctx,
@@ -3384,14 +3644,17 @@ class _OutfitLogTab extends StatelessWidget {
       child: StatefulBuilder(
         builder: (ctx2, ss) {
           void doSave() async {
-            final hasPhoto = pickedLocalPath != null || existing?.photoPath != null;
+            final hasPhoto =
+                pickedLocalPath != null || existing?.photoPath != null;
             if ((selected.isEmpty && !hasPhoto) || saving) return;
             ss(() => saving = true);
             String? photoUrl = existing?.photoPath;
             if (pickedLocalPath != null) {
               try {
-                photoUrl = await WardrobeService.instance
-                    .uploadPhoto(pickedLocalPath!, memberId: memberId);
+                photoUrl = await WardrobeService.instance.uploadPhoto(
+                  pickedLocalPath!,
+                  memberId: memberId,
+                );
               } catch (e) {
                 if (ctx2.mounted) {
                   ss(() => saving = false);
@@ -3405,14 +3668,16 @@ class _OutfitLogTab extends StatelessWidget {
                 return;
               }
             }
-            onLog(OutfitLog(
-              id: existing?.id ?? '',
-              walletId: walletId,
-              memberId: memberId,
-              itemIds: selected.toList(),
-              date: DateTime.now(),
-              photoPath: photoUrl,
-            ));
+            onLog(
+              OutfitLog(
+                id: existing?.id ?? '',
+                walletId: walletId,
+                memberId: memberId,
+                itemIds: selected.toList(),
+                date: DateTime.now(),
+                photoPath: photoUrl,
+              ),
+            );
             if (ctx2.mounted) Navigator.pop(ctx2);
           }
 
@@ -3456,95 +3721,106 @@ class _OutfitLogTab extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 for (final cat in WardrobeCategoryCache.all) ...[
-                  Builder(builder: (_) {
-                    final catItems =
-                        myItems.where((c) => c.category == cat.key).toList();
-                    if (catItems.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        LifeLabel(
-                          text: '${cat.emoji} ${cat.label.toUpperCase()}',
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 82,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: catItems.map((item) {
-                              final isSel = selected.contains(item.id);
-                              return GestureDetector(
-                                onTap: () => ss(() {
-                                  if (isSel) {
-                                    selected.remove(item.id);
-                                  } else {
-                                    selected.add(item.id);
-                                  }
-                                }),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 120),
-                                  margin: const EdgeInsets.only(right: 8),
-                                  width: 65,
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: isSel
-                                        ? _wardrobeColor.withValues(alpha: 0.12)
-                                        : surfBg,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
+                  Builder(
+                    builder: (_) {
+                      final catItems = myItems
+                          .where((c) => c.category == cat.key)
+                          .toList();
+                      if (catItems.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LifeLabel(
+                            text: '${cat.emoji} ${cat.label.toUpperCase()}',
+                          ),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            height: 82,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: catItems.map((item) {
+                                final isSel = selected.contains(item.id);
+                                return GestureDetector(
+                                  onTap: () => ss(() {
+                                    if (isSel) {
+                                      selected.remove(item.id);
+                                    } else {
+                                      selected.add(item.id);
+                                    }
+                                  }),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 120),
+                                    margin: const EdgeInsets.only(right: 8),
+                                    width: 65,
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
                                       color: isSel
-                                          ? _wardrobeColor
-                                          : Colors.transparent,
+                                          ? _wardrobeColor.withValues(
+                                              alpha: 0.12,
+                                            )
+                                          : surfBg,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: isSel
+                                            ? _wardrobeColor
+                                            : Colors.transparent,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        if (item.photoPath != null)
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                            child: _WardrobePhoto(
+                                              path: item.photoPath!,
+                                              width: 30,
+                                              height: 30,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            WardrobeCategoryCache.of(
+                                              item.category,
+                                            ).emoji,
+                                            style: const TextStyle(
+                                              fontSize: 22,
+                                            ),
+                                          ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          item.name,
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            fontFamily: 'Nunito',
+                                            color: isSel ? _wardrobeColor : sub,
+                                          ),
+                                        ),
+                                        if (isSel)
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 12,
+                                            color: _wardrobeColor,
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      if (item.photoPath != null)
-                                        ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                          child: _WardrobePhoto(
-                                            path: item.photoPath!,
-                                            width: 30,
-                                            height: 30,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        )
-                                      else
-                                        Text(
-                                          WardrobeCategoryCache.of(item.category).emoji,
-                                          style: const TextStyle(fontSize: 22),
-                                        ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        item.name,
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 8,
-                                          fontFamily: 'Nunito',
-                                          color: isSel ? _wardrobeColor : sub,
-                                        ),
-                                      ),
-                                      if (isSel)
-                                        const Icon(
-                                          Icons.check_circle_rounded,
-                                          size: 12,
-                                          color: _wardrobeColor,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
+                                );
+                              }).toList(),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    );
-                  }),
+                          const SizedBox(height: 8),
+                        ],
+                      );
+                    },
+                  ),
                 ],
 
                 LifeSaveButton(
@@ -3569,10 +3845,15 @@ class _OutfitLogTab extends StatelessWidget {
                               onDelete(existing);
                               if (ctx2.mounted) Navigator.pop(ctx2);
                             },
-                      style: TextButton.styleFrom(foregroundColor: AppColors.expense),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.expense,
+                      ),
                       child: const Text(
                         'Delete Outfit Log',
-                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+                        style: TextStyle(
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
@@ -3624,12 +3905,7 @@ class _WardrobePhoto extends StatelessWidget {
         ),
       );
     }
-    return Image.file(
-      File(path),
-      width: width,
-      height: height,
-      fit: fit,
-    );
+    return Image.file(File(path), width: width, height: height, fit: fit);
   }
 }
 
@@ -3689,7 +3965,10 @@ class _WishlistCard extends StatelessWidget {
                     color: tc,
                   ),
                 ),
-                LifeBadge(text: WardrobeCategoryCache.of(item.category).label, color: _wardrobeColor),
+                LifeBadge(
+                  text: WardrobeCategoryCache.of(item.category).label,
+                  color: _wardrobeColor,
+                ),
                 if (item.wishlistSource != null) ...[
                   const SizedBox(height: 3),
                   Text(
@@ -3756,7 +4035,10 @@ class _WishlistCard extends StatelessWidget {
               Navigator.pop(dialogCtx);
               onDelete();
             },
-            child: const Text('Remove', style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -3820,7 +4102,9 @@ class _OutfitPhotoSection extends StatelessWidget {
                   onTap: enabled ? onPick : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black54,
                       borderRadius: BorderRadius.circular(10),
@@ -3828,8 +4112,7 @@ class _OutfitPhotoSection extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.edit_rounded,
-                            size: 12, color: Colors.white),
+                        Icon(Icons.edit_rounded, size: 12, color: Colors.white),
                         SizedBox(width: 4),
                         Text(
                           'Change',
@@ -3854,8 +4137,11 @@ class _OutfitPhotoSection extends StatelessWidget {
                         color: Colors.black54,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.close,
-                          size: 14, color: Colors.white),
+                      child: const Icon(
+                        Icons.close,
+                        size: 14,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -3874,9 +4160,7 @@ class _OutfitPhotoSection extends StatelessWidget {
         decoration: BoxDecoration(
           color: surfBg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _wardrobeColor.withValues(alpha: 0.35),
-          ),
+          border: Border.all(color: _wardrobeColor.withValues(alpha: 0.35)),
         ),
         child: Center(
           child: Row(

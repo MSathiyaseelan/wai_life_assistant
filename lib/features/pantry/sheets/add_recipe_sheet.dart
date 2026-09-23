@@ -730,6 +730,7 @@ class _AddRecipeSheetState extends State<AddRecipeSheet> {
   }) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      onTap: () => RecipeDetailSheet.show(ctx, r),
       leading: Container(
         width: 46,
         height: 46,
