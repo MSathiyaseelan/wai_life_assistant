@@ -67,6 +67,9 @@ class PrivacyPolicySheet extends StatelessWidget {
                       'Contacts: With your permission, we read your device contact list on-device to power @mention suggestions and Splits group member search. When you select a contact, that person\'s name and phone number are saved as part of the record you create (e.g. a task mention or a Splits group). We never upload or scan your full contact list.',
                     ),
                     _bullet(
+                      'SMS: With your permission, Wallet can read bank/transaction SMS on your device to auto-detect and import transactions. Parsing happens on your device; only the transactions you choose to confirm are saved to your account. We never upload or store your SMS inbox.',
+                    ),
+                    _bullet(
                       'Microphone: With your permission, used only for voice-to-text input. Audio is processed to text on your device/by the speech recognition service and is not stored as audio.',
                     ),
                     _para(
@@ -173,6 +176,9 @@ class PrivacyPolicySheet extends StatelessWidget {
                     _bullet(
                       'Google Gemini API — AI text parsing (only data you explicitly submit; processed server-side, not stored by Google beyond processing). Privacy policy: policies.google.com/privacy',
                     ),
+                    _bullet(
+                      'RevenueCat — Manages subscription purchases and links them to your account ID. Privacy policy: revenuecat.com/privacy',
+                    ),
                     _para(
                       'We share only the minimum necessary data with each service.',
                     ),
@@ -275,7 +281,7 @@ class PrivacyPolicySheet extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Last updated: August 2026  ·  Compliant with DPDP Act 2023 (India)',
+            'Last updated: September 2026  ·  Compliant with DPDP Act 2023 (India)',
             style: TextStyle(
               fontSize: 11,
               fontFamily: 'Nunito',
