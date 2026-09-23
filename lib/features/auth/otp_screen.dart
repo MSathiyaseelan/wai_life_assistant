@@ -97,7 +97,13 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
-    if (_otp.length < 6) {
+    // Skip the manual-entry check when Firebase already auto-verified the
+    // phone via Android's SMS Retriever — AuthCoordinator.verifyOtp() uses
+    // the stored auto-credential in that case regardless of _otp, but this
+    // can be invoked (via _onAutoVerifiedHook/initState) before the user has
+    // typed anything, so requiring 6 digits here painted every box red with
+    // a "Please enter the 6-digit OTP" error right after the OTP was sent.
+    if (!AuthCoordinator.instance.isAutoVerified && _otp.length < 6) {
       setState(() => _error = 'Please enter the 6-digit OTP');
       return;
     }
