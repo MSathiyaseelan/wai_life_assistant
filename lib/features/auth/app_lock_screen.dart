@@ -26,6 +26,7 @@ class _AppLockGuardState extends State<AppLockGuard>
   bool _locked = false;
   bool _biometricFailed = false;
   bool _hasPin = false;
+  bool _biometricAvailable = false;
   bool _authInProgress = false; // prevents lifecycle observer from re-locking during/after auth
   DateTime? _pausedAt;
 
@@ -36,8 +37,17 @@ class _AppLockGuardState extends State<AppLockGuard>
     _prefs.init().then((_) async {
       if (!mounted) return;
       final hasPin = await _prefs.hasPin();
+      // Checked once regardless of lockMethod — previously the PIN screen
+      // only ever offered a biometric fallback when the CHOSEN method was
+      // biometric, so a user who picked PIN as their method got no
+      // biometric escape hatch even if their device fully supports it, and
+      // forgetting the PIN then meant no way back into the app at all.
+      final biometricAvailable = await _auth.isDeviceSupported();
       if (!mounted) return;
-      setState(() => _hasPin = hasPin);
+      setState(() {
+        _hasPin = hasPin;
+        _biometricAvailable = biometricAvailable;
+      });
       if (_prefs.appLockEnabled) {
         setState(() => _locked = true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -139,6 +149,7 @@ class _AppLockGuardState extends State<AppLockGuard>
               lockMethod: _prefs.lockMethod,
               biometricFailed: _biometricFailed,
               hasPin: _hasPin,
+              biometricAvailable: _biometricAvailable,
               pinLength: _prefs.pinLength,
               onUnlocked: _onUnlocked,
               onRetryBiometric: () {
@@ -149,12 +160,16 @@ class _AppLockGuardState extends State<AppLockGuard>
               },
               onSwitchToPin: () => setState(() => _biometricFailed = true),
               onResetLock: () {
-                // Last-resort escape hatch for a device stuck with biometric
-                // auth unavailable and no fallback PIN ever set — app lock is
-                // a local device preference, not account security, so
-                // disabling it here doesn't expose anything a Supabase
-                // session on this device didn't already have access to.
+                // Last-resort escape hatch — either biometric auth is
+                // unavailable with no fallback PIN ever set, or the user
+                // forgot a PIN that was set. App lock is a local device
+                // preference, not account security, so disabling it here
+                // doesn't expose anything a Supabase session on this device
+                // didn't already have access to. Also clears the PIN itself
+                // (a no-op if none was set) — otherwise re-enabling App Lock
+                // later would silently still require the same forgotten PIN.
                 _prefs.appLockEnabled = false;
+                _prefs.clearPin();
                 setState(() {
                   _locked = false;
                   _biometricFailed = false;
@@ -176,6 +191,7 @@ class _AppLockOverlay extends StatefulWidget {
   final LockMethod lockMethod;
   final bool biometricFailed;
   final bool hasPin;
+  final bool biometricAvailable;
   final int pinLength;
   final VoidCallback onUnlocked;
   final VoidCallback onRetryBiometric;
@@ -187,6 +203,7 @@ class _AppLockOverlay extends StatefulWidget {
     required this.lockMethod,
     required this.biometricFailed,
     required this.hasPin,
+    required this.biometricAvailable,
     required this.pinLength,
     required this.onUnlocked,
     required this.onRetryBiometric,
@@ -271,9 +288,9 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Biometric authentication is unavailable on this device and no '
-                'fallback PIN was set. Turning off App Lock removes the unlock '
-                'requirement — you can re-enable it with a PIN from Settings.',
+                "This clears your PIN and turns off App Lock — you'll need to "
+                'set it up again from Settings. Your account data is safe; '
+                "this only affects this device's unlock screen.",
                 style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: _sub),
               ),
               const SizedBox(height: 22),
@@ -523,8 +540,12 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
               // Numpad
               _Numpad(onDigit: _onDigit, onDelete: _onDelete, sub: _sub, tc: _tc),
 
-              // Switch to biometric (if method was biometric and fallback was triggered)
-              if (widget.lockMethod == LockMethod.biometric) ...[
+              // Biometric fallback — offered whenever the device supports
+              // it, regardless of the chosen lock method. Previously this
+              // only showed when lockMethod == biometric, so a user who
+              // picked PIN as their method got no biometric escape hatch at
+              // all here, even if their device fully supports it.
+              if (widget.biometricAvailable) ...[
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: widget.onRetryBiometric,
@@ -541,6 +562,25 @@ class _AppLockOverlayState extends State<_AppLockOverlay> {
                   ),
                 ),
               ],
+
+              // Forgot PIN — always available from the PIN screen.
+              // Previously the only escape hatch required biometric to have
+              // already failed AND no PIN to exist, so a user who set a PIN
+              // and then genuinely forgot it had no way back into the app
+              // short of uninstalling and losing local prefs anyway.
+              const SizedBox(height: 4),
+              TextButton(
+                onPressed: () => _confirmResetLock(context),
+                child: Text(
+                  'Forgot PIN?',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                    color: _sub,
+                  ),
+                ),
+              ),
             ],
 
             const SizedBox(height: 32),
@@ -583,6 +623,9 @@ class _Numpad extends StatelessWidget {
           children: row.map((k) {
             if (k.isEmpty) return const SizedBox(width: 80, height: 60);
             return GestureDetector(
+              // Without this, taps only register on the digit glyph itself —
+              // see the same fix in privacy_security_sheet.dart's numpad.
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 HapticFeedback.lightImpact();
                 if (k == '⌫') {

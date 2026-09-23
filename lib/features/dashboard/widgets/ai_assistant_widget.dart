@@ -29,6 +29,7 @@ import 'package:wai_life_assistant/data/models/wallet/flow_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/data/services/app_config_service.dart';
+import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AIAssistantWidget
@@ -308,11 +309,16 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
     try {
       final intent = IntentClassifier.instance.classify(question);
       if (kDebugMode) debugPrint('[WAI] AI intent resolved, sources=${intent.dataSources}');
-      final ctx = await ContextFetcher.instance.fetch(
-        intent,
-        _selectedWalletId,
-        cache: widget.cache,
-      );
+      await PrivacyPrefs.instance.init();
+      // "Personalisation" off → skip pulling wallet/pantry/planit/family
+      // data into the prompt, per the Privacy & Security setting.
+      final ctx = PrivacyPrefs.instance.allowPersonalisation
+          ? await ContextFetcher.instance.fetch(
+              intent,
+              _selectedWalletId,
+              cache: widget.cache,
+            )
+          : const HouseholdContext();
       final contextBlock = ctx.toPromptBlock();
       if (kDebugMode) debugPrint('[WAI] context fetched');
       final familyMembers = ctx.family.isNotEmpty

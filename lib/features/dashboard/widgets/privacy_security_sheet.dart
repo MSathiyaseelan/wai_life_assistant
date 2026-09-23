@@ -814,6 +814,13 @@ class _Numpad extends StatelessWidget {
           children: row.map((k) {
             if (k.isEmpty) return const SizedBox(width: 72, height: 56);
             return GestureDetector(
+              // Without this, taps only register on the digit glyph itself
+              // — the bare, uncolored Container below paints nothing, and
+              // GestureDetector's default HitTestBehavior.deferToChild only
+              // recognizes taps where something actually paints. That left
+              // most of each 72x56 key silently missing taps, felt as slow
+              // or unresponsive.
+              behavior: HitTestBehavior.opaque,
               onTap: () {
                 HapticFeedback.lightImpact();
                 if (k == '⌫') {

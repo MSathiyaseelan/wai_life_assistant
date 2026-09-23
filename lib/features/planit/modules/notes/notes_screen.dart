@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/services/note_service.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
@@ -394,8 +396,13 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
-  void _openNoteSheet({NoteModel? existing}) {
+  void _openNoteSheet({NoteModel? existing}) async {
     if (widget.walletId.isEmpty) return;
+    if (existing != null && existing.type == NoteType.secret) {
+      final unlocked = await _unlockSecretNote();
+      if (!unlocked) return;
+      if (!mounted) return;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
@@ -408,6 +415,53 @@ class _NotesScreenState extends State<NotesScreen> {
         onSave: (note) => _saveNote(note, isNew: existing == null),
       ),
     );
+  }
+
+  /// Gates opening a Secret note behind biometric (falling back to the PIN
+  /// set in Privacy & Security → Locked Notes), per the "Require Biometric"
+  /// toggle there. Returns true if the note should open.
+  Future<bool> _unlockSecretNote() async {
+    final prefs = PrivacyPrefs.instance;
+    await prefs.init();
+    if (!prefs.lockedNotesBiometric) return true;
+
+    try {
+      final auth = LocalAuthentication();
+      if (await auth.isDeviceSupported()) {
+        final ok = await auth.authenticate(
+          localizedReason: 'Authenticate to open this secret note',
+          options: const AuthenticationOptions(
+            biometricOnly: false,
+            stickyAuth: true,
+          ),
+        );
+        if (ok) return true;
+      }
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'notes_biometric_auth');
+    }
+
+    if (!mounted) return false;
+    if (!await prefs.hasPin()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Set a PIN in Privacy & Security to unlock this note'),
+          ),
+        );
+      }
+      return false;
+    }
+
+    if (!mounted) return false;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NotesPinSheet(isDark: isDark),
+    );
+    return result == true;
   }
 
   void _showContextMenu(NoteModel note) {
@@ -2150,6 +2204,203 @@ class _MenuItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _NotesPinSheet — biometric fallback for opening a Secret note, per the PIN
+// set in Privacy & Security → Locked Notes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NotesPinSheet extends StatefulWidget {
+  final bool isDark;
+  const _NotesPinSheet({required this.isDark});
+
+  @override
+  State<_NotesPinSheet> createState() => _NotesPinSheetState();
+}
+
+class _NotesPinSheetState extends State<_NotesPinSheet> {
+  String _pin = '';
+  String? _error;
+  bool _checking = false;
+  final int _pinLength = PrivacyPrefs.instance.pinLength;
+
+  Color get _bg => widget.isDark ? const Color(0xFF0F0F1A) : Colors.white;
+  Color get _tc => widget.isDark ? Colors.white : const Color(0xFF0F172A);
+  Color get _sub => widget.isDark ? Colors.white54 : const Color(0xFF64748B);
+
+  void _onDigit(String d) {
+    if (_checking || _pin.length >= _pinLength) return;
+    setState(() {
+      _error = null;
+      _pin += d;
+    });
+    if (_pin.length == _pinLength) _check();
+  }
+
+  void _onDelete() {
+    if (_pin.isEmpty) return;
+    setState(() {
+      _error = null;
+      _pin = _pin.substring(0, _pin.length - 1);
+    });
+  }
+
+  Future<void> _check() async {
+    setState(() => _checking = true);
+    final ok = await PrivacyPrefs.instance.checkPin(_pin);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() {
+        _checking = false;
+        _error = 'Incorrect PIN. Try again.';
+        _pin = '';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _sub.withAlpha(80),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Icon(Icons.lock_outline_rounded, size: 36, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(
+              'Enter PIN',
+              style: TextStyle(
+                fontSize: 18,
+                fontFamily: 'Nunito',
+                fontWeight: FontWeight.w900,
+                color: _tc,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Unlock this secret note',
+              style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: _sub),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_pinLength, (i) {
+                final filled = i < _pin.length;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: filled ? AppColors.primary : Colors.transparent,
+                    border: Border.all(
+                      color: filled ? AppColors.primary : _sub.withAlpha(120),
+                      width: 2,
+                    ),
+                  ),
+                );
+              }),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Nunito',
+                  color: AppColors.expense,
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            _NotesNumpad(onDigit: _onDigit, onDelete: _onDelete, sub: _sub, tc: _tc),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotesNumpad extends StatelessWidget {
+  final ValueChanged<String> onDigit;
+  final VoidCallback onDelete;
+  final Color sub;
+  final Color tc;
+
+  const _NotesNumpad({
+    required this.onDigit,
+    required this.onDelete,
+    required this.sub,
+    required this.tc,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const keys = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['', '0', '⌫'],
+    ];
+    return Column(
+      children: keys.map((row) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: row.map((k) {
+            if (k.isEmpty) return const SizedBox(width: 72, height: 56);
+            return GestureDetector(
+              // Without this, taps only register on the digit glyph itself —
+              // see the same fix in privacy_security_sheet.dart's numpad.
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                if (k == '⌫') {
+                  onDelete();
+                } else {
+                  onDigit(k);
+                }
+              },
+              child: Container(
+                width: 72,
+                height: 56,
+                alignment: Alignment.center,
+                child: Text(
+                  k,
+                  style: TextStyle(
+                    fontSize: k == '⌫' ? 20 : 22,
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                    color: k == '⌫' ? sub : tc,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      }).toList(),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/features/dashboard/ai_context_builder.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/services/privacy_prefs.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,10 +86,13 @@ class _DashboardAiBarState extends State<DashboardAiBar>
     _animCtrl.forward(from: 0);
 
     try {
-      final contextBlock = await AiContextBuilder.instance.build(
-        question,
-        widget.walletId,
-      );
+      await PrivacyPrefs.instance.init();
+      // "Personalisation" off → don't pull the user's wallet/pantry/planit
+      // data into the prompt; the AI still answers, just without that
+      // context, per the Privacy & Security setting's own description.
+      final contextBlock = PrivacyPrefs.instance.allowPersonalisation
+          ? await AiContextBuilder.instance.build(question, widget.walletId)
+          : '';
       if (!mounted) return;
 
       final result = await AIParser.parseText(
