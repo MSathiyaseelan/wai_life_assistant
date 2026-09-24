@@ -80,6 +80,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       if (!mounted) return;
       setState(() {
         _group = splitGroupFromRow(row);
+        _syncSettledFlag();
         _recomputeGroupCache();
       });
       widget.onGroupUpdated(_group);
@@ -113,6 +114,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
   void initState() {
     super.initState();
     _group = widget.group;
+    _syncSettledFlag();
     _recomputeGroupCache();
     _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
@@ -180,22 +182,27 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     });
   }
 
+  /// isSettled isn't stored — it starts false on every load. Derive it from
+  /// the shares so _update() only celebrates a real transition to settled,
+  /// not a group that was already settled when opened/refreshed.
+  void _syncSettledFlag() {
+    _group.isSettled = _group.transactions.isNotEmpty &&
+        _group.transactions.every((tx) => tx.isFullySettled);
+  }
+
   void _update() {
     _recomputeGroupCache();
     final wasSettled = _group.isSettled;
     if (!wasSettled && _group.isFullySettled && _group.transactions.isNotEmpty) {
       _group.isSettled = true;
-      _group.messages.add(
-        SplitGroupMsg(
-          id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-          groupId: _group.id,
-          senderId: 'system',
-          senderName: 'System',
-          senderEmoji: '🎉',
-          text: '🎉 All payments settled! "${_group.name}" is now fully closed.',
-          time: DateTime.now(),
-          type: MsgType.settled,
-        ),
+      // Persisted so every member sees it (it used to be added locally only,
+      // lost on reload). Only the device that settles the last share gets
+      // here — others pick up share changes via _refreshGroup, which doesn't
+      // call _update — and _syncSettledFlag keeps an already-settled group
+      // from re-posting it.
+      _addAndPersistMessage(
+        text: '🎉 All payments settled! "${_group.name}" is now fully closed.',
+        type: MsgType.settled,
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showGroupSettledSheet();
@@ -723,7 +730,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         senderName: _participantName(_myId),
         senderEmoji: _participantEmoji(_myId),
         text: text,
-        type: type.name,
+        type: type.dbValue,
       );
     } catch (e) {
       debugPrint('[SplitGroupDetail] postMessage failed: $e');
@@ -1943,17 +1950,43 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               ? sub
               : (isOwed ? AppColors.income : AppColors.expense);
 
-          // Pending shares for "me" — used to show Submit Proof / Extension
-          final myPending = p.isMe
+          // My unpaid shares — proof can be submitted while pending or with an
+          // extension requested/granted (asking for more time shouldn't block
+          // paying). An extension can be requested while pending or once a
+          // previous request was granted, but not while one awaits a reply.
+          final myUnpaid = p.isMe
               ? _group.transactions
                   .expand((tx) => tx.shares.map((s) => (tx: tx, share: s)))
                   .where(
                     (e) =>
                         e.share.participantId == p.id &&
-                        e.share.status == SettleStatus.pending,
+                        (e.share.status == SettleStatus.pending ||
+                            e.share.status == SettleStatus.extensionRequested ||
+                            e.share.status == SettleStatus.extensionGranted),
                   )
                   .toList()
               : <({SplitGroupTx tx, SplitShare share})>[];
+          final myExtendable = myUnpaid
+              .where(
+                (e) =>
+                    e.share.status == SettleStatus.pending ||
+                    e.share.status == SettleStatus.extensionGranted,
+              )
+              .toList();
+
+          // This participant's shares with an extension requested/granted or
+          // proof awaiting confirmation — shown on their card, under Submit
+          // Proof / Extension, so Overview reflects where each share stands.
+          final inProgress = _group.transactions
+              .expand((tx) => tx.shares.map((s) => (tx: tx, share: s)))
+              .where(
+                (e) =>
+                    e.share.participantId == p.id &&
+                    (e.share.status == SettleStatus.extensionRequested ||
+                        e.share.status == SettleStatus.extensionGranted ||
+                        e.share.status == SettleStatus.proofSubmitted),
+              )
+              .toList();
 
           return GestureDetector(
             onTap: () {
@@ -2096,7 +2129,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 ),
 
                 // ── Action buttons for ME when I owe and have pending shares ──
-                if (p.isMe && !isEven && !isOwed && myPending.isNotEmpty) ...[
+                if (p.isMe && !isEven && !isOwed && myUnpaid.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -2104,7 +2137,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                         child: OutlinedButton.icon(
                           onPressed: () {
                             HapticFeedback.selectionClick();
-                            _showOverviewProofSheet(myPending);
+                            _showOverviewProofSheet(myUnpaid);
                           },
                           icon: const Text(
                             '💳',
@@ -2130,12 +2163,13 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                           ),
                         ),
                       ),
+                      if (myExtendable.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () {
                             HapticFeedback.selectionClick();
-                            _showOverviewExtensionSheet(myPending);
+                            _showOverviewExtensionSheet(myExtendable);
                           },
                           icon: const Text(
                             '⏰',
@@ -2163,8 +2197,55 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                           ),
                         ),
                       ),
+                      ],
                     ],
                   ),
+                ],
+
+                // ── Extension / proof details ──
+                for (final e in inProgress) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${e.share.status == SettleStatus.proofSubmitted ? '💳' : '⏰'} '
+                    '${e.tx.title} · ${AppPrefs.cs}${e.share.amount.toStringAsFixed(0)} · '
+                    '${switch (e.share.status) {
+                      SettleStatus.proofSubmitted => 'Proof submitted — awaiting confirmation',
+                      SettleStatus.extensionGranted => 'Extension granted',
+                      _ => 'Extension requested',
+                    }}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: e.share.status.color,
+                    ),
+                  ),
+                  if (e.share.status == SettleStatus.proofSubmitted) ...[
+                    _ProofInfo(share: e.share),
+                    // Proof replaces the extension status, but the share's
+                    // past requests stay in split_share_extension_history.
+                    if (e.share.extensionDate != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: GestureDetector(
+                          onTap: () => _ExtensionInfo(
+                            share: e.share,
+                            color: e.share.status.color,
+                          ).showHistory(context),
+                          child: Text(
+                            'View extension history',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w700,
+                              color: e.share.status.color.withValues(alpha: 0.7),
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ] else
+                    _ExtensionInfo(share: e.share, color: e.share.status.color),
                 ],
               ],
             ),
@@ -3149,174 +3230,10 @@ class _ShareRow extends StatelessWidget {
           // Extension info
           if (st == SettleStatus.extensionRequested ||
               st == SettleStatus.extensionGranted)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (share.extensionDate != null) ...[
-                      Text(
-                        'Extension till: ${_fmtDate(share.extensionDate!)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'Nunito',
-                          color: color,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      // Only a granted extension can actually lapse — a still-
-                      // pending request has no agreed date to be overdue against.
-                      if (st == SettleStatus.extensionGranted &&
-                          share.extensionDate!.isBefore(DateTime.now()))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            '⚠️ Extension expired',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontFamily: 'Nunito',
-                              color: AppColors.expense,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                    ],
-                    if (share.extensionReason != null)
-                      Text(
-                        share.extensionReason!,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontFamily: 'Nunito',
-                          color: color.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    if (share.extensionResponseMsg != null &&
-                        share.extensionResponseMsg!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            st == SettleStatus.extensionGranted ? '🤝 ' : '❌ ',
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                          Expanded(
-                            child: Text(
-                              share.extensionResponseMsg!,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'Nunito',
-                                fontStyle: FontStyle.italic,
-                                color: color.withValues(alpha: 0.9),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () => _showExtensionHistory(context),
-                      child: Text(
-                        'View extension history',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontFamily: 'Nunito',
-                          fontWeight: FontWeight.w700,
-                          color: color.withValues(alpha: 0.7),
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            _ExtensionInfo(share: share, color: color),
 
           // Proof info (image + note)
-          if (st == SettleStatus.proofSubmitted) ...[
-            if (share.proofImagePath != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: share.proofImagePath!.startsWith('http')
-                      ? CachedNetworkImage(
-                          imageUrl: share.proofImagePath!,
-                          height: 110,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
-                            height: 110,
-                            color: const Color(0xFF2196F3).withValues(alpha: 0.07),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.image_not_supported_outlined,
-                              color: Color(0xFF2196F3),
-                            ),
-                          ),
-                        )
-                      : Image.file(
-                          File(share.proofImagePath!),
-                          height: 110,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 110,
-                            color: const Color(0xFF2196F3).withValues(alpha: 0.07),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.image_not_supported_outlined,
-                              color: Color(0xFF2196F3),
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            if (share.proofNote != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2196F3).withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.upload_rounded,
-                        size: 12,
-                        color: Color(0xFF2196F3),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          share.proofNote!,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontFamily: 'Nunito',
-                            color: Color(0xFF2196F3),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+          if (st == SettleStatus.proofSubmitted) _ProofInfo(share: share),
 
           // Reminder history
           if ((share.reminderCount ?? 0) > 0)
@@ -3387,8 +3304,10 @@ class _ShareRow extends StatelessWidget {
       );
     }
 
-    // I AM the debtor — I can request an extension on my pending share
-    if (_isMyShare && !_iAmPayer && st == SettleStatus.pending) {
+    // I AM the debtor — I can request an extension on my pending share, or
+    // again once a previous request was granted (not while one awaits reply)
+    if (_isMyShare && !_iAmPayer &&
+        (st == SettleStatus.pending || st == SettleStatus.extensionGranted)) {
       actions.add(
         _ActionBtn('⏰ Request Extension', const Color(0xFF9C27B0), () {
           _showDebtorExtensionSheet(context);
@@ -3446,88 +3365,6 @@ class _ShareRow extends StatelessWidget {
       }
       return false;
     }
-  }
-
-  String _fmtHistoryDate(DateTime d) {
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
-  }
-
-  Future<void> _showExtensionHistory(BuildContext context) async {
-    List<Map<String, dynamic>> history;
-    try {
-      history = await WalletService.instance.fetchExtensionHistory(share.id);
-    } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'fetch_extension_history');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't load extension history. Please try again.")),
-        );
-      }
-      return;
-    }
-    if (!context.mounted) return;
-    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Extension History',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
-            const SizedBox(height: 12),
-            if (history.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Text('No extension requests yet.',
-                    style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
-              )
-            else
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: history.length,
-                  separatorBuilder: (_, __) => const Divider(height: 20),
-                  itemBuilder: (_, i) {
-                    final h = history[i];
-                    final extDate = DateTime.tryParse(h['extension_date'] as String? ?? '');
-                    final requestedAt = DateTime.tryParse(h['requested_at'] as String? ?? '');
-                    final reason = h['extension_reason'] as String?;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          extDate != null ? 'Requested till ${_fmtHistoryDate(extDate)}' : 'Extension requested',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc),
-                        ),
-                        if (reason != null && reason.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(reason, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
-                        ],
-                        if (requestedAt != null) ...[
-                          const SizedBox(height: 2),
-                          Text('on ${_fmtHistoryDate(requestedAt)}',
-                              style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub.withValues(alpha: 0.7))),
-                        ],
-                      ],
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showDebtorExtensionSheet(BuildContext context) {
@@ -3882,6 +3719,358 @@ class _ShareRow extends StatelessWidget {
     if (diff == 1) return 'Yesterday';
     if (diff == -1) return 'Tomorrow';
     return '${d.day} ${['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month]}';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROOF INFO — submitted proof image + note for one share. Shown both on the
+// share row under Expenses and on the participant's Overview card.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ProofInfo extends StatelessWidget {
+  final SplitShare share;
+  const _ProofInfo({required this.share});
+
+  /// Full-size, pinch-zoomable view of the proof — the inline preview is a
+  /// 110px BoxFit.cover crop, too small to read a payment screenshot.
+  void _showFullImage(BuildContext context, String path) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(sheetCtx).size.height * 0.88,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Flexible(
+              child: LayoutBuilder(
+                // InteractiveViewer needs a bounded, concrete child size.
+                builder: (_, constraints) => InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    child: path.startsWith('http')
+                        ? CachedNetworkImage(
+                            imageUrl: path,
+                            fit: BoxFit.contain,
+                            errorWidget: (_, _, _) => const Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.white54,
+                            ),
+                          )
+                        : Image.file(
+                            File(path),
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.image_not_supported_outlined,
+                              color: Colors.white54,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(sheetCtx).padding.bottom + 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (share.proofImagePath != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: GestureDetector(
+              onTap: () => _showFullImage(context, share.proofImagePath!),
+              child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: share.proofImagePath!.startsWith('http')
+                  ? CachedNetworkImage(
+                      imageUrl: share.proofImagePath!,
+                      height: 110,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        height: 110,
+                        color: const Color(0xFF2196F3).withValues(alpha: 0.07),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Color(0xFF2196F3),
+                        ),
+                      ),
+                    )
+                  : Image.file(
+                      File(share.proofImagePath!),
+                      height: 110,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 110,
+                        color: const Color(0xFF2196F3).withValues(alpha: 0.07),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.image_not_supported_outlined,
+                          color: Color(0xFF2196F3),
+                        ),
+                      ),
+                    ),
+              ),
+            ),
+          ),
+        if (share.proofNote != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2196F3).withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.upload_rounded,
+                    size: 12,
+                    color: Color(0xFF2196F3),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      share.proofNote!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'Nunito',
+                        color: Color(0xFF2196F3),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXTENSION INFO — requested/granted date, reason, payer's reply and history
+// link for one share. Shown both on the share row under Expenses and on the
+// participant's Overview card, next to Submit Proof / Extension.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ExtensionInfo extends StatelessWidget {
+  final SplitShare share;
+  final Color color;
+  const _ExtensionInfo({required this.share, required this.color});
+
+  static String _fmtHistoryDate(DateTime d) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${d.day} ${months[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final st = share.status;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (share.extensionDate != null) ...[
+              Text(
+                'Extension till: ${_ShareRow._fmtDate(share.extensionDate!)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'Nunito',
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              // Only a granted extension can actually lapse — a still-
+              // pending request has no agreed date to be overdue against.
+              if (st == SettleStatus.extensionGranted &&
+                  share.extensionDate!.isBefore(DateTime.now()))
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '⚠️ Extension expired',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'Nunito',
+                      color: AppColors.expense,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+            if (share.extensionReason != null)
+              Text(
+                share.extensionReason!,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'Nunito',
+                  color: color.withValues(alpha: 0.8),
+                ),
+              ),
+            if (share.extensionResponseMsg != null &&
+                share.extensionResponseMsg!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    st == SettleStatus.extensionGranted ? '🤝 ' : '❌ ',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  Expanded(
+                    child: Text(
+                      share.extensionResponseMsg!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'Nunito',
+                        fontStyle: FontStyle.italic,
+                        color: color.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () => showHistory(context),
+              child: Text(
+                'View extension history',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w700,
+                  color: color.withValues(alpha: 0.7),
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> showHistory(BuildContext context) async {
+    List<Map<String, dynamic>> history;
+    try {
+      history = await WalletService.instance.fetchExtensionHistory(share.id);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'fetch_extension_history');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't load extension history. Please try again.")),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Extension History',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
+            const SizedBox(height: 12),
+            if (history.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Text('No extension requests yet.',
+                    style: TextStyle(fontSize: 13, fontFamily: 'Nunito', color: sub)),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: history.length,
+                  separatorBuilder: (_, __) => const Divider(height: 20),
+                  itemBuilder: (_, i) {
+                    final h = history[i];
+                    final extDate = DateTime.tryParse(h['extension_date'] as String? ?? '');
+                    final requestedAt = DateTime.tryParse(h['requested_at'] as String? ?? '');
+                    final reason = h['extension_reason'] as String?;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          extDate != null ? 'Requested till ${_fmtHistoryDate(extDate)}' : 'Extension requested',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc),
+                        ),
+                        if (reason != null && reason.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(reason, style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
+                        ],
+                        if (requestedAt != null) ...[
+                          const SizedBox(height: 2),
+                          Text('on ${_fmtHistoryDate(requestedAt)}',
+                              style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub.withValues(alpha: 0.7))),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

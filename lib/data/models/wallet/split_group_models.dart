@@ -207,6 +207,20 @@ enum MsgType {
   reminder,
 }
 
+extension MsgTypeDb on MsgType {
+  /// Value stored in split_group_messages.type — snake_case, per the table's
+  /// CHECK constraint (001_wallet_schema.sql). Don't use [name] (camelCase),
+  /// which the constraint rejects.
+  String get dbValue => switch (this) {
+        MsgType.text => 'text',
+        MsgType.txAdded => 'tx_added',
+        MsgType.settled => 'settled',
+        MsgType.extensionReq => 'extension_req',
+        MsgType.extensionGranted => 'extension_granted',
+        MsgType.reminder => 'reminder',
+      };
+}
+
 class SplitGroupMsg {
   final String id;
   final String groupId;
@@ -241,16 +255,8 @@ class SplitGroupMsg {
     );
   }
 
-  static MsgType _msgTypeFromString(String s) {
-    switch (s) {
-      case 'txAdded':         return MsgType.txAdded;
-      case 'settled':         return MsgType.settled;
-      case 'extensionReq':    return MsgType.extensionReq;
-      case 'extensionGranted':return MsgType.extensionGranted;
-      case 'reminder':        return MsgType.reminder;
-      default:                return MsgType.text;
-    }
-  }
+  static MsgType _msgTypeFromString(String s) =>
+      MsgType.values.firstWhere((t) => t.dbValue == s, orElse: () => MsgType.text);
 }
 
 // ── Split Group ───────────────────────────────────────────────────────────────
@@ -379,11 +385,18 @@ SplitType splitTypeFromString(String s) {
   }
 }
 
+// split_shares.status is snake_case per its CHECK constraint
+// (001_wallet_schema.sql) and every writer sends snake_case — matching only
+// the camelCase spellings here made every proof/extension status read back
+// as pending after a reload. camelCase kept as a tolerant fallback.
 SettleStatus settleStatusFromString(String s) {
   switch (s) {
+    case 'proof_submitted':
     case 'proofSubmitted':     return SettleStatus.proofSubmitted;
     case 'settled':            return SettleStatus.settled;
+    case 'extension_requested':
     case 'extensionRequested': return SettleStatus.extensionRequested;
+    case 'extension_granted':
     case 'extensionGranted':   return SettleStatus.extensionGranted;
     default:                   return SettleStatus.pending;
   }
