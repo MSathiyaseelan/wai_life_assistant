@@ -366,6 +366,38 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         if (notifPrefs.walletLendBorrow != nWalletLendBorrow) notifPrefs.walletLendBorrow = nWalletLendBorrow;
         if (notifPrefs.planItAlertMe != nPlanItAlertMe) notifPrefs.planItAlertMe = nPlanItAlertMe;
         if (notifPrefs.walletSplitAdded != nWalletSplit) notifPrefs.walletSplitAdded = nWalletSplit;
+
+        // Quiet hours (195). notif_timezone is only ever written alongside
+        // them, so null means this profile has never received this user's
+        // quiet hours — push the device's values up rather than letting the
+        // column defaults (off) overwrite a setting made before the sync
+        // existed. Otherwise pull them down, and keep the timezone current.
+        final storedTz = profile['notif_timezone'] as String?;
+        if (storedTz == null) {
+          await ProfileService.instance.updateNotificationPrefs(
+            master: notifPrefs.masterOn,
+            pantryExpiry: notifPrefs.pantryExpiry,
+            pantryExpiryDays: notifPrefs.pantryExpiryDays,
+            planItSpecialDay: notifPrefs.planItSpecialDay,
+            functionsUpcoming: notifPrefs.functionsUpcoming,
+            functionsUpcomingDays: notifPrefs.functionsUpcomingDays,
+            walletExpense: notifPrefs.walletFamilyExpense,
+            walletLendBorrow: notifPrefs.walletLendBorrow,
+            planItAlertMe: notifPrefs.planItAlertMe,
+            walletSplitAdded: notifPrefs.walletSplitAdded,
+            quietEnabled: notifPrefs.quietHoursEnabled,
+            quietStart: notifPrefs.quietStart,
+            quietEnd: notifPrefs.quietEnd,
+          );
+        } else {
+          final nQuiet = (profile['notif_quiet_enabled'] as bool?) ?? false;
+          final nQuietStart = (profile['notif_quiet_start'] as int?) ?? 22;
+          final nQuietEnd = (profile['notif_quiet_end'] as int?) ?? 7;
+          if (notifPrefs.quietHoursEnabled != nQuiet) notifPrefs.quietHoursEnabled = nQuiet;
+          if (notifPrefs.quietStart != nQuietStart) notifPrefs.quietStart = nQuietStart;
+          if (notifPrefs.quietEnd != nQuietEnd) notifPrefs.quietEnd = nQuietEnd;
+          await ProfileService.instance.syncTimezone(storedTz);
+        }
       }
     } catch (e, stack) {
       debugPrint('[Dashboard] _loadProfile error: $e');

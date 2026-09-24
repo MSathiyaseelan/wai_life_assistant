@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wallet/wallet_models.dart';
@@ -109,8 +110,18 @@ class ProfileService {
     required bool walletLendBorrow,
     required bool planItAlertMe,
     required bool walletSplitAdded,
+    required bool quietEnabled,
+    required int quietStart,
+    required int quietEnd,
   }) async {
+    // Quiet hours are local wall-clock hours; the server needs the zone to
+    // evaluate them (195_notif_quiet_hours.sql).
+    final timezone = await deviceTimezone();
     await _db.from('profiles').update({
+      'notif_quiet_enabled': quietEnabled,
+      'notif_quiet_start': quietStart,
+      'notif_quiet_end': quietEnd,
+      if (timezone != null) 'notif_timezone': timezone,
       'notif_master': master,
       'notif_pantry_expiry': pantryExpiry,
       'notif_pantry_expiry_days': pantryExpiryDays,
@@ -122,6 +133,25 @@ class ProfileService {
       'notif_planit_alert_me': planItAlertMe,
       'notif_wallet_split': walletSplitAdded,
     }).eq('id', _uid);
+  }
+
+  /// The device's IANA timezone (e.g. 'Asia/Kolkata'), or null if it can't
+  /// be read.
+  Future<String?> deviceTimezone() async {
+    try {
+      return (await FlutterTimezone.getLocalTimezone()).identifier;
+    } catch (e) {
+      debugPrint('[ProfileService] timezone lookup failed: $e');
+      return null;
+    }
+  }
+
+  /// Keeps profiles.notif_timezone current (e.g. after travelling) so
+  /// server-side quiet hours follow the user's local time.
+  Future<void> syncTimezone(String? stored) async {
+    final tz = await deviceTimezone();
+    if (tz == null || tz == stored) return;
+    await _db.from('profiles').update({'notif_timezone': tz}).eq('id', _uid);
   }
 
   // ── FamilySwitcher seed data ──────────────────────────────────────────────

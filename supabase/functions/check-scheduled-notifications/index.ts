@@ -90,6 +90,7 @@ async function sendFCM(
   body: string,
   data: Record<string, string>,
   accessToken: string,
+  quiet = false,
 ): Promise<SendResult> {
   const projectId = FCM_SERVICE_ACCOUNT.project_id;
   const resp = await fetch(
@@ -103,11 +104,18 @@ async function sendFCM(
           notification: { title, body },
           data,
           android: {
-            priority: "high",
-            notification: { channel_id: "wai_family_channel", click_action: "FLUTTER_NOTIFICATION_CLICK" },
+            priority: quiet ? "normal" : "high",
+            notification: {
+              channel_id: quiet ? "wai_family_quiet" : "wai_family_channel",
+              click_action: "FLUTTER_NOTIFICATION_CLICK",
+            },
           },
           apns: {
-            payload: { aps: { alert: { title, body }, badge: 1, sound: "default" } },
+            payload: {
+              aps: quiet
+                ? { alert: { title, body }, badge: 1, "interruption-level": "passive" }
+                : { alert: { title, body }, badge: 1, sound: "default" },
+            },
           },
         },
       }),
@@ -188,6 +196,7 @@ interface PushJob {
 async function sendGrouped(
   supabase: ReturnType<typeof createClient>,
   jobs: PushJob[],
+  quietUserIds: Set<string>,
 ): Promise<number> {
   if (!jobs.length) return 0;
 
@@ -205,14 +214,14 @@ async function sendGrouped(
 
     const { data: tokens } = await supabase
       .from("user_fcm_tokens")
-      .select("fcm_token")
+      .select("user_id, fcm_token")
       .in("user_id", job.userIds);
     if (!tokens?.length) continue;
 
     const fcmData = { route: job.route, event_type: job.eventType, ...job.data };
     const results = await Promise.allSettled(
-      tokens.map((t: { fcm_token: string }) =>
-        sendFCM(t.fcm_token, job.title, job.body, fcmData, accessToken)
+      tokens.map((t: { user_id: string; fcm_token: string }) =>
+        sendFCM(t.fcm_token, job.title, job.body, fcmData, accessToken, quietUserIds.has(t.user_id))
       ),
     );
     sent += results.filter(
@@ -230,7 +239,37 @@ async function sendGrouped(
   return sent;
 }
 
-interface MemberNotifPrefs {
+// ── Quiet hours (195_notif_quiet_hours.sql) ───────────────────────────────────
+// Mirrors send-notification/index.ts. Same rule as the app's
+// NotificationPrefs.isHourQuiet, evaluated in the recipient's own timezone.
+// Recipients inside their quiet hours still get the push, just silently.
+
+const QUIET_COLUMNS = "notif_quiet_enabled, notif_quiet_start, notif_quiet_end, notif_timezone";
+
+interface QuietPrefs {
+  notif_quiet_enabled?: boolean | null;
+  notif_quiet_start?: number | null;
+  notif_quiet_end?: number | null;
+  notif_timezone?: string | null;
+}
+
+function isInQuietHours(p: QuietPrefs, now: Date = new Date()): boolean {
+  if (!p.notif_quiet_enabled || !p.notif_timezone) return false;
+  let hour: number;
+  try {
+    hour = Number(new Intl.DateTimeFormat("en-US", {
+      timeZone: p.notif_timezone, hour: "numeric", hourCycle: "h23",
+    }).format(now));
+  } catch {
+    return false; // unknown zone — don't silence
+  }
+  const start = p.notif_quiet_start ?? 22;
+  const end = p.notif_quiet_end ?? 7;
+  // Handles overnight window (e.g. 22 → 07)
+  return start > end ? (hour >= start || hour < end) : (hour >= start && hour < end);
+}
+
+interface MemberNotifPrefs extends QuietPrefs {
   notif_master: boolean;
   notif_pantry_expiry: boolean;
   notif_pantry_expiry_days: number;
@@ -259,7 +298,7 @@ async function familyMembersWithPrefs(
   const { data: profiles } = await supabase
     .from("profiles")
     .select(
-      "id, notif_master, notif_pantry_expiry, notif_pantry_expiry_days, notif_planit_special_day, notif_functions_upcoming, notif_functions_upcoming_days",
+      `id, notif_master, notif_pantry_expiry, notif_pantry_expiry_days, notif_planit_special_day, notif_functions_upcoming, notif_functions_upcoming_days, ${QUIET_COLUMNS}`,
     )
     .in("id", memberIds);
 
@@ -271,6 +310,10 @@ async function familyMembersWithPrefs(
     notif_planit_special_day: p.notif_planit_special_day,
     notif_functions_upcoming: p.notif_functions_upcoming,
     notif_functions_upcoming_days: p.notif_functions_upcoming_days,
+    notif_quiet_enabled: p.notif_quiet_enabled,
+    notif_quiet_start: p.notif_quiet_start,
+    notif_quiet_end: p.notif_quiet_end,
+    notif_timezone: p.notif_timezone,
   }));
 }
 
@@ -461,7 +504,11 @@ serve(async (req) => {
     }
   }
 
-  const sent = await sendGrouped(supabase, jobs);
+  const quietUserIds = new Set<string>();
+  for (const members of memberCache.values()) {
+    for (const m of members) if (isInQuietHours(m)) quietUserIds.add(m.user_id);
+  }
+  const sent = await sendGrouped(supabase, jobs, quietUserIds);
   console.log(`[scheduled-notif] jobs=${jobs.length} sent=${sent}`);
 
   return new Response(JSON.stringify({ jobs: jobs.length, sent }), {

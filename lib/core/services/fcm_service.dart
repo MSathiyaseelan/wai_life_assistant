@@ -120,15 +120,24 @@ class FcmService {
   // ── Create Android notification channel (idempotent) ───────────────────────
 
   static Future<void> _createFamilyChannel() async {
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(const AndroidNotificationChannel(
-          'wai_family_channel',
-          'Family Updates',
-          description: 'Updates from your family members',
-          importance: Importance.high,
-        ));
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'wai_family_channel',
+      'Family Updates',
+      description: 'Updates from your family members',
+      importance: Importance.high,
+    ));
+    // Used by send-notification / check-scheduled-notifications for
+    // recipients inside their quiet hours (195_notif_quiet_hours.sql).
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      'wai_family_quiet',
+      'Family Updates (Quiet Hours)',
+      description: 'Silent updates during your configured quiet hours',
+      importance: Importance.low,
+      playSound: false,
+      enableVibration: false,
+    ));
   }
 
   // ── Save FCM token → Supabase ───────────────────────────────────────────────
@@ -232,13 +241,13 @@ Future<void> _showWith(
   final notification = message.notification;
   if (notification == null) return;
 
-  // Quiet-hours gate (foreground only; prefs unavailable in background isolate)
+  // Quiet hours → show silently rather than drop, matching what the server
+  // does for pushes that arrive while the app is closed (foreground only;
+  // prefs unavailable in background isolate).
+  var quiet = false;
   if (checkQuiet) {
     await NotificationPrefs.instance.init();
-    if (NotificationPrefs.instance.isQuietNow) {
-      debugPrint('[FCM] quiet hours active — suppressing foreground notification');
-      return;
-    }
+    quiet = NotificationPrefs.instance.isQuietNow;
   }
 
   final route = message.data['route'] as String?;
@@ -249,21 +258,39 @@ Future<void> _showWith(
     notification.hashCode,
     notification.title,
     notification.body,
-    const NotificationDetails(
-      android: AndroidNotificationDetails(
-        'wai_family_channel',
-        'Family Updates',
-        channelDescription: 'Notifications from your family members',
-        importance: Importance.high,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-      ),
-      iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      ),
-    ),
+    quiet
+        ? const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'wai_family_quiet',
+              'Family Updates (Quiet Hours)',
+              channelDescription: 'Silent updates during your configured quiet hours',
+              importance: Importance.low,
+              priority: Priority.low,
+              playSound: false,
+              enableVibration: false,
+              icon: '@mipmap/ic_launcher',
+            ),
+            iOS: DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: false,
+            ),
+          )
+        : const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'wai_family_channel',
+              'Family Updates',
+              channelDescription: 'Notifications from your family members',
+              importance: Importance.high,
+              priority: Priority.high,
+              icon: '@mipmap/ic_launcher',
+            ),
+            iOS: DarwinNotificationDetails(
+              presentAlert: true,
+              presentBadge: true,
+              presentSound: true,
+            ),
+          ),
     payload: link?.toPayload(),
   );
 }

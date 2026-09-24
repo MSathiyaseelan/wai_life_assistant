@@ -94,6 +94,35 @@ const EVENT_PREF_COLUMN: Record<string, string> = {
   "functions.upcoming_added": "notif_functions_upcoming",
 };
 
+// ── Quiet hours (195_notif_quiet_hours.sql) ───────────────────────────────────
+// Mirrored in check-scheduled-notifications. Same rule as the app's
+// NotificationPrefs.isHourQuiet, evaluated in the recipient's own timezone.
+
+const QUIET_COLUMNS = "notif_quiet_enabled, notif_quiet_start, notif_quiet_end, notif_timezone";
+
+interface QuietPrefs {
+  notif_quiet_enabled?: boolean | null;
+  notif_quiet_start?: number | null;
+  notif_quiet_end?: number | null;
+  notif_timezone?: string | null;
+}
+
+function isInQuietHours(p: QuietPrefs, now: Date = new Date()): boolean {
+  if (!p.notif_quiet_enabled || !p.notif_timezone) return false;
+  let hour: number;
+  try {
+    hour = Number(new Intl.DateTimeFormat("en-US", {
+      timeZone: p.notif_timezone, hour: "numeric", hourCycle: "h23",
+    }).format(now));
+  } catch {
+    return false; // unknown zone — don't silence
+  }
+  const start = p.notif_quiet_start ?? 22;
+  const end = p.notif_quiet_end ?? 7;
+  // Handles overnight window (e.g. 22 → 07)
+  return start > end ? (hour >= start || hour < end) : (hour >= start && hour < end);
+}
+
 // ── Base64url helpers ─────────────────────────────────────────────────────────
 
 function base64url(data: Uint8Array | string): string {
@@ -176,6 +205,7 @@ async function sendFCM(
   body: string,
   data: Record<string, string>,
   accessToken: string,
+  quiet = false,
 ): Promise<SendResult> {
   const projectId = FCM_SERVICE_ACCOUNT.project_id;
   const resp = await fetch(
@@ -192,14 +222,20 @@ async function sendFCM(
           notification: { title, body },
           data,
           android: {
-            priority: "high",
+            priority: quiet ? "normal" : "high",
             notification: {
-              channel_id: "wai_family_channel",
+              // wai_family_quiet: low-importance channel (no sound, vibration
+              // or heads-up) — created in FcmService.
+              channel_id: quiet ? "wai_family_quiet" : "wai_family_channel",
               click_action: "FLUTTER_NOTIFICATION_CLICK",
             },
           },
           apns: {
-            payload: { aps: { alert: { title, body }, badge: 1, sound: "default" } },
+            payload: {
+              aps: quiet
+                ? { alert: { title, body }, badge: 1, "interruption-level": "passive" }
+                : { alert: { title, body }, badge: 1, sound: "default" },
+            },
           },
         },
       }),
@@ -410,20 +446,29 @@ serve(async (req) => {
   // SharedPreferences. Events with no entry in EVENT_PREF_COLUMN are only
   // gated by the master switch.
   const prefColumn = EVENT_PREF_COLUMN[event_type];
+  const baseCols = `id, notif_master, ${QUIET_COLUMNS}`;
   const { data: prefRows, error: prefErr } = await supabase
     .from("profiles")
-    .select(prefColumn ? `id, notif_master, ${prefColumn}` : "id, notif_master")
+    .select(prefColumn ? `${baseCols}, ${prefColumn}` : baseCols)
     .in("id", memberIds);
 
+  // Recipients currently inside their quiet hours still get the push, just
+  // silently (see sendFCM) — dropping it would lose it outright for events
+  // that have no in-app inbox row.
+  const quietUserIds = new Set<string>();
   if (prefErr) {
     console.error("[notify] prefs lookup failed:", prefErr);
   } else if (prefRows) {
+    const rows = prefRows as Record<string, unknown>[];
     const allowed = new Set(
-      (prefRows as Record<string, unknown>[])
+      rows
         .filter((r) => r.notif_master !== false && (!prefColumn || r[prefColumn] !== false))
         .map((r) => r.id as string),
     );
     memberIds = memberIds.filter((id) => allowed.has(id));
+    for (const r of rows) {
+      if (isInQuietHours(r as QuietPrefs)) quietUserIds.add(r.id as string);
+    }
   }
 
   if (!memberIds.length) {
@@ -435,7 +480,7 @@ serve(async (req) => {
   // Get FCM tokens for all members
   const { data: tokens, error: tokensErr } = await supabase
     .from("user_fcm_tokens")
-    .select("fcm_token")
+    .select("user_id, fcm_token")
     .in("user_id", memberIds);
 
   console.log(`[notify] tokens found=${tokens?.length ?? 0} error=${tokensErr?.message ?? "none"}`);
@@ -460,8 +505,8 @@ serve(async (req) => {
   const fcmData: Record<string, string> = { route, event_type, ...event_data };
 
   const results = await Promise.allSettled(
-    tokens.map((t: { fcm_token: string }) =>
-      sendFCM(t.fcm_token, title, notifBody, fcmData, accessToken)
+    tokens.map((t: { user_id: string; fcm_token: string }) =>
+      sendFCM(t.fcm_token, title, notifBody, fcmData, accessToken, quietUserIds.has(t.user_id))
     ),
   );
 
