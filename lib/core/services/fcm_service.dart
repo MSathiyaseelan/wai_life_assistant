@@ -202,6 +202,23 @@ class FcmService {
     }
   }
 
+  /// Removes every device's token for the current user — for "Logout from
+  /// all devices", so the other (now signed-out) devices stop receiving this
+  /// account's pushes. Allowed by the fcm_own_delete policy (072).
+  static Future<void> deleteAllFcmTokens() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      await Supabase.instance.client
+          .from('user_fcm_tokens')
+          .delete()
+          .eq('user_id', userId);
+      debugPrint('[FCM] all tokens removed on global sign-out');
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'fcm_delete_all_tokens');
+    }
+  }
+
   // ── Navigation on tap ──────────────────────────────────────────────────────
 
   static void _handleTap(RemoteMessage message) {

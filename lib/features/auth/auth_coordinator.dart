@@ -227,6 +227,39 @@ class AuthCoordinator {
     await SubscriptionService.instance.login(uid);
   }
 
+  // ── Sign-out from elsewhere ───────────────────────────────────────────────
+
+  StreamSubscription<AuthState>? _authSub;
+
+  /// Set by [signOut] so the listener can tell this device's own sign-out
+  /// apart from one that happened elsewhere. Consumed by the listener rather
+  /// than reset when signOut() returns, since the signedOut event is
+  /// delivered asynchronously and can arrive after that.
+  bool _expectingSignOut = false;
+
+  /// Calls [onRemoteSignOut] when the session ends without this device asking
+  /// — e.g. "Logout from all devices" on another phone, which this device
+  /// only learns about when its next token refresh is rejected. Without this
+  /// the app stayed on screen with every request failing until restarted.
+  void watchRemoteSignOut(void Function() onRemoteSignOut) {
+    _authSub?.cancel();
+    _authSub = _client.auth.onAuthStateChange.listen((state) async {
+      if (state.event != AuthChangeEvent.signedOut) return;
+      if (_expectingSignOut) {
+        _expectingSignOut = false;
+        return;
+      }
+      debugPrint('[Auth] session ended elsewhere — returning to login');
+      try {
+        await _firebaseAuth.signOut();
+      } catch (_) {}
+      try {
+        await SubscriptionService.instance.logout();
+      } catch (_) {}
+      onRemoteSignOut();
+    }, onError: (Object e) => debugPrint('[Auth] auth state stream error: $e'));
+  }
+
   /// Signs the user out of Firebase and Supabase.
   /// Pass [allDevices: true] to revoke all refresh tokens (logout everywhere).
   Future<void> signOut({bool allDevices = true}) async {
@@ -236,14 +269,26 @@ class AuthCoordinator {
     // device later would leave this account's token behind and keep
     // receiving its notifications.
     try {
-      await FcmService.deleteFcmToken();
+      // Global sign-out ends every device's session, so drop every device's
+      // token too — otherwise the others keep receiving this account's pushes.
+      if (allDevices) {
+        await FcmService.deleteAllFcmTokens();
+      } else {
+        await FcmService.deleteFcmToken();
+      }
     } catch (_) {}
 
     // Run both sign-outs independently — Firebase may have no active user
     // (anonymous / bypass sessions never sign into Firebase).
-    await _client.auth.signOut(
-      scope: allDevices ? SignOutScope.global : SignOutScope.local,
-    );
+    _expectingSignOut = true;
+    try {
+      await _client.auth.signOut(
+        scope: allDevices ? SignOutScope.global : SignOutScope.local,
+      );
+    } catch (_) {
+      _expectingSignOut = false;
+      rethrow;
+    }
     try {
       await _firebaseAuth.signOut();
     } catch (_) {}

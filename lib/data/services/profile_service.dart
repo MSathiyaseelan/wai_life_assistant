@@ -474,7 +474,12 @@ class ProfileService {
       file,
       fileOptions: FileOptions(upsert: true, contentType: contentType),
     );
-    final url = _db.storage.from('wai-photos').getPublicUrl(filename);
+    // Callers often reuse a fixed filename (profile avatar, a family's or a
+    // function's photo), so upsert keeps the public URL identical across
+    // uploads — and CachedNetworkImage, keyed by URL, kept showing the old
+    // image everywhere. A per-upload version makes each new photo a new URL.
+    final url = '${_db.storage.from('wai-photos').getPublicUrl(filename)}'
+        '?v=${DateTime.now().millisecondsSinceEpoch}';
     debugPrint('[Storage] uploaded → $url');
     return url;
   }

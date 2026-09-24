@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/env/environment_config.dart';
 import 'core/services/error_logger.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/auth_coordinator.dart';
+import 'routes/app_routes.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
@@ -77,6 +79,16 @@ Future<void> bootstrapApp(String env) async {
   // Re-enable these two lines and restore the manifest permission when ready:
   // try { await SMSParserService.initialize(); } catch (e) { debugPrint('[Bootstrap] SMS init failed: $e'); }
   // await SMSParserService.checkPending();
+
+  // Session ended elsewhere ("Logout from all devices" on another phone) —
+  // leave the now-broken signed-in UI for the login screen.
+  AuthCoordinator.instance.watchRemoteSignOut(() {
+    LifeAssistanceApp.navigatorKey.currentState
+        ?.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+    LifeAssistanceApp.scaffoldMessengerKey.currentState?.showSnackBar(
+      const SnackBar(content: Text('You were signed out on this device.')),
+    );
+  });
 
   runApp(LifeAssistanceApp(config: envConfig));
 }

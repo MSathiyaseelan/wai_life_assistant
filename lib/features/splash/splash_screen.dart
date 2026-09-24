@@ -42,7 +42,10 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (loggedIn && await _isSessionExpired()) {
-      await AuthCoordinator.instance.signOut();
+      // Inactivity is tracked per device (_kLastActiveKey), so only sign out
+      // this device — the default (allDevices: true) logged the user out of
+      // every other phone too, and now also drops all their push tokens.
+      await AuthCoordinator.instance.signOut(allDevices: false);
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.login);
       return;
