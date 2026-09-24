@@ -47,6 +47,9 @@ class WhatsNewSheet extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
         decoration: BoxDecoration(
           color: bg,
@@ -94,43 +97,56 @@ class WhatsNewSheet extends StatelessWidget {
                     ),
                     Text(
                       versionLabel,
-                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: 20),
-            ...changes.map(
-              (c) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
+                  children: changes
+                      .map(
+                        (c) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Container(
+                                  width: 5,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  c,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontFamily: 'Nunito',
+                                    height: 1.4,
+                                    color: tc,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        c,
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontFamily: 'Nunito',
-                          height: 1.4,
-                          color: tc,
-                        ),
-                      ),
-                    ),
-                  ],
+                      )
+                      .toList(),
                 ),
               ),
             ),
@@ -142,7 +158,9 @@ class WhatsNewSheet extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: const Text(
                   'Got it',
