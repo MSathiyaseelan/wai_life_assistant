@@ -30,11 +30,11 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
     });
   }
 
-  // A handful of these settings also drive the server-side scheduled-
-  // notification cron (pantry expiry, special day, functions upcoming),
-  // which has no access to this device's local SharedPreferences — so
-  // those specific fields get pushed to the profile row on every change,
-  // same pattern as Default Scope's _persist().
+  // These settings are applied server-side — by send-notification (per-event
+  // toggles, quiet hours) and the scheduled-notification cron (pantry expiry,
+  // special day, functions upcoming, quiet hours) — which have no access to
+  // this device's local SharedPreferences, so they're pushed to the profile
+  // row on every change, same pattern as Default Scope's _persist().
   void _persistServerSynced() {
     ProfileService.instance.updateNotificationPrefs(
       master: _prefs.masterOn,
@@ -47,6 +47,9 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
       walletLendBorrow: _prefs.walletLendBorrow,
       planItAlertMe: _prefs.planItAlertMe,
       walletSplitAdded: _prefs.walletSplitAdded,
+      quietEnabled: _prefs.quietHoursEnabled,
+      quietStart: _prefs.quietStart,
+      quietEnd: _prefs.quietEnd,
     ).catchError((e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'persist_notification_prefs');
     });
@@ -121,13 +124,6 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                           const SizedBox(height: 12),
                           _section('Pantry', [
                             _toggle(
-                              '📦',
-                              'Low stock alerts',
-                              'Alert when pantry items are running low',
-                              _prefs.pantryLowStock,
-                              (v) => setState(() => _prefs.pantryLowStock = v),
-                            ),
-                            _toggle(
                               '⏰',
                               'Expiry alerts',
                               'Alert before items expire',
@@ -149,41 +145,11 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                     )
                                   : null,
                             ),
-                            _toggle(
-                              '🍽️',
-                              'Meal plan reminder',
-                              'Daily reminder to log your meals',
-                              _prefs.pantryMealReminder,
-                              (v) => setState(() => _prefs.pantryMealReminder = v),
-                              child: _prefs.pantryMealReminder
-                                  ? _timePicker(
-                                      label: 'Remind at',
-                                      time: _prefs.pantryMealTimeOfDay,
-                                      onPick: (t) => setState(() =>
-                                          _prefs.pantryMealTime =
-                                              '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}'),
-                                    )
-                                  : null,
-                            ),
                           ]),
                           const SizedBox(height: 12),
                           _section('PlanIt', [
-                            _toggle(
-                              '✅',
-                              'Task due reminders',
-                              'Remind before tasks are due',
-                              _prefs.planItTaskDue,
-                              (v) => setState(() => _prefs.planItTaskDue = v),
-                              child: _prefs.planItTaskDue
-                                  ? _chipPicker(
-                                      label: 'Remind days before due',
-                                      options: const [1, 3, 7],
-                                      selected: _prefs.planItTaskDueDays,
-                                      onSelect: (v) => setState(() => _prefs.planItTaskDueDays = v),
-                                      suffix: 'd',
-                                    )
-                                  : null,
-                            ),
+                            // Timing comes from each special day's own
+                            // "alert days before" (special_days.alert_days_before).
                             _toggle(
                               '🎉',
                               'Special day countdowns',
@@ -193,15 +159,6 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                 setState(() => _prefs.planItSpecialDay = v);
                                 _persistServerSynced();
                               },
-                              child: _prefs.planItSpecialDay
-                                  ? _chipPicker(
-                                      label: 'Remind days before',
-                                      options: const [1, 3, 7],
-                                      selected: _prefs.planItSpecialDayDays,
-                                      onSelect: (v) => setState(() => _prefs.planItSpecialDayDays = v),
-                                      suffix: 'd',
-                                    )
-                                  : null,
                             ),
                             _toggle(
                               '🔔',
@@ -212,13 +169,6 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                 setState(() => _prefs.planItAlertMe = v);
                                 _persistServerSynced();
                               },
-                            ),
-                            _toggle(
-                              '📝',
-                              'Sticky note mentions',
-                              'Notify when you\'re mentioned in a family note',
-                              _prefs.planItStickyMentions,
-                              (v) => setState(() => _prefs.planItStickyMentions = v),
                             ),
                           ]),
                           const SizedBox(height: 12),
@@ -511,55 +461,6 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
         ],
       );
 
-  Widget _timePicker({
-    required String label,
-    required TimeOfDay time,
-    required ValueChanged<TimeOfDay> onPick,
-  }) =>
-      Row(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontFamily: 'Nunito',
-              fontWeight: FontWeight.w700,
-              color: _sub,
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () async {
-              final picked = await showTimePicker(
-                context: context,
-                initialTime: time,
-                builder: (ctx, child) => MediaQuery(
-                  data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: false),
-                  child: child!,
-                ),
-              );
-              if (picked != null) onPick(picked);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withAlpha(18),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                time.format(context),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-
   // ── Quiet Hours section ────────────────────────────────────────────────────
 
   Widget _quietHoursSection() => Column(
@@ -604,8 +505,8 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                     color: _tc)),
                             Text(
                               _prefs.quietHoursEnabled
-                                  ? 'Silenced ${_hourLabel(_prefs.quietStart)} – ${_hourLabel(_prefs.quietEnd)} while the app is open'
-                                  : 'Silence notifications during specific hours while the app is open',
+                                  ? 'Delivered silently ${_hourLabel(_prefs.quietStart)} – ${_hourLabel(_prefs.quietEnd)}'
+                                  : 'No sound or vibration during specific hours',
                               style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: _sub),
                             ),
                           ],
@@ -613,7 +514,10 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                       ),
                       Switch.adaptive(
                         value: _prefs.quietHoursEnabled,
-                        onChanged: (v) => setState(() => _prefs.quietHoursEnabled = v),
+                        onChanged: (v) {
+                          setState(() => _prefs.quietHoursEnabled = v);
+                          _persistServerSynced();
+                        },
                         activeTrackColor: AppColors.primary,
                       ),
                     ],
@@ -638,8 +542,10 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                       fontWeight: FontWeight.w700,
                                       color: _sub)),
                               const SizedBox(width: 8),
-                              _hourChip(_prefs.quietStart,
-                                  (h) => setState(() => _prefs.quietStart = h)),
+                              _hourChip(_prefs.quietStart, (h) {
+                                setState(() => _prefs.quietStart = h);
+                                _persistServerSynced();
+                              }),
                               const SizedBox(width: 16),
                               Text('to',
                                   style: TextStyle(
@@ -647,8 +553,10 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                                       fontFamily: 'Nunito',
                                       color: _sub)),
                               const SizedBox(width: 8),
-                              _hourChip(_prefs.quietEnd,
-                                  (h) => setState(() => _prefs.quietEnd = h)),
+                              _hourChip(_prefs.quietEnd, (h) {
+                                setState(() => _prefs.quietEnd = h);
+                                _persistServerSynced();
+                              }),
                             ],
                           ),
                         ),
