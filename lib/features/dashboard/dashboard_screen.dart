@@ -330,14 +330,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // Sync default scope preferences from DB into local AppPrefs.
         final prefs = AppPrefs.instance;
         await prefs.init();
-        final ws = (profile['wallet_scope'] as String?) ?? 'personal';
-        final ps = (profile['pantry_scope'] as String?) ?? 'personal';
-        final ls = (profile['planit_scope'] as String?) ?? 'personal';
-        final hs = (profile['hub_scope'] as String?) ?? 'personal';
-        if (prefs.walletScope != ws) prefs.walletScope = ws;
-        if (prefs.pantryScope != ps) prefs.pantryScope = ps;
-        if (prefs.planItScope != ls) prefs.planItScope = ls;
-        if (prefs.hubScope != hs) prefs.hubScope = hs;
+        // Only adopt a value the server actually has — a missing/null column
+        // (e.g. a schema that predates it) must not reset the choice already
+        // saved on this device back to 'personal'.
+        final ws = profile['wallet_scope'] as String?;
+        final ps = profile['pantry_scope'] as String?;
+        final ls = profile['planit_scope'] as String?;
+        final hs = profile['hub_scope'] as String?;
+        if (ws != null && prefs.walletScope != ws) prefs.walletScope = ws;
+        if (ps != null && prefs.pantryScope != ps) prefs.pantryScope = ps;
+        if (ls != null && prefs.planItScope != ls) prefs.planItScope = ls;
+        if (hs != null && prefs.hubScope != hs) prefs.hubScope = hs;
 
         // Same cross-device sync for the subset of NotificationPrefs the
         // server-side scheduled-notification cron also needs (see
