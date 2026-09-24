@@ -1080,14 +1080,14 @@ class PlannedGiftItem {
   /// cash + 1g gold" silently becomes "2001".
   bool get isWeightBased => category == 'Gold' || category == 'Silver';
 
-  /// Display-ready amount, unit-aware: "1g" for Gold/Silver, "₹2000" otherwise.
+  /// Display-ready amount, unit-aware: "1g" for Gold/Silver, "₹2000" (user's currency) otherwise.
   String? get amountLabel {
     final a = amount;
     if (a == null) return null;
     if (isWeightBased) {
       return '${a == a.truncateToDouble() ? a.toStringAsFixed(0) : a}g';
     }
-    return '₹${a.toStringAsFixed(0)}';
+    return '${AppPrefs.cs}${a.toStringAsFixed(0)}';
   }
 
   factory PlannedGiftItem.fromJson(Map<String, dynamic> json) => PlannedGiftItem(

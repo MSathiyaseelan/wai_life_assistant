@@ -14,9 +14,8 @@ class _LanguageVoiceSheetState extends State<LanguageVoiceSheet> {
   final _p = AppPrefs.instance;
   bool _loading = true;
 
-  // Both collapsed by default
-  bool _appLangExpanded   = false;
-  bool _voiceLangExpanded = false;
+  // The only section, so open by default.
+  bool _voiceLangExpanded = true;
 
   @override
   void initState() {
@@ -30,47 +29,24 @@ class _LanguageVoiceSheetState extends State<LanguageVoiceSheet> {
   Widget build(BuildContext context) {
     return PrefsSheetBase(
       isDark: widget.isDark,
-      title: '🌐  Language & Voice',
+      title: '🎤  Voice Language',
       loading: _loading,
       child: ListenableBuilder(
         listenable: _p,
         builder: (_, _) {
           final isDark = widget.isDark;
-          final surf   = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-          final tc     = isDark ? AppColors.textDark : AppColors.textLight;
-          final sub    = isDark ? AppColors.subDark  : AppColors.subLight;
-          final div    = isDark
+          final surf = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+          final tc = isDark ? AppColors.textDark : AppColors.textLight;
+          final sub = isDark ? AppColors.subDark : AppColors.subLight;
+          final div = isDark
               ? Colors.white.withAlpha(18)
               : Colors.black.withAlpha(18);
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── App Language ───────────────────────────────────────────
-              _SectionHeader(
-                label: 'App Language',
-                subtitle: 'Changes UI text across the app',
-                selectedLabel: _labelFor(_p.appLanguage),
-                expanded: _appLangExpanded,
-                isDark: isDark,
-                onTap: () =>
-                    setState(() => _appLangExpanded = !_appLangExpanded),
-              ),
-              AnimatedCrossFade(
-                duration: const Duration(milliseconds: 220),
-                crossFadeState: _appLangExpanded
-                    ? CrossFadeState.showFirst
-                    : CrossFadeState.showSecond,
-                firstChild: _LangList(
-                  surf: surf, tc: tc, sub: sub, div: div,
-                  selected: _p.appLanguage,
-                  onSelect: (v) => setState(() => _p.appLanguage = v),
-                ),
-                secondChild: const SizedBox.shrink(),
-              ),
-
-              const SizedBox(height: 20),
-
+              // App (UI) language was removed — the app has no translations,
+              // so it changed nothing. Voice input is the only language setting.
               // ── Voice Input Language ───────────────────────────────────
               _SectionHeader(
                 label: 'Voice Input Language',
@@ -87,7 +63,10 @@ class _LanguageVoiceSheetState extends State<LanguageVoiceSheet> {
                     ? CrossFadeState.showFirst
                     : CrossFadeState.showSecond,
                 firstChild: _LangList(
-                  surf: surf, tc: tc, sub: sub, div: div,
+                  surf: surf,
+                  tc: tc,
+                  sub: sub,
+                  div: div,
                   selected: _p.voiceLanguage,
                   onSelect: (v) => setState(() => _p.voiceLanguage = v),
                 ),
@@ -100,11 +79,9 @@ class _LanguageVoiceSheetState extends State<LanguageVoiceSheet> {
     );
   }
 
-  String _labelFor(String code) =>
-      AppPrefs.languages
-          .firstWhere((l) => l.code == code,
-              orElse: () => AppPrefs.languages.first)
-          .label;
+  String _labelFor(String code) => AppPrefs.languages
+      .firstWhere((l) => l.code == code, orElse: () => AppPrefs.languages.first)
+      .label;
 }
 
 // ── Collapsible section header ────────────────────────────────────────────────
@@ -128,8 +105,8 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tc  = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark  : AppColors.subLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
     return GestureDetector(
       onTap: onTap,
@@ -198,81 +175,62 @@ class _LangList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration:
-          BoxDecoration(color: surf, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: surf,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
+        // Every language is selectable: speech-to-text supports all of them
+        // (the Wallet mic's picker already offers them). Only English used
+        // to be enabled here — a "Coming soon" lock meant for UI language.
         children: AppPrefs.languages.asMap().entries.map((e) {
-          final lang    = e.value;
-          final active  = lang.code == selected;
-          final enabled = lang.code == 'en';
+          final lang = e.value;
+          final active = lang.code == selected;
 
           return Column(
             children: [
               if (e.key > 0) Divider(height: 1, color: div, indent: 16),
-              Opacity(
-                opacity: enabled ? 1.0 : 0.38,
-                child: InkWell(
-                  onTap: enabled ? () => onSelect(lang.code) : null,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    lang.label,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontFamily: 'Nunito',
-                                      fontWeight: FontWeight.w800,
-                                      color: active ? AppColors.primary : tc,
-                                    ),
-                                  ),
-                                  if (!enabled) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: sub.withAlpha(30),
-                                        borderRadius:
-                                            BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        'Coming soon',
-                                        style: TextStyle(
-                                          fontSize: 9,
-                                          fontFamily: 'Nunito',
-                                          fontWeight: FontWeight.w700,
-                                          color: sub,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
+              InkWell(
+                onTap: () => onSelect(lang.code),
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              lang.label,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w800,
+                                color: active ? AppColors.primary : tc,
                               ),
-                              Text(
-                                lang.native,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontFamily: 'Nunito',
-                                  color: sub,
-                                ),
+                            ),
+                            Text(
+                              lang.native,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: sub,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        if (active)
-                          const Icon(Icons.check_circle_rounded,
-                              size: 20, color: AppColors.primary),
-                      ],
-                    ),
+                      ),
+                      if (active)
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
+                    ],
                   ),
                 ),
               ),

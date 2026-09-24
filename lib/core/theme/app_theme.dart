@@ -284,3 +284,30 @@ class AppTheme {
 //     // ),
 //   );
 // }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP THEME MODE — the user's Light / Dark / System choice, shared by both
+// MaterialApps: the outer one (splash, login, onboarding — main.dart) and
+// BottomNavScreen's. Loaded before runApp so the splash already uses it;
+// BottomNavScreen keeps it in sync when the user changes theme.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class AppThemeMode {
+  AppThemeMode._();
+
+  static const prefKey = 'theme_mode';
+
+  static final notifier = ValueNotifier<ThemeMode>(ThemeMode.system);
+
+  static ThemeMode parse(String? saved) => switch (saved) {
+        'light' => ThemeMode.light,
+        'dark'  => ThemeMode.dark,
+        _       => ThemeMode.system,
+      };
+
+  static String name(ThemeMode mode) => switch (mode) {
+        ThemeMode.light  => 'light',
+        ThemeMode.dark   => 'dark',
+        ThemeMode.system => 'system',
+      };
+}

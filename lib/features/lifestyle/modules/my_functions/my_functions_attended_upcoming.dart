@@ -18,7 +18,7 @@ class _AttendedCard extends StatelessWidget {
   /// read as "2001").
   String _giftLine() {
     final valueParts = <String>[
-      if (item.giftsTotal > 0) '₹${item.giftsTotal.toStringAsFixed(0)}',
+      if (item.giftsTotal > 0) '${AppPrefs.cs}${item.giftsTotal.toStringAsFixed(0)}',
       for (final g in item.gifts)
         if (g.isWeightBased && g.amountLabel != null) '${g.amountLabel} ${g.category}',
     ];

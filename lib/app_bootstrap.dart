@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/env/environment_config.dart';
 import 'core/services/error_logger.dart';
+import 'core/theme/app_theme.dart';
 import 'core/supabase/supabase_config.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/fcm_service.dart';
@@ -50,6 +51,11 @@ Future<void> bootstrapApp(String env) async {
   ]);
   // Must run after NetworkService.init() so the isOnline listener is ready.
   RealtimeSyncService.instance.init();
+
+  // Saved theme, so the splash/login screens use it from the first frame.
+  AppThemeMode.notifier.value = AppThemeMode.parse(
+    (await SharedPreferences.getInstance()).getString(AppThemeMode.prefKey),
+  );
 
   // FCM + Crashlytics require Firebase to be ready — run after Phase 1.
   if (firebaseReady) {

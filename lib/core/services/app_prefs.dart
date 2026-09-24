@@ -69,9 +69,6 @@ class AppPrefs extends ChangeNotifier {
     (code: 'pa', label: 'Punjabi',    native: 'ਪੰਜਾਬੀ'),
   ];
 
-  String get appLanguage      => _s('app_language',   def: 'en');
-  set appLanguage(String v)   => _setS('app_language', v);
-
   String get voiceLanguage    => _s('voice_language',  def: 'en');
   set voiceLanguage(String v) => _setS('voice_language', v);
 
@@ -79,8 +76,8 @@ class AppPrefs extends ChangeNotifier {
   /// All 10 supported languages use Indian-region STT locales.
   String get voiceLocaleId => '$voiceLanguage-IN';
 
-  String get appLanguageLabel =>
-      languages.firstWhere((l) => l.code == appLanguage,
+  String get voiceLanguageLabel =>
+      languages.firstWhere((l) => l.code == voiceLanguage,
           orElse: () => languages.first).label;
 
   // ── Currency ───────────────────────────────────────────────────────────────
@@ -147,9 +144,28 @@ class AppPrefs extends ChangeNotifier {
     };
   }
 
+  /// [formatDate] without the year, for tight spaces like chart axes —
+  /// same day/month order as the user's [dateFormat].
+  String formatShortDate(DateTime d) {
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return switch (dateFormat) {
+      'mdy' => '$mm/$dd',
+      'ymd' => '$mm-$dd',
+      _     => '$dd/$mm',
+    };
+  }
+
   /// 'sunday' | 'monday'
   String get weekStartsOn    => _s('week_starts_on',  def: 'sunday');
   set weekStartsOn(String v) => _setS('week_starts_on', v);
+
+  /// Start (midnight) of the week containing [d], per [weekStartsOn].
+  DateTime weekStart(DateTime d) {
+    final day = DateTime(d.year, d.month, d.day);
+    final offset = weekStartsOn == 'sunday' ? d.weekday % 7 : d.weekday - 1;
+    return day.subtract(Duration(days: offset));
+  }
 
   // ── Default Scope ──────────────────────────────────────────────────────────
 

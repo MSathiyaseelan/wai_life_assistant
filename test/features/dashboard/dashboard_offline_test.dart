@@ -41,7 +41,7 @@ String currencySymbol({
   }
 }
 
-/// Mirrors AppPrefs.appLanguageLabel lookup logic.
+/// Mirrors AppPrefs.voiceLanguageLabel lookup logic.
 String languageLabel(
   String code,
   List<({String code, String label, String native})> languages,

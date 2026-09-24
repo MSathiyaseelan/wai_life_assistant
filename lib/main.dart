@@ -90,16 +90,22 @@ class LifeAssistanceApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      scaffoldMessengerKey: scaffoldMessengerKey,
-      navigatorKey: navigatorKey,
-      debugShowCheckedModeBanner: config.environment != AppEnvironment.prod,
-      title: config.appName,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      initialRoute: AppRoutes.splash,
-      routes: AppRoutes.routes,
-      navigatorObservers: [ErrorTrackingObserver()],
+    // Follows the user's saved theme (it used to always follow the system
+    // theme here, so splash/login ignored a Light/Dark choice).
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppThemeMode.notifier,
+      builder: (_, themeMode, _) => MaterialApp(
+        scaffoldMessengerKey: scaffoldMessengerKey,
+        navigatorKey: navigatorKey,
+        debugShowCheckedModeBanner: config.environment != AppEnvironment.prod,
+        title: config.appName,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: themeMode,
+        initialRoute: AppRoutes.splash,
+        routes: AppRoutes.routes,
+        navigatorObservers: [ErrorTrackingObserver()],
+      ),
     );
   }
 }

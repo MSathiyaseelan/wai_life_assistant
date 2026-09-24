@@ -194,14 +194,13 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   }
 
   List<_Bucket> _weekly() {
-    final now = DateTime.now();
-    final todayMidnight = DateTime(now.year, now.month, now.day);
-    final currentWeekStart =
-        todayMidnight.subtract(Duration(days: todayMidnight.weekday - 1));
+    // Weeks start on the user's Settings → Date & Time "Week starts on"
+    // (was always Monday), labelled in their date format.
+    final currentWeekStart = AppPrefs.instance.weekStart(DateTime.now());
     return List.generate(8, (i) {
       final ws = currentWeekStart.subtract(Duration(days: 7 * (7 - i)));
       final we = ws.add(const Duration(days: 6));
-      final b = _Bucket('${ws.day}/${ws.month}');
+      final b = _Bucket(AppPrefs.instance.formatShortDate(ws));
       for (final t in _ie) {
         final td = DateTime(t.date.year, t.date.month, t.date.day);
         if (!td.isBefore(ws) && !td.isAfter(we)) _add(b, t);

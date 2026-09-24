@@ -3947,14 +3947,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           sRow(emoji: '🎨', bg: const Color(0xFFFFE0E0), title: 'Theme',
                             subtitle: 'App colour scheme', value: themeLabel,
                             onTap: _prefsTap(ctx, isDark, 'Theme')),
-                          sRow(emoji: '🌐', bg: const Color(0xFFE0EEFF), title: 'Language & Voice',
-                            subtitle: 'Input & speech language', value: AppPrefs.instance.appLanguageLabel,
+                          sRow(emoji: '🎤', bg: const Color(0xFFE0EEFF), title: 'Voice Language',
+                            subtitle: 'Speech-to-text language', value: AppPrefs.instance.voiceLanguageLabel,
                             onTap: _prefsTap(ctx, isDark, 'Language & Voice')),
                           sRow(emoji: AppPrefs.cs, bg: const Color(0xFFE0F0FF), title: 'Currency',
                             subtitle: 'Display currency', value: AppPrefs.instance.currentCurrency.code,
                             onTap: _prefsTap(ctx, isDark, 'Currency')),
                           sRow(emoji: '📅', bg: const Color(0xFFE0F8EC), title: 'Date & Time',
-                            subtitle: 'Format & timezone',
+                            subtitle: 'Date format & week start',
                             value: AppPrefs.dateFormats
                                 .firstWhere((f) => f.key == AppPrefs.instance.dateFormat,
                                     orElse: () => AppPrefs.dateFormats.first)

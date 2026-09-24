@@ -177,7 +177,7 @@ class _GiftEntryEditorState extends State<_GiftEntryEditor> {
           controller: _amountCtrl,
           hint: (_newCategory == 'Gold' || _newCategory == 'Silver')
               ? 'Weight given (grams) — optional'
-              : 'Amount given (₹) — optional',
+              : 'Amount given (${AppPrefs.cs}) — optional',
           inputType: const TextInputType.numberWithOptions(decimal: true),
         ),
         const SizedBox(height: 8),
@@ -750,7 +750,7 @@ class _AttendedGroupCardState extends State<_AttendedGroupCard>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '₹${g.total.toStringAsFixed(0)}',
+                        '${AppPrefs.cs}${g.total.toStringAsFixed(0)}',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,

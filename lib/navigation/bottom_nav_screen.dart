@@ -19,7 +19,6 @@ import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/auth/app_lock_screen.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 
-const _kThemePrefKey = 'theme_mode';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -28,7 +27,9 @@ class BottomNavScreen extends StatefulWidget {
 }
 
 class _BottomNavScreenState extends State<BottomNavScreen> {
-  ThemeMode _themeMode = ThemeMode.system;
+  // Starts from the value loaded before runApp, so there's no flash of the
+  // system theme before _loadTheme() completes.
+  ThemeMode _themeMode = AppThemeMode.notifier.value;
   // Owned here (not in AppShell) so AppStateScope can be provided via
   // MaterialApp.builder, i.e. ABOVE this MaterialApp's Navigator — every
   // pushed route and bottom sheet then sees it. Provided only inside
@@ -55,25 +56,17 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
 
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_kThemePrefKey);
+    final saved = AppThemeMode.parse(prefs.getString(AppThemeMode.prefKey));
     if (!mounted) return;
-    setState(() {
-      _themeMode = switch (saved) {
-        'light'  => ThemeMode.light,
-        'dark'   => ThemeMode.dark,
-        _        => ThemeMode.system,
-      };
-    });
+    setState(() => _themeMode = saved);
   }
 
   Future<void> _setTheme(ThemeMode mode) async {
     setState(() => _themeMode = mode);
+    // Keeps the outer app (splash/login) on the same theme — see AppThemeMode.
+    AppThemeMode.notifier.value = mode;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kThemePrefKey, switch (mode) {
-      ThemeMode.light  => 'light',
-      ThemeMode.dark   => 'dark',
-      ThemeMode.system => 'system',
-    });
+    await prefs.setString(AppThemeMode.prefKey, AppThemeMode.name(mode));
   }
 
   @override
