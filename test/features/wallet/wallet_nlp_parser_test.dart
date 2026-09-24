@@ -216,11 +216,11 @@ void main() {
     test('empty string → null', () => expect(parse('').person, isNull));
   });
 
-  group('Person extraction — caseSensitive quirk', () {
-    // RegExp has caseSensitive:false which makes [A-Z][a-z]+ match ANY word
-    // with ≥2 letters — not just capitalised proper names.
-    test('"for lunch" → person = "lunch" (lowercase word captured by caseSensitive:false regex)',
-        () => expect(parse('paid 200 for lunch').person, 'lunch'));
+  group('Person extraction — common nouns', () {
+    // A lowercase word after "for" used to be captured as a person
+    // ("for lunch" → "lunch"); it no longer is.
+    test('"for lunch" → no person',
+        () => expect(parse('paid 200 for lunch').person, isNull));
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -316,29 +316,13 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════════
   // 7. Note field
   // ═══════════════════════════════════════════════════════════════════════════
+  // The raw input is no longer copied into note (158ae35) — the parser
+  // extracts a title instead, and note is left for the user.
   group('Note field', () {
-    test('text longer than 4 chars → note = original input', () {
-      final r = parse('paid 500 for lunch');
-      expect(r.note, 'paid 500 for lunch');
-    });
-
-    test('text exactly 4 chars → note is null', () {
-      expect(parse('paid').note, isNull);
-    });
-
-    test('text less than 4 chars → note is null', () {
+    test('note is never auto-filled from the input', () {
+      expect(parse('paid 500 for lunch').note, isNull);
+      expect(parse('Paid ₹500 for Lunch via GPay').note, isNull);
       expect(parse('hi').note, isNull);
-      expect(parse('500').note, isNull); // "500" = 3 chars
-    });
-
-    test('text 5 chars → note is set', () {
-      // "500 r" = 5 chars (just over threshold)
-      expect(parse('lend5').note, 'lend5');
-    });
-
-    test('note preserves original casing and spacing', () {
-      final r = parse('Paid ₹500 for Lunch via GPay');
-      expect(r.note, 'Paid ₹500 for Lunch via GPay');
     });
   });
 
@@ -352,7 +336,7 @@ void main() {
       expect(r.amount, 500);
       expect(r.category, 'Food');
       expect(r.payMode, isNull);
-      expect(r.note, 'paid 500 for lunch');
+      expect(r.note, isNull);
       expect(r.confidence, closeTo(0.90, 0.001));
     });
 
@@ -429,13 +413,16 @@ void main() {
       }
     });
 
-    test('date field is always null (not extracted by this parser)', () {
-      expect(parse('paid 500 yesterday').date, isNull);
-      expect(parse('received salary today').date, isNull);
+    test('date extracted from relative words', () {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      expect(parse('paid 500 yesterday').date,
+          today.subtract(const Duration(days: 1)));
+      expect(parse('received salary today').date, today);
     });
 
-    test('title field is always null (not extracted by this parser)', () {
-      expect(parse('paid 500 for laptop').title, isNull);
+    test('title extracted from the remaining text', () {
+      expect(parse('paid 500 for laptop').title, contains('Laptop'));
     });
   });
 }

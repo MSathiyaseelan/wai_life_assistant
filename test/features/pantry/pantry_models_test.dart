@@ -587,12 +587,12 @@ void main() {
       expect(convert(['snacks']).suitableFor, [MealTime.snack]);
     });
 
-    test('"beverage" is filtered out (no MealTime mapping)', () {
-      expect(convert(['beverage']).suitableFor, isEmpty);
+    test('"beverage" → MealTime.beverages', () {
+      expect(convert(['beverage']).suitableFor, [MealTime.beverages]);
     });
 
-    test('"dessert" is filtered out', () {
-      expect(convert(['dessert']).suitableFor, isEmpty);
+    test('"dessert" alone is filtered → defaults to [MealTime.lunch]', () {
+      expect(convert(['dessert']).suitableFor, [MealTime.lunch]);
     });
 
     test('multiple valid types mapped correctly', () {
@@ -606,9 +606,8 @@ void main() {
       expect(convert([]).suitableFor, [MealTime.lunch]);
     });
 
-    test('all-filtered types → suitableFor defaults to [MealTime.lunch]', () {
-      // beverage and dessert are both filtered → empty → defaults to lunch
-      expect(convert(['beverage', 'dessert']).suitableFor, [MealTime.lunch]);
+    test('dessert is dropped from a mixed list', () {
+      expect(convert(['beverage', 'dessert']).suitableFor, [MealTime.beverages]);
     });
 
     test('libraryRecipeId is set to master recipe id', () {

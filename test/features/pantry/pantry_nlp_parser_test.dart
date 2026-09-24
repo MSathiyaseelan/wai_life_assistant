@@ -179,8 +179,9 @@ void main() {
       expect(mealTimeOf('had chai this evening'), MealTime.snack);
     });
 
-    test('"tea time" keyword → snack', () {
-      expect(mealTimeOf('had biscuits at tea time'), MealTime.snack);
+    // Mapped to Beverages since that meal type was added (bc24d40).
+    test('"tea time" keyword → beverages', () {
+      expect(mealTimeOf('had biscuits at tea time'), MealTime.beverages);
     });
 
     test('"dinner" keyword → dinner', () {

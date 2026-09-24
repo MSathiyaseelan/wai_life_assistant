@@ -15,7 +15,7 @@ void main() {
     test('lend → "Lend Money"', () => expect(FlowType.lend.label, 'Lend Money'));
     test('borrow → "Borrow"', () => expect(FlowType.borrow.label, 'Borrow'));
     test('request → "Request Money"', () => expect(FlowType.request.label, 'Request Money'));
-    test('returned → "Returned Money"', () => expect(FlowType.returned.label, 'Returned Money'));
+    test('returned → "Returned/Received Money"', () => expect(FlowType.returned.label, 'Returned/Received Money'));
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -347,10 +347,10 @@ void main() {
   });
 
   group('FlowData.summaryRows — Date field priority', () {
-    test('pickedDate set → "Date" row with d/m/y format', () {
+    test('pickedDate set → "Date" row as dd/MM/yyyy', () {
       final fd = FlowData()..pickedDate = DateTime(2025, 8, 4);
       final row = fd.summaryRows.firstWhere((e) => e.key == 'Date');
-      expect(row.value, '4/8/2025');
+      expect(row.value, '04/08/2025');
     });
 
     test('date string set (no pickedDate) → "Date" row with string value', () {
@@ -366,9 +366,9 @@ void main() {
       expect(fd.summaryRows.firstWhere((e) => e.key == 'Date').value, '31/12/2025');
     });
 
-    test('pickedDate formats as day/month/year (no zero-padding)', () {
+    test('pickedDate formats as zero-padded dd/MM/yyyy', () {
       final fd = FlowData()..pickedDate = DateTime(2025, 1, 5);
-      expect(fd.summaryRows.firstWhere((e) => e.key == 'Date').value, '5/1/2025');
+      expect(fd.summaryRows.firstWhere((e) => e.key == 'Date').value, '05/01/2025');
     });
   });
 

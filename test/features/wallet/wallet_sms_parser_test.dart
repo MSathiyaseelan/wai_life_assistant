@@ -796,10 +796,10 @@ void main() {
     test('"lunch" → 🍕 Food', () => expect(exp('lunch'), '🍕 Food'));
     test('"grocery store" → 🍕 Food', () => expect(exp('grocery store'), '🍕 Food'));
     test('"coffee" → 🍕 Food', () => expect(exp('coffee'), '🍕 Food'));
-    test('"uber ride" → 🚗 Travel', () => expect(exp('uber ride'), '🚗 Travel'));
-    test('"petrol" → 🚗 Travel', () => expect(exp('petrol'), '🚗 Travel'));
-    test('"metro" → 🚗 Travel', () => expect(exp('metro'), '🚗 Travel'));
-    test('"toll" → 🚗 Travel', () => expect(exp('toll'), '🚗 Travel'));
+    test('"uber ride" → 🚗 Transport', () => expect(exp('uber ride'), '🚗 Transport'));
+    test('"petrol" → 🚗 Transport', () => expect(exp('petrol'), '🚗 Transport'));
+    test('"metro" → 🚗 Transport', () => expect(exp('metro'), '🚗 Transport'));
+    test('"toll" → 🚗 Transport', () => expect(exp('toll'), '🚗 Transport'));
     test('"amazon" → 🛒 Shopping', () => expect(exp('amazon'), '🛒 Shopping'));
     test('"flipkart order" → 🛒 Shopping', () => expect(exp('flipkart order'), '🛒 Shopping'));
     test('"medicine" → 💊 Health', () => expect(exp('medicine'), '💊 Health'));
@@ -811,8 +811,8 @@ void main() {
     test('"maintenance" → 🏠 Housing', () => expect(exp('maintenance'), '🏠 Housing'));
     test('"school fee" → 📚 Education', () => expect(exp('school fee'), '📚 Education'));
     test('"course" → 📚 Education', () => expect(exp('course'), '📚 Education'));
-    test('"wifi recharge" → 💡 Utilities', () => expect(exp('wifi recharge'), '💡 Utilities'));
-    test('"electricity" → 💡 Utilities', () => expect(exp('electricity'), '💡 Utilities'));
+    test('"wifi recharge" → 💡 Bills', () => expect(exp('wifi recharge'), '💡 Bills'));
+    test('"electricity" → 💡 Bills', () => expect(exp('electricity'), '💡 Bills'));
     test('"shirt" → 👕 Clothing', () => expect(exp('shirt'), '👕 Clothing'));
     test('"shoes" → 👕 Clothing', () => expect(exp('shoes'), '👕 Clothing'));
     test('"gym" → 🏋️ Fitness', () => expect(exp('gym'), '🏋️ Fitness'));

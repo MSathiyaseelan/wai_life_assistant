@@ -79,10 +79,10 @@ void main() {
       }
     });
 
-    test('travel keywords → 🚗 Travel', () {
+    test('travel keywords → 🚗 Transport', () {
       for (final kw in ['uber', 'petrol', 'metro', 'cab', 'toll', 'ola', 'rapido', 'namma']) {
-        expect(CategoryDetector.detect(kw, isIncome: false), '🚗 Travel',
-            reason: '"$kw" should map to Travel');
+        expect(CategoryDetector.detect(kw, isIncome: false), '🚗 Transport',
+            reason: '"$kw" should map to Transport');
       }
     });
 
@@ -121,10 +121,10 @@ void main() {
       }
     });
 
-    test('utilities keywords → 💡 Utilities', () {
+    test('utilities keywords → 💡 Bills', () {
       for (final kw in ['electric', 'internet', 'wifi', 'recharge', 'broadband']) {
-        expect(CategoryDetector.detect(kw, isIncome: false), '💡 Utilities',
-            reason: '"$kw" should map to Utilities');
+        expect(CategoryDetector.detect(kw, isIncome: false), '💡 Bills',
+            reason: '"$kw" should map to Bills');
       }
     });
 
