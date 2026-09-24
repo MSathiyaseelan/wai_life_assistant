@@ -313,7 +313,12 @@ class NlpParser {
     FlowType flowType = FlowType.expense; // default
     int typeScore = 0;
 
+    // First matching list wins (priority order below). Without the guard a
+    // later list overrode an earlier match — "borrowed" contains "owed", so
+    // every "borrowed … from X" came out as a request, and "lent and split"
+    // as a split.
     void tryMatch(List<String> words, FlowType ft) {
+      if (typeScore > 0) return;
       for (final w in words) {
         if (lower.contains(w)) {
           flowType = ft;
@@ -328,10 +333,9 @@ class NlpParser {
     tryMatch(_intentBorrow, FlowType.borrow);
     tryMatch(_intentSplit, FlowType.split);
     tryMatch(_intentRequest, FlowType.request);
-    if (typeScore == 0) {
-      tryMatch(_intentIncome, FlowType.income);
-      tryMatch(_intentExpense, FlowType.expense);
-    }
+    // Expense before income: when both match ("got paid 500"), expense wins.
+    tryMatch(_intentExpense, FlowType.expense);
+    tryMatch(_intentIncome, FlowType.income);
 
     // ── 3. Category detection ─────────────────────────────────────────────
     // The matched keyword is deliberately left in `remaining` for title

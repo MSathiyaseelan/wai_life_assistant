@@ -15,15 +15,18 @@ class SMSRegexParser {
   static SMSTransaction? tryParse(String sms, {DateTime? fallbackDate}) {
     final today = (fallbackDate ?? DateTime.now()).toIso8601String().split('T')[0];
 
-    // Try each pattern in order of specificity
-    return _tryHdfcDebit(sms, today) ??
+    // Try each pattern in order of specificity. Salary goes first: it only
+    // fires on "salary"/"payroll" + "credited … by", but a typical salary SMS
+    // ("… credited to your A/c …") also matches the bank credit patterns,
+    // which categorised it as plain "Income".
+    return _trySalaryCredit(sms, today) ??
+        _tryHdfcDebit(sms, today) ??
         _tryHdfcCredit(sms, today) ??
         _trySbiDebit(sms, today) ??
         _tryIciciDebit(sms, today) ??
         _tryAxisDebit(sms, today) ??
         _tryUpiPaid(sms, today) ??
         _tryUpiReceived(sms, today) ??
-        _trySalaryCredit(sms, today) ??
         _tryGenericDebit(sms, today) ??
         _tryGenericCredit(sms, today);
   }

@@ -313,11 +313,14 @@ class PantryNlpParser {
       date = DateTime.now();
     }
 
-    // Strip trigger/time/date words to extract dish name
+    // Strip trigger/time/date words to extract dish name. Drinks that double
+    // as meal-time keywords (Beverages) are kept — they ARE the dish, so
+    // stripping them left "had coffee" with no name at all.
+    const drinkNames = {'tea', 'coffee', 'juice'};
     var name = lower;
     for (final w in [
       ..._mealTriggers,
-      ..._mtMap.keys,
+      ..._mtMap.keys.where((k) => !drinkNames.contains(k)),
       'today',
       'tomorrow',
       'yesterday',

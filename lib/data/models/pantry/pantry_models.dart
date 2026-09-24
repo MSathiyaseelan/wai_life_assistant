@@ -219,21 +219,26 @@ class MealReaction {
     this.replyTo,
   });
 
+  /// [comment]: omit to keep it, pass null to clear it — the reaction edit
+  /// forms pass null for an emptied comment box, which `comment ?? this.comment`
+  /// silently turned back into the old comment.
   MealReaction copyWith({
     String? id,
     String? userId,
     String? memberName,
     String? reactionEmoji,
-    String? comment,
+    Object? comment = _keepComment,
     String? replyTo,
   }) => MealReaction(
     id: id ?? this.id,
     userId: userId ?? this.userId,
     memberName: memberName ?? this.memberName,
     reactionEmoji: reactionEmoji ?? this.reactionEmoji,
-    comment: comment ?? this.comment,
+    comment: identical(comment, _keepComment) ? this.comment : comment as String?,
     replyTo: replyTo ?? this.replyTo,
   );
+
+  static const Object _keepComment = Object();
 
   factory MealReaction.fromMap(Map<String, dynamic> m) => MealReaction(
     id: m['id'] as String?,
