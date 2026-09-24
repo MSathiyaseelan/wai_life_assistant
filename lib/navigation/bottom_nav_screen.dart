@@ -29,11 +29,28 @@ class BottomNavScreen extends StatefulWidget {
 
 class _BottomNavScreenState extends State<BottomNavScreen> {
   ThemeMode _themeMode = ThemeMode.system;
+  // Owned here (not in AppShell) so AppStateScope can be provided via
+  // MaterialApp.builder, i.e. ABOVE this MaterialApp's Navigator — every
+  // pushed route and bottom sheet then sees it. Provided only inside
+  // AppShell, anything pushed (Item Locator, Wardrobe, ...) sat outside it
+  // and AppStateScope.of() threw.
+  final _appState = AppStateNotifier();
 
   @override
   void initState() {
     super.initState();
+    // Must start here, not in AppShell.initState: init() calls
+    // notifyListeners() synchronously, and by the time AppShell builds, the
+    // AppStateScope above it is already mounted — notifying then marks it
+    // dirty mid-build ("setState() or markNeedsBuild() called during build").
+    _appState.init();
     _loadTheme();
+  }
+
+  @override
+  void dispose() {
+    _appState.dispose();
+    super.dispose();
   }
 
   Future<void> _loadTheme() async {
@@ -67,16 +84,24 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: _themeMode,
-      home: AppShell(themeMode: _themeMode, onSetTheme: _setTheme),
+      builder: (context, child) =>
+          AppStateScope(notifier: _appState, child: child!),
+      home: AppShell(
+        appState: _appState,
+        themeMode: _themeMode,
+        onSetTheme: _setTheme,
+      ),
     );
   }
 }
 
 class AppShell extends StatefulWidget {
+  final AppStateNotifier appState;
   final ThemeMode themeMode;
   final void Function(ThemeMode) onSetTheme;
   const AppShell({
     super.key,
+    required this.appState,
     required this.themeMode,
     required this.onSetTheme,
   });
@@ -87,12 +112,12 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _idx = 0;
   int _dashboardRefreshCount = 0;
-  final _appState = AppStateNotifier();
+  // Owned and disposed by BottomNavScreen — see _BottomNavScreenState.
+  AppStateNotifier get _appState => widget.appState;
 
   @override
   void initState() {
     super.initState();
-    _appState.init();
     NetworkService.instance.isOnline.addListener(_onNetworkChange);
     FcmService.pendingTab.addListener(_onFcmTab);
     final pending = FcmService.pendingTab.value;
@@ -217,7 +242,6 @@ class _AppShellState extends State<AppShell> {
   void dispose() {
     NetworkService.instance.isOnline.removeListener(_onNetworkChange);
     FcmService.pendingTab.removeListener(_onFcmTab);
-    _appState.dispose();
     super.dispose();
   }
 

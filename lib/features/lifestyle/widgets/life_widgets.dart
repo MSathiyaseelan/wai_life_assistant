@@ -1,42 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
-import 'package:wai_life_assistant/features/AppStateNotifier.dart';
 import '../../../../core/theme/app_theme.dart';
 
 // ── Bottom sheet launcher ─────────────────────────────────────────────────────
 void showLifeSheet(BuildContext context, {required Widget child}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
-  // AppStateScope lives inside BottomNavScreen, below the root Navigator that
-  // hosts modal sheets — re-provide it so sheet contents can call
-  // AppStateScope.of(context).
-  final appState = context
-      .getInheritedWidgetOfExactType<AppStateScope>()
-      ?.notifier;
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (sheetCtx) {
-      final sheet = Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.cardLight,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 40, height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2))),
-            Flexible(child: SingleChildScrollView(child: child)),
-          ]),
-        ),
-      );
-      return appState == null
-          ? sheet
-          : AppStateScope(notifier: appState, child: sheet);
-    },
+    builder: (sheetCtx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.cardDark : AppColors.cardLight,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28))),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 4),
+            decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2))),
+          Flexible(child: SingleChildScrollView(child: child)),
+        ]),
+      ),
+    ),
   );
 }
 

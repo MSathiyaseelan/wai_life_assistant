@@ -701,15 +701,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
     Navigator.push(
       context,
       PageRouteBuilder(
-        // Pushed onto the root Navigator, above BottomNavScreen's
-        // AppStateScope — re-provide it for the wardrobe's share rows.
-        pageBuilder: (ctx, anim, secondaryAnim) => AppStateScope(
-          notifier: _appState,
-          child: MyWardrobeScreen(
-            walletId: _currentWallet.id,
-            members: _wardrobeMembers,
-            initialItems: _hasLoadedOnce ? _wardrobeItems : null,
-          ),
+        pageBuilder: (ctx, anim, secondaryAnim) => MyWardrobeScreen(
+          walletId: _currentWallet.id,
+          members: _wardrobeMembers,
+          initialItems: _hasLoadedOnce ? _wardrobeItems : null,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
