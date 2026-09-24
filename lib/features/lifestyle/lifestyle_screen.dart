@@ -190,7 +190,11 @@ class _LifeStyleScreenState extends State<LifeStyleScreen> {
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, anim, __) => screen,
+        // Pushed onto the root Navigator, above BottomNavScreen's
+        // AppStateScope — re-provide it so module screens (and the sheets
+        // they open) can call AppStateScope.of(context).
+        pageBuilder: (_, anim, __) =>
+            AppStateScope(notifier: _appState, child: screen),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
           child: SlideTransition(

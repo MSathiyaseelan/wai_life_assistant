@@ -2055,9 +2055,12 @@ class _ClothingDetailState extends State<_ClothingDetail> {
           _buildShareRow(context, tc, sub, surfBg),
           const SizedBox(height: 12),
 
-          // Photo area
+          // Photo area — tap views full size (same as Outfit Log); the
+          // "Change" badge replaces it. No photo yet → tap adds one.
           GestureDetector(
-            onTap: _changePhoto,
+            onTap: item.photoPath != null
+                ? () => _showFullImage(context, item.photoPath!)
+                : _changePhoto,
             child: Container(
               height: 150,
               width: double.infinity,
@@ -2097,21 +2100,36 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                         Positioned(
                           bottom: 8,
                           right: 10,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Tap to change',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontFamily: 'Nunito',
+                          child: GestureDetector(
+                            onTap: _changePhoto,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.photo_camera_rounded,
+                                    size: 12,
+                                    color: Colors.white,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Change',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Nunito',
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -2167,10 +2185,10 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.edit_rounded, size: 12, color: _wardrobeColor),
+                      Icon(Icons.add_link_rounded, size: 12, color: _wardrobeColor),
                       SizedBox(width: 4),
                       Text(
-                        'Edit',
+                        'Add/Update Pairs',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
@@ -2241,7 +2259,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
           ] else ...[
             const SizedBox(height: 6),
             Text(
-              'No pairs set — tap Edit to choose.',
+              'No pairs set — tap Add/Update Pairs to choose.',
               style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
             ),
           ],
@@ -2405,6 +2423,18 @@ class _ClothingDetailState extends State<_ClothingDetail> {
         if (c.matchWith.contains(item.id)) c.id,
     };
 
+    // Group by the categories the items actually use — in cache order first,
+    // then any keys missing from WardrobeCategoryCache (renamed/deleted
+    // server-side), which WardrobeCategoryCache.of() resolves to a fallback.
+    // Iterating only WardrobeCategoryCache.all silently dropped those items,
+    // leaving the sheet with nothing to select.
+    final usedKeys = others.map((c) => c.category).toSet();
+    final categories = [
+      for (final cat in WardrobeCategoryCache.all)
+        if (usedKeys.remove(cat.key)) cat,
+      for (final key in usedKeys) WardrobeCategoryCache.of(key),
+    ];
+
     showLifeSheet(
       ctx,
       child: StatefulBuilder(
@@ -2448,7 +2478,7 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                   ),
                 )
               else
-                for (final cat in WardrobeCategoryCache.all) ...[
+                for (final cat in categories) ...[
                   Builder(
                     builder: (_) {
                       final catItems = others
