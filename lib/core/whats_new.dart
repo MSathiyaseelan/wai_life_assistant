@@ -48,5 +48,17 @@ class WhatsNew {
       'Privacy & Security: "Require Biometric" for Locked Notes and "Personalisation" now actually take effect.',
       'Fixed Family Plus/Pro members sometimes seeing "Free scan limit reached" on Wallet bill scans.',
     ],
+    33: [
+      'Split groups: requesting an extension works again, extension and proof details now show on the Overview, and you can still submit proof after asking for more time.',
+      'Tap a payment proof or wardrobe photo to view it full size.',
+      'Fixed crashes when opening Wardrobe items or editing Item Locator containers.',
+      'Wardrobe: "Pairs well with" now lists all your items.',
+      'Quiet hours now apply even when the app is closed — notifications arrive silently.',
+      'Voice input: pick any of the 10 supported languages in Settings.',
+      'Your Default Scope choice now saves and syncs properly.',
+      '"borrowed … from" is now recorded as a borrow, and salary SMS imports are categorised as Salary.',
+      'Profile photo changes now show up right away.',
+      '"Logout from all devices" now fully signs out your other phones.',
+    ],
   };
 }
