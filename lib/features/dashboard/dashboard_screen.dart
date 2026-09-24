@@ -49,7 +49,6 @@ import 'package:wai_life_assistant/features/dashboard/widgets/language_voice_she
 import 'package:wai_life_assistant/features/dashboard/widgets/currency_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/date_time_prefs_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/default_scope_sheet.dart';
-import 'package:wai_life_assistant/features/dashboard/widgets/ai_parser_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/subscription_sheet.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/family_group_banner.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/family_plan_expiry_banner.dart';
@@ -2631,8 +2630,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         sheet = DateTimePrefsSheet(isDark: isDark);
       case 'Default Scope':
         sheet = DefaultScopeSheet(isDark: isDark, hasFamily: AppStateScope.of(ctx).families.isNotEmpty);
-      case 'AI Parser Settings':
-        sheet = AiParserSheet(isDark: isDark);
       case 'Subscription':
         sheet = SubscriptionSheet(isDark: isDark, currentPlan: _userPlan);
       case 'About':
@@ -3944,10 +3941,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           sRow(emoji: '🏠', bg: const Color(0xFFFFEDD5), title: 'Default Scope',
                             subtitle: 'Personal or Family on tab open', value: 'Per tab',
                             onTap: _prefsTap(ctx, isDark, 'Default Scope')),
-                          sRow(emoji: '✦', bg: const Color(0xFFE8E0FF), title: 'AI Parser',
-                            subtitle: 'Receipt & SMS auto-fill behaviour',
-                            value: AppPrefs.instance.aiAlwaysConfirm ? 'Always confirm' : 'Auto-fill',
-                            onTap: _prefsTap(ctx, isDark, 'AI Parser Settings')),
                           sRow(emoji: '🔔', bg: const Color(0xFFE0F8EC), title: 'Notifications',
                             subtitle: 'Alerts & reminders',
                             value: NotificationPrefs.instance.masterOn ? 'On' : 'Off',

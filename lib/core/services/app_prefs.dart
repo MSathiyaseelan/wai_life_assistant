@@ -192,12 +192,4 @@ class AppPrefs extends ChangeNotifier {
   /// (no changelog noise on first launch, only on updates).
   int get lastSeenBuildNumber    => _i('last_seen_build_number', def: 0);
   set lastSeenBuildNumber(int v) => _setI('last_seen_build_number', v);
-
-  // ── AI Parser ──────────────────────────────────────────────────────────────
-
-  bool get aiAlwaysConfirm    => _b('ai_always_confirm',  def: true);
-  set aiAlwaysConfirm(bool v) => _setB('ai_always_confirm', v);
-
-  String get aiVoiceLanguage    => _s('ai_voice_language',  def: 'en');
-  set aiVoiceLanguage(String v) => _setS('ai_voice_language', v);
 }
