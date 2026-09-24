@@ -150,7 +150,7 @@ ClothingItem mkClothing({
   DateTime? addedOn,
 }) => ClothingItem(
       id: id, walletId: 'w1', memberId: 'me', name: name,
-      category: ClothingCategory.topwear, gender: ClothingGender.male,
+      category: 'topwear', gender: ClothingGender.male,
       wishlist: wishlist, color: color,
       addedOn: addedOn ?? DateTime(2024, 1, 1),
     );

@@ -402,7 +402,14 @@ SettleStatus settleStatusFromString(String s) {
   }
 }
 
-SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
+String? _signedInUid() => Supabase.instance.client.auth.currentUser?.id;
+
+/// [currentUid] resolves the viewing user's id — defaults to the signed-in
+/// Supabase user; tests pass their own so parsing doesn't need Supabase.
+SplitGroup splitGroupFromRow(
+  Map<String, dynamic> row, {
+  String? Function() currentUid = _signedInUid,
+}) {
   // `is_me` is a snapshot from whoever created/added this participant row —
   // true only for the person who was "me" from *their* point of view at
   // that time. Every other member opening the same group would otherwise
@@ -410,13 +417,13 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
   // own account), breaking anything that resolves "the current viewer's
   // participant" (e.g. defaulting "who paid" on Add Expense). Recompute it
   // per-viewer instead, from the linked account id.
-  final currentUid = Supabase.instance.client.auth.currentUser?.id;
+  final uid = currentUid();
   final rawParticipants = (row['split_participants'] as List? ?? []);
   // Pin is per-participant (142) — each viewer's own row carries their own
   // pin state, so it's not shared with (or overwritten by) other members.
   final pinnedToDashboard = rawParticipants.any((p) =>
       p['user_id'] != null &&
-      p['user_id'] == currentUid &&
+      p['user_id'] == uid &&
       p['pinned_to_dashboard'] == true);
   final participants = rawParticipants
       .map((p) {
@@ -427,7 +434,7 @@ SplitGroup splitGroupFromRow(Map<String, dynamic> row) {
           emoji: p['emoji'] as String? ?? '👤',
           phone: p['phone'] as String?,
           userId: userId,
-          isMe: userId != null && userId == currentUid,
+          isMe: userId != null && userId == uid,
         );
       })
       .toList();

@@ -34,7 +34,7 @@ SplitGroup makeGroup({
   bool pinned = false,
 }) {
   final g = SplitGroup(
-    id: 'grp1', name: 'Test Group', emoji: '🤝', walletId: 'personal',
+    id: 'grp1', name: 'Test Group', emoji: '🤝', walletId: 'personal', createdBy: 'u1',
     participants: participants, transactions: transactions,
     pinnedToDashboard: pinned,
   );
@@ -136,6 +136,13 @@ void main() {
         expect(settleStatusFromString('extensionRequested'), SettleStatus.extensionRequested));
     test('extensionGranted', () =>
         expect(settleStatusFromString('extensionGranted'), SettleStatus.extensionGranted));
+    // snake_case is what split_shares.status actually stores (CHECK constraint)
+    test('proof_submitted', () =>
+        expect(settleStatusFromString('proof_submitted'), SettleStatus.proofSubmitted));
+    test('extension_requested', () =>
+        expect(settleStatusFromString('extension_requested'), SettleStatus.extensionRequested));
+    test('extension_granted', () =>
+        expect(settleStatusFromString('extension_granted'), SettleStatus.extensionGranted));
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -198,10 +205,10 @@ void main() {
     test('all MsgType strings parse correctly', () {
       final cases = {
         'text': MsgType.text,
-        'txAdded': MsgType.txAdded,
+        'tx_added': MsgType.txAdded,
         'settled': MsgType.settled,
-        'extensionReq': MsgType.extensionReq,
-        'extensionGranted': MsgType.extensionGranted,
+        'extension_req': MsgType.extensionReq,
+        'extension_granted': MsgType.extensionGranted,
         'reminder': MsgType.reminder,
       };
       for (final e in cases.entries) {
@@ -342,28 +349,28 @@ void main() {
   group('SplitGroup constructor defaults', () {
     test('transactions defaults to empty list', () {
       final g = SplitGroup(
-        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', participants: [],
+        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', createdBy: 'u1', participants: [],
       );
       expect(g.transactions, isEmpty);
     });
 
     test('messages defaults to empty list', () {
       final g = SplitGroup(
-        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', participants: [],
+        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', createdBy: 'u1', participants: [],
       );
       expect(g.messages, isEmpty);
     });
 
     test('pinnedToDashboard defaults to false', () {
       final g = SplitGroup(
-        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', participants: [],
+        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', createdBy: 'u1', participants: [],
       );
       expect(g.pinnedToDashboard, false);
     });
 
     test('isSettled defaults to false', () {
       final g = SplitGroup(
-        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', participants: [],
+        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', createdBy: 'u1', participants: [],
       );
       expect(g.isSettled, false);
     });
@@ -371,7 +378,7 @@ void main() {
     test('createdAt defaults to a recent DateTime when null passed', () {
       final before = DateTime.now().subtract(const Duration(seconds: 1));
       final g = SplitGroup(
-        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', participants: [],
+        id: 'g', name: 'X', emoji: '🤝', walletId: 'w', createdBy: 'u1', participants: [],
       );
       expect(g.createdAt.isAfter(before), true);
     });
@@ -769,6 +776,11 @@ void main() {
   // 13. splitGroupFromRow
   // ═══════════════════════════════════════════════════════════════════════════
   group('splitGroupFromRow', () {
+    // Viewer fixed as u1 (p1's linked account) so parsing doesn't need a
+    // signed-in Supabase session.
+    SplitGroup parseAsU1(Map<String, dynamic> row) =>
+        splitGroupFromRow(row, currentUid: () => 'u1');
+
     Map<String, dynamic> baseRow() => {
       'id': 'grp1',
       'name': 'Goa Trip',
@@ -777,8 +789,8 @@ void main() {
       'created_at': '2025-08-01T00:00:00.000Z',
       'pinned_to_dashboard': true,
       'split_participants': [
-        {'id': 'p1', 'name': 'Arjun', 'emoji': '👨', 'phone': '9999', 'is_me': true},
-        {'id': 'p2', 'name': 'Priya', 'emoji': '👩', 'is_me': false},
+        {'id': 'p1', 'name': 'Arjun', 'emoji': '👨', 'phone': '9999', 'is_me': true, 'user_id': 'u1', 'pinned_to_dashboard': true},
+        {'id': 'p2', 'name': 'Priya', 'emoji': '👩', 'is_me': false, 'user_id': 'u2'},
       ],
       'split_group_transactions': [
         {
@@ -814,7 +826,7 @@ void main() {
     };
 
     test('parses group-level fields', () {
-      final g = splitGroupFromRow(baseRow());
+      final g = parseAsU1(baseRow());
       expect(g.id, 'grp1');
       expect(g.name, 'Goa Trip');
       expect(g.emoji, '🏖️');
@@ -823,7 +835,7 @@ void main() {
     });
 
     test('parses participants', () {
-      final g = splitGroupFromRow(baseRow());
+      final g = parseAsU1(baseRow());
       expect(g.participants.length, 2);
       expect(g.participants[0].id, 'p1');
       expect(g.participants[0].name, 'Arjun');
@@ -834,12 +846,12 @@ void main() {
     test('participant emoji defaults to 👤 when absent', () {
       final row = baseRow();
       (row['split_participants'] as List)[1].remove('emoji');
-      final g = splitGroupFromRow(row);
+      final g = parseAsU1(row);
       expect(g.participants[1].emoji, '👤');
     });
 
     test('parses transactions with shares', () {
-      final g = splitGroupFromRow(baseRow());
+      final g = parseAsU1(baseRow());
       expect(g.transactions.length, 1);
       final t = g.transactions[0];
       expect(t.title, 'Hotel');
@@ -849,41 +861,54 @@ void main() {
     });
 
     test('parses share status correctly', () {
-      final g = splitGroupFromRow(baseRow());
+      final g = parseAsU1(baseRow());
       final shares = g.transactions[0].shares;
       expect(shares[0].status, SettleStatus.settled);
       expect(shares[1].status, SettleStatus.pending);
     });
 
     test('parses reminderCount on share', () {
-      final g = splitGroupFromRow(baseRow());
+      final g = parseAsU1(baseRow());
       expect(g.transactions[0].shares[1].reminderCount, 2);
     });
 
     test('emoji defaults to 🤝 when absent', () {
       final row = baseRow()..remove('emoji');
-      expect(splitGroupFromRow(row).emoji, '🤝');
+      expect(parseAsU1(row).emoji, '🤝');
     });
 
-    test('pinnedToDashboard defaults to false when absent', () {
-      final row = baseRow()..remove('pinned_to_dashboard');
-      expect(splitGroupFromRow(row).pinnedToDashboard, false);
+    // Pin is per-participant (142): only the viewer's own row counts.
+    test('pinnedToDashboard false when the viewer\'s row isn\'t pinned', () {
+      final row = baseRow();
+      (row['split_participants'] as List)[0].remove('pinned_to_dashboard');
+      expect(parseAsU1(row).pinnedToDashboard, false);
+    });
+
+    test('another member\'s pin does not pin the group for the viewer', () {
+      final g = splitGroupFromRow(baseRow(), currentUid: () => 'u2');
+      expect(g.pinnedToDashboard, false);
+    });
+
+    test('isMe follows the viewer, not the stored is_me flag', () {
+      final g = splitGroupFromRow(baseRow(), currentUid: () => 'u2');
+      expect(g.participants[0].isMe, false);
+      expect(g.participants[1].isMe, true);
     });
 
     test('absent participants → empty list', () {
       final row = baseRow()..remove('split_participants');
-      expect(splitGroupFromRow(row).participants, isEmpty);
+      expect(parseAsU1(row).participants, isEmpty);
     });
 
     test('absent transactions → empty list', () {
       final row = baseRow()..remove('split_group_transactions');
-      expect(splitGroupFromRow(row).transactions, isEmpty);
+      expect(parseAsU1(row).transactions, isEmpty);
     });
 
     test('absent created_at → createdAt falls back to now', () {
       final before = DateTime.now().subtract(const Duration(seconds: 1));
       final row = baseRow()..remove('created_at');
-      expect(splitGroupFromRow(row).createdAt.isAfter(before), true);
+      expect(parseAsU1(row).createdAt.isAfter(before), true);
     });
   });
 }

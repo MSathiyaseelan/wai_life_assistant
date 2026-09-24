@@ -222,19 +222,37 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 4. ClothingCategory / ClothingGender enums
+  // 4. Wardrobe categories (WardrobeCategory / WardrobeCategoryCache) and
+  //    ClothingGender enum. Categories are wardrobe_categories rows keyed by
+  //    string (181/182), replacing the old hardcoded ClothingCategory enum.
   // ═══════════════════════════════════════════════════════════════════════════
-  group('ClothingCategory enum', () {
-    test('12 values, all have non-empty emoji and label', () {
-      expect(ClothingCategory.values.length, 12);
-      for (final c in ClothingCategory.values) {
-        expect(c.emoji, isNotEmpty, reason: c.name);
-        expect(c.label, isNotEmpty, reason: c.name);
+  group('WardrobeCategory.fallback', () {
+    test('non-empty, every entry has key, emoji and label', () {
+      expect(WardrobeCategory.fallback, isNotEmpty);
+      for (final c in WardrobeCategory.fallback) {
+        expect(c.key, isNotEmpty);
+        expect(c.emoji, isNotEmpty, reason: c.key);
+        expect(c.label, isNotEmpty, reason: c.key);
       }
     });
-    test('topwear label', () => expect(ClothingCategory.topwear.label, 'Topwear'));
-    test('ethnic label', () => expect(ClothingCategory.ethnic.label, 'Ethnic / Traditional'));
-    test('formal label', () => expect(ClothingCategory.formal.label, 'Formal / Office'));
+    test('keys are unique', () {
+      final keys = WardrobeCategory.fallback.map((c) => c.key).toList();
+      expect(keys.toSet().length, keys.length);
+    });
+  });
+
+  group('WardrobeCategoryCache.of', () {
+    test('known key resolves to its category', () {
+      final first = WardrobeCategory.fallback.first;
+      expect(WardrobeCategoryCache.of(first.key).label, first.label);
+    });
+    test('unknown/legacy key → 🧺 with a capitalised label', () {
+      final c = WardrobeCategoryCache.of('topwear');
+      expect(c.key, 'topwear');
+      expect(c.emoji, '🧺');
+      expect(c.label, 'Topwear');
+    });
+    test('empty key → "Other"', () => expect(WardrobeCategoryCache.of('').label, 'Other'));
   });
 
   group('ClothingGender enum', () {
@@ -275,7 +293,7 @@ void main() {
       expect(item.walletId, 'w1');
       expect(item.memberId, 'me');
       expect(item.name, 'White Oxford Shirt');
-      expect(item.category, ClothingCategory.topwear);
+      expect(item.category, 'topwear');
       expect(item.gender, ClothingGender.male);
       expect(item.brand, 'Arrow');
       expect(item.size, 'L');
@@ -287,9 +305,16 @@ void main() {
       expect(item.addedOn, DateTime(2024, 1, 15));
     });
 
-    test('unknown category → ClothingCategory.topwear (fallback)', () {
+    // Keys are kept verbatim (renamed/deleted ones render via
+    // WardrobeCategoryCache.of's fallback); only a missing key defaults.
+    test('unknown category key kept as-is', () {
       final item = ClothingItem.fromJson({...fullJson, 'category': 'unknown'});
-      expect(item.category, ClothingCategory.topwear);
+      expect(item.category, 'unknown');
+    });
+
+    test('absent category → "topwear"', () {
+      final item = ClothingItem.fromJson({...fullJson}..remove('category'));
+      expect(item.category, 'topwear');
     });
 
     test('unknown gender → ClothingGender.unisex (fallback)', () {
@@ -298,9 +323,9 @@ void main() {
     });
 
     test('all valid categories parse correctly', () {
-      for (final cat in ClothingCategory.values) {
-        final item = ClothingItem.fromJson({...fullJson, 'category': cat.name});
-        expect(item.category, cat, reason: cat.name);
+      for (final cat in WardrobeCategory.fallback) {
+        final item = ClothingItem.fromJson({...fullJson, 'category': cat.key});
+        expect(item.category, cat.key, reason: cat.key);
       }
     });
 
@@ -332,7 +357,7 @@ void main() {
     test('required fields always included', () {
       final item = ClothingItem(
         id: 'c1', walletId: 'w1', memberId: 'me', name: 'Shirt',
-        category: ClothingCategory.topwear, gender: ClothingGender.male,
+        category: 'topwear', gender: ClothingGender.male,
         addedOn: DateTime(2024, 1, 15),
       );
       final j = item.toJson();
@@ -348,7 +373,7 @@ void main() {
     test('id NOT in toJson', () {
       final item = ClothingItem(
         id: 'c1', walletId: 'w1', memberId: 'me', name: 'X',
-        category: ClothingCategory.footwear, gender: ClothingGender.unisex,
+        category: 'footwear', gender: ClothingGender.unisex,
       );
       expect(item.toJson().containsKey('id'), isFalse);
     });
@@ -356,7 +381,7 @@ void main() {
     test('addedOn formatted as YYYY-MM-DD', () {
       final item = ClothingItem(
         id: 'c1', walletId: 'w1', memberId: 'me', name: 'X',
-        category: ClothingCategory.ethnic, gender: ClothingGender.female,
+        category: 'ethnic', gender: ClothingGender.female,
         addedOn: DateTime(2024, 12, 31),
       );
       expect(item.toJson()['added_on'], '2024-12-31');
@@ -365,7 +390,7 @@ void main() {
     test('null optional fields omitted', () {
       final item = ClothingItem(
         id: 'c1', walletId: 'w1', memberId: 'me', name: 'X',
-        category: ClothingCategory.nightwear, gender: ClothingGender.kids,
+        category: 'nightwear', gender: ClothingGender.kids,
       );
       final j = item.toJson();
       expect(j.containsKey('brand'), isFalse);
@@ -379,7 +404,7 @@ void main() {
     test('matchWith list serialised', () {
       final item = ClothingItem(
         id: 'c1', walletId: 'w1', memberId: 'me', name: 'Chinos',
-        category: ClothingCategory.bottomwear, gender: ClothingGender.male,
+        category: 'bottomwear', gender: ClothingGender.male,
         matchWith: ['c2', 'c3'],
       );
       expect(item.toJson()['match_with'], ['c2', 'c3']);
