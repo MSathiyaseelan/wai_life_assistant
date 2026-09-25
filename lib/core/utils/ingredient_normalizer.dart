@@ -62,6 +62,52 @@ String canonicalIngredientName(String raw) {
   return _ingredientAliases[base] ?? base;
 }
 
+/// Words that turn an ingredient into a different product — "rice flour"
+/// is not "rice", "coconut oil" is not "coconut". Stored normalized
+/// (singular), as [normalizeIngredientName] produces them.
+const _productFormWords = {
+  'flour', 'powder', 'paste', 'oil', 'sauce', 'milk', 'butter', 'cream',
+  'juice', 'leaf', 'leave', 'seed', 'water', 'vinegar', 'syrup', 'extract',
+  'essence', 'masala', 'pickle', 'jam', 'ketchup', 'chip',
+};
+
+/// Whether a stock/basket item named [stockKey] covers a recipe ingredient
+/// named [ingredientKey] (both normalized names). Matches whole words only
+/// — "egg" never matches "eggplant", "salt" never "unsalted butter". When
+/// one name is the other plus extra words, it still matches for a plain
+/// qualifier ("basmati rice" ↔ "rice", "red onion" ↔ "onion") but not when
+/// an extra word makes it a different product ("rice flour" ↔ "rice").
+bool stockCoversIngredient(String ingredientKey, String stockKey) {
+  List<String> words(String s) => s
+      .split(' ')
+      .where((w) => w.isNotEmpty)
+      .map(normalizeIngredientName)
+      .where((w) => w.isNotEmpty)
+      .toList();
+  final ing = words(ingredientKey);
+  final stock = words(stockKey);
+  if (ing.isEmpty || stock.isEmpty) return false;
+
+  final (shorter, longer) =
+      ing.length <= stock.length ? (ing, stock) : (stock, ing);
+  for (var start = 0; start + shorter.length <= longer.length; start++) {
+    var match = true;
+    for (var i = 0; i < shorter.length; i++) {
+      if (longer[start + i] != shorter[i]) {
+        match = false;
+        break;
+      }
+    }
+    if (!match) continue;
+    final extra = [
+      ...longer.sublist(0, start),
+      ...longer.sublist(start + shorter.length),
+    ];
+    return !extra.any(_productFormWords.contains);
+  }
+  return false;
+}
+
 /// Display-only capitalization: "ghee" -> "Ghee", "coconut oil" -> "Coconut
 /// Oil". Only touches the first letter of each word — leaves the rest of a
 /// word untouched (so an already-mixed-case name like "iPhone" isn't

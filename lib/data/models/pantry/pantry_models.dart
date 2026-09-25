@@ -376,10 +376,14 @@ class RecipeModel {
   bool isFavourite;
   /// Non-null when this recipe was tagged from the master library.
   final String? libraryRecipeId;
+  /// Profile id of the member who added it; null for a not-yet-saved
+  /// optimistic entry (always the current user's own).
+  final String? createdBy;
 
   RecipeModel({
     required this.id,
     this.walletId = 'personal',
+    this.createdBy,
     required this.name,
     required this.emoji,
     required this.cuisine,
@@ -399,6 +403,7 @@ class RecipeModel {
     return RecipeModel(
       id: m['id'] as String,
       walletId: m['wallet_id'] as String,
+      createdBy: m['created_by'] as String?,
       name: m['name'] as String,
       emoji: (m['emoji'] as String?) ?? '🍽️',
       cuisine: CuisineType.values.firstWhere(

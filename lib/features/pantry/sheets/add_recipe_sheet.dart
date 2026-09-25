@@ -1213,12 +1213,8 @@ class _RecipeDetailSheetState extends State<RecipeDetailSheet> {
 
     for (final ingredient in _ingredients) {
       final name = canonicalIngredientName(_extractName(ingredient));
-      bool matches(GroceryItem g) {
-        if (name.isEmpty) return false;
-        final gName = g.effectiveNormalizedName;
-        return gName.isNotEmpty &&
-            (gName == name || gName.contains(name) || name.contains(gName));
-      }
+      bool matches(GroceryItem g) =>
+          stockCoversIngredient(name, g.effectiveNormalizedName);
       final found = inStock.any(matches);
       final listed = !found && inToBuy.any(matches);
       checked.add(_IngredientStatus(
@@ -1644,12 +1640,8 @@ class _RecipeActionsState extends State<_RecipeActions> {
     _basketAdded = widget.recipe.ingredients.isNotEmpty &&
         widget.recipe.ingredients.every((ing) {
           final name = canonicalIngredientName(_extractIngName(ing));
-          if (name.isEmpty) return false;
-          return inToBuy.any((g) {
-            final gName = g.effectiveNormalizedName;
-            return gName.isNotEmpty &&
-                (gName == name || gName.contains(name) || name.contains(gName));
-          });
+          return inToBuy
+              .any((g) => stockCoversIngredient(name, g.effectiveNormalizedName));
         });
   }
 

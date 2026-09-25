@@ -148,7 +148,7 @@ class _PantryScreenState extends State<PantryScreen>
     return (true, true);
   }
 
-  /// Meal edit/delete rights — mirrors the meal_entries RLS + trigger: the
+  /// Meal edit/delete rights — mirrors the meal_entries RLS + trigger (197): the
   /// creator can always manage their own meal, anyone else needs the
   /// family's edit (content/status) or delete permission.
   bool _isOwnMeal(MealEntry m) =>
@@ -158,6 +158,15 @@ class _PantryScreenState extends State<PantryScreen>
       _isOwnMeal(m) || _pantryPerms(m.walletId).$1;
   bool _canDeleteMeal(MealEntry m) =>
       _isOwnMeal(m) || _pantryPerms(m.walletId).$2;
+
+  /// Same rule for recipes (recipes RLS + migration 199's trigger).
+  bool _isOwnRecipe(RecipeModel r) =>
+      r.createdBy == null ||
+      r.createdBy == Supabase.instance.client.auth.currentUser?.id;
+  bool _canEditRecipe(RecipeModel r) =>
+      _isOwnRecipe(r) || _pantryPerms(r.walletId).$1;
+  bool _canDeleteRecipe(RecipeModel r) =>
+      _isOwnRecipe(r) || _pantryPerms(r.walletId).$2;
 
   /// Whether the current user is the admin of [walletId]'s family — used to
   /// let an admin manage (edit/delete) any family member's meal reaction,
@@ -1308,22 +1317,10 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   /// Whether a normalized recipe-ingredient name refers to the same thing
-  /// as a basket item — normalized equality first (handles case/plural/
-  /// punctuation differences), falling back to substring containment for
-  /// compound names (e.g. ingredient "rice" vs basket item "basmati rice").
-  bool _ingredientMatchesGrocery(GroceryItem g, String normalizedIngredient) {
-    final gName = g.effectiveNormalizedName;
-    if (gName.isEmpty || normalizedIngredient.isEmpty) return false;
-    if (gName == normalizedIngredient) return true;
-    // Substring containment is only meaningful for whole-word matches on
-    // names long enough to avoid false positives (e.g. "tea" inside "steak").
-    const minLen = 4;
-    if (gName.length < minLen || normalizedIngredient.length < minLen) return false;
-    bool containsWhole(String haystack, String needle) =>
-        RegExp(r'\b' + RegExp.escape(needle) + r'\b').hasMatch(haystack);
-    return containsWhole(gName, normalizedIngredient) ||
-        containsWhole(normalizedIngredient, gName);
-  }
+  /// as a basket item — see [stockCoversIngredient] (shared with the
+  /// recipe sheet's Check Stock so both agree).
+  bool _ingredientMatchesGrocery(GroceryItem g, String normalizedIngredient) =>
+      stockCoversIngredient(normalizedIngredient, g.effectiveNormalizedName);
 
   /// When a meal is cooked, reduce in-stock quantities for matching groceries.
   Future<void> _reduceStockForMeal(String recipeId) async {
@@ -1663,11 +1660,29 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  Future<void> _updateRecipe(RecipeModel updated) async {
-    final idx = _recipes.indexWhere((r) => r.id == updated.id);
+  Future<void> _updateRecipe(RecipeModel edited) async {
+    final idx = _recipes.indexWhere((r) => r.id == edited.id);
     if (idx < 0) return;
-    if (_denyIfNoPerm(_pantryPerms(updated.walletId).$1, 'edit recipes')) return;
     final old = _recipes[idx];
+    if (_denyIfNoPerm(_canEditRecipe(old), 'edit recipes')) return;
+    // Edit forms rebuild the model from their fields and don't carry the
+    // library link or creator — losing libraryRecipeId made the Library tab
+    // offer the recipe again and let a duplicate through _addRecipe.
+    final updated = RecipeModel(
+      id: edited.id,
+      walletId: old.walletId,
+      createdBy: old.createdBy,
+      name: edited.name,
+      emoji: edited.emoji,
+      cuisine: edited.cuisine,
+      suitableFor: edited.suitableFor,
+      ingredients: edited.ingredients,
+      socialLink: edited.socialLink,
+      note: edited.note,
+      cookTimeMin: edited.cookTimeMin,
+      isFavourite: edited.isFavourite,
+      libraryRecipeId: old.libraryRecipeId,
+    );
     setState(() => _recipes[idx] = updated); // optimistic
     try {
       await PantryService.instance.updateRecipe(updated.id, {
@@ -1690,7 +1705,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _deleteRecipe(RecipeModel r) async {
-    if (_denyIfNoPerm(_pantryPerms(r.walletId).$2, 'delete recipes')) return;
+    if (_denyIfNoPerm(_canDeleteRecipe(r), 'delete recipes')) return;
     setState(() => _recipes.remove(r));
     try {
       await PantryService.instance.deleteRecipe(r.id);
@@ -1707,6 +1722,8 @@ class _PantryScreenState extends State<PantryScreen>
   /// Unlike [_addRecipe], this restores the existing row instead of
   /// inserting a new one, so it bypasses the duplicate/quota checks.
   Future<void> _restoreRecipe(RecipeModel r) async {
+    // Restoring clears deleted_at, which 199 gates like a delete.
+    if (_denyIfNoPerm(_canDeleteRecipe(r), 'restore recipes')) return;
     setState(() => _recipes.add(r)); // optimistic
     try {
       final ok = await PantryService.instance.restoreRecipe(r.id);

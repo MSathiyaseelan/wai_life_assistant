@@ -125,9 +125,8 @@ class PantryService {
   }
 
   /// Update mutable fields on a recipe.
-  Future<void> updateRecipe(String id, Map<String, dynamic> updates) async {
-    await _db.from('recipes').update(updates).eq('id', id);
-  }
+  Future<void> updateRecipe(String id, Map<String, dynamic> updates) =>
+      _updateRowOrThrow('recipes', id, updates);
 
   /// Toggle the favourite flag on a recipe.
   Future<void> toggleFavourite(String id, {required bool isFavourite}) async {
@@ -138,9 +137,8 @@ class PantryService {
   }
 
   /// Delete a recipe (soft delete).
-  Future<void> deleteRecipe(String id) async {
-    await _db.from('recipes').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
-  }
+  Future<void> deleteRecipe(String id) => _updateRowOrThrow(
+      'recipes', id, {'deleted_at': DateTime.now().toUtc().toIso8601String()});
 
   /// Fetch this wallet's own previously-untagged (soft-deleted) custom
   /// recipes — shown alongside the master catalogue in the Library tab so
@@ -282,30 +280,31 @@ class PantryService {
     String id, {
     required String status,   // MealStatus.name
     required int servingsCount,
-  }) => _updateMealRow(id, {
+  }) => _updateRowOrThrow('meal_entries', id, {
         'meal_status':    status,
         'servings_count': servingsCount,
       });
 
   /// Update mutable fields on a meal entry.
   Future<void> updateMealEntry(String id, Map<String, dynamic> updates) =>
-      _updateMealRow(id, updates);
+      _updateRowOrThrow('meal_entries', id, updates);
 
   /// Delete a meal entry (soft delete).
-  Future<void> deleteMealEntry(String id) => _updateMealRow(
-      id, {'deleted_at': DateTime.now().toUtc().toIso8601String()});
+  Future<void> deleteMealEntry(String id) => _updateRowOrThrow(
+      'meal_entries', id, {'deleted_at': DateTime.now().toUtc().toIso8601String()});
 
   /// RLS drops an UPDATE the caller isn't allowed to make without raising —
   /// it just matches 0 rows — so a denied change would otherwise look like
   /// it saved. Throw so the caller's optimistic update gets reverted.
-  Future<void> _updateMealRow(String id, Map<String, dynamic> updates) async {
+  Future<void> _updateRowOrThrow(
+      String table, String id, Map<String, dynamic> updates) async {
     final rows = await _db
-        .from('meal_entries')
+        .from(table)
         .update(updates)
         .eq('id', id)
         .select('id');
     if (rows.isEmpty) {
-      throw StateError('Meal $id not updated — not permitted or no longer exists');
+      throw StateError('$table $id not updated — not permitted or no longer exists');
     }
   }
 
