@@ -60,5 +60,16 @@ class WhatsNew {
       'Profile photo changes now show up right away.',
       '"Logout from all devices" now fully signs out your other phones.',
     ],
+    34: [
+      'Pantry: meals now warn you when they may contain a family member\'s allergy from the Family Food Guide.',
+      'Meal Map: family members\' meal changes now show up live, and the days you can plan ahead now match your plan exactly.',
+      'Basket: "+ To Buy" keeps the item in stock and adds a separate To Buy entry; buying it adds to your stock instead of creating a duplicate.',
+      'Basket and your Dashboard list now stay in sync, and the expiring-items count matches the Expiring Soon list.',
+      'Recipe stock check is more accurate — "egg" no longer matches "eggplant", and "rice" no longer matches "rice flour".',
+      'Family Food Guide: saving now updates right away, and you can always edit your own preferences.',
+      'Family permissions for editing and deleting meals and recipes now work as set.',
+      'Deleting a Basket item now asks for confirmation.',
+      'Split payment reminders no longer show the amount as negative.',
+    ],
   };
 }
