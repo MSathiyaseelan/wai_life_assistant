@@ -8,8 +8,15 @@ class RealtimeSyncService {
 
   final revision = ValueNotifier<int>(0);
 
+  /// Bumped with the wallet id of any meal_entries insert/update (incl.
+  /// soft delete) in one of the user's wallets — lets Meal Map pick up
+  /// other family members' changes live.
+  final mealEntriesChanged = ValueNotifier<({String walletId, int seq})?>(null);
+  int _mealSeq = 0;
+
   final List<RealtimeChannel> _channels = [];
   String? _lastUserId;
+  List<String> _lastMealWalletIds = const [];
 
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -20,13 +27,14 @@ class RealtimeSyncService {
   void _onNetworkChange() {
     if (NetworkService.instance.isOnline.value && _lastUserId != null) {
       debugPrint('[Realtime] reconnected — resubscribing for $_lastUserId');
-      subscribeAll(_lastUserId!);
+      subscribeAll(_lastUserId!, mealWalletIds: _lastMealWalletIds);
     }
   }
 
-  void subscribeAll(String userId) {
+  void subscribeAll(String userId, {List<String> mealWalletIds = const []}) {
     unsubscribeAll();
     _lastUserId = userId;
+    _lastMealWalletIds = mealWalletIds;
 
     const tables = [
       'notes',
@@ -35,7 +43,6 @@ class RealtimeSyncService {
       'health_medications',
       'health_appointments',
       'wardrobe_items',
-      'meal_entries',
       'item_locator_items',
     ];
 
@@ -52,6 +59,29 @@ class RealtimeSyncService {
               value: userId,
             ),
             callback: (_) => revision.value++,
+          )
+          .subscribe();
+      _channels.add(channel);
+    }
+
+    // meal_entries is wallet-scoped (it has created_by, no user_id), so
+    // it's watched per wallet — personal and every family wallet.
+    for (final walletId in mealWalletIds) {
+      final channel = _db
+          .channel('wallet:$walletId:meal_entries')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'meal_entries',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'wallet_id',
+              value: walletId,
+            ),
+            callback: (_) {
+              revision.value++;
+              mealEntriesChanged.value = (walletId: walletId, seq: ++_mealSeq);
+            },
           )
           .subscribe();
       _channels.add(channel);

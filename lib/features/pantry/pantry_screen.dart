@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
+import 'package:wai_life_assistant/core/services/realtime_sync_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/data/services/profile_service.dart';
@@ -11,6 +13,7 @@ import 'package:wai_life_assistant/features/wallet/widgets/family_switcher_sheet
 import 'package:wai_life_assistant/shared/widgets/wallet_switcher_pill.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/chat_input_bar.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/meal_map_section.dart';
+import 'package:wai_life_assistant/features/pantry/utils/allergy_check.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/family_food_prefs_card.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/recipe_box_section.dart';
 import 'package:wai_life_assistant/features/pantry/widgets/shopping_basket_section.dart';
@@ -83,6 +86,8 @@ class _PantryScreenState extends State<PantryScreen>
   List<GroceryItem> _groceries = [];
   bool _groceriesLoading = true;
   List<MemberFoodPrefs> _foodPrefs = [];
+  /// Bumped whenever [_foodPrefs] changes so the open Food Guide sheet rebuilds.
+  final _foodPrefsVersion = ValueNotifier<int>(0);
   final _basketTabNotifier = ValueNotifier<int>(0);
 
   // Wallet IDs already fetched this session, per dataset — switching back to
@@ -94,15 +99,18 @@ class _PantryScreenState extends State<PantryScreen>
   final Set<String> _foodPrefsLoadedFor = {};
 
   // ── Family food prefs ────────────────────────────────────────────────────────
+  /// The logged-in user's member id in the Food Guide ('me' before auth).
+  String get _currentUid =>
+      Supabase.instance.client.auth.currentUser?.id ?? 'me';
+
   List<PantryMember> _buildMembers() {
     final appState = AppStateScope.read(context);
-    final uid = Supabase.instance.client.auth.currentUser?.id ?? '';
 
     if (appState.isPersonal) {
       // Personal wallet — show the logged-in user
       final name = _currentUserName.isEmpty ? 'Me' : _currentUserName;
       final emoji = appState.activeWallet.emoji;
-      return [PantryMember(id: uid.isEmpty ? 'me' : uid, name: name, emoji: emoji)];
+      return [PantryMember(id: _currentUid, name: name, emoji: emoji)];
     }
 
     // Family wallet — look up the matching FamilyModel
@@ -124,7 +132,7 @@ class _PantryScreenState extends State<PantryScreen>
 
     // Fallback — family not loaded yet
     final name = _currentUserName.isEmpty ? 'Me' : _currentUserName;
-    return [PantryMember(id: uid.isEmpty ? 'me' : uid, name: name, emoji: '👤')];
+    return [PantryMember(id: _currentUid, name: name, emoji: '👤')];
   }
 
   /// Whether the current user can edit/delete content in [walletId] —
@@ -139,6 +147,17 @@ class _PantryScreenState extends State<PantryScreen>
     }
     return (true, true);
   }
+
+  /// Meal edit/delete rights — mirrors the meal_entries RLS + trigger: the
+  /// creator can always manage their own meal, anyone else needs the
+  /// family's edit (content/status) or delete permission.
+  bool _isOwnMeal(MealEntry m) =>
+      m.createdBy == null ||
+      m.createdBy == Supabase.instance.client.auth.currentUser?.id;
+  bool _canEditMeal(MealEntry m) =>
+      _isOwnMeal(m) || _pantryPerms(m.walletId).$1;
+  bool _canDeleteMeal(MealEntry m) =>
+      _isOwnMeal(m) || _pantryPerms(m.walletId).$2;
 
   /// Whether the current user is the admin of [walletId]'s family — used to
   /// let an admin manage (edit/delete) any family member's meal reaction,
@@ -163,7 +182,11 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _saveFoodPrefs(MemberFoodPrefs updated) async {
-    if (_denyIfNoPerm(_pantryPerms(widget.activeWalletId).$1, 'edit food preferences')) {
+    // Own card is always editable (member_food_prefs RLS, migration 148);
+    // anyone else's needs admin or the family's perm_edit = 'any_member'.
+    final ownCard = updated.memberId == _currentUid;
+    if (!ownCard &&
+        _denyIfNoPerm(_pantryPerms(widget.activeWalletId).$1, 'edit food preferences')) {
       return;
     }
     // Optimistic update
@@ -175,6 +198,7 @@ class _PantryScreenState extends State<PantryScreen>
         _foodPrefs.add(updated);
       }
     });
+    _foodPrefsVersion.value++;
     try {
       final row = await PantryService.instance.upsertFoodPrefs(
         walletId: widget.activeWalletId,
@@ -192,6 +216,7 @@ class _PantryScreenState extends State<PantryScreen>
         final idx = _foodPrefs.indexWhere((p) => p.memberId == saved.memberId);
         if (idx >= 0) _foodPrefs[idx] = saved;
       });
+      _foodPrefsVersion.value++;
     } catch (e) {
       if (!mounted) return;
       _showSavedSnack('Failed to save food preferences', AppColors.expense);
@@ -289,7 +314,12 @@ class _PantryScreenState extends State<PantryScreen>
       await _loadMeals(force: true); // replace optimistic temps with real rows
     } catch (e) {
       if (!mounted) return;
-      _showSavedSnack('Failed to paste some meals', AppColors.expense);
+      _showSavedSnack(
+        _isPlanLimitError(e)
+            ? 'Upgrade your plan to plan meals this far ahead.'
+            : 'Failed to paste some meals',
+        AppColors.expense,
+      );
       await _loadMeals(force: true); // reload to get consistent state
     }
   }
@@ -345,7 +375,12 @@ class _PantryScreenState extends State<PantryScreen>
       await _loadMeals(force: true); // replace optimistic temps with real rows
     } catch (e) {
       if (!mounted) return;
-      _showSavedSnack('Failed to paste some meals', AppColors.expense);
+      _showSavedSnack(
+        _isPlanLimitError(e)
+            ? 'Upgrade your plan to plan meals this far ahead.'
+            : 'Failed to paste some meals',
+        AppColors.expense,
+      );
       await _loadMeals(force: true);
     }
   }
@@ -387,6 +422,26 @@ class _PantryScreenState extends State<PantryScreen>
     _loadFoodPrefs();
     PantryService.instance.preloadIngredientAliases();
     DashNavService.pantry.addListener(_onDashNavPantry);
+    RealtimeSyncService.instance.mealEntriesChanged
+        .addListener(_onRemoteMealChange);
+  }
+
+  Timer? _remoteMealReload;
+
+  // Another member (or device) changed a meal — refetch the active wallet's
+  // meals. Debounced so a multi-row paste triggers a single reload.
+  void _onRemoteMealChange() {
+    final change = RealtimeSyncService.instance.mealEntriesChanged.value;
+    if (change == null) return;
+    if (change.walletId != widget.activeWalletId) {
+      // Drop the cache so switching to that wallet refetches fresh data.
+      _mealsLoadedFor.remove(change.walletId);
+      return;
+    }
+    _remoteMealReload?.cancel();
+    _remoteMealReload = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _loadMeals(force: true);
+    });
   }
 
   void _onDashNavPantry() {
@@ -506,6 +561,7 @@ class _PantryScreenState extends State<PantryScreen>
       setState(() {
         _foodPrefs = rows.map(MemberFoodPrefs.fromMap).toList();
       });
+      _foodPrefsVersion.value++;
     } catch (e) {
       ErrorLogger.warning(e, action: 'load_food_prefs');
     }
@@ -567,8 +623,12 @@ class _PantryScreenState extends State<PantryScreen>
   void dispose() {
     _sectionTab.dispose();
     _basketTabNotifier.dispose();
+    _foodPrefsVersion.dispose();
     _speech.stop();
     DashNavService.pantry.removeListener(_onDashNavPantry);
+    RealtimeSyncService.instance.mealEntriesChanged
+        .removeListener(_onRemoteMealChange);
+    _remoteMealReload?.cancel();
     super.dispose();
   }
 
@@ -1016,6 +1076,37 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
+  /// Allergies (from the active wallet's Family Food Guide) that [m]'s
+  /// name, ingredients or linked recipes appear to contain.
+  List<AllergyHit> _allergyHitsFor(MealEntry m) => findAllergyHits(
+        mealAllergyTexts(m, _recipes),
+        _foodPrefs.where((p) => p.walletId == m.walletId).toList(),
+      );
+
+  /// Warns right after a meal is saved if it may contain a member's allergy.
+  /// Replaces any "Meal logged!" snackbar — the warning matters more.
+  void _warnIfAllergens(MealEntry m) {
+    if (!mounted) return;
+    final hits = _allergyHitsFor(m);
+    if (hits.isEmpty) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(
+          '⚠️ ${m.name} may contain ${describeAllergyHits(hits)}',
+          style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppColors.expense,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ));
+  }
+
+  /// The enforce_meal_weeks_ahead trigger's rejection (migration 113/197).
+  bool _isPlanLimitError(Object e) =>
+      e is PostgrestException && e.message.contains('planning limit');
+
   // Adds a meal: optimistic insert → persist to DB → replace with real UUID row.
   Future<void> _addMeal(MealEntry m) async {
     if (_isPlaceholder(m.walletId)) {
@@ -1041,6 +1132,7 @@ class _PantryScreenState extends State<PantryScreen>
         if (idx >= 0) _meals[idx] = saved;
       });
       PantryService.mealChangeSignal.value++;
+      _warnIfAllergens(saved);
 
       _notifyFamilyOfMealEvent(
         eventType: 'pantry.meal_added',
@@ -1060,16 +1152,23 @@ class _PantryScreenState extends State<PantryScreen>
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_meal');
       if (!mounted) return;
       setState(() => _meals.remove(m));
-      _showSavedSnack('Failed to save meal', AppColors.expense);
+      _showSavedSnack(
+        _isPlanLimitError(e)
+            ? 'Upgrade your plan to plan meals this far ahead.'
+            : 'Failed to save meal',
+        AppColors.expense,
+      );
     }
   }
 
-  Future<void> _updateMeal(MealEntry updated) async {
-    if (_denyIfNoPerm(_pantryPerms(updated.walletId).$1, 'edit meals')) return;
+  Future<void> _updateMeal(MealEntry edited) async {
     final original = _meals.firstWhere(
-      (e) => e.id == updated.id,
-      orElse: () => updated,
+      (e) => e.id == edited.id,
+      orElse: () => edited,
     );
+    if (_denyIfNoPerm(_canEditMeal(original), 'edit meals')) return;
+    // The edit sheet builds a fresh entry — keep who created it.
+    final updated = edited.copyWith(createdBy: original.createdBy);
     setState(() {
       final idx = _meals.indexWhere((e) => e.id == updated.id);
       if (idx >= 0) _meals[idx] = updated;
@@ -1086,6 +1185,8 @@ class _PantryScreenState extends State<PantryScreen>
         'note': updated.note,
         'ingredients': updated.ingredients,
       });
+      PantryService.mealChangeSignal.value++;
+      _warnIfAllergens(updated);
       // Trigger ingredient check when recipes/ingredients added via edit
       if ((updated.recipeIds.isNotEmpty || updated.ingredients.isNotEmpty) && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _analyzeIngredients(updated));
@@ -1108,6 +1209,7 @@ class _PantryScreenState extends State<PantryScreen>
     MealStatus status,
     int servingsCount,
   ) async {
+    if (_denyIfNoPerm(_canEditMeal(m), 'update meal status')) return;
     final original = m;
     setState(() {
       final idx = _meals.indexWhere((e) => e.id == m.id);
@@ -1124,6 +1226,7 @@ class _PantryScreenState extends State<PantryScreen>
         status: status.name,
         servingsCount: servingsCount,
       );
+      PantryService.mealChangeSignal.value++;
       if (status == MealStatus.cooked &&
           original.mealStatus != MealStatus.cooked &&
           m.recipeIds.isNotEmpty) {
@@ -1370,7 +1473,7 @@ class _PantryScreenState extends State<PantryScreen>
           );
         },
         onDelete: () async {
-          if (_denyIfNoPerm(_pantryPerms(m.walletId).$2, 'delete meals')) return;
+          if (_denyIfNoPerm(_canDeleteMeal(m), 'delete meals')) return;
           setState(() => _meals.remove(m)); // optimistic
           Navigator.pop(context);
           try {
@@ -2165,6 +2268,10 @@ class _PantryScreenState extends State<PantryScreen>
             onMealAdded: _addMeal,
             onMealUpdated: _updateMeal,
             onMealTapped: _showMealDetail,
+            allergyWarningFor: (m) {
+              final hits = _allergyHitsFor(m);
+              return hits.isEmpty ? null : describeAllergyHits(hits);
+            },
             clipboardMeals: _clipboardMeals,
             clipboardLabel: _clipboardLabel,
             clipboardIsWeek: _clipboardIsWeek,
@@ -2508,15 +2615,21 @@ class _PantryScreenState extends State<PantryScreen>
                   margin: const EdgeInsets.only(top: 12, bottom: 8),
                   decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)),
                 ),
-                FamilyFoodPrefsCard(
-                  members: _buildMembers(),
-                  foodPrefs: _foodPrefs
-                      .where((p) => p.walletId == widget.activeWalletId)
-                      .toList(),
-                  currentUserId: Supabase.instance.client.auth.currentUser?.id ?? 'me',
-                  walletId: widget.activeWalletId,
-                  isAdmin: _isAdminForWallet(widget.activeWalletId),
-                  onSave: _saveFoodPrefs,
+                // A modal route doesn't rebuild on this screen's setState —
+                // listen so a save shows up (and a second edit of the same
+                // member starts from the saved values, not a stale copy).
+                ValueListenableBuilder<int>(
+                  valueListenable: _foodPrefsVersion,
+                  builder: (_, _, _) => FamilyFoodPrefsCard(
+                    members: _buildMembers(),
+                    foodPrefs: _foodPrefs
+                        .where((p) => p.walletId == widget.activeWalletId)
+                        .toList(),
+                    currentUserId: _currentUid,
+                    walletId: widget.activeWalletId,
+                    canEditOthers: _pantryPerms(widget.activeWalletId).$1,
+                    onSave: _saveFoodPrefs,
+                  ),
                 ),
                 const SizedBox(height: 24),
               ],

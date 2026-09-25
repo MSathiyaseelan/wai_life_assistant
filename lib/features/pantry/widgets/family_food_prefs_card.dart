@@ -7,7 +7,9 @@ class FamilyFoodPrefsCard extends StatelessWidget {
   final List<MemberFoodPrefs> foodPrefs;
   final String currentUserId;
   final String walletId;
-  final bool isAdmin;
+  /// Whether the viewer may edit other members' cards — admin, or the
+  /// family's perm_edit is 'any_member'. Their own card is always editable.
+  final bool canEditOthers;
   final Future<void> Function(MemberFoodPrefs) onSave;
 
   const FamilyFoodPrefsCard({
@@ -16,7 +18,7 @@ class FamilyFoodPrefsCard extends StatelessWidget {
     required this.foodPrefs,
     required this.currentUserId,
     required this.walletId,
-    required this.isAdmin,
+    required this.canEditOthers,
     required this.onSave,
   });
 
@@ -109,7 +111,7 @@ class FamilyFoodPrefsCard extends StatelessWidget {
                 final m = members[i];
                 final prefs = _prefsFor(m, walletId);
                 final hasAllergy = prefs.allergies.isNotEmpty;
-                final canEdit = isAdmin || m.id == currentUserId;
+                final canEdit = canEditOthers || m.id == currentUserId;
                 return GestureDetector(
                   onTap: () => _showMemberSheet(context, m, prefs, canEdit),
                   child: Container(

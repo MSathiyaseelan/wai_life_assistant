@@ -163,7 +163,10 @@ class AppStateNotifier extends ChangeNotifier {
               !_wallets.any((w) => w.id == _activeWalletId)) {
             _activeWalletId = parsed.personal.id;
           }
-          RealtimeSyncService.instance.subscribeAll(parsed.personal.id);
+          RealtimeSyncService.instance.subscribeAll(
+            parsed.personal.id,
+            mealWalletIds: _wallets.map((w) => w.id).toList(),
+          );
           RealtimeSyncService.instance.subscribeFamilies(
             _families.map((f) => f.id).toList(),
             () => reload(),

@@ -263,6 +263,9 @@ class MealEntry {
   String? get recipeId => recipeIds.firstOrNull;
   final String? note;
   final String walletId; // 'personal' or family id
+  /// Profile id of the member who added it; null for a not-yet-saved
+  /// optimistic entry (always the current user's own).
+  final String? createdBy;
   final String emoji;
   final MealStatus mealStatus;
   final int servingsCount; // how many members it was prepared for
@@ -278,6 +281,7 @@ class MealEntry {
     required this.mealTime,
     required this.date,
     required this.walletId,
+    this.createdBy,
     List<String>? recipeIds,
     this.note,
     this.emoji = '🍽️',
@@ -300,9 +304,11 @@ class MealEntry {
     int? servingsCount,
     List<String>? ingredients,
     List<MealReaction>? reactions,
+    String? createdBy,
   }) => MealEntry(
     id: id,
     walletId: walletId,
+    createdBy: createdBy ?? this.createdBy,
     recipeIds: recipeIds ?? this.recipeIds,
     name: name ?? this.name,
     mealTime: mealTime ?? this.mealTime,
@@ -335,6 +341,7 @@ class MealEntry {
     return MealEntry(
       id: m['id'] as String,
       walletId: m['wallet_id'] as String,
+      createdBy: m['created_by'] as String?,
       name: m['name'] as String,
       emoji: (m['emoji'] as String?) ?? '🍽️',
       mealTime: MealTime.values.firstWhere(

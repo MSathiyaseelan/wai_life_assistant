@@ -282,21 +282,31 @@ class PantryService {
     String id, {
     required String status,   // MealStatus.name
     required int servingsCount,
-  }) async {
-    await _db.from('meal_entries').update({
-      'meal_status':    status,
-      'servings_count': servingsCount,
-    }).eq('id', id);
-  }
+  }) => _updateMealRow(id, {
+        'meal_status':    status,
+        'servings_count': servingsCount,
+      });
 
   /// Update mutable fields on a meal entry.
-  Future<void> updateMealEntry(String id, Map<String, dynamic> updates) async {
-    await _db.from('meal_entries').update(updates).eq('id', id);
-  }
+  Future<void> updateMealEntry(String id, Map<String, dynamic> updates) =>
+      _updateMealRow(id, updates);
 
   /// Delete a meal entry (soft delete).
-  Future<void> deleteMealEntry(String id) async {
-    await _db.from('meal_entries').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  Future<void> deleteMealEntry(String id) => _updateMealRow(
+      id, {'deleted_at': DateTime.now().toUtc().toIso8601String()});
+
+  /// RLS drops an UPDATE the caller isn't allowed to make without raising —
+  /// it just matches 0 rows — so a denied change would otherwise look like
+  /// it saved. Throw so the caller's optimistic update gets reverted.
+  Future<void> _updateMealRow(String id, Map<String, dynamic> updates) async {
+    final rows = await _db
+        .from('meal_entries')
+        .update(updates)
+        .eq('id', id)
+        .select('id');
+    if (rows.isEmpty) {
+      throw StateError('Meal $id not updated — not permitted or no longer exists');
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

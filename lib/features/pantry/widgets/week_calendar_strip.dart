@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/features/wallet/widgets/month_year_picker.dart';
+import 'meal_map_section.dart' show lastPlannableMealDay;
 
 class WeekCalendarStrip extends StatefulWidget {
   final DateTime selectedDate;
@@ -64,14 +65,13 @@ class _WeekCalendarStripState extends State<WeekCalendarStrip> {
     widget.onDateSelected(newStart);
   }
 
+  // Next week is reachable while its first day is still plannable.
   bool get _canGoNextWeek {
-    if (widget.maxWeeksAhead < 0) return true; // unlimited
-    final now = DateTime.now();
-    final currentMonday = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
-    final nextStart = _weekStart.add(const Duration(days: 7));
-    final weeksAhead = nextStart.difference(currentMonday).inDays ~/ 7;
-    return weeksAhead <= widget.maxWeeksAhead;
+    final last = lastPlannableMealDay(widget.maxWeeksAhead);
+    if (last == null) return true; // unlimited
+    final nextStart = DateTime(
+        _weekStart.year, _weekStart.month, _weekStart.day + 7);
+    return !nextStart.isAfter(last);
   }
 
   void _nextWeek() {

@@ -5,6 +5,16 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import '../sheets/add_meal_sheet.dart';
 
+/// Last date a meal may be planned for under a [weeksAhead] plan limit,
+/// or null when unlimited (-1). A rolling window of weeksAhead × 7 days
+/// from today — the same rule the enforce_meal_weeks_ahead trigger applies,
+/// so a day the app shows as open is never rejected on save.
+DateTime? lastPlannableMealDay(int weeksAhead) {
+  if (weeksAhead < 0) return null;
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day + weeksAhead * 7);
+}
+
 class MealMapSection extends StatefulWidget {
   final List<MealEntry> meals;
   final List<RecipeModel> recipes;
@@ -16,6 +26,9 @@ class MealMapSection extends StatefulWidget {
   final void Function(MealEntry meal) onMealAdded;
   final void Function(MealEntry meal)? onMealUpdated;
   final void Function(MealEntry meal) onMealTapped;
+  /// Family-allergy warning text for a meal (e.g. "Peanuts (Amma)"), or
+  /// null when it contains none — shown as a ⚠️ line on the meal chip.
+  final String? Function(MealEntry meal)? allergyWarningFor;
 
   // Copy / paste
   final List<MealEntry>? clipboardMeals;
@@ -38,6 +51,7 @@ class MealMapSection extends StatefulWidget {
     required this.onMealAdded,
     required this.onMealTapped,
     this.onMealUpdated,
+    this.allergyWarningFor,
     this.clipboardMeals,
     this.clipboardLabel = '',
     this.clipboardIsWeek = false,
@@ -118,16 +132,8 @@ class _MealMapSectionState extends State<MealMapSection> {
   /// True when [day] is beyond the plan's weeks-ahead limit.
   /// Only future days are locked — past days are always editable.
   bool _isDayLocked(DateTime day) {
-    if (widget.mealWeeksAhead < 0) return false; // unlimited plan
-    final now = DateTime.now();
-    final todayDate = DateTime(now.year, now.month, now.day);
-    if (!day.isAfter(todayDate)) return false; // today & past always allowed
-    final currentMonday =
-        todayDate.subtract(Duration(days: todayDate.weekday - 1));
-    final dayMonday = DateTime(day.year, day.month, day.day)
-        .subtract(Duration(days: day.weekday - 1));
-    final weeksAhead = dayMonday.difference(currentMonday).inDays ~/ 7;
-    return weeksAhead > widget.mealWeeksAhead;
+    final last = lastPlannableMealDay(widget.mealWeeksAhead);
+    return last != null && DateTime(day.year, day.month, day.day).isAfter(last);
   }
 
   static const _mondayFirstDayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -290,6 +296,7 @@ class _MealMapSectionState extends State<MealMapSection> {
                   );
                 },
                 onMealTapped: widget.onMealTapped,
+                allergyWarningFor: widget.allergyWarningFor,
                 onCopyDay: widget.onCopyDay,
                 onPasteToDay: widget.onPasteToDay,
                 onCopyMeal: widget.onCopyMeal,
@@ -317,6 +324,7 @@ class _DayColumn extends StatelessWidget {
   final double width;
   final void Function(DateTime) onAddMeal;
   final void Function(MealEntry) onMealTapped;
+  final String? Function(MealEntry)? allergyWarningFor;
   final void Function(DateTime)? onCopyDay;
   final void Function(DateTime)? onPasteToDay;
   final void Function(MealEntry)? onCopyMeal;
@@ -335,6 +343,7 @@ class _DayColumn extends StatelessWidget {
     this.hasClipboard = false,
     this.clipboardLabel = '',
     this.width = 130,
+    this.allergyWarningFor,
     this.onCopyDay,
     this.onPasteToDay,
     this.onCopyMeal,
@@ -461,6 +470,7 @@ class _DayColumn extends StatelessWidget {
                     (m) => _MealChip(
                       meal: m,
                       isDark: isDark,
+                      allergyWarning: allergyWarningFor?.call(m),
                       onTap: () => onMealTapped(m),
                       onLongPress: onCopyMeal != null
                           ? () => onCopyMeal!(m)
@@ -625,6 +635,7 @@ class _DayColumn extends StatelessWidget {
 class _MealChip extends StatelessWidget {
   final MealEntry meal;
   final bool isDark;
+  final String? allergyWarning;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -632,6 +643,7 @@ class _MealChip extends StatelessWidget {
     required this.meal,
     required this.isDark,
     required this.onTap,
+    this.allergyWarning,
     this.onLongPress,
   });
 
@@ -680,6 +692,23 @@ class _MealChip extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
+            if (allergyWarning != null) ...[
+              const SizedBox(height: 3),
+              Tooltip(
+                message: 'May contain $allergyWarning',
+                child: Text(
+                  '⚠️ $allergyWarning',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Nunito',
+                    color: AppColors.expense,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
             if (meal.reactions.isNotEmpty) ...[
               const SizedBox(height: 4),
               _ReactionBadgeRow(reactions: meal.reactions),
