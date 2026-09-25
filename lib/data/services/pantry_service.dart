@@ -579,10 +579,18 @@ class PantryService {
       'name': name,
     }).select().single();
     if (itemIds.isNotEmpty) {
-      await _db
-          .from('grocery_items')
-          .update({'list_id': list['id']})
-          .inFilter('id', itemIds);
+      try {
+        await _db
+            .from('grocery_items')
+            .update({'list_id': list['id']})
+            .inFilter('id', itemIds);
+      } catch (_) {
+        // Don't leave an empty list in history — retire it (grocery_lists
+        // has no DELETE policy; soft delete is how history removes lists)
+        // and let the caller's next attempt create a fresh one.
+        await deleteGroceryList(list['id'] as String).catchError((_) {});
+        rethrow;
+      }
     }
     return list;
   }

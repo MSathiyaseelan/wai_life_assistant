@@ -12,6 +12,7 @@ import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 
 class ShoppingBasketSection extends StatefulWidget {
   final List<GroceryItem> items;
@@ -796,7 +797,10 @@ class _EditItemSheetState extends State<_EditItemSheet> {
               SizedBox(
                 width: double.infinity,
                 child: TextButton.icon(
-                  onPressed: () {
+                  // Basket items are hard-deleted (no recycle bin) — confirm.
+                  onPressed: () async {
+                    if (!await confirmDelete(context)) return;
+                    if (!context.mounted) return;
                     Navigator.pop(context);
                     widget.onDelete(widget.item);
                   },
@@ -827,7 +831,10 @@ class _EditItemSheetState extends State<_EditItemSheet> {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
     final updates = <String, dynamic>{
-      'name': name,
+      // Only on an actual rename: sending the name makes updateGroceryItem
+      // re-derive normalized_name from it, which would throw away an
+      // AI-assigned match (e.g. "Pori" → "puffed rice") on a qty-only edit.
+      if (name != widget.item.name) 'name': name,
       'quantity': double.tryParse(_qtyCtrl.text.trim()) ?? widget.item.quantity,
       'unit': _selectedUnit,
       'category': _selectedCat.name,
