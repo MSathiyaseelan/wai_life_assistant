@@ -629,8 +629,14 @@ class _NotifTile extends StatelessWidget {
     }
   }
 
-  String _amountPrefix(String type) =>
-      (type == 'income' || type == 'borrow') ? '+' : '-';
+  // +/- is a transaction's direction. A split reminder / extension request
+  // just names the amount being asked about ("you owe ₹200"), so no sign —
+  // the red '-' made the owed amount read as "-200".
+  String _amountPrefix(String type) => switch (type) {
+        'income' || 'borrow' => '+',
+        'split_reminder' || 'split_extension' => '',
+        _ => '-',
+      };
 
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
