@@ -278,7 +278,6 @@ class _ListDetailSheetState extends State<_ListDetailSheet> {
     setState(() => _saving = true);
     try {
       await PantryService.instance.markItemsBought(toMark);
-      PantryService.listChangeSignal.value++;
       widget.onChanged();
       if (!mounted) return;
       Navigator.pop(context);

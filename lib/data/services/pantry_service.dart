@@ -397,6 +397,12 @@ class PantryService {
   /// derived deterministically from [name] via [normalizeIngredientName] so
   /// every row always has a comparison key for matching against recipe
   /// ingredients and other basket items.
+  ///
+  /// [mergeWithExisting]: when the wallet already has the same item (same
+  /// normalized name and unit) in the same section — To Buy for a to-buy
+  /// add, In Stock otherwise — add to its quantity instead of inserting a
+  /// duplicate row, and return that row. Pantry merges locally before
+  /// calling; Dashboard's My List and the AI assistant rely on this.
   Future<Map<String, dynamic>> addGroceryItem({
     required String walletId,
     required String name,
@@ -409,12 +415,31 @@ class PantryService {
     DateTime? expiryDate,
     String? note,
     String? normalizedName,
+    bool mergeWithExisting = false,
   }) async {
+    final key = normalizedName ?? canonicalIngredientName(name);
+    if (mergeWithExisting) {
+      final existing = await _findSameItem(
+        walletId: walletId,
+        normalizedName: key,
+        unit: unit,
+        isGrocery: isGrocery,
+        section: toBuy ? 'to_buy' : 'in_stock',
+      );
+      if (existing != null) {
+        final merged = await _db.from('grocery_items').update({
+          'quantity': (existing['quantity'] as num).toDouble() + quantity,
+          'last_updated': DateTime.now().toIso8601String(),
+        }).eq('id', existing['id'] as String).select().single();
+        listChangeSignal.value++;
+        return merged;
+      }
+    }
     final row = await _db.from('grocery_items').insert({
       'wallet_id':       walletId,
       'created_by':      _uid,
       'name':            name,
-      'normalized_name': normalizedName ?? canonicalIngredientName(name),
+      'normalized_name': key,
       'category':        category,
       'quantity':        quantity,
       'unit':            unit,
@@ -425,7 +450,33 @@ class PantryService {
       'note':         note,
       'last_updated': DateTime.now().toIso8601String(),
     }).select().single();
+    listChangeSignal.value++;
     return row;
+  }
+
+  /// Another row in [walletId] for the same item and unit in [section]
+  /// ('to_buy' or 'in_stock'), excluding [excludeId]; null if none.
+  Future<Map<String, dynamic>?> _findSameItem({
+    required String walletId,
+    required String normalizedName,
+    required String unit,
+    required bool isGrocery,
+    required String section,
+    String? excludeId,
+  }) async {
+    var q = _db
+        .from('grocery_items')
+        .select()
+        .eq('wallet_id', walletId)
+        .eq('normalized_name', normalizedName)
+        .eq('is_grocery', isGrocery)
+        .eq(section, true);
+    if (excludeId != null) q = q.neq('id', excludeId);
+    final rows = List<Map<String, dynamic>>.from(await q);
+    final u = unit.trim().toLowerCase();
+    return rows
+        .where((r) => (r['unit'] as String).trim().toLowerCase() == u)
+        .firstOrNull;
   }
 
   /// Update mutable fields on a grocery item. If [updates] renames the item
@@ -439,27 +490,75 @@ class PantryService {
         'normalized_name': canonicalIngredientName(newName),
       'last_updated': DateTime.now().toIso8601String(),
     }).eq('id', id);
+    listChangeSignal.value++;
   }
 
-  /// Toggle the in-stock flag (moves between In Stock and empty).
-  Future<void> toggleInStock(String id, {required bool inStock}) async {
-    await _db.from('grocery_items').update({
-      'in_stock':    inStock,
-      'last_updated': DateTime.now().toIso8601String(),
-    }).eq('id', id);
-  }
-
-  /// Toggle the to-buy flag (add/remove from shopping list).
-  Future<void> toggleToBuy(String id, {required bool toBuy}) async {
-    await _db.from('grocery_items').update({
-      'to_buy':      toBuy,
-      'last_updated': DateTime.now().toIso8601String(),
-    }).eq('id', id);
-  }
-
-  /// Delete a grocery item.
+  /// Delete a grocery item (hard delete — basket items aren't soft-deleted).
+  /// RLS drops a delete the caller isn't allowed to make without raising,
+  /// so throw when no row went, or the item would just reappear on reload.
   Future<void> deleteGroceryItem(String id) async {
-    await _db.from('grocery_items').delete().eq('id', id);
+    await _deleteGroceryRow(id);
+    listChangeSignal.value++;
+  }
+
+  Future<void> _deleteGroceryRow(String id) async {
+    final rows =
+        await _db.from('grocery_items').delete().eq('id', id).select('id');
+    if (rows.isEmpty) {
+      throw StateError('grocery_items $id not deleted — not permitted or already gone');
+    }
+  }
+
+  /// Mark a To Buy item as purchased. A grocery moves to In Stock — merged
+  /// into the existing In Stock row for the same item and unit when there
+  /// is one (quantities added), so buying something you already had
+  /// doesn't leave two rows. A non-grocery (quick-list) item is a one-off
+  /// purchase and is deleted instead.
+  Future<void> markGroceryBought(GroceryItem item) async {
+    await _markBoughtRow(item);
+    listChangeSignal.value++;
+  }
+
+  Future<void> _markBoughtRow(GroceryItem item) async {
+    if (!item.isGrocery) {
+      await _deleteGroceryRow(item.id);
+      return;
+    }
+    final now = DateTime.now().toIso8601String();
+    final stock = await _findSameItem(
+      walletId: item.walletId,
+      normalizedName: item.effectiveNormalizedName,
+      unit: item.unit,
+      isGrocery: true,
+      section: 'in_stock',
+      excludeId: item.id,
+    );
+    if (stock != null) {
+      final stockId = stock['id'] as String;
+      final oldQty = (stock['quantity'] as num).toDouble();
+      await _db.from('grocery_items').update({
+        'quantity': oldQty + item.quantity,
+        'to_buy': false,
+        'last_updated': now,
+      }).eq('id', stockId);
+      final deleted = await _db
+          .from('grocery_items')
+          .delete()
+          .eq('id', item.id)
+          .select('id');
+      if (deleted.isNotEmpty) return;
+      // Not allowed to delete the bought row (someone else's, no delete
+      // permission) — undo the merge and just move the row instead.
+      await _db.from('grocery_items').update({
+        'quantity': oldQty,
+        'last_updated': now,
+      }).eq('id', stockId);
+    }
+    await _db.from('grocery_items').update({
+      'in_stock': true,
+      'to_buy': false,
+      'last_updated': now,
+    }).eq('id', item.id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -523,17 +622,13 @@ class PantryService {
   /// behavior used elsewhere — non-grocery (quick-list) items are deleted
   /// instead of moved to stock, since they're one-off purchases.
   Future<void> markItemsBought(List<GroceryItem> items) async {
-    final toStock = items.where((i) => i.isGrocery).map((i) => i.id).toList();
-    final toDelete = items.where((i) => !i.isGrocery).map((i) => i.id).toList();
-    if (toStock.isNotEmpty) {
-      await _db.from('grocery_items').update({
-        'in_stock': true,
-        'to_buy': false,
-        'last_updated': DateTime.now().toIso8601String(),
-      }).inFilter('id', toStock);
-    }
-    if (toDelete.isNotEmpty) {
-      await _db.from('grocery_items').delete().inFilter('id', toDelete);
+    try {
+      for (final item in items) {
+        await _markBoughtRow(item);
+      }
+    } finally {
+      // Some may have gone through before a failure — refresh either way.
+      listChangeSignal.value++;
     }
   }
 

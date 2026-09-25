@@ -94,6 +94,16 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
       .where((i) => _filterCat == null || i.category == _filterCat)
       .toList();
 
+  /// Whether an In Stock item is also on the To Buy list — flagged itself
+  /// (older rows), or with a separate To Buy entry for the same item.
+  /// Mirrors pantry_screen.dart's _toggleRestock.
+  bool _isListed(GroceryItem stock) {
+    if (stock.toBuy) return true;
+    final key = stock.effectiveNormalizedName;
+    return _walletItems.any((g) =>
+        g.id != stock.id && g.toBuy && g.effectiveNormalizedName == key);
+  }
+
   /// Distinct categories present in the ACTIVE tab's items, in GroceryCategory.values order.
   List<GroceryCategory> get _availableCategories {
     final base = _tabCtrl.index == 0
@@ -209,6 +219,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
                   trailing: (item) => _StockTrail(
                     item: item,
                     isDark: isDark,
+                    listed: _isListed(item),
                     onToggleBuy: () => widget.onItemToggleBuy(item),
                   ),
                 ),
@@ -428,10 +439,13 @@ class _GroceryList extends StatelessWidget {
 class _StockTrail extends StatelessWidget {
   final GroceryItem item;
   final bool isDark;
+  /// Already on the To Buy list — tapping removes it from the list.
+  final bool listed;
   final VoidCallback onToggleBuy;
   const _StockTrail({
     required this.item,
     required this.isDark,
+    required this.listed,
     required this.onToggleBuy,
   });
   @override
@@ -440,18 +454,18 @@ class _StockTrail extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: item.toBuy
+        color: listed
             ? AppColors.lend.withValues(alpha: 0.12)
             : AppColors.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        item.toBuy ? '📋 Listed' : '+ To Buy',
+        listed ? '📋 Listed' : '+ To Buy',
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w800,
           fontFamily: 'Nunito',
-          color: item.toBuy ? AppColors.lend : AppColors.primary,
+          color: listed ? AppColors.lend : AppColors.primary,
         ),
       ),
     ),

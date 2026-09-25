@@ -433,6 +433,21 @@ class _PantryScreenState extends State<PantryScreen>
     DashNavService.pantry.addListener(_onDashNavPantry);
     RealtimeSyncService.instance.mealEntriesChanged
         .addListener(_onRemoteMealChange);
+    PantryService.listChangeSignal.addListener(_onBasketChanged);
+  }
+
+  Timer? _basketReload;
+
+  // Every grocery_items write (here, Dashboard's My List, the AI assistant,
+  // list history) bumps listChangeSignal. Refetch the active wallet's
+  // basket — debounced so a multi-item action reloads once — and forget
+  // other wallets' cached baskets so switching to them refetches.
+  void _onBasketChanged() {
+    _groceriesLoadedFor.clear();
+    _basketReload?.cancel();
+    _basketReload = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _loadGroceries(force: true);
+    });
   }
 
   Timer? _remoteMealReload;
@@ -589,7 +604,12 @@ class _PantryScreenState extends State<PantryScreen>
       if (!mounted) return;
       _groceriesLoadedFor.add(widget.activeWalletId);
       setState(() {
-        _groceries = rows.map(GroceryItem.fromMap).toList();
+        _groceries = [
+          ...rows.map(GroceryItem.fromMap),
+          // Keep items whose insert hasn't returned yet (temporary ids) —
+          // a background reload must not make them vanish mid-save.
+          ..._groceries.where((g) => !_isValidUuid(g.id)),
+        ];
         _groceriesLoading = false;
       });
     } catch (e, stack) {
@@ -638,6 +658,8 @@ class _PantryScreenState extends State<PantryScreen>
     RealtimeSyncService.instance.mealEntriesChanged
         .removeListener(_onRemoteMealChange);
     _remoteMealReload?.cancel();
+    PantryService.listChangeSignal.removeListener(_onBasketChanged);
+    _basketReload?.cancel();
     super.dispose();
   }
 
@@ -1804,30 +1826,76 @@ class _PantryScreenState extends State<PantryScreen>
   );
 
   // ── Grocery handlers ───────────────────────────────────────────────────────
-  Future<void> _toggleBuy(GroceryItem i) async {
-    final newToBuy = !i.toBuy;
-    final updates = <String, dynamic>{'to_buy': newToBuy};
-    setState(() {
-      i.toBuy = newToBuy;
-      if (newToBuy) {
-        i.inStock = false;
-        updates['in_stock'] = false;
+  /// A just-added item keeps its local temporary id until its insert
+  /// returns; a server call with it would fail. Ask the user to retry.
+  bool _denyIfStillSaving(GroceryItem i) {
+    if (_isValidUuid(i.id)) return false;
+    _showSavedSnack('Still saving ${i.name} — try again in a moment', AppColors.subLight);
+    return true;
+  }
+
+  /// Default amount for a new To Buy entry created from an In Stock item —
+  /// 1 of the unit, except for small units where 1 g / 1 ml is meaningless.
+  /// Editable on the To Buy list.
+  static double _restockQty(String unit) =>
+      const {'g': 500.0, 'ml': 500.0}[unit.trim().toLowerCase()] ?? 1;
+
+  /// "+ To Buy" / "📋 Listed" on an In Stock item. Running low isn't
+  /// running out, so the stock row stays as it is (its quantity is what's
+  /// left) and a separate To Buy entry holds what to buy; buying merges it
+  /// back into the stock row (PantryService.markGroceryBought). Tapping
+  /// "📋 Listed" takes it off the list again.
+  Future<void> _toggleRestock(GroceryItem stock) async {
+    if (_denyIfStillSaving(stock)) return;
+
+    // Older rows could be flagged in both lists at once — just unflag.
+    if (stock.toBuy) {
+      setState(() => stock.toBuy = false);
+      try {
+        await PantryService.instance.updateGroceryItem(stock.id, {'to_buy': false});
+      } catch (e, stack) {
+        ErrorLogger.log(e, stackTrace: stack, action: 'pantry_toggle_buy');
+        if (!mounted) return;
+        setState(() => stock.toBuy = true);
+        _showSavedSnack('Failed to update item', AppColors.expense);
       }
-    });
-    try {
-      await PantryService.instance.updateGroceryItem(i.id, updates);
-    } catch (e, stack) {
-      ErrorLogger.log(e, stackTrace: stack, action: 'pantry_toggle_buy');
-      if (!mounted) return;
-      setState(() {
-        i.toBuy = !newToBuy;
-        if (newToBuy) i.inStock = true;
-      });
-      _showSavedSnack('Failed to update item', AppColors.expense);
+      return;
+    }
+
+    final key = stock.effectiveNormalizedName;
+    final listed = _groceries
+        .where((g) =>
+            g.id != stock.id &&
+            g.walletId == stock.walletId &&
+            g.isGrocery &&
+            g.toBuy &&
+            g.effectiveNormalizedName == key)
+        .toList();
+    if (listed.isNotEmpty) {
+      for (final entry in listed) {
+        await _deleteGrocery(entry);
+      }
+      return;
+    }
+
+    await _addGrocery(GroceryItem(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      name: stock.name,
+      normalizedName: stock.normalizedName,
+      category: stock.category,
+      quantity: _restockQty(stock.unit),
+      unit: stock.unit,
+      walletId: stock.walletId,
+      inStock: false,
+      toBuy: true,
+    ));
+    if (mounted) {
+      _showSavedSnack('🛒 ${displayCase(stock.name)} added to To Buy', AppColors.lend);
     }
   }
 
   Future<void> _toggleStock(GroceryItem i) async {
+    if (_denyIfStillSaving(i)) return;
     final newInStock = !i.inStock;
     setState(() => i.inStock = newInStock);
     try {
@@ -1840,15 +1908,17 @@ class _PantryScreenState extends State<PantryScreen>
     }
   }
 
-  /// Mark a To-Buy item as purchased: move it to In Stock, off the shopping list.
+  /// Mark a To-Buy item as purchased: move it to In Stock, off the shopping
+  /// list — merged into an existing In Stock row for the same item when
+  /// there is one (see [PantryService.markGroceryBought]).
   Future<void> _markBought(GroceryItem i) async {
+    if (_denyIfStillSaving(i)) return;
     // Non-grocery items (Personal Care / Household) are one-off purchases —
     // delete them on mark-bought rather than moving them to pantry stock.
     if (!i.isGrocery) {
       setState(() => _groceries.remove(i));
       try {
-        await PantryService.instance.deleteGroceryItem(i.id);
-        PantryService.listChangeSignal.value++;
+        await PantryService.instance.markGroceryBought(i);
       } catch (e, stack) {
         ErrorLogger.log(e, stackTrace: stack, action: 'pantry_mark_bought_delete');
         if (!mounted) return;
@@ -1862,10 +1932,8 @@ class _PantryScreenState extends State<PantryScreen>
       i.toBuy = false;
     });
     try {
-      await PantryService.instance.updateGroceryItem(i.id, {
-        'in_stock': true,
-        'to_buy': false,
-      });
+      // The reload this triggers (listChangeSignal) shows any merge.
+      await PantryService.instance.markGroceryBought(i);
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_mark_bought');
       if (!mounted) return;
@@ -1925,13 +1993,16 @@ class _PantryScreenState extends State<PantryScreen>
       );
       if (!mounted) return;
       final saved = GroceryItem.fromMap(row);
+      final queuedEdits = _pendingGroceryEdits.remove(i.id);
       setState(() {
         final idx = _groceries.indexWhere((g) => g.id == i.id);
         if (idx >= 0) _groceries[idx] = saved;
       });
+      if (queuedEdits != null) await _updateGrocery(saved, queuedEdits);
       if (saved.toBuy) _notifyFamilyOfBasketItem(saved);
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'pantry_add_grocery');
+      _pendingGroceryEdits.remove(i.id);
       if (!mounted) return;
       setState(() => _groceries.remove(i));
       _showSavedSnack('Failed to save item', AppColors.expense);
@@ -1965,7 +2036,13 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   Future<void> _deleteGrocery(GroceryItem i) async {
-    if (_denyIfNoPerm(_pantryPerms(i.walletId).$2, 'delete basket items')) return;
+    if (_denyIfStillSaving(i)) return;
+    // grocery_items DELETE RLS: creator, or wallet_can_delete (112).
+    final own = i.createdBy == null ||
+        i.createdBy == Supabase.instance.client.auth.currentUser?.id;
+    if (!own && _denyIfNoPerm(_pantryPerms(i.walletId).$2, 'delete basket items')) {
+      return;
+    }
     setState(() => _groceries.remove(i));
     try {
       await PantryService.instance.deleteGroceryItem(i.id);
@@ -1980,6 +2057,10 @@ class _PantryScreenState extends State<PantryScreen>
   /// Returns true on success — callers that show their own follow-up
   /// success message should check this first, since failure is already
   /// reported here and shouldn't also be reported as success.
+  /// Edits made to a just-added item before its insert returned, keyed by
+  /// its temporary id — sent by [_addGrocery] once the real row exists.
+  final Map<String, Map<String, dynamic>> _pendingGroceryEdits = {};
+
   static final _uuidPattern = RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
     caseSensitive: false,
@@ -2008,8 +2089,16 @@ class _PantryScreenState extends State<PantryScreen>
     // addGroceryItem() round-trip resolves and swaps in the real one —
     // editing it in that brief window would send a non-UUID id straight
     // into a uuid column and fail every time. The edit above is already
-    // applied locally; skip the server round-trip rather than crash on it.
-    if (!_isValidUuid(i.id)) return true;
+    // applied locally; queue it for _addGrocery to send once the real row
+    // exists (otherwise the saved row would overwrite it).
+    if (!_isValidUuid(i.id)) {
+      _pendingGroceryEdits.update(
+        i.id,
+        (queued) => {...queued, ...updates},
+        ifAbsent: () => Map.of(updates),
+      );
+      return true;
+    }
     try {
       await PantryService.instance.updateGroceryItem(i.id, updates);
       return true;
@@ -2334,21 +2423,26 @@ class _PantryScreenState extends State<PantryScreen>
     );
   }
 
-  Widget _buildBasketTab(bool isDark) {
-    // Items expiring within 3 days
+  /// In-stock items in the active wallet that have expired or expire within
+  /// 3 days — the one definition behind both the "⚠️ N expiring" chip and
+  /// the Basket's Expiring Soon banner, so the two always agree. Items
+  /// moved to To Buy are used up, so their old expiry no longer matters.
+  List<GroceryItem> _expiringItems() {
     final now = DateTime.now();
-    final expiring =
-        _groceries
-            .where((g) {
-              if (g.walletId != widget.activeWalletId || !g.isGrocery) return false;
-              if (g.expiryDate == null) return false;
-              final expiryDay = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
-              final todayDay = DateTime(now.year, now.month, now.day);
-              // Only show items that have already expired (strictly before today)
-              return expiryDay.isBefore(todayDay);
-            })
-            .toList()
-          ..sort((a, b) => a.expiryDate!.compareTo(b.expiryDate!));
+    final soonDay = DateTime(now.year, now.month, now.day + 3);
+    return _groceries.where((g) {
+      if (g.walletId != widget.activeWalletId || !g.isGrocery || !g.inStock) {
+        return false;
+      }
+      if (g.expiryDate == null) return false;
+      final exp = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
+      return !exp.isAfter(soonDay);
+    }).toList()
+      ..sort((a, b) => a.expiryDate!.compareTo(b.expiryDate!));
+  }
+
+  Widget _buildBasketTab(bool isDark) {
+    final expiring = _expiringItems();
 
     // Use Column not ListView — ShoppingBasketSection manages its own scrolling
     // via internal ListView inside a fixed/expanded area. A wrapping ListView
@@ -2363,7 +2457,7 @@ class _PantryScreenState extends State<PantryScreen>
             items: _groceries,
             walletId: widget.activeWalletId,
             tabNotifier: _basketTabNotifier,
-            onItemToggleBuy: _toggleBuy,
+            onItemToggleBuy: _toggleRestock,
             onItemToggleStock: _toggleStock,
             onItemMarkBought: _markBought,
             onItemAdded: _addGrocery,
@@ -2379,17 +2473,7 @@ class _PantryScreenState extends State<PantryScreen>
   }
 
   // ── Summary strip ──────────────────────────────────────────────────────────
-  int _expiringCount() {
-    final now = DateTime.now();
-    final todayDay = DateTime(now.year, now.month, now.day);
-    final soonDay = todayDay.add(const Duration(days: 3));
-    return _groceries.where((g) {
-      if (g.walletId != widget.activeWalletId || !g.isGrocery) return false;
-      if (g.expiryDate == null) return false;
-      final exp = DateTime(g.expiryDate!.year, g.expiryDate!.month, g.expiryDate!.day);
-      return !exp.isAfter(soonDay);
-    }).length;
-  }
+  int _expiringCount() => _expiringItems().length;
 
   Widget _buildSummaryStrip(bool isDark) {
     final now = DateTime.now();
@@ -4127,7 +4211,9 @@ class _ExpiryBanner extends StatelessWidget {
     final today = DateTime.now();
     final todayDay = DateTime(today.year, today.month, today.day);
     final days = expiryDay.difference(todayDay).inDays;
-    if (days == 0) return 'expired today';
+    if (days > 1) return 'expires in $days days';
+    if (days == 1) return 'expires tomorrow';
+    if (days == 0) return 'expires today';
     if (days == -1) return 'expired yesterday';
     return 'expired ${(-days)} days ago';
   }
@@ -4137,8 +4223,8 @@ class _ExpiryBanner extends StatelessWidget {
     final today = DateTime.now();
     final todayDay = DateTime(today.year, today.month, today.day);
     final days = expiryDay.difference(todayDay).inDays;
-    if (days >= -1) return AppColors.expense;
-    if (days >= -3) return const Color(0xFFFF7043);
+    if (days <= 0) return AppColors.expense; // expired or expires today
+    if (days == 1) return const Color(0xFFFF7043);
     return const Color(0xFFFFAA2C);
   }
 

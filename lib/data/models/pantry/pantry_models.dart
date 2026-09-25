@@ -439,6 +439,9 @@ class GroceryItem {
   DateTime lastUpdated;
   String walletId;
   String? note;
+  /// Profile id of the member who added it; null for a not-yet-saved
+  /// optimistic entry (always the current user's own).
+  final String? createdBy;
 
   /// Canonical comparison key so the same ingredient (e.g. "Tomato" vs
   /// "tomato" vs "Tomatoes") is recognized as one thing across the recipe
@@ -464,6 +467,7 @@ class GroceryItem {
     this.expiryDate,
     this.note,
     this.normalizedName,
+    this.createdBy,
     DateTime? lastUpdated,
   }) : lastUpdated = lastUpdated ?? DateTime.now();
 
@@ -486,6 +490,7 @@ class GroceryItem {
         : null,
     note: m['note'] as String?,
     normalizedName: m['normalized_name'] as String?,
+    createdBy: m['created_by'] as String?,
     lastUpdated: m['last_updated'] != null
         ? DateTime.parse(m['last_updated'] as String)
         : DateTime.now(),

@@ -260,12 +260,9 @@ class MyListSection extends StatelessWidget {
 
   Future<void> _markGroceryDone(BuildContext context, GroceryItem item) async {
     try {
-      await PantryService.instance.updateGroceryItem(item.id, {
-        'to_buy':       false,
-        'in_stock':     true,
-        'last_updated': DateTime.now().toIso8601String(),
-      });
-      PantryService.listChangeSignal.value++;
+      // Merges into an existing In Stock row instead of duplicating it;
+      // also signals Pantry/Dashboard to refresh.
+      await PantryService.instance.markGroceryBought(item);
       onItemsChanged();
     } catch (e) {
       ErrorLogger.warning(e, action: 'list_mark_in_stock');
@@ -279,7 +276,6 @@ class MyListSection extends StatelessWidget {
   Future<void> _deleteItem(BuildContext context, GroceryItem item) async {
     try {
       await PantryService.instance.deleteGroceryItem(item.id);
-      PantryService.listChangeSignal.value++;
       onItemsChanged();
     } catch (e) {
       ErrorLogger.warning(e, action: 'list_delete_item');
@@ -296,7 +292,6 @@ class MyListSection extends StatelessWidget {
         'is_grocery': true,
         'in_stock': false,
       });
-      PantryService.listChangeSignal.value++;
       onItemsChanged();
     } catch (e) {
       ErrorLogger.warning(e, action: 'list_move_to_grocery');
@@ -317,10 +312,7 @@ class MyListSection extends StatelessWidget {
         walletId: walletId,
         isDark: isDark,
         isPersonal: isPersonal,
-        onAdded: () {
-          PantryService.listChangeSignal.value++;
-          onItemsChanged();
-        },
+        onAdded: onItemsChanged, // addGroceryItem already signals Pantry
       ),
     );
   }
@@ -646,6 +638,7 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
         inStock: false,
         toBuy: true,
         isGrocery: _isGrocery,
+        mergeWithExisting: true,
       );
       if (mounted) {
         widget.onAdded();

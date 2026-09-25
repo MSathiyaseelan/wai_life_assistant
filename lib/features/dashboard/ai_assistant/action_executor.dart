@@ -56,6 +56,7 @@ class ActionExecutor {
           inStock: false,
           toBuy: true,
           isGrocery: d['is_grocery'] as bool? ?? true,
+          mergeWithExisting: true,
         );
 
       case ActionType.addTask:
