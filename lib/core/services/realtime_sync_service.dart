@@ -6,8 +6,6 @@ class RealtimeSyncService {
   RealtimeSyncService._();
   static final RealtimeSyncService instance = RealtimeSyncService._();
 
-  final revision = ValueNotifier<int>(0);
-
   /// Bumped with the wallet id of any meal_entries insert/update (incl.
   /// soft delete) in one of the user's wallets — lets Meal Map pick up
   /// other family members' changes live.
@@ -36,36 +34,18 @@ class RealtimeSyncService {
     _lastUserId = userId;
     _lastMealWalletIds = mealWalletIds;
 
-    const tables = [
-      'notes',
-      'reminders',
-      'wishes',
-      'health_medications',
-      'health_appointments',
-      'wardrobe_items',
-      'item_locator_items',
-    ];
-
-    for (final table in tables) {
-      final channel = _db
-          .channel('user:$userId:$table')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: table,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'user_id',
-              value: userId,
-            ),
-            callback: (_) => revision.value++,
-          )
-          .subscribe();
-      _channels.add(channel);
-    }
-
     // meal_entries is wallet-scoped (it has created_by, no user_id), so
     // it's watched per wallet — personal and every family wallet.
+    //
+    // This used to also open a user_id-filtered channel for each of notes,
+    // reminders, wishes, health_medications, health_appointments,
+    // wardrobe_items and item_locator_items. Those never delivered anything
+    // (the caller passes the personal wallet id, not the user id, and
+    // notes/reminders/wishes have no user_id column at all) and nothing
+    // listened to what they bumped — so they were removed rather than
+    // spending 7 Realtime channels per open app. To add live sync for one
+    // of those tables, subscribe per wallet like meal_entries below and
+    // expose a notifier its screen actually listens to.
     for (final walletId in mealWalletIds) {
       final channel = _db
           .channel('wallet:$walletId:meal_entries')
@@ -79,7 +59,6 @@ class RealtimeSyncService {
               value: walletId,
             ),
             callback: (_) {
-              revision.value++;
               mealEntriesChanged.value = (walletId: walletId, seq: ++_mealSeq);
             },
           )

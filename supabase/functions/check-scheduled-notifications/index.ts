@@ -179,6 +179,64 @@ function nextOccurrence(dateStr: string, yearlyRecur: boolean, today: Date): Dat
   return next;
 }
 
+// ── Query helpers ───────────────────────────────────────────────────────────
+// This job scans every family's data in one run, so a plain .select() would
+// be cut off at PostgREST's max-rows cap (1000 by default) without an error,
+// and an .in() over thousands of ids would exceed the URL length limit.
+// Every multi-row read below pages through results and chunks its id lists.
+
+const PAGE_SIZE  = 1000; // PostgREST's default max-rows
+const IN_CHUNK   = 200;  // ids per .in() filter — keeps request URLs short
+const FCM_PARALLEL = 50; // concurrent FCM sends
+
+type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+
+/** All rows of a query, fetched PAGE_SIZE at a time. [page] must apply a
+ * stable .order() before .range(from, to), or pages can overlap/skip rows. */
+async function fetchAll<T>(page: (from: number, to: number) => Page): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGE_SIZE) return rows;
+  }
+}
+
+function chunk<T>(items: T[], size = IN_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/** fetchAll() over an id list, split into IN_CHUNK-sized .in() filters. */
+async function fetchIn<T>(
+  ids: string[],
+  page: (ids: string[], from: number, to: number) => Page,
+): Promise<T[]> {
+  const unique = [...new Set(ids)];
+  const parts = await Promise.all(
+    chunk(unique).map((c) => fetchAll<T>((from, to) => page(c, from, to))),
+  );
+  return parts.flat();
+}
+
+/** Runs [worker] over [items] with at most [limit] in flight at once. */
+async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const lanes = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const item = items[next++];
+      try {
+        await worker(item);
+      } catch (e) {
+        console.error("[scheduled-notif] send failed:", e);
+      }
+    }
+  });
+  await Promise.all(lanes);
+}
+
 // ── Sender: one push per already-resolved recipient ──────────────────────────
 // Unlike a blanket per-family send, each job here already carries the exact
 // set of user_ids eligible for it (resolved per-member against their own
@@ -208,34 +266,45 @@ async function sendGrouped(
     return 0;
   }
 
-  let sent = 0;
-  for (const job of jobs) {
-    if (!job.userIds.length) continue;
-
-    const { data: tokens } = await supabase
-      .from("user_fcm_tokens")
-      .select("user_id, fcm_token")
-      .in("user_id", job.userIds);
-    if (!tokens?.length) continue;
-
-    const fcmData = { route: job.route, event_type: job.eventType, ...job.data };
-    const results = await Promise.allSettled(
-      tokens.map((t: { user_id: string; fcm_token: string }) =>
-        sendFCM(t.fcm_token, job.title, job.body, fcmData, accessToken, quietUserIds.has(t.user_id))
-      ),
+  // One token lookup for every recipient across all jobs, instead of one
+  // query per job.
+  let tokenRows: Array<{ user_id: string; fcm_token: string }>;
+  try {
+    tokenRows = await fetchIn(jobs.flatMap((j) => j.userIds), (ids, from, to) =>
+      supabase
+        .from("user_fcm_tokens")
+        .select("user_id, fcm_token")
+        .in("user_id", ids)
+        .order("id")
+        .range(from, to)
     );
-    sent += results.filter(
-      (r) => r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.ok,
-    ).length;
-
-    const deadTokens = tokens
-      .filter((_: unknown, i: number) => {
-        const r = results[i];
-        return r.status === "fulfilled" && (r as PromiseFulfilledResult<SendResult>).value.deadToken;
-      })
-      .map((t: { fcm_token: string }) => t.fcm_token);
-    await cleanupDeadTokens(supabase, deadTokens);
+  } catch (e) {
+    console.error("[scheduled-notif] FCM token lookup failed:", e);
+    return 0;
   }
+  const tokensByUser = new Map<string, string[]>();
+  for (const t of tokenRows) {
+    const list = tokensByUser.get(t.user_id) ?? [];
+    list.push(t.fcm_token);
+    tokensByUser.set(t.user_id, list);
+  }
+
+  const sends = jobs.flatMap((job) => {
+    const fcmData = { route: job.route, event_type: job.eventType, ...job.data };
+    return job.userIds.flatMap((userId) =>
+      (tokensByUser.get(userId) ?? []).map((token) => ({ job, fcmData, userId, token }))
+    );
+  });
+
+  let sent = 0;
+  const deadTokens = new Set<string>();
+  await runPool(sends, FCM_PARALLEL, async ({ job, fcmData, userId, token }) => {
+    const r = await sendFCM(token, job.title, job.body, fcmData, accessToken, quietUserIds.has(userId));
+    if (r.ok) sent++;
+    else if (r.deadToken) deadTokens.add(token);
+  });
+
+  for (const c of chunk([...deadTokens])) await cleanupDeadTokens(supabase, c);
   return sent;
 }
 
@@ -278,31 +347,41 @@ interface MemberNotifPrefs extends QuietPrefs {
   notif_functions_upcoming_days: number;
 }
 
-/** Every member of [familyId] together with their own notification prefs. */
+type FamilyMember = { user_id: string } & MemberNotifPrefs;
+
+/** Every member (with their own notification prefs) of each of [familyIds],
+ * loaded in bulk. Families with no active members map to []. */
 async function familyMembersWithPrefs(
   supabase: ReturnType<typeof createClient>,
-  familyId: string,
-): Promise<Array<{ user_id: string } & MemberNotifPrefs>> {
+  familyIds: string[],
+): Promise<Map<string, FamilyMember[]>> {
   // removeMember() soft-deletes via deleted_at rather than dropping the
   // row — see 121_fix_family_switcher_deleted_members.sql and
   // send-notification/index.ts's familyMembers query for the same fix.
-  const { data: members } = await supabase
-    .from("family_members")
-    .select("user_id")
-    .eq("family_id", familyId)
-    .not("user_id", "is", null)
-    .is("deleted_at", null);
-  if (!members?.length) return [];
+  const members = await fetchIn<{ family_id: string; user_id: string }>(familyIds, (ids, from, to) =>
+    supabase
+      .from("family_members")
+      .select("family_id, user_id")
+      .in("family_id", ids)
+      .not("user_id", "is", null)
+      .is("deleted_at", null)
+      .order("id")
+      .range(from, to)
+  );
 
-  const memberIds = members.map((m: { user_id: string }) => m.user_id);
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select(
-      `id, notif_master, notif_pantry_expiry, notif_pantry_expiry_days, notif_planit_special_day, notif_functions_upcoming, notif_functions_upcoming_days, ${QUIET_COLUMNS}`,
-    )
-    .in("id", memberIds);
-
-  return (profiles ?? []).map((p: MemberNotifPrefs & { id: string }) => ({
+  const profiles = await fetchIn<MemberNotifPrefs & { id: string }>(
+    members.map((m) => m.user_id),
+    (ids, from, to) =>
+      supabase
+        .from("profiles")
+        .select(
+          `id, notif_master, notif_pantry_expiry, notif_pantry_expiry_days, notif_planit_special_day, notif_functions_upcoming, notif_functions_upcoming_days, ${QUIET_COLUMNS}`,
+        )
+        .in("id", ids)
+        .order("id")
+        .range(from, to),
+  );
+  const prefsById = new Map<string, FamilyMember>(profiles.map((p) => [p.id, {
     user_id: p.id,
     notif_master: p.notif_master,
     notif_pantry_expiry: p.notif_pantry_expiry,
@@ -314,7 +393,36 @@ async function familyMembersWithPrefs(
     notif_quiet_start: p.notif_quiet_start,
     notif_quiet_end: p.notif_quiet_end,
     notif_timezone: p.notif_timezone,
-  }));
+  }]));
+
+  const byFamily = new Map<string, FamilyMember[]>(familyIds.map((id) => [id, []]));
+  const seen = new Set<string>();
+  for (const m of members) {
+    const prefs = prefsById.get(m.user_id);
+    const key = `${m.family_id}:${m.user_id}`;
+    if (!prefs || seen.has(key)) continue;
+    seen.add(key);
+    byFamily.get(m.family_id)?.push(prefs);
+  }
+  return byFamily;
+}
+
+/** wallet_id -> family_id for the family wallets among [walletIds];
+ * personal wallets are left out. */
+async function walletFamilies(
+  supabase: ReturnType<typeof createClient>,
+  walletIds: string[],
+): Promise<Map<string, string>> {
+  const wallets = await fetchIn<{ id: string; family_id: string }>(walletIds, (ids, from, to) =>
+    supabase
+      .from("wallets")
+      .select("id, family_id")
+      .in("id", ids)
+      .not("family_id", "is", null)
+      .order("id")
+      .range(from, to)
+  );
+  return new Map(wallets.map((w) => [w.id, w.family_id]));
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -333,52 +441,46 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   const today = todayUTC();
   const jobs: PushJob[] = [];
-  // Caches familyMembersWithPrefs() per family across all three sections
-  // below, since the same family often recurs across multiple items.
-  const memberCache = new Map<string, Awaited<ReturnType<typeof familyMembersWithPrefs>>>();
-  async function membersFor(familyId: string) {
-    let m = memberCache.get(familyId);
-    if (!m) {
-      m = await familyMembersWithPrefs(supabase, familyId);
-      memberCache.set(familyId, m);
-    }
-    return m;
+  // Members per family, shared across all three sections below since the
+  // same family often recurs. Each section bulk-loads the families it needs
+  // up front, so there's no per-family query inside the loops.
+  const memberCache = new Map<string, FamilyMember[]>();
+  async function loadFamilies(familyIds: Iterable<string>) {
+    const missing = [...new Set(familyIds)].filter((id) => !memberCache.has(id));
+    if (!missing.length) return;
+    for (const [id, m] of await familyMembersWithPrefs(supabase, missing)) memberCache.set(id, m);
   }
+  const membersFor = (familyId: string) => memberCache.get(familyId) ?? [];
 
   // ── 1. Special days approaching ─────────────────────────────────────────────
   // alert_days_before is per-record (set by the user on each special day) —
   // only the on/off toggle is a per-member preference here.
-  {
-    const { data: days, error } = await supabase
-      .from("special_days")
-      .select("wallet_id, title, emoji, date, yearly_recur, alert_days_before")
-      .is("deleted_at", null);
+  try {
+    const allDays = await fetchAll<{
+      wallet_id: string; title: string; emoji: string; date: string;
+      yearly_recur: boolean; alert_days_before: number;
+    }>((from, to) =>
+      supabase
+        .from("special_days")
+        .select("wallet_id, title, emoji, date, yearly_recur, alert_days_before")
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, to)
+    );
+    // Only days whose alert fires today need their family resolved.
+    const days = allDays
+      .map((day) => ({ day, daysLeft: daysBetween(today, nextOccurrence(day.date, day.yearly_recur, today)) }))
+      .filter(({ day, daysLeft }) => daysLeft === day.alert_days_before);
 
-    if (error) {
-      console.error("[scheduled-notif] special_days query error:", error.message);
-    } else if (days?.length) {
-      const walletIds = [...new Set(days.map((d: { wallet_id: string }) => d.wallet_id))];
-      const { data: wallets } = await supabase
-        .from("wallets")
-        .select("id, family_id")
-        .in("id", walletIds)
-        .not("family_id", "is", null);
-      const familyByWallet = new Map<string, string>(
-        (wallets ?? []).map((w: { id: string; family_id: string }) => [w.id, w.family_id]),
-      );
+    if (days.length) {
+      const familyByWallet = await walletFamilies(supabase, days.map(({ day }) => day.wallet_id));
+      await loadFamilies(familyByWallet.values());
 
-      for (const day of days as Array<{
-        wallet_id: string; title: string; emoji: string; date: string;
-        yearly_recur: boolean; alert_days_before: number;
-      }>) {
+      for (const { day, daysLeft } of days) {
         const familyId = familyByWallet.get(day.wallet_id);
         if (!familyId) continue; // personal wallet — no one else to notify
 
-        const occurrence = nextOccurrence(day.date, day.yearly_recur, today);
-        const daysLeft = daysBetween(today, occurrence);
-        if (daysLeft !== day.alert_days_before) continue;
-
-        const members = await membersFor(familyId);
+        const members = membersFor(familyId);
         const userIds = members
           .filter((m) => m.notif_master && m.notif_planit_special_day)
           .map((m) => m.user_id);
@@ -394,46 +496,43 @@ serve(async (req) => {
         });
       }
     }
+  } catch (e) {
+    console.error("[scheduled-notif] special_days query error:", e);
   }
 
   // ── 2. Grocery items expiring soon ──────────────────────────────────────────
   // No per-item threshold column, so each member's own "days before" pick
   // decides eligibility individually — query a broad window covering every
   // possible chip option (1/2/3/7) and match per member below.
-  {
+  try {
     const maxWindow = new Date(today);
     maxWindow.setUTCDate(maxWindow.getUTCDate() + 7);
     const maxWindowStr = maxWindow.toISOString().split("T")[0];
     const todayStr = today.toISOString().split("T")[0];
 
-    const { data: items, error } = await supabase
-      .from("grocery_items")
-      .select("wallet_id, name, expiry_date")
-      .eq("in_stock", true)
-      .is("deleted_at", null)
-      .not("expiry_date", "is", null)
-      .gte("expiry_date", todayStr)
-      .lte("expiry_date", maxWindowStr);
+    const items = await fetchAll<{ wallet_id: string; name: string; expiry_date: string }>((from, to) =>
+      supabase
+        .from("grocery_items")
+        .select("wallet_id, name, expiry_date")
+        .eq("in_stock", true)
+        .is("deleted_at", null)
+        .not("expiry_date", "is", null)
+        .gte("expiry_date", todayStr)
+        .lte("expiry_date", maxWindowStr)
+        .order("id")
+        .range(from, to)
+    );
 
-    if (error) {
-      console.error("[scheduled-notif] grocery_items query error:", error.message);
-    } else if (items?.length) {
-      const walletIds = [...new Set(items.map((i: { wallet_id: string }) => i.wallet_id))];
-      const { data: wallets } = await supabase
-        .from("wallets")
-        .select("id, family_id")
-        .in("id", walletIds)
-        .not("family_id", "is", null);
-      const familyByWallet = new Map<string, string>(
-        (wallets ?? []).map((w: { id: string; family_id: string }) => [w.id, w.family_id]),
-      );
+    if (items.length) {
+      const familyByWallet = await walletFamilies(supabase, items.map((i) => i.wallet_id));
+      await loadFamilies(familyByWallet.values());
 
-      for (const item of items as Array<{ wallet_id: string; name: string; expiry_date: string }>) {
+      for (const item of items) {
         const familyId = familyByWallet.get(item.wallet_id);
         if (!familyId) continue;
 
         const daysLeft = daysBetween(today, new Date(item.expiry_date + "T00:00:00Z"));
-        const members = await membersFor(familyId);
+        const members = membersFor(familyId);
         const userIds = members
           .filter((m) => m.notif_master && m.notif_pantry_expiry && m.notif_pantry_expiry_days === daysLeft)
           .map((m) => m.user_id);
@@ -449,44 +548,41 @@ serve(async (req) => {
         });
       }
     }
+  } catch (e) {
+    console.error("[scheduled-notif] grocery_items query error:", e);
   }
 
   // ── 3. Functions/events approaching ─────────────────────────────────────────
   // Same per-member "days before" matching as pantry expiry — this reminder
   // never existed before (only an immediate "someone added this" notify did).
-  {
+  try {
     const maxWindow = new Date(today);
     maxWindow.setUTCDate(maxWindow.getUTCDate() + 14);
     const maxWindowStr = maxWindow.toISOString().split("T")[0];
     const todayStr = today.toISOString().split("T")[0];
 
-    const { data: fns, error } = await supabase
-      .from("functions_upcoming")
-      .select("wallet_id, function_title, date")
-      .is("deleted_at", null)
-      .not("date", "is", null)
-      .gte("date", todayStr)
-      .lte("date", maxWindowStr);
+    const fns = await fetchAll<{ wallet_id: string; function_title: string; date: string }>((from, to) =>
+      supabase
+        .from("functions_upcoming")
+        .select("wallet_id, function_title, date")
+        .is("deleted_at", null)
+        .not("date", "is", null)
+        .gte("date", todayStr)
+        .lte("date", maxWindowStr)
+        .order("id")
+        .range(from, to)
+    );
 
-    if (error) {
-      console.error("[scheduled-notif] functions_upcoming query error:", error.message);
-    } else if (fns?.length) {
-      const walletIds = [...new Set(fns.map((f: { wallet_id: string }) => f.wallet_id))];
-      const { data: wallets } = await supabase
-        .from("wallets")
-        .select("id, family_id")
-        .in("id", walletIds)
-        .not("family_id", "is", null);
-      const familyByWallet = new Map<string, string>(
-        (wallets ?? []).map((w: { id: string; family_id: string }) => [w.id, w.family_id]),
-      );
+    if (fns.length) {
+      const familyByWallet = await walletFamilies(supabase, fns.map((f) => f.wallet_id));
+      await loadFamilies(familyByWallet.values());
 
-      for (const fn of fns as Array<{ wallet_id: string; function_title: string; date: string }>) {
+      for (const fn of fns) {
         const familyId = familyByWallet.get(fn.wallet_id);
         if (!familyId) continue;
 
         const daysLeft = daysBetween(today, new Date(fn.date + "T00:00:00Z"));
-        const members = await membersFor(familyId);
+        const members = membersFor(familyId);
         const userIds = members
           .filter((m) => m.notif_master && m.notif_functions_upcoming && m.notif_functions_upcoming_days === daysLeft)
           .map((m) => m.user_id);
@@ -502,6 +598,8 @@ serve(async (req) => {
         });
       }
     }
+  } catch (e) {
+    console.error("[scheduled-notif] functions_upcoming query error:", e);
   }
 
   const quietUserIds = new Set<string>();

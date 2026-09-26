@@ -4,7 +4,7 @@ Load tests the Supabase **database/PostgREST capacity** (wallet, pantry, functio
 + a transaction write path) using [Artillery](https://www.artillery.io/), plus a
 separately-capped test for the `parse` edge function (calls paid Gemini API).
 
-**⚠️ Never run this against prod.** Target QA (or a throwaway project) only.
+**⚠️ Never run this against prod.** Target the dev project only — there is no separate QA project, and `env/qa.json` points at prod.
 
 ## 1. One-time setup
 
@@ -20,9 +20,9 @@ cost, no real messages sent) plus a personal wallet each, and saves their sessio
 tokens to `test_users.json` (gitignored).
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
-SUPABASE_SERVICE_ROLE_KEY=<qa-service-role-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
+SUPABASE_SERVICE_ROLE_KEY=<dev-service-role-key> \
 TEST_USER_COUNT=50 \
 npm run provision
 ```
@@ -42,8 +42,8 @@ that window — a run spanning the expiry will start seeing 401s partway through
 ## 3. Run the main DB/API capacity test
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
 npm run test:api
 ```
 
@@ -63,8 +63,8 @@ exceeds 1% — that's your answer to "can Supabase handle this load."
 ## 4. Run the capped edge-function test (optional)
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
 npm run test:parse
 ```
 
@@ -74,15 +74,44 @@ concurrency — see `parse-loadtest.yml` if you want to raise/lower that fixed c
 no safe test number) — tell me if you have a dedicated test phone number and want
 those added.
 
-## 5. Clean up
+## 5. Run the Realtime connection test
+
+Concurrent Realtime connections are usually the first ceiling (Supabase caps them per
+plan), so this is the closest thing to a "how many users can be online at once" answer.
+
+```bash
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
+CONNECTIONS=200 HOLD_SECONDS=300 \
+npm run test:realtime
+```
+
+Each connection opens the same channels as the app's `RealtimeSyncService.subscribeAll()`
+(a `meal_entries` channel per wallet). While connections are held, `PROBE_USERS` users
+(default 20) insert a `meal_entries` row every `PROBE_INTERVAL_MS` (default 2000),
+and the script measures how long it takes each of that user's connections to receive it.
+
+It prints a status line every 10s, then a per-table channel status table and PASS/FAIL.
+It fails when a connection never subscribes, probe delivery is below 99%, delivery
+p99 is above 2s, or any channel errors or times out.
+
+- `CONNECTIONS` can be higher than `TEST_USER_COUNT`; users are reused round-robin.
+- `RAMP_PER_SEC` (default 20) sets how many connections open per second.
+- Step `CONNECTIONS` up across runs (100 → 200 → 500 → …) to find the point where
+  connections start being refused. That's your plan's concurrent-user limit.
+- One Node process handles a couple of thousand sockets. Past that, run several
+  processes in parallel.
+- Provision right before running, and keep the run under the ~1h token lifetime.
+
+## 6. Clean up
 
 **Always run this after testing** — deletes every provisioned test user, which
 cascades (via FK `ON DELETE CASCADE`) to remove their wallets and all transactions
-created during the test. Nothing else in QA is touched.
+created during the test. Nothing else in the project is touched.
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_SERVICE_ROLE_KEY=<qa-service-role-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<dev-service-role-key> \
 npm run cleanup
 ```
 
@@ -100,6 +129,8 @@ npx artillery report report.json   # generates an HTML report
 
 - **Covers:** Postgres/PostgREST throughput and latency under concurrent load, RLS
   policy overhead at scale, connection pool behavior.
-- **Doesn't cover:** the Flutter client itself (this hits the REST API directly, not
-  through the app UI), realtime subscriptions, or push notification delivery
+- **Covers (realtime_soak.mjs):** concurrent Realtime connections, channel subscribe
+  success per table, and change-delivery latency under load.
+- **Doesn't cover:** the Flutter client itself (this hits the API directly, not
+  through the app UI), or push notification delivery
   (`send-notification`/`notify-trial-expiry`) — ask if you want those added.
