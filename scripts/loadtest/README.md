@@ -4,7 +4,7 @@ Load tests the Supabase **database/PostgREST capacity** (wallet, pantry, functio
 + a transaction write path) using [Artillery](https://www.artillery.io/), plus a
 separately-capped test for the `parse` edge function (calls paid Gemini API).
 
-**⚠️ Never run this against prod.** Target QA (or a throwaway project) only.
+**⚠️ Never run this against prod.** Target the dev project only — there is no separate QA project, and `env/qa.json` points at prod.
 
 ## 1. One-time setup
 
@@ -20,9 +20,9 @@ cost, no real messages sent) plus a personal wallet each, and saves their sessio
 tokens to `test_users.json` (gitignored).
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
-SUPABASE_SERVICE_ROLE_KEY=<qa-service-role-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
+SUPABASE_SERVICE_ROLE_KEY=<dev-service-role-key> \
 TEST_USER_COUNT=50 \
 npm run provision
 ```
@@ -42,8 +42,8 @@ that window — a run spanning the expiry will start seeing 401s partway through
 ## 3. Run the main DB/API capacity test
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
 npm run test:api
 ```
 
@@ -63,8 +63,8 @@ exceeds 1% — that's your answer to "can Supabase handle this load."
 ## 4. Run the capped edge-function test (optional)
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
 npm run test:parse
 ```
 
@@ -80,8 +80,8 @@ Concurrent Realtime connections are usually the first ceiling (Supabase caps the
 plan), so this is the closest thing to a "how many users can be online at once" answer.
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_ANON_KEY=<qa-anon-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_ANON_KEY=<dev-anon-key> \
 CONNECTIONS=200 HOLD_SECONDS=300 \
 npm run test:realtime
 ```
@@ -107,11 +107,11 @@ p99 is above 2s, or any channel errors or times out.
 
 **Always run this after testing** — deletes every provisioned test user, which
 cascades (via FK `ON DELETE CASCADE`) to remove their wallets and all transactions
-created during the test. Nothing else in QA is touched.
+created during the test. Nothing else in the project is touched.
 
 ```bash
-SUPABASE_URL=https://<qa-project-ref>.supabase.co \
-SUPABASE_SERVICE_ROLE_KEY=<qa-service-role-key> \
+SUPABASE_URL=https://<dev-project-ref>.supabase.co \
+SUPABASE_SERVICE_ROLE_KEY=<dev-service-role-key> \
 npm run cleanup
 ```
 
