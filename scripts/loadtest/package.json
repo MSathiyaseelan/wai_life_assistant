@@ -7,7 +7,8 @@
     "provision": "node provision_test_users.mjs",
     "cleanup": "node cleanup_test_data.mjs",
     "test:api": "npx artillery run artillery-config.yml",
-    "test:parse": "npx artillery run parse-loadtest.yml"
+    "test:parse": "npx artillery run parse-loadtest.yml",
+    "test:realtime": "node realtime_soak.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"
