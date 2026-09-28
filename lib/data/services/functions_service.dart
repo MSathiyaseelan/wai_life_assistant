@@ -375,11 +375,11 @@ class FunctionsService {
     await _db.from('function_clothing_families').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
-  // ── Bridal Essentials ────────────────────────────────────────────────────
+  // ── Essentials ───────────────────────────────────────────────────────────
 
-  Future<List<Map<String, dynamic>>> fetchBridalEssentials(String functionId) async {
+  Future<List<Map<String, dynamic>>> fetchEssentials(String functionId) async {
     final rows = await _db
-        .from('function_bridal_essentials')
+        .from('function_essentials')
         .select()
         .eq('function_id', functionId)
         .isFilter('deleted_at', null)
@@ -387,21 +387,21 @@ class FunctionsService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
-  Future<Map<String, dynamic>> addBridalEssential(Map<String, dynamic> data) async {
+  Future<Map<String, dynamic>> addFunctionEssential(Map<String, dynamic> data) async {
     final row = await _db
-        .from('function_bridal_essentials')
+        .from('function_essentials')
         .insert({...data, 'user_id': _uid})
         .select()
         .single();
     return row;
   }
 
-  Future<void> updateBridalEssential(String id, Map<String, dynamic> updates) async {
-    await _db.from('function_bridal_essentials').update(updates).eq('id', id);
+  Future<void> updateFunctionEssential(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_essentials').update(updates).eq('id', id);
   }
 
-  Future<void> deleteBridalEssential(String id) async {
-    await _db.from('function_bridal_essentials').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  Future<void> deleteFunctionEssential(String id) async {
+    await _db.from('function_essentials').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
   // ── Return Gifts ─────────────────────────────────────────────────────────

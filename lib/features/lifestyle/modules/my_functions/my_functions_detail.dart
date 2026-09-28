@@ -11,7 +11,7 @@ class _FunctionDetail extends StatefulWidget {
   final String personalWalletId;
   final String currentWalletId;
   /// When true, loads and shows planning tabs (Participants, Clothing Gifts,
-  /// Bridal Essentials, Return Gift) between Gifts and Vendors.
+  /// Essentials, Return Gift) between Gifts and Vendors.
   final bool showPlanningTabs;
   const _FunctionDetail({
     required this.fn,
@@ -34,7 +34,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
   // Planning data — only loaded when showPlanningTabs == true
   final List<FunctionParticipant> _participants = [];
   final List<ClothingFamily> _clothingFamilies = [];
-  final List<BridalEssential> _bridals = [];
+  final List<FunctionEssential> _essentials = [];
   final List<FunctionReturnGift> _returnGifts = [];
   bool _planningLoading = false;
 
@@ -75,14 +75,14 @@ class _FunctionDetailState extends State<_FunctionDetail>
       final results = await Future.wait([
         svc.fetchParticipants(id),
         svc.fetchClothingFamilies(id),
-        svc.fetchBridalEssentials(id),
+        svc.fetchEssentials(id),
         svc.fetchReturnGifts(id),
       ]);
       if (!mounted) return;
       setState(() {
         _participants..clear()..addAll(results[0].map(FunctionParticipant.fromJson));
         _clothingFamilies..clear()..addAll(results[1].map(ClothingFamily.fromJson));
-        _bridals..clear()..addAll(results[2].map(BridalEssential.fromJson));
+        _essentials..clear()..addAll(results[2].map(FunctionEssential.fromJson));
         _returnGifts..clear()..addAll(results[3].map(FunctionReturnGift.fromJson));
         _planningLoading = false;
       });
@@ -151,7 +151,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
             if (widget.showPlanningTabs) ...[
               Tab(text: 'Participants (${_participants.length})'),
               const Tab(text: 'Clothing Gifts'),
-              const Tab(text: 'Bridal Essentials'),
+              const Tab(text: 'Essentials'),
               Tab(text: 'Return Gift (${_returnGifts.length})'),
             ],
             const Tab(text: 'Vendors'),
@@ -353,9 +353,9 @@ class _FunctionDetailState extends State<_FunctionDetail>
                   ),
             _planningLoading
                 ? const Center(child: CircularProgressIndicator(color: _funcColor))
-                : _BridalEssentialsTab(
+                : _EssentialsTab(
                     functionId: fn.id,
-                    essentials: _bridals,
+                    essentials: _essentials,
                     isDark: isDark,
                     surfBg: surfBg,
                     onChanged: () => setState(() {}),

@@ -109,7 +109,7 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 3. MoiKind / BridalStatus enum
+  // 3. MoiKind / EssentialStatus enum
   // ═══════════════════════════════════════════════════════════════════════════
   group('MoiKind enum', () {
     test('newMoi label', () => expect(MoiKind.newMoi.label, 'New Moi'));
@@ -118,10 +118,10 @@ void main() {
     test('returnMoi emoji', () => expect(MoiKind.returnMoi.emoji, '🔁'));
   });
 
-  group('BridalStatus enum', () {
-    test('pending label', () => expect(BridalStatus.pending.label, 'Pending'));
-    test('booked emoji', () => expect(BridalStatus.booked.emoji, '📋'));
-    test('done emoji', () => expect(BridalStatus.done.emoji, '✅'));
+  group('EssentialStatus enum', () {
+    test('pending label', () => expect(EssentialStatus.pending.label, 'Pending'));
+    test('booked emoji', () => expect(EssentialStatus.booked.emoji, '📋'));
+    test('done emoji', () => expect(EssentialStatus.done.emoji, '✅'));
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -995,14 +995,14 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 17. BridalEssential — fromJson / toJson / status parsing
+  // 17. FunctionEssential — fromJson / toJson / status parsing
   // ═══════════════════════════════════════════════════════════════════════════
-  group('BridalEssential.fromJson', () {
+  group('FunctionEssential.fromJson', () {
     test('all fields parsed', () {
-      final be = BridalEssential.fromJson({
+      final be = FunctionEssential.fromJson({
         'id': 'be1',
         'function_id': 'f1',
-        'item': 'Bridal Saree',
+        'item': 'Silk Saree',
         'category': 'Clothing',
         'details': 'Red Kanchipuram silk',
         'vendor': 'Pothys Silks',
@@ -1010,51 +1010,51 @@ void main() {
         'cost': 45000.0,
       });
       expect(be.id, 'be1');
-      expect(be.item, 'Bridal Saree');
+      expect(be.item, 'Silk Saree');
       expect(be.category, 'Clothing');
       expect(be.details, 'Red Kanchipuram silk');
       expect(be.vendor, 'Pothys Silks');
-      expect(be.status, BridalStatus.booked);
+      expect(be.status, EssentialStatus.booked);
       expect(be.cost, 45000.0);
     });
 
-    test('all BridalStatus values parse correctly', () {
-      for (final s in BridalStatus.values) {
-        final be = BridalEssential.fromJson({
+    test('all EssentialStatus values parse correctly', () {
+      for (final s in EssentialStatus.values) {
+        final be = FunctionEssential.fromJson({
           'id': 'be1', 'function_id': 'f1', 'item': 'X', 'status': s.name,
         });
         expect(be.status, s, reason: s.name);
       }
     });
 
-    test('unknown status → BridalStatus.pending', () {
-      final be = BridalEssential.fromJson({
+    test('unknown status → EssentialStatus.pending', () {
+      final be = FunctionEssential.fromJson({
         'id': 'be1', 'function_id': 'f1', 'item': 'X', 'status': 'unknown',
       });
-      expect(be.status, BridalStatus.pending);
+      expect(be.status, EssentialStatus.pending);
     });
 
-    test('missing status → BridalStatus.pending (default)', () {
-      final be = BridalEssential.fromJson({'id': 'be1', 'function_id': 'f1', 'item': 'X'});
-      expect(be.status, BridalStatus.pending);
+    test('missing status → EssentialStatus.pending (default)', () {
+      final be = FunctionEssential.fromJson({'id': 'be1', 'function_id': 'f1', 'item': 'X'});
+      expect(be.status, EssentialStatus.pending);
     });
 
     test('cost as int → toDouble', () {
-      final be = BridalEssential.fromJson({
+      final be = FunctionEssential.fromJson({
         'id': 'be1', 'function_id': 'f1', 'item': 'X', 'cost': 5000,
       });
       expect(be.cost, 5000.0);
     });
   });
 
-  group('BridalEssential.toJson', () {
+  group('FunctionEssential.toJson', () {
     test('status serialised as enum name', () {
-      final be = BridalEssential(id: 'be1', functionId: 'f1', item: 'X', status: BridalStatus.done);
+      final be = FunctionEssential(id: 'be1', functionId: 'f1', item: 'X', status: EssentialStatus.done);
       expect(be.toJson()['status'], 'done');
     });
 
     test('null optional fields omitted', () {
-      final be = BridalEssential(id: 'be1', functionId: 'f1', item: 'X');
+      final be = FunctionEssential(id: 'be1', functionId: 'f1', item: 'X');
       final j = be.toJson();
       expect(j.containsKey('category'), isFalse);
       expect(j.containsKey('cost'), isFalse);

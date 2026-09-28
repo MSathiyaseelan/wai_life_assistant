@@ -33,8 +33,8 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
   final List<ClothingFamily> _clothingFamilies = [];
   // Dishes
   final List<FunctionDish> _dishes = [];
-  // Bridal essentials
-  final List<BridalEssential> _bridals = [];
+  // Essentials
+  final List<FunctionEssential> _essentials = [];
   // Return gifts
   final List<FunctionReturnGift> _returnGifts = [];
 
@@ -60,7 +60,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
       final results = await Future.wait([
         svc.fetchParticipants(id),
         svc.fetchClothingFamilies(id),
-        svc.fetchBridalEssentials(id),
+        svc.fetchEssentials(id),
         svc.fetchReturnGifts(id),
         svc.fetchDishes(id),
       ]);
@@ -72,9 +72,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
         _clothingFamilies
           ..clear()
           ..addAll(results[1].map((r) => ClothingFamily.fromJson(r)));
-        _bridals
+        _essentials
           ..clear()
-          ..addAll(results[2].map((r) => BridalEssential.fromJson(r)));
+          ..addAll(results[2].map((r) => FunctionEssential.fromJson(r)));
         _returnGifts
           ..clear()
           ..addAll(results[3].map((r) => FunctionReturnGift.fromJson(r)));
@@ -137,7 +137,7 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
             Tab(text: 'Participants'),
             Tab(text: 'Clothing Gifts'),
             Tab(text: 'Dishes'),
-            Tab(text: 'Bridal Essentials'),
+            Tab(text: 'Essentials'),
             Tab(text: 'Return Gift'),
             Tab(text: 'Vendors'),
             Tab(text: 'Messages'),
@@ -267,9 +267,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                   surfBg: surfBg,
                   onChanged: () => setState(() {}),
                 ),
-                _BridalEssentialsTab(
+                _EssentialsTab(
                   functionId: fn.id,
-                  essentials: _bridals,
+                  essentials: _essentials,
                   isDark: isDark,
                   surfBg: surfBg,
                   onChanged: () => setState(() {}),
@@ -1393,16 +1393,16 @@ class _ClothingGiftsTab extends StatelessWidget {
   }
 }
 
-// ── Bridal essentials tab ─────────────────────────────────────────────────────
+// ── Essentials tab ────────────────────────────────────────────────────────────
 
-class _BridalEssentialsTab extends StatelessWidget {
+class _EssentialsTab extends StatelessWidget {
   final String functionId;
-  final List<BridalEssential> essentials;
+  final List<FunctionEssential> essentials;
   final bool isDark;
   final Color surfBg;
   final VoidCallback onChanged;
 
-  const _BridalEssentialsTab({
+  const _EssentialsTab({
     required this.functionId,
     required this.essentials,
     required this.isDark,
@@ -1410,15 +1410,15 @@ class _BridalEssentialsTab extends StatelessWidget {
     required this.onChanged,
   });
 
-  static const _categories = ['Dress', 'Makeup', 'Jewellery', 'Footwear', 'Hair', 'Mehendi', 'Photography', 'Other'];
+  static const _categories = ['Attire', 'Jewellery', 'Makeup & Hair', 'Decor', 'Pooja Items', 'Photography', 'Food', 'Other'];
 
-  void _showAddEdit(BuildContext ctx, {BridalEssential? existing}) {
+  void _showAddEdit(BuildContext ctx, {FunctionEssential? existing}) {
     final itemCtrl = TextEditingController(text: existing?.item ?? '');
     final detailsCtrl = TextEditingController(text: existing?.details ?? '');
     final vendorCtrl = TextEditingController(text: existing?.vendor ?? '');
     final costCtrl = TextEditingController(text: existing?.cost?.toString() ?? '');
     String? category = existing?.category ?? _categories[0];
-    BridalStatus status = existing?.status ?? BridalStatus.pending;
+    EssentialStatus status = existing?.status ?? EssentialStatus.pending;
     final svc = FunctionsService.instance;
 
     showPlanSheet(ctx, child: StatefulBuilder(builder: (sheetCtx, ss) {
@@ -1429,7 +1429,7 @@ class _BridalEssentialsTab extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(existing == null ? 'Add Bridal Essential' : 'Edit Essential',
+            Text(existing == null ? 'Add Essential' : 'Edit Essential',
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
             const SizedBox(height: 12),
             const SheetLabel(text: 'CATEGORY'),
@@ -1455,7 +1455,7 @@ class _BridalEssentialsTab extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const SheetLabel(text: 'ITEM *'),
-            PlanInputField(controller: itemCtrl, hint: 'e.g. Bridal lehenga, Foundation kit'),
+            PlanInputField(controller: itemCtrl, hint: 'e.g. Silk saree, Flower garland, Cake'),
             const SizedBox(height: 8),
             const SheetLabel(text: 'DETAILS'),
             PlanInputField(controller: detailsCtrl, hint: 'Color, style, notes…', maxLines: 2),
@@ -1467,7 +1467,7 @@ class _BridalEssentialsTab extends StatelessWidget {
             PlanInputField(controller: costCtrl, hint: 'Estimated cost', inputType: TextInputType.number),
             const SizedBox(height: 12),
             const SheetLabel(text: 'STATUS'),
-            Row(children: BridalStatus.values.map((s) => GestureDetector(
+            Row(children: EssentialStatus.values.map((s) => GestureDetector(
               onTap: () => ss(() => status = s),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
@@ -1488,7 +1488,7 @@ class _BridalEssentialsTab extends StatelessWidget {
               onTap: () async {
                 final item = itemCtrl.text.trim();
                 if (item.isEmpty) return;
-                final data = BridalEssential(
+                final data = FunctionEssential(
                   id: existing?.id ?? '',
                   functionId: functionId,
                   item: item,
@@ -1500,12 +1500,12 @@ class _BridalEssentialsTab extends StatelessWidget {
                 );
                 try {
                   if (existing == null) {
-                    final row = await svc.addBridalEssential(data.toJson());
-                    essentials.add(BridalEssential.fromJson(row));
+                    final row = await svc.addFunctionEssential(data.toJson());
+                    essentials.add(FunctionEssential.fromJson(row));
                   } else {
-                    await svc.updateBridalEssential(existing.id, data.toJson());
+                    await svc.updateFunctionEssential(existing.id, data.toJson());
                     final idx = essentials.indexOf(existing);
-                    if (idx >= 0) essentials[idx] = BridalEssential.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
+                    if (idx >= 0) essentials[idx] = FunctionEssential.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
                   }
                   onChanged();
                   if (sheetCtx.mounted) Navigator.pop(sheetCtx);
@@ -1527,7 +1527,7 @@ class _BridalEssentialsTab extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final totalCost = essentials.fold(0.0, (s, e) => s + (e.cost ?? 0));
-    final done = essentials.where((e) => e.status == BridalStatus.done).length;
+    final done = essentials.where((e) => e.status == EssentialStatus.done).length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1538,7 +1538,7 @@ class _BridalEssentialsTab extends StatelessWidget {
         label: const Text('Add Item', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
       ),
       body: essentials.isEmpty
-          ? const PlanEmptyState(emoji: '💍', title: 'No bridal essentials', subtitle: 'Track dresses, makeup, jewellery and more')
+          ? const PlanEmptyState(emoji: '🎒', title: 'No essentials yet', subtitle: 'Track attire, decor, pooja items and more')
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
@@ -1551,7 +1551,7 @@ class _BridalEssentialsTab extends StatelessWidget {
                     border: Border.all(color: AppColors.lend.withValues(alpha: 0.2)),
                   ),
                   child: Row(children: [
-                    const Text('💍', style: TextStyle(fontSize: 22)),
+                    const Text('🎒', style: TextStyle(fontSize: 22)),
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('${essentials.length} items • $done done', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
@@ -1563,7 +1563,7 @@ class _BridalEssentialsTab extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: SwipeTile(
                     onDelete: () async {
-                      await FunctionsService.instance.deleteBridalEssential(e.id);
+                      await FunctionsService.instance.deleteFunctionEssential(e.id);
                       essentials.remove(e);
                       onChanged();
                     },

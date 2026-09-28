@@ -1409,45 +1409,45 @@ class ClothingFamily {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLANNED FUNCTION — BRIDAL ESSENTIALS
+// PLANNED FUNCTION — ESSENTIALS
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum BridalStatus {
+enum EssentialStatus {
   pending('⏳', 'Pending'),
   booked('📋', 'Booked'),
   done('✅', 'Done');
 
   final String emoji, label;
-  const BridalStatus(this.emoji, this.label);
+  const EssentialStatus(this.emoji, this.label);
 }
 
-class BridalEssential {
+class FunctionEssential {
   String id, functionId, item;
   String? category, details, vendor;
-  BridalStatus status;
+  EssentialStatus status;
   double? cost;
 
-  BridalEssential({
+  FunctionEssential({
     required this.id,
     required this.functionId,
     required this.item,
     this.category,
     this.details,
     this.vendor,
-    this.status = BridalStatus.pending,
+    this.status = EssentialStatus.pending,
     this.cost,
   });
 
-  factory BridalEssential.fromJson(Map<String, dynamic> j) => BridalEssential(
+  factory FunctionEssential.fromJson(Map<String, dynamic> j) => FunctionEssential(
     id: j['id'] as String,
     functionId: j['function_id'] as String,
     item: j['item'] as String,
     category: j['category'] as String?,
     details: j['details'] as String?,
     vendor: j['vendor'] as String?,
-    status: BridalStatus.values.firstWhere(
+    status: EssentialStatus.values.firstWhere(
       (e) => e.name == j['status'],
-      orElse: () => BridalStatus.pending,
+      orElse: () => EssentialStatus.pending,
     ),
     cost: (j['cost'] as num?)?.toDouble(),
   );
