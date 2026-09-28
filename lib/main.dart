@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core/navigation/error_tracking_observer.dart';
 import 'core/services/error_logger.dart';
 import 'core/theme/app_theme.dart';
+import 'shared/widgets/system_nav_inset.dart';
 import 'routes/app_routes.dart';
 import 'app_bootstrap.dart';
 import 'core/env/environment_config.dart';
@@ -105,6 +106,7 @@ class LifeAssistanceApp extends StatelessWidget {
         initialRoute: AppRoutes.splash,
         routes: AppRoutes.routes,
         navigatorObservers: [ErrorTrackingObserver()],
+        builder: (context, child) => SystemNavInset(child: child!),
       ),
     );
   }

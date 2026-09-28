@@ -18,6 +18,7 @@ import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/features/auth/app_lock_screen.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
+import 'package:wai_life_assistant/shared/widgets/system_nav_inset.dart';
 
 
 class BottomNavScreen extends StatefulWidget {
@@ -77,8 +78,8 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: _themeMode,
-      builder: (context, child) =>
-          AppStateScope(notifier: _appState, child: child!),
+      builder: (context, child) => SystemNavInset(
+          child: AppStateScope(notifier: _appState, child: child!)),
       home: AppShell(
         appState: _appState,
         themeMode: _themeMode,
