@@ -512,6 +512,7 @@ class _TxEditSheetState extends State<TxEditSheet> {
   late TxType _type;
   late PayMode? _payMode;
   late DateTime _date;
+  String? _dueDate;
 
   @override
   void initState() {
@@ -525,6 +526,7 @@ class _TxEditSheetState extends State<TxEditSheet> {
     _type = tx.type;
     _payMode = tx.payMode;
     _date = tx.date;
+    _dueDate = tx.dueDate;
     _catCtrl.addListener(() => setState(() {}));
   }
 
@@ -561,7 +563,8 @@ class _TxEditSheetState extends State<TxEditSheet> {
             : _personCtrl.text.trim(),
         persons: widget.tx.persons,
         status: widget.tx.status,
-        dueDate: widget.tx.dueDate,
+        // Due date only applies to lend/borrow/request.
+        dueDate: _hasDueDate ? _dueDate : null,
         userId: widget.tx.userId,
         groupId: widget.tx.groupId,
         // This sheet still edits 'person' as free text (no member picker),
@@ -572,6 +575,22 @@ class _TxEditSheetState extends State<TxEditSheet> {
       ),
     );
     Navigator.pop(context);
+  }
+
+  bool get _hasDueDate =>
+      _type == TxType.lend || _type == TxType.borrow || _type == TxType.request;
+
+  /// due_date is free-form text (older rows may hold labels like
+  /// "In 1 week"), so a picked date is stored formatted.
+  Future<void> _pickDueDate() async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final d = await showDatePicker(
+      context: context,
+      initialDate: today,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(today.year + 5),
+    );
+    if (d != null) setState(() => _dueDate = AppPrefs.instance.formatDate(d));
   }
 
   @override
@@ -772,6 +791,47 @@ class _TxEditSheetState extends State<TxEditSheet> {
               if (showPerson) ...[
                 _ELbl('PERSON', sub),
                 _EField(_personCtrl, 'Name of person', surfBg, tc),
+                const SizedBox(height: 14),
+              ],
+
+              // Due date (lend/borrow/request)
+              if (_hasDueDate) ...[
+                _ELbl('DUE DATE', sub),
+                GestureDetector(
+                  onTap: _pickDueDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 13,
+                    ),
+                    decoration: BoxDecoration(
+                      color: surfBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.event_rounded, size: 16, color: sub),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _dueDate ?? 'No due date',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontFamily: 'Nunito',
+                              fontWeight: FontWeight.w700,
+                              color: _dueDate == null ? sub : tc,
+                            ),
+                          ),
+                        ),
+                        if (_dueDate != null)
+                          GestureDetector(
+                            onTap: () => setState(() => _dueDate = null),
+                            child: Icon(Icons.close_rounded, size: 18, color: sub),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 14),
               ],
 

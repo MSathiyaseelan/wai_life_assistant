@@ -3550,6 +3550,7 @@ class _WalletScreenState extends State<WalletScreen>
               'pay_mode': updated.payMode?.name,
               'note': updated.note,
               'person': updated.person,
+              'due_date': updated.dueDate,
             };
             if (updated.title != null) fields['title'] = updated.title;
             await WalletService.instance.updateTransaction(updated.id, fields);
