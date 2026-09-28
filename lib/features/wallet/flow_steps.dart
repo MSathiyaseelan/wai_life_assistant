@@ -1200,10 +1200,21 @@ class DueDateStep extends StatelessWidget {
 
   static const _options = [
     ('📅', 'In 1 week'),
-    ('📅', 'In 2 weeks'),
     ('🗓️', 'In 1 month'),
     ('⏳', 'No due date'),
   ];
+
+  /// due_date is free-form text, so a picked date is stored formatted.
+  Future<void> _pickDate(BuildContext context) async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: today.add(const Duration(days: 7)),
+      firstDate: today,
+      lastDate: DateTime(today.year + 5),
+    );
+    if (picked != null) onSelect(AppPrefs.instance.formatDate(picked));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1212,16 +1223,22 @@ class DueDateStep extends StatelessWidget {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: _options
-            .map(
-              (o) => _DateChip(
-                emoji: o.$1,
-                label: o.$2,
-                color: color,
-                onTap: () => onSelect(o.$2),
-              ),
-            )
-            .toList(),
+        children: [
+          ..._options.map(
+            (o) => _DateChip(
+              emoji: o.$1,
+              label: o.$2,
+              color: color,
+              onTap: () => onSelect(o.$2),
+            ),
+          ),
+          _DateChip(
+            emoji: '📆',
+            label: 'Pick date',
+            color: color,
+            onTap: () => _pickDate(context),
+          ),
+        ],
       ),
     );
   }
