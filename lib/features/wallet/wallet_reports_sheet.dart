@@ -96,6 +96,11 @@ class _Bucket {
 
 String _catEmoji(String cat) {
   final c = cat.toLowerCase();
+  // Default categories of lend / borrow / returned / split transactions.
+  if (c == 'lend' || c == 'lent') return '📤';
+  if (c == 'borrow' || c == 'borrowed') return '📥';
+  if (c == 'returned') return '🔁';
+  if (c == 'split') return '🤝';
   if (c.contains('food') || c.contains('eat') || c.contains('restaurant') ||
       c.contains('groceri') || c.contains('snack') || c.contains('meal')) { return '🍽️'; }
   if (c.contains('transport') || c.contains('travel') || c.contains('fuel') ||
@@ -159,9 +164,28 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
     return txs;
   }
 
-  List<TxModel> get _ie => _filtered
-      .where((t) => t.type == TxType.income || t.type == TxType.expense)
-      .toList();
+  // Money in / out use the same split as the wallet card's period summary,
+  // so lent, borrowed, split and returned money is counted here too.
+  // Requests are left out — no money has moved yet.
+  static bool _isIn(TxType t) =>
+      t == TxType.income || t == TxType.borrow || t == TxType.returned;
+  static bool _isOut(TxType t) =>
+      t == TxType.expense || t == TxType.lend || t == TxType.split;
+
+  List<TxModel> get _ie =>
+      _filtered.where((t) => _isIn(t.type) || _isOut(t.type)).toList();
+
+  /// Last day the trailing Daily/Weekly/Monthly charts end on: today, or the
+  /// last day of the scoped range when that range ends in the past (otherwise
+  /// a past multi-month range would show only empty recent buckets).
+  DateTime get _anchor {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final scope = widget.scopeRange;
+    if (scope == null) return today;
+    final scopeEnd = DateTime(scope.end.year, scope.end.month + 1, 0);
+    return scopeEnd.isBefore(today) ? scopeEnd : today;
+  }
 
   // ── Data builders ─────────────────────────────────────────────────────────
 
@@ -180,11 +204,14 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
         return b;
       });
     }
+    final anchor = _anchor;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return List.generate(7, (i) {
-      final day = today.subtract(Duration(days: 6 - i));
-      final b = _Bucket(_dayLabel(day, i == 6));
+      // Calendar arithmetic (not Duration) so DST shifts can't break the
+      // exact-day comparison below.
+      final day = DateTime(anchor.year, anchor.month, anchor.day - (6 - i));
+      final b = _Bucket(_dayLabel(day, day == today));
       for (final t in _ie) {
         final td = DateTime(t.date.year, t.date.month, t.date.day);
         if (td == day) _add(b, t);
@@ -196,10 +223,11 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   List<_Bucket> _weekly() {
     // Weeks start on the user's Settings → Date & Time "Week starts on"
     // (was always Monday), labelled in their date format.
-    final currentWeekStart = AppPrefs.instance.weekStart(DateTime.now());
+    final lastWeekStart = AppPrefs.instance.weekStart(_anchor);
     return List.generate(8, (i) {
-      final ws = currentWeekStart.subtract(Duration(days: 7 * (7 - i)));
-      final we = ws.add(const Duration(days: 6));
+      final ws = DateTime(lastWeekStart.year, lastWeekStart.month,
+          lastWeekStart.day - 7 * (7 - i));
+      final we = DateTime(ws.year, ws.month, ws.day + 6);
       final b = _Bucket(AppPrefs.instance.formatShortDate(ws));
       for (final t in _ie) {
         final td = DateTime(t.date.year, t.date.month, t.date.day);
@@ -210,10 +238,10 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   }
 
   List<_Bucket> _monthly() {
-    final now = DateTime.now();
+    final anchor = _anchor;
     return List.generate(12, (i) {
-      int year = now.year;
-      int month = now.month - (11 - i);
+      int year = anchor.year;
+      int month = anchor.month - (11 - i);
       while (month <= 0) {
         month += 12;
         year--;
@@ -239,18 +267,18 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   }
 
   void _add(_Bucket b, TxModel t) {
-    if (t.type == TxType.income) {
+    if (_isIn(t.type)) {
       b.income += t.amount;
-    } else {
+    } else if (_isOut(t.type)) {
       b.expense += t.amount;
     }
   }
 
   List<MapEntry<String, double>> _categoryData() {
-    final target = _catExpense ? TxType.expense : TxType.income;
+    final matches = _catExpense ? _isOut : _isIn;
     final map = <String, double>{};
     for (final t in _filtered) {
-      if (t.type == target) {
+      if (matches(t.type)) {
         map[t.category] = (map[t.category] ?? 0) + t.amount;
       }
     }
@@ -301,6 +329,7 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final accentColor = widget.wallet.gradient[0];
+    final buckets = _getPeriodBuckets();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -314,7 +343,7 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
         child: Column(
           children: [
             // ── Gradient hero header ──────────────────────────────────────
-            _HeroHeader(wallet: widget.wallet, txCount: widget.transactions.length),
+            _HeroHeader(wallet: widget.wallet, txCount: _filtered.length),
 
             // ── Period tabs ───────────────────────────────────────────────
             _PeriodTabBar(
@@ -357,8 +386,8 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
                       ctrl: ctrl,
                     )
                   : _ChartBody(
-                      buckets: _getPeriodBuckets(),
-                      totals: _totals(_getPeriodBuckets()),
+                      buckets: buckets,
+                      totals: _totals(buckets),
                       isDark: isDark,
                       surfBg: surfBg,
                       tc: tc,
@@ -587,7 +616,7 @@ class _ChartBody extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                label: 'Income',
+                label: 'Money In',
                 amount: fmt(totals.income),
                 color: AppColors.income,
                 icon: Icons.arrow_downward_rounded,
@@ -597,7 +626,7 @@ class _ChartBody extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: _StatCard(
-                label: 'Expense',
+                label: 'Money Out',
                 amount: fmt(totals.expense),
                 color: AppColors.expense,
                 icon: Icons.arrow_upward_rounded,
@@ -615,9 +644,9 @@ class _ChartBody extends StatelessWidget {
         if (hasData) ...[
           Row(
             children: [
-              _Legend(color: AppColors.income, label: 'Income'),
+              _Legend(color: AppColors.income, label: 'Money In'),
               const SizedBox(width: 16),
-              _Legend(color: AppColors.expense, label: 'Expense'),
+              _Legend(color: AppColors.expense, label: 'Money Out'),
             ],
           ),
           const SizedBox(height: 12),
@@ -729,7 +758,7 @@ class _CategoryBody extends StatelessWidget {
             children: [
               Expanded(
                 child: _ToggleChip(
-                  label: 'Expenses',
+                  label: 'Money Out',
                   icon: Icons.arrow_upward_rounded,
                   active: isExpense,
                   color: AppColors.expense,
@@ -739,7 +768,7 @@ class _CategoryBody extends StatelessWidget {
               const SizedBox(width: 4),
               Expanded(
                 child: _ToggleChip(
-                  label: 'Income',
+                  label: 'Money In',
                   icon: Icons.arrow_downward_rounded,
                   active: !isExpense,
                   color: AppColors.income,
@@ -759,7 +788,7 @@ class _CategoryBody extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${data.length} ${isExpense ? 'expense' : 'income'} categories',
+                '${data.length} money ${isExpense ? 'out' : 'in'} categories',
                 style: TextStyle(
                   fontSize: 12,
                   color: sub,

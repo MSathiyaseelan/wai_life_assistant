@@ -135,8 +135,14 @@ class _WalletExportSheetState extends State<WalletExportSheet> {
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
 
     final txs = _matching;
-    final income = txs.where((t) => t.type == TxType.income).fold(0.0, (s, t) => s + t.amount);
-    final expense = txs.where((t) => t.type == TxType.expense).fold(0.0, (s, t) => s + t.amount);
+    // Same in/out split as the wallet screen's period summary, so lent,
+    // borrowed, split and returned money is counted here too.
+    final income = txs
+        .where((t) => t.type == TxType.income || t.type == TxType.borrow || t.type == TxType.returned)
+        .fold(0.0, (s, t) => s + t.amount);
+    final expense = txs
+        .where((t) => t.type == TxType.expense || t.type == TxType.lend || t.type == TxType.split)
+        .fold(0.0, (s, t) => s + t.amount);
 
     return SafeArea(
       top: false,
@@ -200,7 +206,7 @@ class _WalletExportSheetState extends State<WalletExportSheet> {
                           children: [
                             Text('${AppPrefs.cs}${income.toStringAsFixed(0)}',
                                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'DM Mono', color: AppColors.income)),
-                            Text('income', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                            Text('money in', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                           ],
                         ),
                       ),
@@ -210,7 +216,7 @@ class _WalletExportSheetState extends State<WalletExportSheet> {
                           children: [
                             Text('${AppPrefs.cs}${expense.toStringAsFixed(0)}',
                                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, fontFamily: 'DM Mono', color: AppColors.expense)),
-                            Text('expense', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                            Text('money out', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
                           ],
                         ),
                       ),
