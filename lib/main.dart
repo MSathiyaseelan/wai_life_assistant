@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show AuthRetryableFetchException;
 import 'core/navigation/error_tracking_observer.dart';
 import 'core/services/error_logger.dart';
 import 'core/theme/app_theme.dart';
@@ -35,13 +38,7 @@ void main() {
   // PlatformDispatcher catches errors that escape the Flutter framework layer
   // (e.g. platform channel errors, isolate startup failures).
   PlatformDispatcher.instance.onError = (error, stack) {
-    ErrorLogger.log(
-      error,
-      stackTrace: stack,
-      severity:   ErrorSeverity.critical,
-      action:     'platform_dispatcher_error',
-    );
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    _reportUncaught(error, stack, action: 'platform_dispatcher_error');
     return true;
   };
 
@@ -55,16 +52,27 @@ void main() {
       WidgetsFlutterBinding.ensureInitialized();
       await bootstrapApp(env);
     },
-    (error, stackTrace) {
-      ErrorLogger.log(
-        error,
-        stackTrace: stackTrace,
-        severity:   ErrorSeverity.critical,
-        action:     'unhandled_async_error',
-      );
-      FirebaseCrashlytics.instance.recordError(error, stackTrace, fatal: true);
-    },
+    (error, stackTrace) =>
+        _reportUncaught(error, stackTrace, action: 'unhandled_async_error'),
   );
+}
+
+/// Connectivity failures that escape to the global handlers — mainly
+/// Supabase's background token refresh failing while the device is offline.
+/// The library retries on its own once the network is back, so these are
+/// not crashes and shouldn't count against the crash-free rate.
+bool _isNetworkError(Object error) =>
+    error is AuthRetryableFetchException || error is SocketException;
+
+void _reportUncaught(Object error, StackTrace stack, {required String action}) {
+  final network = _isNetworkError(error);
+  ErrorLogger.log(
+    error,
+    stackTrace: stack,
+    severity:   network ? ErrorSeverity.warning : ErrorSeverity.critical,
+    action:     action,
+  );
+  FirebaseCrashlytics.instance.recordError(error, stack, fatal: !network);
 }
 
 class LifeAssistanceApp extends StatelessWidget {
