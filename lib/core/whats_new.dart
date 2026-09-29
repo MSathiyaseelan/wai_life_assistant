@@ -75,6 +75,8 @@ class WhatsNew {
       'Functions: the "Bridal Essentials" tab is now "Essentials", with categories that fit any kind of function.',
       'Lend, Borrow and Request Money: pick an exact due date, and change or remove it later when editing.',
       'Fixed buttons and message boxes being hidden behind the navigation bar on newer Android phones.',
+      'Wallet reports and export now include lent, borrowed and split money in the totals.',
+      'Wallet reports: use the arrows on the Daily tab to see earlier weeks day by day.',
     ],
   };
 }

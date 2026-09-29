@@ -136,6 +136,8 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
   late _Period _period;
   bool _catExpense = true;
   String? _memberFilter; // null = all members
+  /// How many 7-day steps the unscoped Daily chart is paged back from [_anchor].
+  int _dailyWeeksBack = 0;
 
   /// True when opened scoped to one specific (non-"this month") month —
   /// e.g. from the Wallet screen's month picker while browsing the past.
@@ -187,6 +189,29 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
     return scopeEnd.isBefore(today) ? scopeEnd : today;
   }
 
+  /// Last day of the 7-day window the unscoped Daily chart shows.
+  DateTime get _dailyEnd {
+    final a = _anchor;
+    return DateTime(a.year, a.month, a.day - 7 * _dailyWeeksBack);
+  }
+
+  DateTime get _dailyStart {
+    final e = _dailyEnd;
+    return DateTime(e.year, e.month, e.day - 6);
+  }
+
+  /// Earlier weeks can be opened only while there's data before this window.
+  bool get _canPageDailyBack {
+    final start = _dailyStart;
+    return _ie.any((t) =>
+        DateTime(t.date.year, t.date.month, t.date.day).isBefore(start));
+  }
+
+  String get _dailyRangeLabel {
+    final f = DateFormat('d MMM');
+    return '${f.format(_dailyStart)} – ${f.format(_dailyEnd)}';
+  }
+
   // ── Data builders ─────────────────────────────────────────────────────────
 
   List<_Bucket> _daily() {
@@ -204,13 +229,13 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
         return b;
       });
     }
-    final anchor = _anchor;
+    final end = _dailyEnd;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return List.generate(7, (i) {
       // Calendar arithmetic (not Duration) so DST shifts can't break the
       // exact-day comparison below.
-      final day = DateTime(anchor.year, anchor.month, anchor.day - (6 - i));
+      final day = DateTime(end.year, end.month, end.day - (6 - i));
       final b = _Bucket(_dayLabel(day, day == today));
       for (final t in _ie) {
         final td = DateTime(t.date.year, t.date.month, t.date.day);
@@ -388,6 +413,15 @@ class _WalletReportsSheetState extends State<WalletReportsSheet> {
                   : _ChartBody(
                       buckets: buckets,
                       totals: _totals(buckets),
+                      navLabel: _period == _Period.daily && !_isScoped
+                          ? _dailyRangeLabel
+                          : null,
+                      onPrev: _canPageDailyBack
+                          ? () => setState(() => _dailyWeeksBack++)
+                          : null,
+                      onNext: _dailyWeeksBack > 0
+                          ? () => setState(() => _dailyWeeksBack--)
+                          : null,
                       isDark: isDark,
                       surfBg: surfBg,
                       tc: tc,
@@ -590,6 +624,10 @@ class _ChartBody extends StatelessWidget {
   final Color surfBg, tc, sub;
   final String Function(double) fmt;
   final ScrollController ctrl;
+  /// When set, shows a ‹ label › pager above the stats (Daily week paging);
+  /// a null [onPrev] / [onNext] disables that arrow.
+  final String? navLabel;
+  final VoidCallback? onPrev, onNext;
 
   const _ChartBody({
     required this.buckets,
@@ -600,6 +638,9 @@ class _ChartBody extends StatelessWidget {
     required this.sub,
     required this.fmt,
     required this.ctrl,
+    this.navLabel,
+    this.onPrev,
+    this.onNext,
   });
 
   @override
@@ -611,6 +652,46 @@ class _ChartBody extends StatelessWidget {
       controller: ctrl,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
+        // ── Week pager (Daily) ───────────────────────────────────────────
+        if (navLabel != null) ...[
+          Container(
+            decoration: BoxDecoration(
+              color: surfBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: onPrev,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                  color: tc,
+                  disabledColor: sub.withValues(alpha: 0.35),
+                  tooltip: 'Previous 7 days',
+                ),
+                Expanded(
+                  child: Text(
+                    navLabel!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Nunito',
+                      color: tc,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onNext,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  color: tc,
+                  disabledColor: sub.withValues(alpha: 0.35),
+                  tooltip: 'Next 7 days',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         // ── Stats row: income + expense cards ────────────────────────────
         Row(
           children: [
