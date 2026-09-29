@@ -77,6 +77,8 @@ class WhatsNew {
       'Fixed buttons and message boxes being hidden behind the navigation bar on newer Android phones.',
       'Wallet reports and export now include lent, borrowed and split money in the totals.',
       'Wallet reports: use the arrows on the Daily tab to see earlier weeks day by day.',
+      'Shopping List: ticked an item by mistake? Tap Undo to bring it back.',
+      'Family shopping lists now update live when another member adds or ticks off an item.',
     ],
   };
 }
