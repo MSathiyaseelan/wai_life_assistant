@@ -519,6 +519,50 @@ class PantryService {
     listChangeSignal.value++;
   }
 
+  /// Move a quick-list (Personal Care / Household) item onto the grocery
+  /// To Buy list. Merged into an existing To Buy grocery row for the same
+  /// item and unit when there is one, so it doesn't show up twice.
+  Future<void> moveQuickItemToGrocery(GroceryItem item) async {
+    final now = DateTime.now().toIso8601String();
+    final existing = await _findSameItem(
+      walletId: item.walletId,
+      normalizedName: item.effectiveNormalizedName,
+      unit: item.unit,
+      isGrocery: true,
+      section: 'to_buy',
+      excludeId: item.id,
+    );
+    if (existing != null) {
+      final existingId = existing['id'] as String;
+      final oldQty = (existing['quantity'] as num).toDouble();
+      await _db.from('grocery_items').update({
+        'quantity': oldQty + item.quantity,
+        'last_updated': now,
+      }).eq('id', existingId);
+      final deleted = await _db
+          .from('grocery_items')
+          .delete()
+          .eq('id', item.id)
+          .select('id');
+      if (deleted.isNotEmpty) {
+        listChangeSignal.value++;
+        return;
+      }
+      // Not allowed to delete the quick-list row — undo the merge and just
+      // convert the row instead.
+      await _db.from('grocery_items').update({
+        'quantity': oldQty,
+        'last_updated': now,
+      }).eq('id', existingId);
+    }
+    await _db.from('grocery_items').update({
+      'is_grocery': true,
+      'in_stock': false,
+      'last_updated': now,
+    }).eq('id', item.id);
+    listChangeSignal.value++;
+  }
+
   Future<void> _markBoughtRow(GroceryItem item) async {
     if (!item.isGrocery) {
       await _deleteGroceryRow(item.id);

@@ -31,17 +31,20 @@ class MyListSection extends StatelessWidget {
     this.label = 'Personal',
   });
 
-  List<GroceryItem> get _groceryItems  => items.where((i) => i.isGrocery).toList();
-  List<GroceryItem> get _quickItems    => items.where((i) => !i.isGrocery).toList();
-
   String get _quickListLabel =>
       isPersonal ? '🧴 Personal Care' : '🏠 Household Supplies';
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<Set<String>>(
+        valueListenable: _hidden,
+        builder: (context, hidden, _) => _build(context, hidden),
+      );
+
+  Widget _build(BuildContext context, Set<String> hidden) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final grocery = _groceryItems;
-    final quick   = _quickItems;
+    final visible = items.where((i) => !hidden.contains(i.id));
+    final grocery = visible.where((i) => i.isGrocery).toList();
+    final quick   = visible.where((i) => !i.isGrocery).toList();
     final hasAny  = grocery.isNotEmpty || quick.isNotEmpty;
 
     return Column(
@@ -258,49 +261,116 @@ class MyListSection extends StatelessWidget {
     );
   }
 
-  Future<void> _markGroceryDone(BuildContext context, GroceryItem item) async {
+  /// Ids with an action still in flight. A quick double tap on ✓ used to run
+  /// the mark-bought merge twice, which could add the quantity to In Stock
+  /// twice or lose it, and a second delete failed with a bogus error.
+  static final Set<String> _busy = {};
+
+  Future<void> _runOnce(
+    BuildContext context,
+    GroceryItem item, {
+    required Future<void> Function() action,
+    required String logAction,
+    required String failMessage,
+  }) async {
+    if (!_busy.add(item.id)) return;
     try {
-      // Merges into an existing In Stock row instead of duplicating it;
-      // also signals Pantry/Dashboard to refresh.
-      await PantryService.instance.markGroceryBought(item);
+      await action();
       onItemsChanged();
     } catch (e) {
-      ErrorLogger.warning(e, action: 'list_mark_in_stock');
+      ErrorLogger.warning(e, action: logAction);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update item. Please try again.')),
+        SnackBar(content: Text(failMessage)),
       );
+    } finally {
+      _busy.remove(item.id);
     }
   }
 
-  Future<void> _deleteItem(BuildContext context, GroceryItem item) async {
+  /// Items ticked off whose change hasn't been saved yet (Undo still
+  /// showing) or was saved moments ago — hidden from the list meanwhile.
+  static final _hidden = ValueNotifier<Set<String>>({});
+
+  static void _setHidden(String id, bool hide) {
+    final next = {..._hidden.value};
+    hide ? next.add(id) : next.remove(id);
+    _hidden.value = next;
+  }
+
+  /// Ticks [item] off with an Undo: it disappears at once, and [action]
+  /// only runs once the SnackBar goes away without Undo being tapped. A
+  /// newer tick closes the previous SnackBar, which saves that one.
+  Future<void> _checkOff(
+    BuildContext context,
+    GroceryItem item, {
+    required String doneMessage,
+    required Future<void> Function() action,
+    required String logAction,
+    required String failMessage,
+  }) async {
+    if (!_busy.add(item.id)) return;
+    HapticFeedback.lightImpact();
+    _setHidden(item.id, true);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    final reason = await messenger
+        .showSnackBar(SnackBar(
+          content: Text(doneMessage),
+          duration: const Duration(seconds: 4),
+          persist: false,
+          action: SnackBarAction(label: 'Undo', onPressed: () {}),
+        ))
+        .closed;
+    if (reason == SnackBarClosedReason.action) {
+      _setHidden(item.id, false);
+      _busy.remove(item.id);
+      return;
+    }
     try {
-      await PantryService.instance.deleteGroceryItem(item.id);
+      await action();
       onItemsChanged();
+      // Keep it hidden until the list reload lands, so the old row doesn't
+      // flash back in between.
+      Future.delayed(const Duration(seconds: 5), () => _setHidden(item.id, false));
     } catch (e) {
-      ErrorLogger.warning(e, action: 'list_delete_item');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to delete item. Please try again.')),
-      );
+      ErrorLogger.warning(e, action: logAction);
+      _setHidden(item.id, false);
+      messenger.showSnackBar(SnackBar(content: Text(failMessage)));
+    } finally {
+      _busy.remove(item.id);
     }
   }
 
-  Future<void> _moveToGrocery(BuildContext context, GroceryItem item) async {
-    try {
-      await PantryService.instance.updateGroceryItem(item.id, {
-        'is_grocery': true,
-        'in_stock': false,
-      });
-      onItemsChanged();
-    } catch (e) {
-      ErrorLogger.warning(e, action: 'list_move_to_grocery');
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to move item. Please try again.')),
+  // Merges into an existing In Stock row instead of duplicating it;
+  // also signals Pantry/Dashboard to refresh.
+  Future<void> _markGroceryDone(BuildContext context, GroceryItem item) =>
+      _checkOff(
+        context,
+        item,
+        doneMessage: '${displayCase(item.name)} moved to In Stock',
+        action: () => PantryService.instance.markGroceryBought(item),
+        logAction: 'list_mark_in_stock',
+        failMessage: 'Failed to update item. Please try again.',
       );
-    }
-  }
+
+  Future<void> _deleteItem(BuildContext context, GroceryItem item) => _checkOff(
+        context,
+        item,
+        doneMessage: '${item.name} ticked off',
+        action: () => PantryService.instance.deleteGroceryItem(item.id),
+        logAction: 'list_delete_item',
+        failMessage: 'Failed to delete item. Please try again.',
+      );
+
+  Future<void> _moveToGrocery(BuildContext context, GroceryItem item) =>
+      _runOnce(
+        context,
+        item,
+        action: () => PantryService.instance.moveQuickItemToGrocery(item),
+        logAction: 'list_move_to_grocery',
+        failMessage: 'Failed to move item. Please try again.',
+      );
 
   void _showAddSheet(BuildContext context) {
     HapticFeedback.selectionClick();
@@ -316,6 +386,16 @@ class MyListSection extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "2 kg", "1.5 L" — at most 2 decimals, so merged quantities like
+/// 0.1 + 0.2 don't show as 0.30000000000000004.
+String _qtyLabel(GroceryItem item) {
+  final q = item.quantity;
+  final text = q == q.truncateToDouble()
+      ? q.toInt().toString()
+      : q.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
+  return '$text ${item.unit}';
 }
 
 // ── Sub-header row inside card ────────────────────────────────────────────────
@@ -390,9 +470,7 @@ class _GroceryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final qtyLabel = item.quantity == item.quantity.truncateToDouble()
-        ? '${item.quantity.toInt()} ${item.unit}'
-        : '${item.quantity} ${item.unit}';
+    final qtyLabel = _qtyLabel(item);
 
     return GestureDetector(
       onTap: onGoToPantry,
@@ -473,9 +551,7 @@ class _QuickRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final qtyLabel = item.quantity == item.quantity.truncateToDouble()
-        ? '${item.quantity.toInt()} ${item.unit}'
-        : '${item.quantity} ${item.unit}';
+    final qtyLabel = _qtyLabel(item);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -621,6 +697,14 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) return;
+    final qtyText = _qtyCtrl.text.trim();
+    final qty = qtyText.isEmpty ? 1.0 : double.tryParse(qtyText);
+    if (qty == null || qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a quantity above 0.')),
+      );
+      return;
+    }
     if (widget.walletId.isEmpty || widget.walletId == 'personal') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Account still loading. Please try again in a moment.')),
@@ -633,7 +717,7 @@ class _AddListItemSheetState extends State<_AddListItemSheet> {
         walletId: widget.walletId,
         name: name,
         category: GroceryCategory.other.name,
-        quantity: double.tryParse(_qtyCtrl.text.trim()) ?? 1,
+        quantity: qty,
         unit: _unit,
         inStock: false,
         toBuy: true,

@@ -2006,19 +2006,26 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                     padding: EdgeInsets.only(
                                       right: idx < allCards.length - 1 ? 8.0 : 0,
                                     ),
-                                    child: MyListSection(
-                                      items: allItems,
-                                      walletId: w.id,
-                                      isDark: isDark,
-                                      cardBg: cardBg,
-                                      sub: sub,
-                                      isPersonal: w.isPersonal,
-                                      label: label,
-                                      onItemsChanged: () => _loadMyList(w.id),
-                                      onGoToPantry: () {
-                                        DashNavService.pantry.value = 'basket:tobuy:${w.id}';
-                                        widget.onTabSwitch?.call(2);
-                                      },
+                                    // listH is an estimate capped at 600 and
+                                    // assumes default text size, so a long
+                                    // quick list or a large system font can
+                                    // outgrow it — scroll instead of overflowing.
+                                    child: SingleChildScrollView(
+                                      physics: const ClampingScrollPhysics(),
+                                      child: MyListSection(
+                                        items: allItems,
+                                        walletId: w.id,
+                                        isDark: isDark,
+                                        cardBg: cardBg,
+                                        sub: sub,
+                                        isPersonal: w.isPersonal,
+                                        label: label,
+                                        onItemsChanged: () => _loadMyList(w.id),
+                                        onGoToPantry: () {
+                                          DashNavService.pantry.value = 'basket:tobuy:${w.id}';
+                                          widget.onTabSwitch?.call(2);
+                                        },
+                                      ),
                                     ),
                                   );
                                 },

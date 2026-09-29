@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'network_service.dart';
 
 class RealtimeSyncService {
@@ -46,6 +48,11 @@ class RealtimeSyncService {
     // spending 7 Realtime channels per open app. To add live sync for one
     // of those tables, subscribe per wallet like meal_entries below and
     // expose a notifier its screen actually listens to.
+    //
+    // grocery_items (Pantry Basket + Dashboard Shopping List) rides on the
+    // same per-wallet channel, so another family member's add / tick / move
+    // shows up live. Needs migration 202 (publication + REPLICA IDENTITY
+    // FULL, without which filtered DELETEs — ticked items — never arrive).
     for (final walletId in mealWalletIds) {
       final channel = _db
           .channel('wallet:$walletId:meal_entries')
@@ -62,9 +69,31 @@ class RealtimeSyncService {
               mealEntriesChanged.value = (walletId: walletId, seq: ++_mealSeq);
             },
           )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'grocery_items',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'wallet_id',
+              value: walletId,
+            ),
+            callback: (_) => _scheduleGroceryRefresh(),
+          )
           .subscribe();
       _channels.add(channel);
     }
+  }
+
+  /// One "Mark bought" or "Create list" touches several grocery rows at
+  /// once, so events are coalesced into a single refresh of the Basket and
+  /// Shopping List instead of one refetch per row.
+  Timer? _groceryDebounce;
+  void _scheduleGroceryRefresh() {
+    _groceryDebounce?.cancel();
+    _groceryDebounce = Timer(const Duration(milliseconds: 400), () {
+      PantryService.listChangeSignal.value++;
+    });
   }
 
   /// Live-refresh family details (name/emoji/photo/permissions) for every
@@ -107,6 +136,7 @@ class RealtimeSyncService {
   }
 
   void unsubscribeAll() {
+    _groceryDebounce?.cancel();
     for (final channel in _channels) {
       _db.removeChannel(channel);
     }
