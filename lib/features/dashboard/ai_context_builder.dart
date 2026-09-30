@@ -168,7 +168,7 @@ class AiContextBuilder {
       // Tasks
       final tasks = await TaskService.instance.fetchTasks(walletId);
       final pending = tasks
-          .where((t) => t['is_done'] == false || t['is_done'] == null)
+          .where((t) => t['status'] != 'done')
           .take(8)
           .map((t) => t['title'] as String? ?? '')
           .where((s) => s.isNotEmpty)
@@ -189,7 +189,7 @@ class AiContextBuilder {
           .from('reminders')
           .select('title, due_date')
           .eq('wallet_id', walletId)
-          .eq('is_done', false)
+          .eq('done', false)
           .gte('due_date', now.toIso8601String().substring(0, 10))
           .order('due_date')
           .limit(5);

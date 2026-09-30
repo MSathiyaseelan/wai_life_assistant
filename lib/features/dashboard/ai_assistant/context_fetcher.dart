@@ -375,7 +375,7 @@ class ContextFetcher {
       } else {
         final tasks = await TaskService.instance.fetchTasks(walletId);
         pending = tasks
-            .where((t) => t['is_done'] != true)
+            .where((t) => t['status'] != 'done')
             .take(8)
             .map((t) => t['title'] as String? ?? '')
             .where((s) => s.isNotEmpty)

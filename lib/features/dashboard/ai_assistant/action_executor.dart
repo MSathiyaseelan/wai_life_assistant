@@ -63,7 +63,6 @@ class ActionExecutor {
         await TaskService.instance.addTask({
           'wallet_id': walletId,
           'title': _str(d, 'title'),
-          'is_done': false,
           if (d['due_date'] != null) 'due_date': d['due_date'],
         });
 
