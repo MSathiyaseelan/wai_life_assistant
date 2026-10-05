@@ -17,6 +17,7 @@ import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/features/auth/auth_coordinator.dart';
 import 'package:wai_life_assistant/core/services/network_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
+import 'package:wai_life_assistant/core/utils/person_name.dart';
 import 'package:wai_life_assistant/core/services/app_update_service.dart';
 import 'package:wai_life_assistant/core/whats_new.dart';
 import 'package:wai_life_assistant/features/dashboard/widgets/whats_new_sheet.dart';
@@ -435,12 +436,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     }
   }
 
+  // Both the avatar and the "Tap to change photo" row open the picker; a
+  // second tap while it's opening threw PlatformException(already_active).
+  bool _pickingPhoto = false;
+
   Future<void> _pickProfilePhoto(void Function(void Function()) ss) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 512,
-    );
+    if (_pickingPhoto) return;
+    _pickingPhoto = true;
+    final XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+      );
+    } finally {
+      _pickingPhoto = false;
+    }
     if (picked == null || !mounted) return;
     try {
       final url = await ProfileService.instance.uploadPhoto(
@@ -3870,6 +3881,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                                       child: ElevatedButton(
                                         onPressed: () async {
                                           final name = nameCtrl.text.trim();
+                                          if (name.isNotEmpty && !isValidPersonName(name)) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Please enter your name, not a number')),
+                                            );
+                                            return;
+                                          }
                                           if (name.isNotEmpty) {
                                             final original = _userName;
                                             setState(() => _userName = name);

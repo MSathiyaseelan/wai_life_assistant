@@ -4,6 +4,7 @@ import '../../routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/services/profile_service.dart';
 import '../../core/services/error_logger.dart';
+import '../../core/utils/person_name.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -67,6 +68,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
       setState(() => _error = 'Please enter your name');
+      return;
+    }
+    if (!isValidPersonName(name)) {
+      setState(() => _error = 'Please enter your name, not a number');
       return;
     }
     setState(() { _loading = true; _error = null; });
@@ -198,12 +203,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       const SizedBox(height: 8),
                       _InputBox(
                         hasFocus: _nameFocus.hasFocus,
-                        hasError: _error != null && _nameCtrl.text.trim().isEmpty,
+                        hasError: _error != null &&
+                            !isValidPersonName(_nameCtrl.text),
                         fieldBg: fieldBg,
                         child: TextField(
                           controller: _nameCtrl,
                           focusNode: _nameFocus,
                           keyboardType: TextInputType.name,
+                          autofillHints: const [AutofillHints.name],
                           textCapitalization: TextCapitalization.words,
                           onChanged: (_) => setState(() => _error = null),
                           style: TextStyle(

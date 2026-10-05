@@ -83,6 +83,16 @@ class _OtpScreenState extends State<OtpScreen> {
 
   void _onDigitInput(int index, String value) {
     setState(() => _error = null);
+    if (value.length == 6) {
+      // A whole pasted or keyboard-suggested code (Samsung offers the SMS
+      // code as a chip) — fill every box, whichever one it landed in.
+      for (var j = 0; j < 6; j++) {
+        _ctrls[j].text = value[j];
+      }
+      _nodes[index].unfocus();
+      _verify();
+      return;
+    }
     if (value.isNotEmpty && index < 5) {
       _nodes[index + 1].requestFocus();
     }
@@ -490,8 +500,14 @@ class _OtpBox extends StatelessWidget {
           focusNode: focusNode,
           textAlign: TextAlign.center,
           keyboardType: TextInputType.number,
-          maxLength: 1,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          autofillHints: const [AutofillHints.oneTimeCode],
+          // Not maxLength: 1 — that truncated a pasted/suggested 6-digit code
+          // to its first digit. _OtpBoxFormatter keeps typing one digit per
+          // box exactly as before and lets only a whole code through.
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            _OtpBoxFormatter(),
+          ],
           onChanged: onChanged,
           style: TextStyle(
             fontSize: 20,
@@ -508,5 +524,29 @@ class _OtpBox extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Allows a box to hold one digit (typing works exactly as with
+/// `maxLength: 1`: extra digits typed into a full box are ignored), or a
+/// whole 6-digit code pasted/suggested into it, which _onDigitInput then
+/// spreads across all boxes.
+class _OtpBoxFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final text = newValue.text;
+    if (text.length <= 1 || text.length == 6) return newValue;
+    // Code inserted into a box that already held a digit.
+    if (text.length == 7 && oldValue.text.length == 1) {
+      final code = text.replaceFirst(oldValue.text, '');
+      if (code.length == 6) {
+        return TextEditingValue(
+          text: code,
+          selection: const TextSelection.collapsed(offset: 6),
+        );
+      }
+    }
+    return oldValue;
   }
 }
