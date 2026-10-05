@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -96,7 +97,9 @@ class FcmService {
 
     await _requestPermission();
     await _createFamilyChannel();
-    await saveFcmToken();
+    // Not awaited: this runs before runApp, and fetching the token over the
+    // network held the launch screen for seconds on slow connections.
+    unawaited(saveFcmToken());
 
     _messaging.onTokenRefresh.listen((_) => saveFcmToken());
     FirebaseMessaging.onMessage.listen((msg) => _showWith(_plugin, msg, checkQuiet: true));
@@ -142,16 +145,27 @@ class FcmService {
 
   // ── Save FCM token → Supabase ───────────────────────────────────────────────
 
+  /// Called at startup, on token refresh, and right after login (a fresh
+  /// install has no session at startup, so without the login call a new
+  /// user got no pushes until the next app restart).
   static Future<void> saveFcmToken([String? token]) async {
-    final fcmToken = token ?? await _messaging.getToken();
-    if (fcmToken == null) {
-      debugPrint('[FCM] token null — check google-services.json');
-      return;
-    }
-
+    // Check the session first: getToken() is a network round-trip that's
+    // pointless with nobody to save it for (e.g. a fresh install).
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
       debugPrint('[FCM] user not logged in — token not saved');
+      return;
+    }
+
+    final String? fcmToken;
+    try {
+      fcmToken = token ?? await _messaging.getToken();
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'fcm_get_token');
+      return;
+    }
+    if (fcmToken == null) {
+      debugPrint('[FCM] token null — check google-services.json');
       return;
     }
 

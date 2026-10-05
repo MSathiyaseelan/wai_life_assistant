@@ -125,6 +125,7 @@ class AuthCoordinator {
       if (kDebugMode) debugPrint('[Auth] Firebase OTP verified');
       final uid = _client.auth.currentUser?.id;
       if (uid != null) await SubscriptionService.instance.login(uid);
+      unawaited(FcmService.saveFcmToken());
     } on AuthException {
       // Already a specific, real error message (e.g. from the
       // FunctionException handling above) — preserve it as-is instead of
