@@ -80,5 +80,14 @@ class WhatsNew {
       'Shopping List: ticked an item by mistake? Tap Undo to bring it back.',
       'Family shopping lists now update live when another member adds or ticks off an item.',
     ],
+    37: [
+      'Fixed adding a task from the AI Assistant.',
+      'Fixed "Delete Account" failing.',
+      'Fixed the OTP code sometimes being saved as your name — names now need at least one letter.',
+      'Pasting or tapping the suggested OTP code now fills all six boxes at once.',
+      'Fixed the status bar and navigation buttons flickering on some Samsung phones.',
+      'The app opens faster on first launch, and notifications work right after you sign in.',
+      'Family: members can now leave a family from Edit Family, and only admins see the delete option.',
+    ],
   };
 }
