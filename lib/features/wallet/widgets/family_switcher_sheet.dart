@@ -743,7 +743,12 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                         ),
                       ),
                     ),
-                    if (_isEdit)
+                    // Deleting or handing over the family is admin-only
+                    // server-side (delete_family / transfer_admin_and_leave);
+                    // a plain member got a sheet whose every action failed
+                    // with "You are not an admin of this family". Members
+                    // leave via Settings → Family → Leave Family instead.
+                    if (_isEdit && isAdmin)
                       IconButton(
                         icon: const Icon(
                           Icons.delete_outline_rounded,
@@ -1074,6 +1079,33 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                               ),
                       ),
                     ),
+                    if (_isEdit && AuthCoordinator.instance.isLoggedIn) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _saving ? null : _confirmLeave,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.expense,
+                            side: BorderSide(
+                              color: AppColors.expense.withValues(alpha: 0.4),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Text(
+                            'Leave Family',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1586,6 +1618,142 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         ),
       ),
     ).then((_) => _deleteDialogOpen = false);
+  }
+
+  /// Leave Family from Edit Family — same rules as Settings → Family →
+  /// Leave Family: the sole admin must hand over admin first, and the last
+  /// member deletes the group instead of leaving it.
+  void _confirmLeave() {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    final members = widget.existing!.members;
+    // No "first member" fallback: acting as someone else's row is exactly
+    // what produced "You are not an admin of this family".
+    final mine = members.where((m) => m.userId != null && m.userId == uid);
+    final messenger = ScaffoldMessenger.of(context);
+    if (mine.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text("Couldn't find your membership. Please refresh and try again."),
+      ));
+      return;
+    }
+    final myMember = mine.first;
+    final otherMembers = members.where((m) => m.id != myMember.id).toList();
+    if (otherMembers.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text("You're the only member. Use the delete icon to remove the group instead."),
+      ));
+      return;
+    }
+    final amAdmin = myMember.role == MemberRole.admin;
+    final adminCount = members.where((m) => m.role == MemberRole.admin).length;
+    final mustTransfer = amAdmin && adminCount == 1;
+
+    final cardBg = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = widget.isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (dCtx) => Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text(
+              'Leave Family',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              mustTransfer
+                  ? 'You are the only admin. Transfer admin to another member before leaving.'
+                  : 'Are you sure you want to leave "${widget.existing!.name}"?',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+            ),
+            const SizedBox(height: 22),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(dCtx),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tc,
+                      backgroundColor: surfBg,
+                      side: BorderSide.none,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('Cancel',
+                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(dCtx);
+                      if (mustTransfer) {
+                        _showTransferAdminDialog(myMember, otherMembers);
+                        return;
+                      }
+                      widget.appState.switchWallet(
+                        widget.appState.wallets
+                            .firstWhere((w) => w.isPersonal, orElse: () => personalWallet)
+                            .id,
+                      );
+                      try {
+                        await ProfileService.instance.leaveFamily(myMember.id);
+                        if (mounted) {
+                          await widget.appState.reload();
+                          if (mounted) Navigator.pop(context);
+                        }
+                      } catch (e, stack) {
+                        ErrorLogger.log(e, stackTrace: stack, action: 'leave_family_from_edit');
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(friendlyError(e, 'Failed to leave family. Please try again.')),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: mustTransfer ? AppColors.primary : AppColors.expense,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(
+                      mustTransfer ? 'Transfer Admin' : 'Leave',
+                      style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Lets the sole admin step down instead of deleting the group outright —
