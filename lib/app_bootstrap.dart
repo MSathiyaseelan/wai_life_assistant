@@ -25,6 +25,23 @@ Future<void> bootstrapApp(String env) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   envConfig = EnvironmentConfig.fromEnv(env);
+  try {
+    SupabaseConfig.assertConfigured();
+  } on StateError catch (e) {
+    // Release build made without the define file — show why instead of
+    // a blank splash (and never fall back to the dev database).
+    runApp(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(e.message, textAlign: TextAlign.center),
+          ),
+        ),
+      ),
+    ));
+    return;
+  }
 
   // Phase 1 — Firebase and Supabase are independent; run in parallel.
   bool firebaseReady = false;

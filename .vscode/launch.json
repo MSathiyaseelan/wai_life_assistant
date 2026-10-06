@@ -5,25 +5,25 @@
       "name": "DEV",
       "request": "launch",
       "type": "dart",
-      "args": ["--dart-define=ENV=dev"]
+      "args": ["--dart-define-from-file=env/dev.json"]
     },
     {
       "name": "QA",
       "request": "launch",
       "type": "dart",
-      "args": ["--dart-define=ENV=qa"]
+      "args": ["--dart-define-from-file=env/qa.json"]
     },
     {
       "name": "UAT",
       "request": "launch",
       "type": "dart",
-      "args": ["--dart-define=ENV=uat"]
+      "args": ["--dart-define-from-file=env/uat.json"]
     },
     {
       "name": "PROD",
       "request": "launch",
       "type": "dart",
-      "args": ["--dart-define=ENV=prod"]
+      "args": ["--dart-define-from-file=env/prod.json"]
     }
   ]
 }

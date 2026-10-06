@@ -107,14 +107,16 @@ graph TD
 
 ## Environment Setup
 
-The environment is injected at **compile time** via `--dart-define`:
+The environment and its Supabase credentials are injected at **compile time** from a define file (`env/<env>.json`, git-ignored — copy `env/<env>.json.example`):
 
 ```bash
-flutter run                        # dev (default)
-flutter run --dart-define=ENV=qa
-flutter run --dart-define=ENV=uat
-flutter build apk --dart-define=ENV=prod
+flutter run                                          # dev (built-in fallback, debug only)
+flutter run --dart-define-from-file=env/qa.json
+flutter run --dart-define-from-file=env/uat.json
+flutter build appbundle --flavor prod --dart-define-from-file=env/prod.json --release
 ```
+
+Release builds have no credential fallback: built without the define file, the app throws at launch (`SupabaseConfig.assertConfigured`) rather than silently talking to the dev project. `--dart-define=ENV=prod` alone is **not** enough — it sets the label, not the database.
 
 `EnvironmentConfig` (`lib/core/env/environment_config.dart`) maps the string to a typed config object:
 
