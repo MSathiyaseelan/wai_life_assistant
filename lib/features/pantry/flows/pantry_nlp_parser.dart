@@ -447,14 +447,56 @@ class PantryNlpParser {
                 (cat != null ? 0.3 : 0.0))
             .clamp(0.0, 1.0);
 
+    final fixed = fixMassNounUnit(name, qty ?? 1, unit);
+
     return PantryIntent(
       kind: PantryIntentKind.basket,
       groceryName: name.isEmpty ? null : name,
-      qty: qty ?? 1,
-      unit: unit ?? 'pcs',
+      qty: fixed.qty,
+      unit: fixed.unit,
       groceryCat: cat ?? GroceryCategory.other,
       confidence: confidence,
     );
+  }
+
+  // ── Mass-noun unit sanity check ───────────────────────────────────────────
+  // Things bought by weight/volume, never counted. "Rice … 250 pcs" is
+  // always a lost unit (AI or a "Name 250" recipe ingredient), not 250
+  // grains of rice.
+  static final _massSolid = RegExp(
+    r'\b(rice|dal|dhal|daal|lentils?|flour|atta|maida|rava|sooji|suji|besan|'
+    r'salt|sugar|jaggery|wheat|poha|millet|ragi)\b',
+    caseSensitive: false,
+  );
+  static final _massLiquid = RegExp(r'\boil\b', caseSensitive: false);
+  // Count-type packaging in the name ("Salt Packet", "Rice Bag") — leave it.
+  static final _countable = RegExp(
+    r'\b(packets?|packs?|bags?|box(es)?|bottles?|tins?|cans?|cakes?|crackers?)\b',
+    caseSensitive: false,
+  );
+  static const _countUnits = {'', 'pc', 'pcs', 'piece', 'pieces', 'nos'};
+
+  /// When a mass noun (rice, dal, flour, salt, oil…) comes back counted in
+  /// pieces, swap in a weight/volume unit: a big number (≥ 50) is almost
+  /// certainly grams/ml that lost its unit, a small one kg/L. Anything else
+  /// is returned unchanged.
+  static ({double qty, String unit}) fixMassNounUnit(
+    String? name,
+    double qty,
+    String? unit,
+  ) {
+    final u = (unit ?? '').trim();
+    final n = name ?? '';
+    if (!_countUnits.contains(u.toLowerCase()) || _countable.hasMatch(n)) {
+      return (qty: qty, unit: u.isEmpty ? 'pcs' : u);
+    }
+    if (_massLiquid.hasMatch(n)) {
+      return (qty: qty, unit: qty >= 50 ? 'ml' : 'L');
+    }
+    if (_massSolid.hasMatch(n)) {
+      return (qty: qty, unit: qty >= 50 ? 'g' : 'kg');
+    }
+    return (qty: qty, unit: u.isEmpty ? 'pcs' : u);
   }
 
   static String _normaliseUnit(String u) {

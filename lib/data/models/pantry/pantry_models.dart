@@ -454,6 +454,16 @@ class GroceryItem {
   String get effectiveNormalizedName =>
       normalizedName ?? canonicalIngredientName(name);
 
+  /// "2 kg", "1.5 L" — no trailing ".0", and at most 2 decimals so merged
+  /// quantities like 0.1 + 0.2 don't show as 0.30000000000000004.
+  String get qtyLabel {
+    final q = quantity;
+    final text = q == q.truncateToDouble()
+        ? q.toInt().toString()
+        : q.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+    return '$text $unit';
+  }
+
   GroceryItem({
     required this.id,
     required this.name,

@@ -378,7 +378,7 @@ class _GroceryList extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            '${item.quantity} ${item.unit}',
+                            item.qtyLabel,
                             style: TextStyle(
                               fontSize: 11,
                               fontFamily: 'Nunito',

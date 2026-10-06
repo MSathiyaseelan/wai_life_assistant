@@ -3,6 +3,7 @@ import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/core/utils/ingredient_normalizer.dart';
+import 'package:wai_life_assistant/features/pantry/flows/pantry_nlp_parser.dart';
 
 // ── Add Recipe Sheet ──────────────────────────────────────────────────────────
 
@@ -1702,6 +1703,8 @@ class _RecipeActionsState extends State<_RecipeActions> {
           unit = m.group(2) ?? 'pcs';
         }
       }
+      (qty: qty, unit: unit) =
+          PantryNlpParser.fixMassNounUnit(name, qty, unit);
       widget.onAddToBasket!(
         GroceryItem(
           id: 'g_${widget.recipe.id}_${ing.hashCode}',

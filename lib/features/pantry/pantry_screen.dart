@@ -796,12 +796,17 @@ class _PantryScreenState extends State<PantryScreen>
     final name = (m['item_name'] as String? ?? 'Item').trim();
     final addToStock = (m['action'] as String?) == 'add_stock';
     final aiNormalized = (m['normalized_name'] as String?)?.trim();
+    final fixed = PantryNlpParser.fixMassNounUnit(
+      name,
+      (m['quantity'] as num?)?.toDouble() ?? 1,
+      m['unit'] as String?,
+    );
     return GroceryItem(
       id: id,
       name: name.isEmpty ? 'Item' : name,
       category: cat,
-      quantity: (m['quantity'] as num?)?.toDouble() ?? 1,
-      unit: m['unit'] as String? ?? 'pcs',
+      quantity: fixed.qty,
+      unit: fixed.unit,
       walletId: widget.activeWalletId,
       inStock: addToStock,
       toBuy: !addToStock,
@@ -865,11 +870,16 @@ class _PantryScreenState extends State<PantryScreen>
           (c) => c.name == catName,
           orElse: () => GroceryCategory.other,
         );
+        final fixed = PantryNlpParser.fixMassNounUnit(
+          d['item_name'] as String?,
+          (d['quantity'] as num?)?.toDouble() ?? 1,
+          d['unit'] as String?,
+        );
         return PantryIntent(
           kind: PantryIntentKind.basket,
           groceryName: d['item_name'] as String?,
-          qty: (d['quantity'] as num?)?.toDouble(),
-          unit: d['unit'] as String?,
+          qty: fixed.qty,
+          unit: fixed.unit,
           groceryCat: cat,
           confidence: confidence,
           addToStock: (d['action'] as String?) == 'add_stock',
@@ -1292,6 +1302,12 @@ class _PantryScreenState extends State<PantryScreen>
   /// Parse an ingredient string like "Chicken (500 g)" or "Chicken 500g"
   /// into separate name, quantity, and unit for creating a GroceryItem.
   ({String name, double qty, String unit}) _splitIngredient(String raw) {
+    final p = _splitIngredientRaw(raw);
+    final fixed = PantryNlpParser.fixMassNounUnit(p.name, p.qty, p.unit);
+    return (name: p.name, qty: fixed.qty, unit: fixed.unit);
+  }
+
+  ({String name, double qty, String unit}) _splitIngredientRaw(String raw) {
     final s = raw.trim();
     // "Name (qty unit)" or "Name (qty)"
     final pm = RegExp(r'^(.+?)\s*\(([^)]+)\)\s*$').firstMatch(s);
@@ -1970,7 +1986,7 @@ class _PantryScreenState extends State<PantryScreen>
       final ok = await _updateGrocery(existing, updates);
       if (ok && mounted) {
         _showSavedSnack(
-          '${displayCase(existing.name)} updated to ${updates['quantity']} ${updates['unit'] ?? existing.unit}',
+          '${displayCase(existing.name)} updated to ${existing.qtyLabel}',
           AppColors.income,
         );
       }
@@ -2880,6 +2896,13 @@ class _AddBasketSheetState extends State<_AddBasketSheet>
 
   static const _units = ['kg', 'g', 'litre', 'ml', 'pieces', 'packet', 'bunch'];
 
+  /// Map a parsed unit onto this sheet's picker ('L' → 'litre',
+  /// 'pcs' → 'pieces'); unknown units fall back to the first entry.
+  static String _sheetUnit(String u) {
+    final mapped = const {'L': 'litre', 'pcs': 'pieces'}[u] ?? u;
+    return _units.contains(mapped) ? mapped : _units[0];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2923,12 +2946,17 @@ class _AddBasketSheetState extends State<_AddBasketSheet>
         final catName   = data['category'] as String? ?? 'other';
         final parsedCat = GroceryCategory.values.firstWhere(
             (c) => c.name == catName, orElse: () => GroceryCategory.other);
-        final parsedUnit = data['unit'] as String? ?? 'kg';
-        final parsedQty  = (data['quantity'] as num?)?.toDouble() ?? 1.0;
+        final fixed = PantryNlpParser.fixMassNounUnit(
+          name,
+          (data['quantity'] as num?)?.toDouble() ?? 1.0,
+          data['unit'] as String? ?? 'kg',
+        );
+        final parsedUnit = _sheetUnit(fixed.unit);
+        final parsedQty  = fixed.qty;
         setState(() {
           if (name.isNotEmpty) _nameCtrl.text = name;
           _cat  = parsedCat;
-          _unit = _units.contains(parsedUnit) ? parsedUnit : _units[0];
+          _unit = parsedUnit;
           _qtyCtrl.text = parsedQty == parsedQty.truncateToDouble()
               ? parsedQty.toInt().toString()
               : parsedQty.toString();
@@ -2960,7 +2988,7 @@ class _AddBasketSheetState extends State<_AddBasketSheet>
     setState(() {
       _nameCtrl.text = intent.groceryName!;
       _cat = intent.groceryCat ?? GroceryCategory.other;
-      _unit = _units.contains(intent.unit) ? intent.unit! : _units[0];
+      _unit = _sheetUnit(intent.unit ?? '');
       final qty = intent.qty ?? 1.0;
       _qtyCtrl.text = qty == qty.truncateToDouble()
           ? qty.toInt().toString()
@@ -4777,7 +4805,7 @@ class _MultiBasketConfirmSheetState extends State<_MultiBasketConfirmSheet> {
                                 ),
                               ),
                               Text(
-                                '${item.quantity} ${item.unit}  ·  ${item.category.label}',
+                                '${item.qtyLabel}  ·  ${item.category.label}',
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontFamily: 'Nunito',

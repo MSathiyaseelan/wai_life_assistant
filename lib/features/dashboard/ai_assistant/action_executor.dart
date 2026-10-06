@@ -11,6 +11,7 @@ import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
+import 'package:wai_life_assistant/features/pantry/flows/pantry_nlp_parser.dart';
 import 'assistant_response.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,12 +48,17 @@ class ActionExecutor {
     try {
     switch (action.actionType) {
       case ActionType.addGrocery:
+        final fixed = PantryNlpParser.fixMassNounUnit(
+          _str(d, 'name'),
+          _num(d, 'qty', fallback: 1.0),
+          _str(d, 'unit', fallback: 'pcs'),
+        );
         await PantryService.instance.addGroceryItem(
           walletId: walletId,
           name: _str(d, 'name'),
           category: _str(d, 'category', fallback: 'other'),
-          quantity: _num(d, 'qty', fallback: 1.0),
-          unit: _str(d, 'unit', fallback: 'pcs'),
+          quantity: fixed.qty,
+          unit: fixed.unit,
           inStock: false,
           toBuy: true,
           isGrocery: d['is_grocery'] as bool? ?? true,

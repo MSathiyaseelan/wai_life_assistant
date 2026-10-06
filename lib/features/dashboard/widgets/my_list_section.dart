@@ -388,15 +388,7 @@ class MyListSection extends StatelessWidget {
   }
 }
 
-/// "2 kg", "1.5 L" — at most 2 decimals, so merged quantities like
-/// 0.1 + 0.2 don't show as 0.30000000000000004.
-String _qtyLabel(GroceryItem item) {
-  final q = item.quantity;
-  final text = q == q.truncateToDouble()
-      ? q.toInt().toString()
-      : q.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '');
-  return '$text ${item.unit}';
-}
+String _qtyLabel(GroceryItem item) => item.qtyLabel;
 
 // ── Sub-header row inside card ────────────────────────────────────────────────
 

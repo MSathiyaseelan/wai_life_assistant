@@ -732,6 +732,64 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 12b. Mass-noun unit sanity check
+  // ═══════════════════════════════════════════════════════════════════════════
+  group('fixMassNounUnit', () {
+    ({double qty, String unit}) fix(String name, double qty, String? unit) =>
+        PantryNlpParser.fixMassNounUnit(name, qty, unit);
+
+    test('big count of rice → grams', () {
+      expect(fix('Rice And Fenugreek Seeds', 251, 'pcs'), (qty: 251.0, unit: 'g'));
+    });
+    test('big count of dal → grams', () {
+      expect(fix('Dal', 200, 'pcs'), (qty: 200.0, unit: 'g'));
+    });
+    test('small count of salt → kg', () {
+      expect(fix('Salt', 3, 'pcs'), (qty: 3.0, unit: 'kg'));
+    });
+    test('"pieces" (Gemini spelling) is treated as a count', () {
+      expect(fix('Atta', 5, 'pieces'), (qty: 5.0, unit: 'kg'));
+    });
+    test('missing unit on a mass noun → kg', () {
+      expect(fix('Sugar', 1, null), (qty: 1.0, unit: 'kg'));
+    });
+    test('oil → L / ml', () {
+      expect(fix('Coconut Oil', 2, 'pcs'), (qty: 2.0, unit: 'L'));
+      expect(fix('Coconut Oil', 500, 'pcs'), (qty: 500.0, unit: 'ml'));
+    });
+    test('a real unit is left alone', () {
+      expect(fix('Rice', 5, 'kg'), (qty: 5.0, unit: 'kg'));
+      expect(fix('Dal', 1, 'packet'), (qty: 1.0, unit: 'packet'));
+    });
+    test('packaging in the name keeps the count', () {
+      expect(fix('Salt Packet', 2, 'pcs'), (qty: 2.0, unit: 'pcs'));
+      expect(fix('Rice Cakes', 4, 'pcs'), (qty: 4.0, unit: 'pcs'));
+    });
+    test('countable items are untouched', () {
+      expect(fix('Eggs', 12, 'pcs'), (qty: 12.0, unit: 'pcs'));
+      expect(fix('Water', 3, 'pcs'), (qty: 3.0, unit: 'pcs'));
+    });
+    test('whole words only ("Riced Cauliflower", "Toilet")', () {
+      expect(fix('Riced Cauliflower', 2, 'pcs').unit, 'pcs');
+      expect(fix('Toilet Cleaner', 1, 'pcs').unit, 'pcs');
+    });
+    test('local parser applies it: "buy rice 250" → 250 g', () {
+      final r = PantryNlpParser.parse('buy rice 250');
+      expect(r.qty, 250.0);
+      expect(r.unit, 'g');
+    });
+  });
+
+  group('GroceryItem.qtyLabel', () {
+    GroceryItem item(double q, String u) => GroceryItem(
+        id: 'x', name: 'x', category: GroceryCategory.other,
+        quantity: q, unit: u, walletId: 'w');
+    test('whole number drops ".0"', () => expect(item(251.0, 'pcs').qtyLabel, '251 pcs'));
+    test('decimal kept', () => expect(item(2.5, 'kg').qtyLabel, '2.5 kg'));
+    test('float noise trimmed', () => expect(item(0.1 + 0.2, 'L').qtyLabel, '0.3 L'));
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 13. Cross-cutting: addToStock and defaults
   // ═══════════════════════════════════════════════════════════════════════════
   group('PantryIntent — addToStock default and field defaults', () {
