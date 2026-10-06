@@ -215,7 +215,7 @@ class _AppShellState extends State<AppShell> {
     (icon: AppPrefs.cs, label: 'Wallet'),
     (icon: '🥗', label: 'Pantry'),
     (icon: '🎊', label: 'MyHub'),   // dynamic: MyHub / FamilyHub — see _hubLabel()
-    (icon: '📅', label: 'PlanIt'),
+    (icon: '🗓️', label: 'PlanIt'),
     (icon: '✨', label: 'MyLife'), // V2 — hidden from nav bar
   ];
 

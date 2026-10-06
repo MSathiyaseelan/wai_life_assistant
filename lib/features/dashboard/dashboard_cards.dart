@@ -847,14 +847,17 @@ class _TodaysPlateCard extends StatelessWidget {
                   ],
                 ),
                 const Spacer(),
+                // Empty: a visible call to action — the whole card already
+                // opens the Meal Map, this just says so.
                 Text(
                   meals.isEmpty
-                      ? 'Nothing planned'
+                      ? 'Plan a meal →'
                       : '${meals.length} meal${meals.length == 1 ? '' : 's'}',
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Nunito',
-                    color: sub,
+                    fontWeight: meals.isEmpty ? FontWeight.w800 : FontWeight.normal,
+                    color: meals.isEmpty ? AppColors.primary : sub,
                   ),
                 ),
               ],
