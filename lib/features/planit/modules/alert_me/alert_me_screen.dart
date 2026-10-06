@@ -535,6 +535,7 @@ class _AlertMeScreenState extends State<AlertMeScreen>
       context,
       child: _ReminderDetailSheet(
         reminder: r,
+        members: widget.members,
         isDark: isDark,
         surfBg: surfBg,
         onSnooze: () {
@@ -916,14 +917,27 @@ class _ActionBtn extends StatelessWidget {
 // REMINDER DETAIL SHEET
 // ─────────────────────────────────────────────────────────────────────────────
 
+const _meMember = PlanMember(id: 'me', name: 'Me', emoji: '👤');
+
+/// The real wallet member a reminder is assigned to ('me' → Me).
+PlanMember _memberFor(List<PlanMember> members, String assignedTo) =>
+    members.firstWhere(
+      (m) => m.id == assignedTo,
+      orElse: () => assignedTo == 'me'
+          ? _meMember
+          : const PlanMember(id: '?', name: '?', emoji: '👤'),
+    );
+
 class _ReminderDetailSheet extends StatelessWidget {
   final ReminderModel reminder;
+  final List<PlanMember> members;
   final bool isDark;
   final Color surfBg;
   final VoidCallback onSnooze, onDone, onDelete, onEdit;
 
   const _ReminderDetailSheet({
     required this.reminder,
+    required this.members,
     required this.isDark,
     required this.surfBg,
     required this.onSnooze,
@@ -943,10 +957,7 @@ class _ReminderDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final member = mockMembers.firstWhere(
-      (m) => m.id == reminder.assignedTo,
-      orElse: () => const PlanMember(id: '?', name: '?', emoji: '👤'),
-    );
+    final member = _memberFor(members, reminder.assignedTo);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
@@ -1359,7 +1370,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
     } catch (e) {
       if (mounted) maybeShowAiLimitSnackbar(context, e.toString().replaceFirst('Exception: ', ''));
       try {
-        result = _NlpParser.parse(text.trim(), widget.walletId);
+        result = _NlpParser.parse(text.trim(), widget.walletId, widget.members);
         _usingAI = false;
       } catch (e) {
         if (mounted) {
@@ -1512,6 +1523,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
             const SizedBox(height: 12),
             _AiPreviewCard(
               preview: _aiPreview!,
+              members: widget.members,
               isDark: widget.isDark,
               surfBg: widget.surfBg,
               usedAI: _usingAI,
@@ -1743,6 +1755,7 @@ class _ErrorBanner extends StatelessWidget {
 
 class _AiPreviewCard extends StatelessWidget {
   final _ParsedReminder preview;
+  final List<PlanMember> members;
   final bool isDark;
   final Color surfBg;
   final bool usedAI;
@@ -1750,6 +1763,7 @@ class _AiPreviewCard extends StatelessWidget {
 
   const _AiPreviewCard({
     required this.preview,
+    required this.members,
     required this.isDark,
     required this.surfBg,
     required this.usedAI,
@@ -1759,10 +1773,7 @@ class _AiPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final member = mockMembers.firstWhere(
-      (m) => m.id == preview.assignedTo,
-      orElse: () => const PlanMember(id: '?', name: 'Me', emoji: '👤'),
-    );
+    final member = _memberFor(members, preview.assignedTo);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -2397,7 +2408,7 @@ class _ManualForm extends StatelessWidget {
             height: 52,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              children: (members.isNotEmpty ? members : mockMembers)
+              children: (members.isNotEmpty ? members : const [_meMember])
                   .map(
                     (m) => Padding(
                       padding: const EdgeInsets.only(right: 8),
@@ -2609,7 +2620,11 @@ class _ParsedReminder {
 }
 
 class _NlpParser {
-  static _ParsedReminder parse(String raw, String walletId) {
+  static _ParsedReminder parse(
+    String raw,
+    String walletId,
+    List<PlanMember> members,
+  ) {
     final text = raw.trim();
     final lower = text.toLowerCase();
     final now = DateTime.now();
@@ -2721,8 +2736,7 @@ class _NlpParser {
 
     // ── Assigned member ──────────────────────────────────────────────────
     String assignedTo = 'me';
-    // member detection uses mockMembers as fallback
-    for (final m in mockMembers) {
+    for (final m in members) {
       if (m.id != 'me' && lower.contains(m.name.toLowerCase())) {
         assignedTo = m.id;
         break;
