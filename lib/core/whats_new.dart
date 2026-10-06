@@ -89,5 +89,13 @@ class WhatsNew {
       'The app opens faster on first launch, and notifications work right after you sign in.',
       'Family: members can now leave a family from Edit Family, and only admins see the delete option.',
     ],
+    38: [
+      'Pantry: rice, dal, flour, oil and other loose items now get sensible units (g, kg, L) instead of "pcs".',
+      'Pantry: quantities show cleanly — "2 kg" instead of "2.0 kg".',
+      'Pantry: add several items in one go, e.g. "need brinjal 2kg and pori 1 pack".',
+      'Pantry: new Oils category, and meat and fish are now filed under Meat instead of Other.',
+      'Alert Me: reminders now show the right family member they\'re assigned to.',
+      'Dashboard: tap "Plan a meal" on Today\'s Plate to start planning.',
+    ],
   };
 }
