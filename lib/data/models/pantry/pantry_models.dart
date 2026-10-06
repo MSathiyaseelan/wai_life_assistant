@@ -61,8 +61,35 @@ enum GroceryCategory {
   beverages,
   snacks,
   spices,
+  oils,
   cleaning,
   other,
+}
+
+final _oilName = RegExp(r'\boils?\b', caseSensitive: false);
+final _nonCookingOil =
+    RegExp(r'\b(hair|body|massage|baby|engine|lamp|essential)\b', caseSensitive: false);
+
+/// Parse a category string from the AI or the database. Accepts names the
+/// live prompt has produced that aren't enum values ('proteins' → meat,
+/// 'personal_care' → other), and files cooking oils under [GroceryCategory.oils]
+/// whatever came back — the AI used to put them under spices for lack of an
+/// oils category, so this also fixes rows already saved that way.
+GroceryCategory groceryCategoryFrom(String? raw, {String? itemName}) {
+  final name = itemName ?? '';
+  if (_oilName.hasMatch(name) && !_nonCookingOil.hasMatch(name)) {
+    return GroceryCategory.oils;
+  }
+  final key = (raw ?? '').trim().toLowerCase();
+  for (final c in GroceryCategory.values) {
+    if (c.name == key) return c;
+  }
+  return const {
+        'proteins': GroceryCategory.meat,
+        'protein': GroceryCategory.meat,
+        'oil': GroceryCategory.oils,
+      }[key] ??
+      GroceryCategory.other;
 }
 
 extension GroceryCategoryExt on GroceryCategory {
@@ -84,6 +111,8 @@ extension GroceryCategoryExt on GroceryCategory {
         return 'Snacks';
       case GroceryCategory.spices:
         return 'Spices';
+      case GroceryCategory.oils:
+        return 'Oils';
       case GroceryCategory.cleaning:
         return 'Cleaning';
       case GroceryCategory.other:
@@ -109,6 +138,8 @@ extension GroceryCategoryExt on GroceryCategory {
         return '🍿';
       case GroceryCategory.spices:
         return '🌶️';
+      case GroceryCategory.oils:
+        return '🫒';
       case GroceryCategory.cleaning:
         return '🧹';
       case GroceryCategory.other:
@@ -486,9 +517,9 @@ class GroceryItem {
     id: m['id'] as String,
     walletId: m['wallet_id'] as String,
     name: m['name'] as String,
-    category: GroceryCategory.values.firstWhere(
-      (c) => c.name == (m['category'] as String),
-      orElse: () => GroceryCategory.other,
+    category: groceryCategoryFrom(
+      m['category'] as String?,
+      itemName: m['name'] as String?,
     ),
     quantity: (m['quantity'] as num).toDouble(),
     unit: m['unit'] as String,

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
+import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart'
+    show groceryCategoryFrom;
 import 'package:wai_life_assistant/data/services/pantry_service.dart';
 import 'package:wai_life_assistant/data/services/task_service.dart';
 import 'package:wai_life_assistant/data/services/reminder_service.dart';
@@ -56,7 +58,10 @@ class ActionExecutor {
         await PantryService.instance.addGroceryItem(
           walletId: walletId,
           name: _str(d, 'name'),
-          category: _str(d, 'category', fallback: 'other'),
+          category: groceryCategoryFrom(
+            _str(d, 'category', fallback: 'other'),
+            itemName: _str(d, 'name'),
+          ).name,
           quantity: fixed.qty,
           unit: fixed.unit,
           inStock: false,

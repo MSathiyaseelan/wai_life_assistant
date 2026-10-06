@@ -780,6 +780,28 @@ void main() {
     });
   });
 
+  group('groceryCategoryFrom', () {
+    test('cooking oil → oils, whatever the AI said', () {
+      expect(groceryCategoryFrom('spices', itemName: 'Coconut Oil'), GroceryCategory.oils);
+      expect(groceryCategoryFrom('other', itemName: 'Sunflower Oils'), GroceryCategory.oils);
+    });
+    test('non-cooking oils and "toilet" are not oils', () {
+      expect(groceryCategoryFrom('other', itemName: 'Hair Oil'), GroceryCategory.other);
+      expect(groceryCategoryFrom('cleaning', itemName: 'Toilet Cleaner'), GroceryCategory.cleaning);
+    });
+    test('off-list AI names are mapped', () {
+      expect(groceryCategoryFrom('proteins', itemName: 'Chicken'), GroceryCategory.meat);
+      expect(groceryCategoryFrom('personal_care', itemName: 'Soap'), GroceryCategory.other);
+      expect(groceryCategoryFrom(null), GroceryCategory.other);
+    });
+    test('exact names pass through', () {
+      expect(groceryCategoryFrom('vegetables', itemName: 'Brinjal'), GroceryCategory.vegetables);
+    });
+    test('local parser: "buy coconut oil 1L" → oils', () {
+      expect(PantryNlpParser.parse('buy coconut oil 1L').groceryCat, GroceryCategory.oils);
+    });
+  });
+
   group('GroceryItem.qtyLabel', () {
     GroceryItem item(double q, String u) => GroceryItem(
         id: 'x', name: 'x', category: GroceryCategory.other,

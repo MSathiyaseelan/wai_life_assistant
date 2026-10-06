@@ -788,12 +788,8 @@ class _PantryScreenState extends State<PantryScreen>
 
   /// Map a single AI basket item map to a [GroceryItem].
   GroceryItem _mapBasketItem(Map<String, dynamic> m, String id) {
-    final catName = m['category'] as String? ?? 'other';
-    final cat = GroceryCategory.values.firstWhere(
-      (c) => c.name == catName,
-      orElse: () => GroceryCategory.other,
-    );
     final name = (m['item_name'] as String? ?? 'Item').trim();
+    final cat = groceryCategoryFrom(m['category'] as String?, itemName: name);
     final addToStock = (m['action'] as String?) == 'add_stock';
     final aiNormalized = (m['normalized_name'] as String?)?.trim();
     final fixed = PantryNlpParser.fixMassNounUnit(
@@ -865,10 +861,9 @@ class _PantryScreenState extends State<PantryScreen>
         );
 
       default: // 'basket' — single item
-        final catName = d['category'] as String? ?? 'other';
-        final cat = GroceryCategory.values.firstWhere(
-          (c) => c.name == catName,
-          orElse: () => GroceryCategory.other,
+        final cat = groceryCategoryFrom(
+          d['category'] as String?,
+          itemName: d['item_name'] as String?,
         );
         final fixed = PantryNlpParser.fixMassNounUnit(
           d['item_name'] as String?,
@@ -2943,9 +2938,8 @@ class _AddBasketSheetState extends State<_AddBasketSheet>
         }
         // Single item — fill manual tab and switch to it
         final name      = (data['item_name'] as String? ?? '').trim();
-        final catName   = data['category'] as String? ?? 'other';
-        final parsedCat = GroceryCategory.values.firstWhere(
-            (c) => c.name == catName, orElse: () => GroceryCategory.other);
+        final parsedCat =
+            groceryCategoryFrom(data['category'] as String?, itemName: name);
         final fixed = PantryNlpParser.fixMassNounUnit(
           name,
           (data['quantity'] as num?)?.toDouble() ?? 1.0,

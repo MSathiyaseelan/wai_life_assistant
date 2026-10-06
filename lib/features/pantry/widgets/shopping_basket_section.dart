@@ -1043,10 +1043,9 @@ class _ScanBillSheetState extends State<ScanBillSheet> {
           (result.data?['items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
       final items = rawItems.map((m) {
-        final catStr = (m['category'] as String?)?.toLowerCase() ?? 'other';
-        final cat = GroceryCategory.values.firstWhere(
-          (c) => c.name == catStr,
-          orElse: () => GroceryCategory.other,
+        final cat = groceryCategoryFrom(
+          m['category'] as String?,
+          itemName: m['name'] as String?,
         );
         return _ScannedItem(
           name: m['name'] as String? ?? 'Item',

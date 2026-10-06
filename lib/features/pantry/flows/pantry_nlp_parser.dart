@@ -454,7 +454,8 @@ class PantryNlpParser {
       groceryName: name.isEmpty ? null : name,
       qty: fixed.qty,
       unit: fixed.unit,
-      groceryCat: cat ?? GroceryCategory.other,
+      // Word-boundary oil check (a substring 'oil' key would catch "toilet").
+      groceryCat: groceryCategoryFrom(cat?.name, itemName: name),
       confidence: confidence,
     );
   }
