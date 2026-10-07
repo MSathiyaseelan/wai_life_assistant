@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
@@ -406,7 +407,9 @@ class _TravelBoardScreenState extends State<TravelBoardScreen>
           Navigator.pop(ctx);
           _openTripSheet(ctx, isDark, surfBg, trip);
         },
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(ctx)) return;
+          if (!ctx.mounted) return;
           _delete(trip);
           Navigator.pop(ctx);
         },
@@ -1415,7 +1418,9 @@ class _TasksTabState extends State<_TasksTab> {
     widget.onUpdate();
   }
 
-  void _deleteTask(TripTask task) {
+  Future<void> _deleteTask(TripTask task) async {
+    if (!await confirmDelete(context)) return;
+    if (!mounted) return;
     setState(() => widget.trip.tasks.remove(task));
     widget.onUpdate();
   }

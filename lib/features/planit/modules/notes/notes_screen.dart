@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../../../../core/theme/app_theme.dart';
@@ -481,7 +482,9 @@ class _NotesScreenState extends State<NotesScreen> {
           Navigator.pop(context);
           _togglePin(note);
         },
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(context)) return;
+          if (!mounted) return;
           Navigator.pop(context);
           _deleteNote(note);
         },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
@@ -335,7 +336,9 @@ class BillWatchScreenState extends State<BillWatchScreen>
           Navigator.pop(ctx);
           _openEditSheet(ctx, b, isDark, surfBg);
         },
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(ctx)) return;
+          if (!ctx.mounted) return;
           _delete(b);
           Navigator.pop(ctx);
         },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
@@ -128,7 +129,9 @@ class _MyScheduleScreenState extends State<MyScheduleScreen>
                   _markDone(a);
                   Navigator.pop(context);
                 },
-                onDelete: () {
+                onDelete: () async {
+                  if (!await confirmDelete(context)) return;
+                  if (!context.mounted) return;
                   _delete(a);
                   Navigator.pop(context);
                 },

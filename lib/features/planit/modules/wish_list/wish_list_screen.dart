@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -455,7 +456,9 @@ class _WishListScreenState extends State<WishListScreen>
           Navigator.pop(ctx);
           _openEditSheet(ctx, w, isDark, surfBg);
         },
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(ctx)) return;
+          if (!ctx.mounted) return;
           _delete(w);
           Navigator.pop(ctx);
         },

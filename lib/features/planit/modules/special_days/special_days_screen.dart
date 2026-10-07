@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -653,7 +654,9 @@ class _SpecialDaysScreenState extends State<SpecialDaysScreen>
         day: d,
         isDark: isDark,
         nextOccurrence: _nextOccurrence,
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(ctx)) return;
+          if (!ctx.mounted) return;
           _delete(d);
           Navigator.pop(ctx);
         },

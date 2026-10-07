@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -546,7 +547,9 @@ class _AlertMeScreenState extends State<AlertMeScreen>
           _markDone(r);
           Navigator.pop(context);
         },
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(context)) return;
+          if (!context.mounted) return;
           _delete(r);
           Navigator.pop(context);
         },

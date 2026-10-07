@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:flutter/services.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -486,7 +487,9 @@ class _MyTasksScreenState extends State<MyTasksScreen>
           Navigator.pop(ctx);
         },
         onToggleSubtask: _toggleSubtask,
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(ctx)) return;
+          if (!ctx.mounted) return;
           _delete(t);
           Navigator.pop(ctx);
         },

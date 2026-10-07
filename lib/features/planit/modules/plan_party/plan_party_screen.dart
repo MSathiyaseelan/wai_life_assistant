@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
@@ -82,7 +83,9 @@ class _PlanPartyScreenState extends State<PlanPartyScreen> {
                         party: _filtered[i],
                         isDark: isDark,
                         onUpdate: () => setState(() {}),
-                        onDelete: () {
+                        onDelete: () async {
+                          if (!await confirmDelete(context)) return;
+                          if (!context.mounted) return;
                           setState(() => _parties.remove(_filtered[i]));
                           Navigator.pop(context);
                         },

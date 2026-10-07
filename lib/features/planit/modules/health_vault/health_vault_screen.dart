@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 import '../../widgets/plan_widgets.dart';
@@ -314,7 +315,9 @@ class _HealthVaultScreenState extends State<HealthVaultScreen> {
       child: _RecordDetailSheet(
         record: r,
         isDark: isDark,
-        onDelete: () {
+        onDelete: () async {
+          if (!await confirmDelete(context)) return;
+          if (!context.mounted) return;
           setState(() => _active.records.removeWhere((x) => x.id == r.id));
           Navigator.pop(context);
         },
