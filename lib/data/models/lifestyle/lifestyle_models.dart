@@ -817,6 +817,36 @@ class FunctionVendor {
   });
 
   double get balance => (totalCost ?? 0) - (advancePaid ?? 0);
+
+  factory FunctionVendor.fromJson(Map<String, dynamic> j) => FunctionVendor(
+    id: j['id'] as String,
+    name: j['name'] as String? ?? '',
+    category: VendorCategory.values.firstWhere(
+      (c) => c.name == j['category'],
+      orElse: () => VendorCategory.catering,
+    ),
+    phone: j['phone'] as String?,
+    email: j['email'] as String?,
+    address: j['address'] as String?,
+    totalCost: (j['total_cost'] as num?)?.toDouble(),
+    advancePaid: (j['advance_paid'] as num?)?.toDouble(),
+    eventLinked: j['event_linked'] as String?,
+    notes: j['notes'] as String?,
+  );
+
+  /// Excludes id / function_id — the caller adds function_id on insert.
+  /// Nullable fields are always sent so an edit can clear them.
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'category': category.name,
+    'phone': phone,
+    'email': email,
+    'address': address,
+    'total_cost': totalCost,
+    'advance_paid': advancePaid,
+    'event_linked': eventLinked,
+    'notes': notes,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -49,6 +49,21 @@ class _FunctionDetailState extends State<_FunctionDetail>
     _tab = TabController(length: tabCount, vsync: this);
     if (widget.showPlanningTabs) _loadPlanningData();
     _loadDishes();
+    _loadVendors();
+  }
+
+  Future<void> _loadVendors() async {
+    try {
+      final rows = await FunctionsService.instance.fetchVendors(widget.fn.id);
+      if (!mounted) return;
+      setState(() {
+        widget.fn.vendors
+          ..clear()
+          ..addAll(rows.map(FunctionVendor.fromJson));
+      });
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'function_detail_vendors_load');
+    }
   }
 
   Future<void> _loadDishes() async {
@@ -375,9 +390,9 @@ class _FunctionDetailState extends State<_FunctionDetail>
           _AllVendorsTab(
             fn: fn,
             isDark: isDark,
-            onAdd: () => _showAddVendor(context, isDark, surfBg, fn),
-            onEdit: (v) => _showEditVendor(context, isDark, surfBg, v),
-            onDelete: (v) => setState(() => fn.vendors.remove(v)),
+            onAdd: () => _showVendorSheet(context, fn: fn, isDark: isDark, surfBg: surfBg, onChanged: () => setState(() {})),
+            onEdit: (v) => _showVendorSheet(context, fn: fn, existing: v, isDark: isDark, surfBg: surfBg, onChanged: () => setState(() {})),
+            onDelete: (v) => _deleteVendor(context, fn, v, () => setState(() {})),
           ),
 
           // MESSAGES
@@ -405,362 +420,6 @@ class _FunctionDetailState extends State<_FunctionDetail>
             },
           ),
         ],
-      ),
-    );
-  }
-
-  void _showAddVendor(
-    BuildContext ctx,
-    bool isDark,
-    Color surfBg,
-    FunctionModel fn,
-  ) {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final addressCtrl = TextEditingController();
-    final costCtrl = TextEditingController();
-    final advanceCtrl = TextEditingController();
-    final eventCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    var category = VendorCategory.catering;
-    showPlanSheet(
-      ctx,
-      child: StatefulBuilder(
-        builder: (sheetCtx, ss) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 8,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Add Vendor',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
-              ),
-              const SizedBox(height: 14),
-              const SheetLabel(text: 'VENDOR NAME'),
-              PlanInputField(
-                controller: nameCtrl,
-                hint: 'e.g. Sri Krishna Catering',
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'CATEGORY'),
-              SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: VendorCategory.values.map((c) {
-                    final sel = category == c;
-                    return GestureDetector(
-                      onTap: () => ss(() => category = c),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? _funcColor.withValues(alpha: 0.15)
-                              : surfBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: sel ? _funcColor : Colors.transparent,
-                          ),
-                        ),
-                        child: Text(
-                          '${c.emoji} ${c.label}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: sel
-                                ? _funcColor
-                                : (isDark
-                                      ? AppColors.subDark
-                                      : AppColors.subLight),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'CONTACT'),
-              PlanInputField(
-                controller: phoneCtrl,
-                hint: 'Phone number',
-                inputType: TextInputType.phone,
-              ),
-              const SizedBox(height: 8),
-              PlanInputField(
-                controller: emailCtrl,
-                hint: 'Email (optional)',
-                inputType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 8),
-              PlanInputField(
-                controller: addressCtrl,
-                hint: 'Address (optional)',
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'COST'),
-              Row(
-                children: [
-                  Expanded(
-                    child: PlanInputField(
-                      controller: costCtrl,
-                      hint: 'Total cost (${AppPrefs.cs})',
-                      inputType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: PlanInputField(
-                      controller: advanceCtrl,
-                      hint: 'Advance paid (${AppPrefs.cs})',
-                      inputType: TextInputType.number,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'EVENT LINKED'),
-              PlanInputField(
-                controller: eventCtrl,
-                hint: 'e.g. Wedding, Housewarming',
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'NOTES'),
-              PlanInputField(
-                controller: notesCtrl,
-                hint: 'Invoice details, notes…',
-                maxLines: 3,
-              ),
-              SaveButton(
-                label: 'Add Vendor',
-                color: _funcColor,
-                onTap: () {
-                  if (nameCtrl.text.trim().isEmpty) return;
-                  setState(() {
-                    fn.vendors.add(
-                      FunctionVendor(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        name: nameCtrl.text.trim(),
-                        category: category,
-                        phone: phoneCtrl.text.trim().isEmpty
-                            ? null
-                            : phoneCtrl.text.trim(),
-                        email: emailCtrl.text.trim().isEmpty
-                            ? null
-                            : emailCtrl.text.trim(),
-                        address: addressCtrl.text.trim().isEmpty
-                            ? null
-                            : addressCtrl.text.trim(),
-                        totalCost: double.tryParse(costCtrl.text.trim()),
-                        advancePaid: double.tryParse(advanceCtrl.text.trim()),
-                        eventLinked: eventCtrl.text.trim().isEmpty
-                            ? null
-                            : eventCtrl.text.trim(),
-                        notes: notesCtrl.text.trim().isEmpty
-                            ? null
-                            : notesCtrl.text.trim(),
-                      ),
-                    );
-                  });
-                  Navigator.pop(sheetCtx);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showEditVendor(
-    BuildContext ctx,
-    bool isDark,
-    Color surfBg,
-    FunctionVendor v,
-  ) {
-    final nameCtrl = TextEditingController(text: v.name);
-    final phoneCtrl = TextEditingController(text: v.phone ?? '');
-    final emailCtrl = TextEditingController(text: v.email ?? '');
-    final addressCtrl = TextEditingController(text: v.address ?? '');
-    final costCtrl = TextEditingController(
-      text: v.totalCost?.toStringAsFixed(0) ?? '',
-    );
-    final advanceCtrl = TextEditingController(
-      text: v.advancePaid?.toStringAsFixed(0) ?? '',
-    );
-    final eventCtrl = TextEditingController(text: v.eventLinked ?? '');
-    final notesCtrl = TextEditingController(text: v.notes ?? '');
-    var category = v.category;
-    showPlanSheet(
-      ctx,
-      child: StatefulBuilder(
-        builder: (sheetCtx, ss) => Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 8,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Edit Vendor',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  fontFamily: 'Nunito',
-                ),
-              ),
-              const SizedBox(height: 14),
-              const SheetLabel(text: 'VENDOR NAME'),
-              PlanInputField(controller: nameCtrl, hint: 'Vendor name'),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'CATEGORY'),
-              SizedBox(
-                height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: VendorCategory.values.map((c) {
-                    final sel = category == c;
-                    return GestureDetector(
-                      onTap: () => ss(() => category = c),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? _funcColor.withValues(alpha: 0.15)
-                              : surfBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: sel ? _funcColor : Colors.transparent,
-                          ),
-                        ),
-                        child: Text(
-                          '${c.emoji} ${c.label}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: sel
-                                ? _funcColor
-                                : (isDark
-                                      ? AppColors.subDark
-                                      : AppColors.subLight),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'CONTACT'),
-              PlanInputField(
-                controller: phoneCtrl,
-                hint: 'Phone number',
-                inputType: TextInputType.phone,
-              ),
-              const SizedBox(height: 8),
-              PlanInputField(
-                controller: emailCtrl,
-                hint: 'Email (optional)',
-                inputType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 8),
-              PlanInputField(
-                controller: addressCtrl,
-                hint: 'Address (optional)',
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'COST'),
-              Row(
-                children: [
-                  Expanded(
-                    child: PlanInputField(
-                      controller: costCtrl,
-                      hint: 'Total cost (${AppPrefs.cs})',
-                      inputType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: PlanInputField(
-                      controller: advanceCtrl,
-                      hint: 'Advance paid (${AppPrefs.cs})',
-                      inputType: TextInputType.number,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'EVENT LINKED'),
-              PlanInputField(
-                controller: eventCtrl,
-                hint: 'e.g. Wedding, Housewarming',
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'NOTES'),
-              PlanInputField(
-                controller: notesCtrl,
-                hint: 'Invoice details, notes…',
-                maxLines: 3,
-              ),
-              SaveButton(
-                label: 'Save Changes',
-                color: _funcColor,
-                onTap: () {
-                  if (nameCtrl.text.trim().isEmpty) return;
-                  setState(() {
-                    v.name = nameCtrl.text.trim();
-                    v.category = category;
-                    v.phone = phoneCtrl.text.trim().isEmpty
-                        ? null
-                        : phoneCtrl.text.trim();
-                    v.email = emailCtrl.text.trim().isEmpty
-                        ? null
-                        : emailCtrl.text.trim();
-                    v.address = addressCtrl.text.trim().isEmpty
-                        ? null
-                        : addressCtrl.text.trim();
-                    v.totalCost = double.tryParse(costCtrl.text.trim());
-                    v.advancePaid = double.tryParse(advanceCtrl.text.trim());
-                    v.eventLinked = eventCtrl.text.trim().isEmpty
-                        ? null
-                        : eventCtrl.text.trim();
-                    v.notes = notesCtrl.text.trim().isEmpty
-                        ? null
-                        : notesCtrl.text.trim();
-                  });
-                  Navigator.pop(sheetCtx);
-                },
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1717,6 +1376,176 @@ class _FilteredGiftTab extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+// ── Vendor add / edit / delete (shared by Planned and Completed detail) ──────
+
+/// Add ([existing] == null) or edit a vendor, saved to function_vendors.
+void _showVendorSheet(
+  BuildContext ctx, {
+  required FunctionModel fn,
+  FunctionVendor? existing,
+  required bool isDark,
+  required Color surfBg,
+  required VoidCallback onChanged,
+}) {
+  final nameCtrl = TextEditingController(text: existing?.name ?? '');
+  final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
+  final emailCtrl = TextEditingController(text: existing?.email ?? '');
+  final addressCtrl = TextEditingController(text: existing?.address ?? '');
+  final costCtrl = TextEditingController(text: existing?.totalCost?.toStringAsFixed(0) ?? '');
+  final advanceCtrl = TextEditingController(text: existing?.advancePaid?.toStringAsFixed(0) ?? '');
+  final eventCtrl = TextEditingController(text: existing?.eventLinked ?? '');
+  final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+  var category = existing?.category ?? VendorCategory.catering;
+  var saving = false;
+
+  String? opt(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+
+  showPlanSheet(
+    ctx,
+    child: StatefulBuilder(
+      builder: (sheetCtx, ss) {
+        final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+        Future<void> save() async {
+          final name = nameCtrl.text.trim();
+          if (name.isEmpty || saving) return;
+          final draft = FunctionVendor(
+            id: existing?.id ?? '',
+            name: name,
+            category: category,
+            phone: opt(phoneCtrl),
+            email: opt(emailCtrl),
+            address: opt(addressCtrl),
+            totalCost: double.tryParse(costCtrl.text.trim()),
+            advancePaid: double.tryParse(advanceCtrl.text.trim()),
+            eventLinked: opt(eventCtrl),
+            notes: opt(notesCtrl),
+          );
+          ss(() => saving = true);
+          final svc = FunctionsService.instance;
+          try {
+            if (existing == null) {
+              final row = await svc.addVendor({...draft.toJson(), 'function_id': fn.id});
+              fn.vendors.add(FunctionVendor.fromJson(row));
+            } else {
+              await svc.updateVendor(existing.id, draft.toJson());
+              final idx = fn.vendors.indexOf(existing);
+              if (idx >= 0) fn.vendors[idx] = draft;
+            }
+            onChanged();
+            if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+          } catch (e, stack) {
+            ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_vendor');
+            if (sheetCtx.mounted) {
+              ss(() => saving = false);
+              ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
+            }
+          }
+        }
+
+        return Padding(
+          // showPlanSheet already lifts the sheet above the keyboard.
+          padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                existing == null ? 'Add Vendor' : 'Edit Vendor',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
+              ),
+              const SizedBox(height: 14),
+              const SheetLabel(text: 'VENDOR NAME'),
+              PlanInputField(controller: nameCtrl, hint: 'e.g. Sri Krishna Catering'),
+              const SizedBox(height: 12),
+              const SheetLabel(text: 'CATEGORY'),
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: VendorCategory.values.map((c) {
+                    final sel = category == c;
+                    return GestureDetector(
+                      onTap: () => ss(() => category = c),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: sel ? _funcColor.withValues(alpha: 0.15) : surfBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: sel ? _funcColor : Colors.transparent),
+                        ),
+                        child: Text(
+                          '${c.emoji} ${c.label}',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sel ? _funcColor : sub),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const SheetLabel(text: 'CONTACT'),
+              PlanInputField(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
+              const SizedBox(height: 8),
+              PlanInputField(controller: emailCtrl, hint: 'Email (optional)', inputType: TextInputType.emailAddress),
+              const SizedBox(height: 8),
+              PlanInputField(controller: addressCtrl, hint: 'Address (optional)'),
+              const SizedBox(height: 12),
+              const SheetLabel(text: 'COST'),
+              Row(
+                children: [
+                  Expanded(
+                    child: PlanInputField(controller: costCtrl, hint: 'Total cost (${AppPrefs.cs})', inputType: TextInputType.number),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (${AppPrefs.cs})', inputType: TextInputType.number),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const SheetLabel(text: 'EVENT LINKED'),
+              PlanInputField(controller: eventCtrl, hint: 'e.g. Wedding, Housewarming'),
+              const SizedBox(height: 12),
+              const SheetLabel(text: 'NOTES'),
+              PlanInputField(controller: notesCtrl, hint: 'Invoice details, notes…', maxLines: 3),
+              SaveButton(
+                label: existing == null ? 'Add Vendor' : 'Save Changes',
+                color: _funcColor,
+                onTap: save,
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+/// Soft-deletes a vendor; puts it back in the list if the delete fails.
+Future<void> _deleteVendor(
+  BuildContext ctx,
+  FunctionModel fn,
+  FunctionVendor v,
+  VoidCallback onChanged,
+) async {
+  final idx = fn.vendors.indexOf(v);
+  fn.vendors.remove(v);
+  onChanged();
+  try {
+    await FunctionsService.instance.deleteVendor(v.id);
+  } catch (e, stack) {
+    ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_delete_vendor');
+    fn.vendors.insert(idx.clamp(0, fn.vendors.length), v);
+    onChanged();
+    if (ctx.mounted) {
+      ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Failed to delete vendor')));
+    }
   }
 }
 
