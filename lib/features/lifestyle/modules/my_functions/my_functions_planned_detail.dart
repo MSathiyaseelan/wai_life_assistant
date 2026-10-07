@@ -145,7 +145,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.income))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.income),
+            )
           : TabBarView(
               controller: _tab,
               children: [
@@ -161,39 +163,58 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         decoration: BoxDecoration(
                           color: AppColors.income.withValues(alpha: 0.06),
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.income.withValues(alpha: 0.18)),
+                          border: Border.all(
+                            color: AppColors.income.withValues(alpha: 0.18),
+                          ),
                         ),
                         child: Column(
                           children: [
                             _InfoDetailRow(
                               label: 'Function Type',
-                              value: '${fn.type.emoji}  ${fn.type == FunctionType.other && fn.customType != null ? fn.customType! : fn.type.label}',
+                              value:
+                                  '${fn.type.emoji}  ${fn.type == FunctionType.other && fn.customType != null ? fn.customType! : fn.type.label}',
                               isDark: isDark,
-                              tc: isDark ? AppColors.textDark : AppColors.textLight,
-                              sub: isDark ? AppColors.subDark : AppColors.subLight,
+                              tc: isDark
+                                  ? AppColors.textDark
+                                  : AppColors.textLight,
+                              sub: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
                             ),
                             _InfoDetailRow(
                               label: 'Function Name',
                               value: fn.title,
                               isDark: isDark,
-                              tc: isDark ? AppColors.textDark : AppColors.textLight,
-                              sub: isDark ? AppColors.subDark : AppColors.subLight,
+                              tc: isDark
+                                  ? AppColors.textDark
+                                  : AppColors.textLight,
+                              sub: isDark
+                                  ? AppColors.subDark
+                                  : AppColors.subLight,
                             ),
                             if (fn.functionDate != null)
                               _InfoDetailRow(
                                 label: 'Planned Date',
                                 value: fmtDate(fn.functionDate!),
                                 isDark: isDark,
-                                tc: isDark ? AppColors.textDark : AppColors.textLight,
-                                sub: isDark ? AppColors.subDark : AppColors.subLight,
+                                tc: isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight,
+                                sub: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
                               ),
                             if (fn.venue != null)
                               _InfoDetailRow(
                                 label: 'Venue',
                                 value: fn.venue!,
                                 isDark: isDark,
-                                tc: isDark ? AppColors.textDark : AppColors.textLight,
-                                sub: isDark ? AppColors.subDark : AppColors.subLight,
+                                tc: isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight,
+                                sub: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
                                 isLast: fn.address == null && fn.notes == null,
                               ),
                             if (fn.address != null)
@@ -201,8 +222,12 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                                 label: 'Address',
                                 value: fn.address!,
                                 isDark: isDark,
-                                tc: isDark ? AppColors.textDark : AppColors.textLight,
-                                sub: isDark ? AppColors.subDark : AppColors.subLight,
+                                tc: isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight,
+                                sub: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
                                 isLast: fn.notes == null,
                               ),
                             if (fn.notes != null)
@@ -210,8 +235,12 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                                 label: 'Notes',
                                 value: fn.notes!,
                                 isDark: isDark,
-                                tc: isDark ? AppColors.textDark : AppColors.textLight,
-                                sub: isDark ? AppColors.subDark : AppColors.subLight,
+                                tc: isDark
+                                    ? AppColors.textDark
+                                    : AppColors.textLight,
+                                sub: isDark
+                                    ? AppColors.subDark
+                                    : AppColors.subLight,
                                 isLast: true,
                               ),
                           ],
@@ -222,14 +251,16 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         children: [
                           _FuncStat(
                             label: 'Participants',
-                            value: '${_participants.fold(0, (s, p) => s + p.totalCount)}',
+                            value:
+                                '${_participants.fold(0, (s, p) => s + p.totalCount)}',
                             emoji: '👥',
                             color: AppColors.income,
                           ),
                           const SizedBox(width: 10),
                           _FuncStat(
                             label: 'Clothing',
-                            value: '${_clothingFamilies.fold(0, (s, f) => s + f.members.length)}',
+                            value:
+                                '${_clothingFamilies.fold(0, (s, f) => s + f.members.length)}',
                             emoji: '👗',
                             color: _funcColor,
                           ),
@@ -286,8 +317,10 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 _AllVendorsTab(
                   fn: fn,
                   isDark: isDark,
-                  onAdd: () => _showAddVendorPlanned(context, isDark, surfBg, fn),
-                  onEdit: (v) => _showEditVendorPlanned(context, isDark, surfBg, v),
+                  onAdd: () =>
+                      _showAddVendorPlanned(context, isDark, surfBg, fn),
+                  onEdit: (v) =>
+                      _showEditVendorPlanned(context, isDark, surfBg, v),
                   onDelete: (v) => setState(() => fn.vendors.remove(v)),
                 ),
 
@@ -309,9 +342,16 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                       ),
                     );
                     try {
-                      await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                      await FunctionsService.instance.updateMyFunction(
+                        fn.id,
+                        fn.toJson(),
+                      );
                     } catch (e, stack) {
-                      ErrorLogger.log(e, stackTrace: stack, action: 'function_chat_send');
+                      ErrorLogger.log(
+                        e,
+                        stackTrace: stack,
+                        action: 'function_chat_send',
+                      );
                     }
                   },
                 ),
@@ -320,7 +360,12 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
     );
   }
 
-  void _showAddVendorPlanned(BuildContext ctx, bool isDark, Color surfBg, FunctionModel fn) {
+  void _showAddVendorPlanned(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    FunctionModel fn,
+  ) {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
@@ -337,17 +382,29 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
           final sub = isDark ? AppColors.subDark : AppColors.subLight;
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 8,
+              left: 20,
+              right: 20,
+              top: 8,
               bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Add Vendor', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+                const Text(
+                  'Add Vendor',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
                 const SizedBox(height: 14),
                 const SheetLabel(text: 'VENDOR NAME'),
-                PlanInputField(controller: nameCtrl, hint: 'e.g. Sri Krishna Catering'),
+                PlanInputField(
+                  controller: nameCtrl,
+                  hint: 'e.g. Sri Krishna Catering',
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'CATEGORY'),
                 SizedBox(
@@ -361,13 +418,28 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: sel ? _funcColor.withValues(alpha: 0.15) : surfBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: sel ? _funcColor : Colors.transparent),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
                           ),
-                          child: Text('${c.emoji} ${c.label}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sel ? _funcColor : sub)),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? _funcColor.withValues(alpha: 0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: sel ? _funcColor : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            '${c.emoji} ${c.label}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: sel ? _funcColor : sub,
+                            ),
+                          ),
                         ),
                       );
                     }).toList(),
@@ -375,41 +447,87 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'CONTACT'),
-                PlanInputField(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
+                PlanInputField(
+                  controller: phoneCtrl,
+                  hint: 'Phone number',
+                  inputType: TextInputType.phone,
+                ),
                 const SizedBox(height: 8),
-                PlanInputField(controller: emailCtrl, hint: 'Email (optional)', inputType: TextInputType.emailAddress),
+                PlanInputField(
+                  controller: emailCtrl,
+                  hint: 'Email (optional)',
+                  inputType: TextInputType.emailAddress,
+                ),
                 const SizedBox(height: 8),
-                PlanInputField(controller: addressCtrl, hint: 'Address (optional)'),
+                PlanInputField(
+                  controller: addressCtrl,
+                  hint: 'Address (optional)',
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'COST'),
-                Row(children: [
-                  Expanded(child: PlanInputField(controller: costCtrl, hint: 'Total cost (${AppPrefs.cs})', inputType: TextInputType.number)),
-                  const SizedBox(width: 10),
-                  Expanded(child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (${AppPrefs.cs})', inputType: TextInputType.number)),
-                ]),
+                Row(
+                  children: [
+                    Expanded(
+                      child: PlanInputField(
+                        controller: costCtrl,
+                        hint: 'Total cost (${AppPrefs.cs})',
+                        inputType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: PlanInputField(
+                        controller: advanceCtrl,
+                        hint: 'Advance paid (${AppPrefs.cs})',
+                        inputType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'EVENT LINKED'),
-                PlanInputField(controller: eventCtrl, hint: 'e.g. Wedding, Housewarming'),
+                PlanInputField(
+                  controller: eventCtrl,
+                  hint: 'e.g. Wedding, Housewarming',
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'NOTES'),
-                PlanInputField(controller: notesCtrl, hint: 'Invoice details, notes…', maxLines: 3),
+                PlanInputField(
+                  controller: notesCtrl,
+                  hint: 'Invoice details, notes…',
+                  maxLines: 3,
+                ),
                 SaveButton(
                   label: 'Add Vendor',
                   color: _funcColor,
                   onTap: () {
                     if (nameCtrl.text.trim().isEmpty) return;
-                    setState(() => fn.vendors.add(FunctionVendor(
-                      id: DateTime.now().millisecondsSinceEpoch.toString(),
-                      name: nameCtrl.text.trim(),
-                      category: category,
-                      phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-                      email: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
-                      address: addressCtrl.text.trim().isEmpty ? null : addressCtrl.text.trim(),
-                      totalCost: double.tryParse(costCtrl.text.trim()),
-                      advancePaid: double.tryParse(advanceCtrl.text.trim()),
-                      eventLinked: eventCtrl.text.trim().isEmpty ? null : eventCtrl.text.trim(),
-                      notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-                    )));
+                    setState(
+                      () => fn.vendors.add(
+                        FunctionVendor(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          name: nameCtrl.text.trim(),
+                          category: category,
+                          phone: phoneCtrl.text.trim().isEmpty
+                              ? null
+                              : phoneCtrl.text.trim(),
+                          email: emailCtrl.text.trim().isEmpty
+                              ? null
+                              : emailCtrl.text.trim(),
+                          address: addressCtrl.text.trim().isEmpty
+                              ? null
+                              : addressCtrl.text.trim(),
+                          totalCost: double.tryParse(costCtrl.text.trim()),
+                          advancePaid: double.tryParse(advanceCtrl.text.trim()),
+                          eventLinked: eventCtrl.text.trim().isEmpty
+                              ? null
+                              : eventCtrl.text.trim(),
+                          notes: notesCtrl.text.trim().isEmpty
+                              ? null
+                              : notesCtrl.text.trim(),
+                        ),
+                      ),
+                    );
                     Navigator.pop(sheetCtx);
                   },
                 ),
@@ -421,13 +539,22 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
     );
   }
 
-  void _showEditVendorPlanned(BuildContext ctx, bool isDark, Color surfBg, FunctionVendor v) {
+  void _showEditVendorPlanned(
+    BuildContext ctx,
+    bool isDark,
+    Color surfBg,
+    FunctionVendor v,
+  ) {
     final nameCtrl = TextEditingController(text: v.name);
     final phoneCtrl = TextEditingController(text: v.phone ?? '');
     final emailCtrl = TextEditingController(text: v.email ?? '');
     final addressCtrl = TextEditingController(text: v.address ?? '');
-    final costCtrl = TextEditingController(text: v.totalCost?.toStringAsFixed(0) ?? '');
-    final advanceCtrl = TextEditingController(text: v.advancePaid?.toStringAsFixed(0) ?? '');
+    final costCtrl = TextEditingController(
+      text: v.totalCost?.toStringAsFixed(0) ?? '',
+    );
+    final advanceCtrl = TextEditingController(
+      text: v.advancePaid?.toStringAsFixed(0) ?? '',
+    );
     final eventCtrl = TextEditingController(text: v.eventLinked ?? '');
     final notesCtrl = TextEditingController(text: v.notes ?? '');
     var category = v.category;
@@ -438,17 +565,29 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
           final sub = isDark ? AppColors.subDark : AppColors.subLight;
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 8,
+              left: 20,
+              right: 20,
+              top: 8,
               bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Edit Vendor', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+                const Text(
+                  'Edit Vendor',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
                 const SizedBox(height: 14),
                 const SheetLabel(text: 'VENDOR NAME'),
-                PlanInputField(controller: nameCtrl, hint: 'e.g. Sri Krishna Catering'),
+                PlanInputField(
+                  controller: nameCtrl,
+                  hint: 'e.g. Sri Krishna Catering',
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'CATEGORY'),
                 SizedBox(
@@ -462,13 +601,28 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
                           margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: sel ? _funcColor.withValues(alpha: 0.15) : surfBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: sel ? _funcColor : Colors.transparent),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
                           ),
-                          child: Text('${c.emoji} ${c.label}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: sel ? _funcColor : sub)),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? _funcColor.withValues(alpha: 0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: sel ? _funcColor : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            '${c.emoji} ${c.label}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: sel ? _funcColor : sub,
+                            ),
+                          ),
                         ),
                       );
                     }).toList(),
@@ -476,24 +630,56 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'CONTACT'),
-                PlanInputField(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
+                PlanInputField(
+                  controller: phoneCtrl,
+                  hint: 'Phone number',
+                  inputType: TextInputType.phone,
+                ),
                 const SizedBox(height: 8),
-                PlanInputField(controller: emailCtrl, hint: 'Email (optional)', inputType: TextInputType.emailAddress),
+                PlanInputField(
+                  controller: emailCtrl,
+                  hint: 'Email (optional)',
+                  inputType: TextInputType.emailAddress,
+                ),
                 const SizedBox(height: 8),
-                PlanInputField(controller: addressCtrl, hint: 'Address (optional)'),
+                PlanInputField(
+                  controller: addressCtrl,
+                  hint: 'Address (optional)',
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'COST'),
-                Row(children: [
-                  Expanded(child: PlanInputField(controller: costCtrl, hint: 'Total cost (${AppPrefs.cs})', inputType: TextInputType.number)),
-                  const SizedBox(width: 10),
-                  Expanded(child: PlanInputField(controller: advanceCtrl, hint: 'Advance paid (${AppPrefs.cs})', inputType: TextInputType.number)),
-                ]),
+                Row(
+                  children: [
+                    Expanded(
+                      child: PlanInputField(
+                        controller: costCtrl,
+                        hint: 'Total cost (${AppPrefs.cs})',
+                        inputType: TextInputType.number,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: PlanInputField(
+                        controller: advanceCtrl,
+                        hint: 'Advance paid (${AppPrefs.cs})',
+                        inputType: TextInputType.number,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'EVENT LINKED'),
-                PlanInputField(controller: eventCtrl, hint: 'e.g. Wedding, Housewarming'),
+                PlanInputField(
+                  controller: eventCtrl,
+                  hint: 'e.g. Wedding, Housewarming',
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'NOTES'),
-                PlanInputField(controller: notesCtrl, hint: 'Invoice details, notes…', maxLines: 3),
+                PlanInputField(
+                  controller: notesCtrl,
+                  hint: 'Invoice details, notes…',
+                  maxLines: 3,
+                ),
                 SaveButton(
                   label: 'Save Changes',
                   color: _funcColor,
@@ -502,13 +688,23 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                     setState(() {
                       v.name = nameCtrl.text.trim();
                       v.category = category;
-                      v.phone = phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim();
-                      v.email = emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim();
-                      v.address = addressCtrl.text.trim().isEmpty ? null : addressCtrl.text.trim();
+                      v.phone = phoneCtrl.text.trim().isEmpty
+                          ? null
+                          : phoneCtrl.text.trim();
+                      v.email = emailCtrl.text.trim().isEmpty
+                          ? null
+                          : emailCtrl.text.trim();
+                      v.address = addressCtrl.text.trim().isEmpty
+                          ? null
+                          : addressCtrl.text.trim();
                       v.totalCost = double.tryParse(costCtrl.text.trim());
                       v.advancePaid = double.tryParse(advanceCtrl.text.trim());
-                      v.eventLinked = eventCtrl.text.trim().isEmpty ? null : eventCtrl.text.trim();
-                      v.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                      v.eventLinked = eventCtrl.text.trim().isEmpty
+                          ? null
+                          : eventCtrl.text.trim();
+                      v.notes = notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim();
                     });
                     Navigator.pop(sheetCtx);
                   },
@@ -534,7 +730,9 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
     String icon = fn.icon;
     String? photoPath;
 
-    final personalId = widget.personalWalletId.isNotEmpty ? widget.personalWalletId : widget.currentWalletId;
+    final personalId = widget.personalWalletId.isNotEmpty
+        ? widget.personalWalletId
+        : widget.currentWalletId;
     final allFamilyEntries = widget.allFamilyWalletNames.entries.toList();
     final hasWalletChoice = allFamilyEntries.isNotEmpty;
 
@@ -552,14 +750,23 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                 builder: (ctx3, setS3) => Container(
                   decoration: BoxDecoration(
                     color: isDark ? AppColors.cardDark : Colors.white,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                   ),
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Choose Icon', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, fontFamily: 'Nunito')),
+                      const Text(
+                        'Choose Icon',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Nunito',
+                        ),
+                      ),
                       const SizedBox(height: 14),
                       Row(
                         children: [
@@ -567,17 +774,39 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                             child: GestureDetector(
                               onTap: () async {
                                 Navigator.pop(ctx3);
-                                final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
-                                if (picked != null) ss(() => photoPath = picked.path);
+                                final picked = await ImagePicker().pickImage(
+                                  source: ImageSource.gallery,
+                                  imageQuality: 80,
+                                );
+                                if (picked != null)
+                                  ss(() => photoPath = picked.path);
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
-                                child: const Column(children: [
-                                  Icon(Icons.photo_library_rounded, size: 24, color: AppColors.income),
-                                  SizedBox(height: 4),
-                                  Text('Gallery', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
-                                ]),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: surfBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Column(
+                                  children: [
+                                    Icon(
+                                      Icons.photo_library_rounded,
+                                      size: 24,
+                                      color: AppColors.income,
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Gallery',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'Nunito',
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -586,17 +815,39 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                             child: GestureDetector(
                               onTap: () async {
                                 Navigator.pop(ctx3);
-                                final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
-                                if (picked != null) ss(() => photoPath = picked.path);
+                                final picked = await ImagePicker().pickImage(
+                                  source: ImageSource.camera,
+                                  imageQuality: 80,
+                                );
+                                if (picked != null)
+                                  ss(() => photoPath = picked.path);
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
-                                child: const Column(children: [
-                                  Icon(Icons.camera_alt_rounded, size: 24, color: AppColors.income),
-                                  SizedBox(height: 4),
-                                  Text('Camera', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', fontWeight: FontWeight.w700)),
-                                ]),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: surfBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Column(
+                                  children: [
+                                    Icon(
+                                      Icons.camera_alt_rounded,
+                                      size: 24,
+                                      color: AppColors.income,
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Camera',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontFamily: 'Nunito',
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -610,18 +861,32 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                           final selected = photoPath == null && icon == e;
                           return GestureDetector(
                             onTap: () {
-                              ss(() { icon = e; photoPath = null; });
+                              ss(() {
+                                icon = e;
+                                photoPath = null;
+                              });
                               Navigator.pop(ctx3);
                             },
                             child: Container(
-                              width: 44, height: 44,
+                              width: 44,
+                              height: 44,
                               decoration: BoxDecoration(
-                                color: selected ? AppColors.income.withValues(alpha: 0.15) : surfBg,
+                                color: selected
+                                    ? AppColors.income.withValues(alpha: 0.15)
+                                    : surfBg,
                                 borderRadius: BorderRadius.circular(10),
-                                border: selected ? Border.all(color: AppColors.income, width: 1.5) : null,
+                                border: selected
+                                    ? Border.all(
+                                        color: AppColors.income,
+                                        width: 1.5,
+                                      )
+                                    : null,
                               ),
                               alignment: Alignment.center,
-                              child: Text(e, style: const TextStyle(fontSize: 22)),
+                              child: Text(
+                                e,
+                                style: const TextStyle(fontSize: 22),
+                              ),
                             ),
                           );
                         }).toList(),
@@ -635,14 +900,23 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
 
           return Padding(
             padding: EdgeInsets.only(
-              left: 20, right: 20, top: 8,
+              left: 20,
+              right: 20,
+              top: 8,
               bottom: MediaQuery.of(ctx2).viewInsets.bottom + 36,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Edit Function', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
+                const Text(
+                  'Edit Function',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
                 const SizedBox(height: 12),
                 const SheetLabel(text: 'GROUP ICON'),
                 GestureDetector(
@@ -650,17 +924,28 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                   child: Row(
                     children: [
                       Container(
-                        width: 56, height: 56,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
                           color: AppColors.income.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.income.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: AppColors.income.withValues(alpha: 0.3),
+                          ),
                         ),
                         alignment: Alignment.center,
                         child: EmojiOrImage(value: photoPath ?? icon, size: 30),
                       ),
                       const SizedBox(width: 12),
-                      Text('Tap to change icon', style: TextStyle(fontSize: 13, fontFamily: 'Nunito', fontWeight: FontWeight.w600, color: sub)),
+                      Text(
+                        'Tap to change icon',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'Nunito',
+                          fontWeight: FontWeight.w600,
+                          color: sub,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -670,31 +955,60 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                   height: 44,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    children: FunctionType.values.map((t) => GestureDetector(
-                      onTap: () => ss(() => type = t),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: type == t ? AppColors.income.withValues(alpha: 0.15) : surfBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: type == t ? AppColors.income : Colors.transparent),
-                        ),
-                        child: Row(children: [
-                          Text(t.emoji, style: const TextStyle(fontSize: 14)),
-                          const SizedBox(width: 5),
-                          Text(t.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: type == t ? AppColors.income : sub)),
-                        ]),
-                      ),
-                    )).toList(),
+                    children: FunctionType.values
+                        .map(
+                          (t) => GestureDetector(
+                            onTap: () => ss(() => type = t),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: type == t
+                                    ? AppColors.income.withValues(alpha: 0.15)
+                                    : surfBg,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: type == t
+                                      ? AppColors.income
+                                      : Colors.transparent,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    t.emoji,
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    t.label,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Nunito',
+                                      color: type == t ? AppColors.income : sub,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
                 ),
                 const SizedBox(height: 8),
                 PlanInputField(controller: titleCtrl, hint: 'Function title *'),
                 if (type == FunctionType.other) ...[
                   const SizedBox(height: 8),
-                  PlanInputField(controller: customTypeCtrl, hint: 'Enter function type'),
+                  PlanInputField(
+                    controller: customTypeCtrl,
+                    hint: 'Enter function type',
+                  ),
                 ],
                 const SizedBox(height: 8),
                 PlanInputField(controller: venueCtrl, hint: 'Venue / Location'),
@@ -726,28 +1040,68 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                         onTap: () => ss(() => selectedWalletId = personalId),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 120),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: selectedWalletId == personalId ? AppColors.income.withValues(alpha: 0.15) : surfBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: selectedWalletId == personalId ? AppColors.income : Colors.transparent),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
                           ),
-                          child: Text('Personal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: selectedWalletId == personalId ? AppColors.income : sub)),
+                          decoration: BoxDecoration(
+                            color: selectedWalletId == personalId
+                                ? AppColors.income.withValues(alpha: 0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: selectedWalletId == personalId
+                                  ? AppColors.income
+                                  : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            'Personal',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: selectedWalletId == personalId
+                                  ? AppColors.income
+                                  : sub,
+                            ),
+                          ),
                         ),
                       ),
-                      ...allFamilyEntries.map((e) => GestureDetector(
-                        onTap: () => ss(() => selectedWalletId = e.key),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 120),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: selectedWalletId == e.key ? AppColors.income.withValues(alpha: 0.15) : surfBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: selectedWalletId == e.key ? AppColors.income : Colors.transparent),
+                      ...allFamilyEntries.map(
+                        (e) => GestureDetector(
+                          onTap: () => ss(() => selectedWalletId = e.key),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selectedWalletId == e.key
+                                  ? AppColors.income.withValues(alpha: 0.15)
+                                  : surfBg,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: selectedWalletId == e.key
+                                    ? AppColors.income
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Text(
+                              e.value,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Nunito',
+                                color: selectedWalletId == e.key
+                                    ? AppColors.income
+                                    : sub,
+                              ),
+                            ),
                           ),
-                          child: Text(e.value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: selectedWalletId == e.key ? AppColors.income : sub)),
                         ),
-                      )),
+                      ),
                     ],
                   ),
                 ],
@@ -786,7 +1140,12 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                           folder: 'functions',
                           name: 'fn_${fn.id}',
                         );
-                      } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_icon_upload_error');
+                      } catch (e, stack) {
+                        ErrorLogger.log(
+                          e,
+                          stackTrace: stack,
+                          action: 'my_functions_icon_upload_error',
+                        );
                         debugPrint('[Functions] icon upload error: $e');
                       }
                     }
@@ -795,23 +1154,38 @@ class _PlannedFunctionDetailState extends State<_PlannedFunctionDetail>
                     setState(() {
                       fn.type = type;
                       fn.title = titleCtrl.text.trim();
-                      fn.customType = type == FunctionType.other && customTypeCtrl.text.trim().isNotEmpty ? customTypeCtrl.text.trim() : null;
+                      fn.customType =
+                          type == FunctionType.other &&
+                              customTypeCtrl.text.trim().isNotEmpty
+                          ? customTypeCtrl.text.trim()
+                          : null;
                       fn.functionDate = date;
-                      fn.venue = venueCtrl.text.trim().isEmpty ? null : venueCtrl.text.trim();
-                      fn.notes = notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim();
+                      fn.venue = venueCtrl.text.trim().isEmpty
+                          ? null
+                          : venueCtrl.text.trim();
+                      fn.notes = notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim();
                       fn.icon = finalIcon;
                       fn.walletId = selectedWalletId;
                       fn.isPlanned = isPlanned;
                     });
                     try {
-                      await FunctionsService.instance.updateMyFunction(fn.id, fn.toJson());
+                      await FunctionsService.instance.updateMyFunction(
+                        fn.id,
+                        fn.toJson(),
+                      );
                       widget.onUpdate();
                       if (ctx.mounted) {
                         Navigator.pop(ctx);
                         if (moved && ctx.mounted) Navigator.pop(ctx);
                       }
                     } catch (e, stack) {
-                      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save');
+                      ErrorLogger.log(
+                        e,
+                        stackTrace: stack,
+                        action: 'my_functions_save',
+                      );
                       setState(() => fn.walletId = originalWalletId);
                     }
                   },
@@ -843,142 +1217,16 @@ class _ParticipantsTab extends StatelessWidget {
   });
 
   void _showAddEdit(BuildContext ctx, {FunctionParticipant? existing}) {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final placeCtrl = TextEditingController(text: existing?.place ?? '');
-    final relationCtrl = TextEditingController(text: existing?.relation ?? '');
-    final phoneCtrl = TextEditingController(text: existing?.phone ?? '');
-    final List<ParticipantFamilyMember> familyMembers =
-        existing?.familyMembers.map((m) => ParticipantFamilyMember(name: m.name, relation: m.relation)).toList() ?? [];
-
-    final svc = FunctionsService.instance;
-
     showPlanSheet(
       ctx,
-      child: StatefulBuilder(builder: (sheetCtx, ss) {
-        final sub = isDark ? AppColors.subDark : AppColors.subLight;
-        final tc = isDark ? AppColors.textDark : AppColors.textLight;
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20, right: 20, top: 8,
-            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                existing == null ? 'Add Participant' : 'Edit Participant',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
-              ),
-              const SizedBox(height: 12),
-              const SheetLabel(text: 'NAME *'),
-              PlanInputField(controller: nameCtrl, hint: 'Participant name'),
-              const SizedBox(height: 8),
-              const SheetLabel(text: 'RELATION'),
-              PlanInputField(controller: relationCtrl, hint: 'e.g. Uncle, Friend, Colleague'),
-              const SizedBox(height: 8),
-              const SheetLabel(text: 'PLACE'),
-              PlanInputField(controller: placeCtrl, hint: 'City / Town'),
-              const SizedBox(height: 8),
-              const SheetLabel(text: 'PHONE'),
-              PlanInputField(controller: phoneCtrl, hint: 'Phone number', inputType: TextInputType.phone),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('FAMILY MEMBERS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: sub, letterSpacing: 0.5)),
-                  GestureDetector(
-                    onTap: () => ss(() => familyMembers.add(ParticipantFamilyMember(name: '', relation: ''))),
-                    child: const Icon(Icons.add_circle_outline_rounded, size: 20, color: AppColors.income),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              if (familyMembers.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('No family members added', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
-                ),
-              ...familyMembers.asMap().entries.map((entry) {
-                final i = entry.key;
-                final m = entry.value;
-                final mNameCtrl = TextEditingController(text: m.name);
-                final mRelCtrl = TextEditingController(text: m.relation);
-                mNameCtrl.addListener(() => m.name = mNameCtrl.text);
-                mRelCtrl.addListener(() => m.relation = mRelCtrl.text);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(12)),
-                          child: Column(
-                            children: [
-                              TextField(
-                                controller: mNameCtrl,
-                                style: TextStyle(fontSize: 13, color: tc, fontFamily: 'Nunito'),
-                                decoration: InputDecoration.collapsed(hintText: 'Name', hintStyle: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito')),
-                              ),
-                              const SizedBox(height: 4),
-                              TextField(
-                                controller: mRelCtrl,
-                                style: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito'),
-                                decoration: InputDecoration.collapsed(hintText: 'Relation (e.g. Wife, Son)', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline_rounded, size: 18, color: AppColors.expense),
-                        onPressed: () => ss(() => familyMembers.removeAt(i)),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              const SizedBox(height: 8),
-              SaveButton(
-                label: existing == null ? 'Add Participant' : 'Save Changes',
-                color: AppColors.income,
-                onTap: () async {
-                  final name = nameCtrl.text.trim();
-                  if (name.isEmpty) return;
-                  final data = FunctionParticipant(
-                    id: existing?.id ?? '',
-                    functionId: functionId,
-                    name: name,
-                    place: placeCtrl.text.trim().isEmpty ? null : placeCtrl.text.trim(),
-                    relation: relationCtrl.text.trim().isEmpty ? null : relationCtrl.text.trim(),
-                    phone: phoneCtrl.text.trim().isEmpty ? null : phoneCtrl.text.trim(),
-                    familyMembers: familyMembers.where((m) => m.name.isNotEmpty).toList(),
-                  );
-                  try {
-                    if (existing == null) {
-                      final row = await svc.addParticipant(data.toJson());
-                      participants.insert(0, FunctionParticipant.fromJson(row));
-                    } else {
-                      await svc.updateParticipant(existing.id, {
-                        ...data.toJson(),
-                        'family_members': data.familyMembers.map((m) => m.toJson()).toList(),
-                      });
-                      final idx = participants.indexOf(existing);
-                      if (idx >= 0) participants[idx] = FunctionParticipant.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
-                    }
-                    onChanged();
-                    if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                  } catch (e, stack) {
-                    ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_participant');
-                    if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      }),
+      child: _ParticipantSheet(
+        functionId: functionId,
+        existing: existing,
+        participants: participants,
+        isDark: isDark,
+        surfBg: surfBg,
+        onChanged: onChanged,
+      ),
     );
   }
 
@@ -996,20 +1244,36 @@ class _ParticipantsTab extends StatelessWidget {
         onPressed: () => _showAddEdit(context),
         backgroundColor: AppColors.income,
         icon: const Icon(Icons.person_add_rounded, color: Colors.white),
-        label: const Text('Add', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Add',
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
       body: participants.isEmpty
-          ? const PlanEmptyState(emoji: '👥', title: 'No participants yet', subtitle: 'Add people you plan to invite')
+          ? const PlanEmptyState(
+              emoji: '👥',
+              title: 'No participants yet',
+              subtitle: 'Add people you plan to invite',
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
                     color: AppColors.income.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.income.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: AppColors.income.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -1018,80 +1282,454 @@ class _ParticipantsTab extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('$totalPeople total people', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, fontFamily: 'Nunito', color: tc)),
-                          Text('${participants.length} families / groups', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                          Text(
+                            '$totalPeople total people',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              fontFamily: 'Nunito',
+                              color: tc,
+                            ),
+                          ),
+                          Text(
+                            '${participants.length} families / groups',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'Nunito',
+                              color: sub,
+                            ),
+                          ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                ...participants.map((p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SwipeTile(
-                    onDelete: () async {
-                      await FunctionsService.instance.deleteParticipant(p.id);
-                      participants.remove(p);
-                      onChanged();
-                    },
-                    child: GestureDetector(
-                      onTap: () => _showAddEdit(context, existing: p),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text('👤', style: TextStyle(fontSize: 18)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(p.name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                                      if (p.relation != null || p.place != null)
+                ...participants.map(
+                  (p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SwipeTile(
+                      onDelete: () async {
+                        await FunctionsService.instance.deleteParticipant(p.id);
+                        participants.remove(p);
+                        onChanged();
+                      },
+                      child: GestureDetector(
+                        onTap: () => _showAddEdit(context, existing: p),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    '👤',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
                                         Text(
-                                          [if (p.relation != null) p.relation!, if (p.place != null) p.place!].join(' • '),
-                                          style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub),
+                                          p.name,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            fontFamily: 'Nunito',
+                                            color: tc,
+                                          ),
                                         ),
-                                    ],
-                                  ),
-                                ),
-                                if (p.phone != null)
-                                  Icon(Icons.phone_rounded, size: 14, color: sub),
-                                if (p.familyMembers.isNotEmpty)
-                                  Container(
-                                    margin: const EdgeInsets.only(left: 6),
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.income.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
+                                        if (p.relation != null ||
+                                            p.place != null)
+                                          Text(
+                                            [
+                                              if (p.relation != null)
+                                                p.relation!,
+                                              if (p.place != null) p.place!,
+                                            ].join(' • '),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontFamily: 'Nunito',
+                                              color: sub,
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                    child: Text('+${p.familyMembers.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
                                   ),
-                              ],
-                            ),
-                            if (p.familyMembers.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
-                                children: p.familyMembers.map((m) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(8)),
-                                  child: Text('${m.name} (${m.relation})', style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub)),
-                                )).toList(),
+                                  if (p.phone != null)
+                                    Icon(
+                                      Icons.phone_rounded,
+                                      size: 14,
+                                      color: sub,
+                                    ),
+                                  if (p.familyMembers.isNotEmpty)
+                                    Container(
+                                      margin: const EdgeInsets.only(left: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.income.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '+${p.familyMembers.length}',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          fontFamily: 'Nunito',
+                                          color: AppColors.income,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
+                              if (p.familyMembers.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: p.familyMembers
+                                      .map(
+                                        (m) => Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: surfBg,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${m.name} (${m.relation})',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontFamily: 'Nunito',
+                                              color: sub,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                )),
+                ),
               ],
             ),
+    );
+  }
+}
+
+// ── Add / edit participant sheet ──────────────────────────────────────────────
+// Stateful so the family-member controllers survive rebuilds (keyboard
+// open/close, adding a row) — recreating them per build lost typed names.
+
+class _ParticipantSheet extends StatefulWidget {
+  final String functionId;
+  final FunctionParticipant? existing;
+  final List<FunctionParticipant> participants;
+  final bool isDark;
+  final Color surfBg;
+  final VoidCallback onChanged;
+
+  const _ParticipantSheet({
+    required this.functionId,
+    required this.existing,
+    required this.participants,
+    required this.isDark,
+    required this.surfBg,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ParticipantSheet> createState() => _ParticipantSheetState();
+}
+
+class _ParticipantSheetState extends State<_ParticipantSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _placeCtrl;
+  late final TextEditingController _relationCtrl;
+  late final TextEditingController _phoneCtrl;
+  // One (name, relation) controller pair per family member row.
+  final List<(TextEditingController, TextEditingController)> _members = [];
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _nameCtrl = TextEditingController(text: e?.name ?? '');
+    _placeCtrl = TextEditingController(text: e?.place ?? '');
+    _relationCtrl = TextEditingController(text: e?.relation ?? '');
+    _phoneCtrl = TextEditingController(text: e?.phone ?? '');
+    for (final m in e?.familyMembers ?? const <ParticipantFamilyMember>[]) {
+      _members.add((
+        TextEditingController(text: m.name),
+        TextEditingController(text: m.relation),
+      ));
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _placeCtrl.dispose();
+    _relationCtrl.dispose();
+    _phoneCtrl.dispose();
+    for (final (n, r) in _members) {
+      n.dispose();
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addMember() => setState(
+    () => _members.add((TextEditingController(), TextEditingController())),
+  );
+
+  void _removeMember(int i) {
+    final (n, r) = _members.removeAt(i);
+    setState(() {});
+    // Dispose after the frame so the removed TextFields detach first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      n.dispose();
+      r.dispose();
+    });
+  }
+
+  String? _opt(TextEditingController c) =>
+      c.text.trim().isEmpty ? null : c.text.trim();
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty || _saving) return;
+    final existing = widget.existing;
+    final data = FunctionParticipant(
+      id: existing?.id ?? '',
+      functionId: widget.functionId,
+      name: name,
+      place: _opt(_placeCtrl),
+      relation: _opt(_relationCtrl),
+      phone: _opt(_phoneCtrl),
+      familyMembers: [
+        for (final (n, r) in _members)
+          if (n.text.trim().isNotEmpty)
+            ParticipantFamilyMember(
+              name: n.text.trim(),
+              relation: r.text.trim(),
+            ),
+      ],
+    );
+    setState(() => _saving = true);
+    final svc = FunctionsService.instance;
+    try {
+      if (existing == null) {
+        final row = await svc.addParticipant(data.toJson());
+        widget.participants.insert(0, FunctionParticipant.fromJson(row));
+      } else {
+        await svc.updateParticipant(existing.id, data.toJson());
+        final idx = widget.participants.indexOf(existing);
+        if (idx >= 0) {
+          widget.participants[idx] = FunctionParticipant.fromJson({
+            ...data.toJson(),
+            'id': existing.id,
+          });
+        }
+      }
+      widget.onChanged();
+      if (mounted) Navigator.pop(context);
+    } catch (e, stack) {
+      ErrorLogger.log(
+        e,
+        stackTrace: stack,
+        action: 'my_functions_save_participant',
+      );
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyError(e, 'Failed to save. Please try again.'),
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sub = widget.isDark ? AppColors.subDark : AppColors.subLight;
+    final tc = widget.isDark ? AppColors.textDark : AppColors.textLight;
+    final isNew = widget.existing == null;
+    return Padding(
+      // showPlanSheet already lifts the sheet above the keyboard.
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 8, bottom: 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            isNew ? 'Add Participant / City' : 'Edit Participant / City',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              fontFamily: 'Nunito',
+            ),
+          ),
+          const SizedBox(height: 12),
+          const SheetLabel(text: 'NAME / CITY *'),
+          PlanInputField(
+            controller: _nameCtrl,
+            hint: 'Participant name or city (e.g. Dindigul, Chennai)',
+          ),
+          const SizedBox(height: 8),
+          const SheetLabel(text: 'RELATION'),
+          PlanInputField(
+            controller: _relationCtrl,
+            hint: 'e.g. Uncle, Friend, Colleague',
+          ),
+          const SizedBox(height: 8),
+          const SheetLabel(text: 'PLACE'),
+          PlanInputField(controller: _placeCtrl, hint: 'City / Town'),
+          const SizedBox(height: 8),
+          const SheetLabel(text: 'PHONE'),
+          PlanInputField(
+            controller: _phoneCtrl,
+            hint: 'Phone number',
+            inputType: TextInputType.phone,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'FAMILY MEMBERS',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Nunito',
+                  color: sub,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              GestureDetector(
+                onTap: _addMember,
+                child: const Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: 20,
+                  color: AppColors.income,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (_members.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'No family members added',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'Nunito',
+                  color: sub,
+                ),
+              ),
+            ),
+          for (var i = 0; i < _members.length; i++)
+            Padding(
+              key: ObjectKey(_members[i].$1),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: widget.surfBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _members[i].$1,
+                            textCapitalization: TextCapitalization.words,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: tc,
+                              fontFamily: 'Nunito',
+                            ),
+                            decoration: InputDecoration.collapsed(
+                              hintText: 'Name',
+                              hintStyle: TextStyle(
+                                fontSize: 12,
+                                color: sub,
+                                fontFamily: 'Nunito',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          TextField(
+                            controller: _members[i].$2,
+                            textCapitalization: TextCapitalization.words,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: sub,
+                              fontFamily: 'Nunito',
+                            ),
+                            decoration: InputDecoration.collapsed(
+                              hintText: 'Relation (e.g. Wife, Son)',
+                              hintStyle: TextStyle(
+                                fontSize: 11,
+                                color: sub,
+                                fontFamily: 'Nunito',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.remove_circle_outline_rounded,
+                      size: 18,
+                      color: AppColors.expense,
+                    ),
+                    onPressed: () => _removeMember(i),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          SaveButton(
+            label: isNew ? 'Add Participant' : 'Save Changes',
+            color: AppColors.income,
+            onTap: _save,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1115,162 +1753,390 @@ class _ClothingGiftsTab extends StatelessWidget {
 
   void _showAddFamily(BuildContext ctx, {ClothingFamily? existing}) {
     final nameCtrl = TextEditingController(text: existing?.familyName ?? '');
-    final List<ClothingMember> members = existing?.members
-        .map((m) => ClothingMember(name: m.name, gender: m.gender, dressType: m.dressType, size: m.size, brand: m.brand, budget: m.budget, purchased: m.purchased))
-        .toList() ?? [];
+    final List<ClothingMember> members =
+        existing?.members
+            .map(
+              (m) => ClothingMember(
+                name: m.name,
+                gender: m.gender,
+                dressType: m.dressType,
+                size: m.size,
+                brand: m.brand,
+                budget: m.budget,
+                purchased: m.purchased,
+              ),
+            )
+            .toList() ??
+        [];
     final svc = FunctionsService.instance;
 
-    showPlanSheet(ctx, child: StatefulBuilder(builder: (sheetCtx, ss) {
-      final sub = isDark ? AppColors.subDark : AppColors.subLight;
-      final tc = isDark ? AppColors.textDark : AppColors.textLight;
-      return Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              existing == null ? 'Add Family' : 'Edit Family',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito'),
+    showPlanSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (sheetCtx, ss) {
+          final sub = isDark ? AppColors.subDark : AppColors.subLight;
+          final tc = isDark ? AppColors.textDark : AppColors.textLight;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 8,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
             ),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'FAMILY NAME *'),
-            PlanInputField(controller: nameCtrl, hint: 'e.g. Sharma Family, Uncle\'s Family'),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('MEMBERS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: sub, letterSpacing: 0.5)),
-                GestureDetector(
-                  onTap: () => ss(() => members.add(ClothingMember(name: '', gender: FunctionClothingGender.men))),
-                  child: const Icon(Icons.add_circle_outline_rounded, size: 20, color: _funcColor),
+                Text(
+                  existing == null ? 'Add Family' : 'Edit Family',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (members.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text('Add members to assign clothing', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub)),
-              ),
-            ...members.asMap().entries.map((entry) {
-              final i = entry.key;
-              final m = entry.value;
-              final mNameCtrl = TextEditingController(text: m.name);
-              final mDressCtrl = TextEditingController(text: m.dressType ?? '');
-              final mSizeCtrl = TextEditingController(text: m.size ?? '');
-              final mBrandCtrl = TextEditingController(text: m.brand ?? '');
-              final mBudgetCtrl = TextEditingController(text: m.budget?.toString() ?? '');
-              mNameCtrl.addListener(() => m.name = mNameCtrl.text);
-              mDressCtrl.addListener(() => m.dressType = mDressCtrl.text.isEmpty ? null : mDressCtrl.text);
-              mSizeCtrl.addListener(() => m.size = mSizeCtrl.text.isEmpty ? null : mSizeCtrl.text);
-              mBrandCtrl.addListener(() => m.brand = mBrandCtrl.text.isEmpty ? null : mBrandCtrl.text);
-              mBudgetCtrl.addListener(() => m.budget = double.tryParse(mBudgetCtrl.text));
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: surfBg, borderRadius: BorderRadius.circular(14)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'FAMILY NAME *'),
+                PlanInputField(
+                  controller: nameCtrl,
+                  hint: 'e.g. Sharma Family, Uncle\'s Family',
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: mNameCtrl,
-                            style: TextStyle(fontSize: 13, color: tc, fontFamily: 'Nunito', fontWeight: FontWeight.w700),
-                            decoration: InputDecoration.collapsed(hintText: 'Member name *', hintStyle: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito')),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline_rounded, size: 18, color: AppColors.expense),
-                          onPressed: () => ss(() => members.removeAt(i)),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: FunctionClothingGender.values.map((g) => GestureDetector(
-                          onTap: () => ss(() => m.gender = g),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 120),
-                            margin: const EdgeInsets.only(right: 6),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: m.gender == g ? _funcColor.withValues(alpha: 0.15) : Colors.transparent,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: m.gender == g ? _funcColor : sub.withValues(alpha: 0.3)),
-                            ),
-                            child: Text('${g.emoji} ${g.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: m.gender == g ? _funcColor : sub)),
-                          ),
-                        )).toList(),
+                    Text(
+                      'MEMBERS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(child: TextField(controller: mDressCtrl, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: 'Dress type (Saree, Shirt…)', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
-                      const SizedBox(width: 12),
-                      Expanded(child: TextField(controller: mSizeCtrl, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: 'Size (M, L, 38…)', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
-                    ]),
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Expanded(child: TextField(controller: mBrandCtrl, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: 'Brand preference', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
-                      const SizedBox(width: 12),
-                      Expanded(child: TextField(controller: mBudgetCtrl, keyboardType: TextInputType.number, style: TextStyle(fontSize: 12, color: tc, fontFamily: 'Nunito'), decoration: InputDecoration.collapsed(hintText: '${AppPrefs.cs} Budget', hintStyle: TextStyle(fontSize: 11, color: sub, fontFamily: 'Nunito')))),
-                    ]),
-                    const SizedBox(height: 6),
                     GestureDetector(
-                      onTap: () => ss(() => m.purchased = !m.purchased),
-                      child: Row(children: [
-                        Icon(m.purchased ? Icons.check_circle_rounded : Icons.circle_outlined, size: 16, color: m.purchased ? AppColors.income : sub),
-                        const SizedBox(width: 6),
-                        Text('Purchased', style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: m.purchased ? AppColors.income : sub)),
-                      ]),
+                      onTap: () => ss(
+                        () => members.add(
+                          ClothingMember(
+                            name: '',
+                            gender: FunctionClothingGender.men,
+                          ),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.add_circle_outline_rounded,
+                        size: 20,
+                        color: _funcColor,
+                      ),
                     ),
                   ],
                 ),
-              );
-            }),
-            const SizedBox(height: 8),
-            SaveButton(
-              label: existing == null ? 'Add Family' : 'Save Changes',
-              color: _funcColor,
-              onTap: () async {
-                final familyName = nameCtrl.text.trim();
-                if (familyName.isEmpty) return;
-                final cf = ClothingFamily(
-                  id: existing?.id ?? '',
-                  functionId: functionId,
-                  familyName: familyName,
-                  members: members.where((m) => m.name.isNotEmpty).toList(),
-                );
-                try {
-                  if (existing == null) {
-                    final row = await svc.addClothingFamily(cf.toJson());
-                    families.insert(0, ClothingFamily.fromJson(row));
-                  } else {
-                    await svc.updateClothingFamily(existing.id, cf.toJson());
-                    final idx = families.indexOf(existing);
-                    if (idx >= 0) {
-                      families[idx] = ClothingFamily(id: existing.id, functionId: functionId, familyName: familyName, members: cf.members);
+                const SizedBox(height: 6),
+                if (members.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Add members to assign clothing',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Nunito',
+                        color: sub,
+                      ),
+                    ),
+                  ),
+                ...members.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final m = entry.value;
+                  final mNameCtrl = TextEditingController(text: m.name);
+                  final mDressCtrl = TextEditingController(
+                    text: m.dressType ?? '',
+                  );
+                  final mSizeCtrl = TextEditingController(text: m.size ?? '');
+                  final mBrandCtrl = TextEditingController(text: m.brand ?? '');
+                  final mBudgetCtrl = TextEditingController(
+                    text: m.budget?.toString() ?? '',
+                  );
+                  mNameCtrl.addListener(() => m.name = mNameCtrl.text);
+                  mDressCtrl.addListener(
+                    () => m.dressType = mDressCtrl.text.isEmpty
+                        ? null
+                        : mDressCtrl.text,
+                  );
+                  mSizeCtrl.addListener(
+                    () =>
+                        m.size = mSizeCtrl.text.isEmpty ? null : mSizeCtrl.text,
+                  );
+                  mBrandCtrl.addListener(
+                    () => m.brand = mBrandCtrl.text.isEmpty
+                        ? null
+                        : mBrandCtrl.text,
+                  );
+                  mBudgetCtrl.addListener(
+                    () => m.budget = double.tryParse(mBudgetCtrl.text),
+                  );
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: surfBg,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: mNameCtrl,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: tc,
+                                  fontFamily: 'Nunito',
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                decoration: InputDecoration.collapsed(
+                                  hintText: 'Member name *',
+                                  hintStyle: TextStyle(
+                                    fontSize: 12,
+                                    color: sub,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.remove_circle_outline_rounded,
+                                size: 18,
+                                color: AppColors.expense,
+                              ),
+                              onPressed: () => ss(() => members.removeAt(i)),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: FunctionClothingGender.values
+                                .map(
+                                  (g) => GestureDetector(
+                                    onTap: () => ss(() => m.gender = g),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 120,
+                                      ),
+                                      margin: const EdgeInsets.only(right: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: m.gender == g
+                                            ? _funcColor.withValues(alpha: 0.15)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: m.gender == g
+                                              ? _funcColor
+                                              : sub.withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        '${g.emoji} ${g.label}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Nunito',
+                                          color: m.gender == g
+                                              ? _funcColor
+                                              : sub,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: mDressCtrl,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: tc,
+                                  fontFamily: 'Nunito',
+                                ),
+                                decoration: InputDecoration.collapsed(
+                                  hintText: 'Dress type (Saree, Shirt…)',
+                                  hintStyle: TextStyle(
+                                    fontSize: 11,
+                                    color: sub,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: mSizeCtrl,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: tc,
+                                  fontFamily: 'Nunito',
+                                ),
+                                decoration: InputDecoration.collapsed(
+                                  hintText: 'Size (M, L, 38…)',
+                                  hintStyle: TextStyle(
+                                    fontSize: 11,
+                                    color: sub,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: mBrandCtrl,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: tc,
+                                  fontFamily: 'Nunito',
+                                ),
+                                decoration: InputDecoration.collapsed(
+                                  hintText: 'Brand preference',
+                                  hintStyle: TextStyle(
+                                    fontSize: 11,
+                                    color: sub,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: mBudgetCtrl,
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: tc,
+                                  fontFamily: 'Nunito',
+                                ),
+                                decoration: InputDecoration.collapsed(
+                                  hintText: '${AppPrefs.cs} Budget',
+                                  hintStyle: TextStyle(
+                                    fontSize: 11,
+                                    color: sub,
+                                    fontFamily: 'Nunito',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => ss(() => m.purchased = !m.purchased),
+                          child: Row(
+                            children: [
+                              Icon(
+                                m.purchased
+                                    ? Icons.check_circle_rounded
+                                    : Icons.circle_outlined,
+                                size: 16,
+                                color: m.purchased ? AppColors.income : sub,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Purchased',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: 'Nunito',
+                                  color: m.purchased ? AppColors.income : sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+                SaveButton(
+                  label: existing == null ? 'Add Family' : 'Save Changes',
+                  color: _funcColor,
+                  onTap: () async {
+                    final familyName = nameCtrl.text.trim();
+                    if (familyName.isEmpty) return;
+                    final cf = ClothingFamily(
+                      id: existing?.id ?? '',
+                      functionId: functionId,
+                      familyName: familyName,
+                      members: members.where((m) => m.name.isNotEmpty).toList(),
+                    );
+                    try {
+                      if (existing == null) {
+                        final row = await svc.addClothingFamily(cf.toJson());
+                        families.insert(0, ClothingFamily.fromJson(row));
+                      } else {
+                        await svc.updateClothingFamily(
+                          existing.id,
+                          cf.toJson(),
+                        );
+                        final idx = families.indexOf(existing);
+                        if (idx >= 0) {
+                          families[idx] = ClothingFamily(
+                            id: existing.id,
+                            functionId: functionId,
+                            familyName: familyName,
+                            members: cf.members,
+                          );
+                        }
+                      }
+                      onChanged();
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e, stack) {
+                      ErrorLogger.log(
+                        e,
+                        stackTrace: stack,
+                        action: 'my_functions_save_planning_item',
+                      );
+                      if (sheetCtx.mounted)
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              friendlyError(
+                                e,
+                                'Failed to save. Please try again.',
+                              ),
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
                     }
-                  }
-                  onChanged();
-                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e, stack) {
-                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
-                }
-              },
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }));
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -1288,20 +2154,36 @@ class _ClothingGiftsTab extends StatelessWidget {
         onPressed: () => _showAddFamily(context),
         backgroundColor: _funcColor,
         icon: const Icon(Icons.group_add_rounded, color: Colors.white),
-        label: const Text('Add Family', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Add Family',
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
       body: families.isEmpty
-          ? const PlanEmptyState(emoji: '👗', title: 'No clothing planned', subtitle: 'Add families and assign clothing gifts')
+          ? const PlanEmptyState(
+              emoji: '👗',
+              title: 'No clothing planned',
+              subtitle: 'Add families and assign clothing gifts',
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
                     color: _funcColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _funcColor.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: _funcColor.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -1311,82 +2193,156 @@ class _ClothingGiftsTab extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('$totalMembers members across ${families.length} families', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                            Text('$totalPurchased purchased • ${AppPrefs.cs}${totalBudget.toStringAsFixed(0)} total budget', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                            Text(
+                              '$totalMembers members across ${families.length} families',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: tc,
+                              ),
+                            ),
+                            Text(
+                              '$totalPurchased purchased • ${AppPrefs.cs}${totalBudget.toStringAsFixed(0)} total budget',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: sub,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                ...families.map((family) => Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: SwipeTile(
-                    onDelete: () async {
-                      await FunctionsService.instance.deleteClothingFamily(family.id);
-                      families.remove(family);
-                      onChanged();
-                    },
-                    child: GestureDetector(
-                      onTap: () => _showAddFamily(context, existing: family),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 18)),
-                                const SizedBox(width: 8),
-                                Expanded(child: Text(family.familyName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc))),
-                                if (family.totalBudget > 0)
-                                  Text('${AppPrefs.cs}${family.totalBudget.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
-                              ],
-                            ),
-                            if (family.members.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              ...family.members.map((m) => Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Row(
-                                  children: [
-                                    Text(m.gender.emoji, style: const TextStyle(fontSize: 14)),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(m.name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: tc)),
-                                          Text(
-                                            [
-                                              m.gender.label,
-                                              if (m.dressType != null) m.dressType!,
-                                              if (m.size != null) 'Size: ${m.size}',
-                                              if (m.brand != null) m.brand!,
-                                            ].join(' • '),
-                                            style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub),
-                                          ),
-                                        ],
+                ...families.map(
+                  (family) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: SwipeTile(
+                      onDelete: () async {
+                        await FunctionsService.instance.deleteClothingFamily(
+                          family.id,
+                        );
+                        families.remove(family);
+                        onChanged();
+                      },
+                      child: GestureDetector(
+                        onTap: () => _showAddFamily(context, existing: family),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    '👨‍👩‍👧‍👦',
+                                    style: TextStyle(fontSize: 18),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      family.familyName,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: tc,
                                       ),
                                     ),
-                                    if (m.budget != null)
-                                      Text('${AppPrefs.cs}${m.budget!.toStringAsFixed(0)}', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                                    const SizedBox(width: 6),
-                                    Icon(
-                                      m.purchased ? Icons.check_circle_rounded : Icons.circle_outlined,
-                                      size: 16,
-                                      color: m.purchased ? AppColors.income : sub,
+                                  ),
+                                  if (family.totalBudget > 0)
+                                    Text(
+                                      '${AppPrefs.cs}${family.totalBudget.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: AppColors.income,
+                                      ),
                                     ),
-                                  ],
+                                ],
+                              ),
+                              if (family.members.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                ...family.members.map(
+                                  (m) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          m.gender.emoji,
+                                          style: const TextStyle(fontSize: 14),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                m.name,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontFamily: 'Nunito',
+                                                  color: tc,
+                                                ),
+                                              ),
+                                              Text(
+                                                [
+                                                  m.gender.label,
+                                                  if (m.dressType != null)
+                                                    m.dressType!,
+                                                  if (m.size != null)
+                                                    'Size: ${m.size}',
+                                                  if (m.brand != null) m.brand!,
+                                                ].join(' • '),
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontFamily: 'Nunito',
+                                                  color: sub,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (m.budget != null)
+                                          Text(
+                                            '${AppPrefs.cs}${m.budget!.toStringAsFixed(0)}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontFamily: 'Nunito',
+                                              color: sub,
+                                            ),
+                                          ),
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          m.purchased
+                                              ? Icons.check_circle_rounded
+                                              : Icons.circle_outlined,
+                                          size: 16,
+                                          color: m.purchased
+                                              ? AppColors.income
+                                              : sub,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              )),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                )),
+                ),
               ],
             ),
     );
@@ -1410,115 +2366,229 @@ class _EssentialsTab extends StatelessWidget {
     required this.onChanged,
   });
 
-  static const _categories = ['Attire', 'Jewellery', 'Makeup & Hair', 'Decor', 'Pooja Items', 'Photography', 'Food', 'Other'];
+  static const _categories = [
+    'Attire',
+    'Jewellery',
+    'Makeup & Hair',
+    'Decor',
+    'Pooja Items',
+    'Photography',
+    'Food',
+    'Other',
+  ];
 
   void _showAddEdit(BuildContext ctx, {FunctionEssential? existing}) {
     final itemCtrl = TextEditingController(text: existing?.item ?? '');
     final detailsCtrl = TextEditingController(text: existing?.details ?? '');
     final vendorCtrl = TextEditingController(text: existing?.vendor ?? '');
-    final costCtrl = TextEditingController(text: existing?.cost?.toString() ?? '');
+    final costCtrl = TextEditingController(
+      text: existing?.cost?.toString() ?? '',
+    );
     String? category = existing?.category ?? _categories[0];
     EssentialStatus status = existing?.status ?? EssentialStatus.pending;
     final svc = FunctionsService.instance;
 
-    showPlanSheet(ctx, child: StatefulBuilder(builder: (sheetCtx, ss) {
-      final sub = isDark ? AppColors.subDark : AppColors.subLight;
-      return Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(existing == null ? 'Add Essential' : 'Edit Essential',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'CATEGORY'),
-            SizedBox(
-              height: 38,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: _categories.map((c) => GestureDetector(
-                  onTap: () => ss(() => category = c),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: category == c ? AppColors.lend.withValues(alpha: 0.15) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: category == c ? AppColors.lend : sub.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(c, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: category == c ? AppColors.lend : sub)),
+    showPlanSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (sheetCtx, ss) {
+          final sub = isDark ? AppColors.subDark : AppColors.subLight;
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 8,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  existing == null ? 'Add Essential' : 'Edit Essential',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
                   ),
-                )).toList(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'ITEM *'),
-            PlanInputField(controller: itemCtrl, hint: 'e.g. Silk saree, Flower garland, Cake'),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'DETAILS'),
-            PlanInputField(controller: detailsCtrl, hint: 'Color, style, notes…', maxLines: 2),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'VENDOR / SHOP'),
-            PlanInputField(controller: vendorCtrl, hint: 'Vendor or shop name'),
-            const SizedBox(height: 8),
-            SheetLabel(text: 'COST (${AppPrefs.cs})'),
-            PlanInputField(controller: costCtrl, hint: 'Estimated cost', inputType: TextInputType.number),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'STATUS'),
-            Row(children: EssentialStatus.values.map((s) => GestureDetector(
-              onTap: () => ss(() => status = s),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: status == s ? AppColors.income.withValues(alpha: 0.12) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: status == s ? AppColors.income : sub.withValues(alpha: 0.3)),
                 ),
-                child: Text('${s.emoji} ${s.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'Nunito', color: status == s ? AppColors.income : sub)),
-              ),
-            )).toList()),
-            const SizedBox(height: 8),
-            SaveButton(
-              label: existing == null ? 'Add Item' : 'Save Changes',
-              color: AppColors.lend,
-              onTap: () async {
-                final item = itemCtrl.text.trim();
-                if (item.isEmpty) return;
-                final data = FunctionEssential(
-                  id: existing?.id ?? '',
-                  functionId: functionId,
-                  item: item,
-                  category: category,
-                  details: detailsCtrl.text.trim().isEmpty ? null : detailsCtrl.text.trim(),
-                  vendor: vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
-                  status: status,
-                  cost: double.tryParse(costCtrl.text),
-                );
-                try {
-                  if (existing == null) {
-                    final row = await svc.addFunctionEssential(data.toJson());
-                    essentials.add(FunctionEssential.fromJson(row));
-                  } else {
-                    await svc.updateFunctionEssential(existing.id, data.toJson());
-                    final idx = essentials.indexOf(existing);
-                    if (idx >= 0) essentials[idx] = FunctionEssential.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
-                  }
-                  onChanged();
-                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e, stack) {
-                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
-                }
-              },
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'CATEGORY'),
+                SizedBox(
+                  height: 38,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _categories
+                        .map(
+                          (c) => GestureDetector(
+                            onTap: () => ss(() => category = c),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: category == c
+                                    ? AppColors.lend.withValues(alpha: 0.15)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: category == c
+                                      ? AppColors.lend
+                                      : sub.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                c,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: category == c ? AppColors.lend : sub,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'ITEM *'),
+                PlanInputField(
+                  controller: itemCtrl,
+                  hint: 'e.g. Silk saree, Flower garland, Cake',
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'DETAILS'),
+                PlanInputField(
+                  controller: detailsCtrl,
+                  hint: 'Color, style, notes…',
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'VENDOR / SHOP'),
+                PlanInputField(
+                  controller: vendorCtrl,
+                  hint: 'Vendor or shop name',
+                ),
+                const SizedBox(height: 8),
+                SheetLabel(text: 'COST (${AppPrefs.cs})'),
+                PlanInputField(
+                  controller: costCtrl,
+                  hint: 'Estimated cost',
+                  inputType: TextInputType.number,
+                ),
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'STATUS'),
+                Row(
+                  children: EssentialStatus.values
+                      .map(
+                        (s) => GestureDetector(
+                          onTap: () => ss(() => status = s),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 120),
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: status == s
+                                  ? AppColors.income.withValues(alpha: 0.12)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: status == s
+                                    ? AppColors.income
+                                    : sub.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Text(
+                              '${s.emoji} ${s.label}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Nunito',
+                                color: status == s ? AppColors.income : sub,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 8),
+                SaveButton(
+                  label: existing == null ? 'Add Item' : 'Save Changes',
+                  color: AppColors.lend,
+                  onTap: () async {
+                    final item = itemCtrl.text.trim();
+                    if (item.isEmpty) return;
+                    final data = FunctionEssential(
+                      id: existing?.id ?? '',
+                      functionId: functionId,
+                      item: item,
+                      category: category,
+                      details: detailsCtrl.text.trim().isEmpty
+                          ? null
+                          : detailsCtrl.text.trim(),
+                      vendor: vendorCtrl.text.trim().isEmpty
+                          ? null
+                          : vendorCtrl.text.trim(),
+                      status: status,
+                      cost: double.tryParse(costCtrl.text),
+                    );
+                    try {
+                      if (existing == null) {
+                        final row = await svc.addFunctionEssential(
+                          data.toJson(),
+                        );
+                        essentials.add(FunctionEssential.fromJson(row));
+                      } else {
+                        await svc.updateFunctionEssential(
+                          existing.id,
+                          data.toJson(),
+                        );
+                        final idx = essentials.indexOf(existing);
+                        if (idx >= 0)
+                          essentials[idx] = FunctionEssential.fromJson({
+                            ...data.toJson(),
+                            'id': existing.id,
+                            'function_id': functionId,
+                          });
+                      }
+                      onChanged();
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e, stack) {
+                      ErrorLogger.log(
+                        e,
+                        stackTrace: stack,
+                        action: 'my_functions_save_planning_item',
+                      );
+                      if (sheetCtx.mounted)
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              friendlyError(
+                                e,
+                                'Failed to save. Please try again.',
+                              ),
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                    }
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    }));
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -1527,7 +2597,9 @@ class _EssentialsTab extends StatelessWidget {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final totalCost = essentials.fold(0.0, (s, e) => s + (e.cost ?? 0));
-    final done = essentials.where((e) => e.status == EssentialStatus.done).length;
+    final done = essentials
+        .where((e) => e.status == EssentialStatus.done)
+        .length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1535,83 +2607,188 @@ class _EssentialsTab extends StatelessWidget {
         onPressed: () => _showAddEdit(context),
         backgroundColor: AppColors.lend,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text('Add Item', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Add Item',
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
       body: essentials.isEmpty
-          ? const PlanEmptyState(emoji: '🎒', title: 'No essentials yet', subtitle: 'Track attire, decor, pooja items and more')
+          ? const PlanEmptyState(
+              emoji: '🎒',
+              title: 'No essentials yet',
+              subtitle: 'Track attire, decor, pooja items and more',
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
                     color: AppColors.lend.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.lend.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: AppColors.lend.withValues(alpha: 0.2),
+                    ),
                   ),
-                  child: Row(children: [
-                    const Text('🎒', style: TextStyle(fontSize: 22)),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${essentials.length} items • $done done', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                      Text('${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                    ])),
-                  ]),
-                ),
-                ...essentials.map((e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: SwipeTile(
-                    onDelete: () async {
-                      await FunctionsService.instance.deleteFunctionEssential(e.id);
-                      essentials.remove(e);
-                      onChanged();
-                    },
-                    child: GestureDetector(
-                      onTap: () => _showAddEdit(context, existing: e),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
-                        child: Row(
+                  child: Row(
+                    children: [
+                      const Text('🎒', style: TextStyle(fontSize: 22)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: AppColors.lend.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(10),
+                            Text(
+                              '${essentials.length} items • $done done',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: tc,
                               ),
-                              alignment: Alignment.center,
-                              child: Text(e.status.emoji, style: const TextStyle(fontSize: 18)),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(children: [
-                                  if (e.category != null) ...[
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(color: AppColors.lend.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                                      child: Text(e.category!, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.lend)),
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  Expanded(child: Text(e.item, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc), overflow: TextOverflow.ellipsis)),
-                                ]),
-                                if (e.details != null)
-                                  Text(e.details!, style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                if (e.vendor != null)
-                                  Text('🏪 ${e.vendor}', style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub)),
-                              ]),
+                            Text(
+                              '${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: sub,
+                              ),
                             ),
-                            if (e.cost != null)
-                              Text('${AppPrefs.cs}${e.cost!.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
                           ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ...essentials.map(
+                  (e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: SwipeTile(
+                      onDelete: () async {
+                        await FunctionsService.instance.deleteFunctionEssential(
+                          e.id,
+                        );
+                        essentials.remove(e);
+                        onChanged();
+                      },
+                      child: GestureDetector(
+                        onTap: () => _showAddEdit(context, existing: e),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: AppColors.lend.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  e.status.emoji,
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        if (e.category != null) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.lend.withValues(
+                                                alpha: 0.1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              e.category!,
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w800,
+                                                fontFamily: 'Nunito',
+                                                color: AppColors.lend,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
+                                        Expanded(
+                                          child: Text(
+                                            e.item,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              fontFamily: 'Nunito',
+                                              color: tc,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (e.details != null)
+                                      Text(
+                                        e.details!,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontFamily: 'Nunito',
+                                          color: sub,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    if (e.vendor != null)
+                                      Text(
+                                        '🏪 ${e.vendor}',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontFamily: 'Nunito',
+                                          color: sub,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (e.cost != null)
+                                Text(
+                                  '${AppPrefs.cs}${e.cost!.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Nunito',
+                                    color: AppColors.income,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                )),
+                ),
               ],
             ),
     );
@@ -1637,79 +2814,152 @@ class _ReturnGiftsTab extends StatelessWidget {
 
   void _showAddEdit(BuildContext ctx, {FunctionReturnGift? existing}) {
     final nameCtrl = TextEditingController(text: existing?.giftName ?? '');
-    final priceCtrl = TextEditingController(text: existing?.approxPrice?.toString() ?? '');
+    final priceCtrl = TextEditingController(
+      text: existing?.approxPrice?.toString() ?? '',
+    );
     final whereCtrl = TextEditingController(text: existing?.whereToBuy ?? '');
     final vendorCtrl = TextEditingController(text: existing?.vendor ?? '');
-    final qtyCtrl = TextEditingController(text: existing?.quantity.toString() ?? '1');
+    final qtyCtrl = TextEditingController(
+      text: existing?.quantity.toString() ?? '1',
+    );
     final svc = FunctionsService.instance;
 
-    showPlanSheet(ctx, child: StatefulBuilder(builder: (sheetCtx, ss) {
-      return Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(existing == null ? 'Add Return Gift' : 'Edit Return Gift',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'GIFT NAME *'),
-            PlanInputField(controller: nameCtrl, hint: 'e.g. Silk saree, Sweet box, Steel plate'),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SheetLabel(text: 'APPROX PRICE (${AppPrefs.cs})'),
-                PlanInputField(controller: priceCtrl, hint: '${AppPrefs.cs} per item', inputType: TextInputType.number),
-              ])),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const SheetLabel(text: 'QUANTITY'),
-                PlanInputField(controller: qtyCtrl, hint: 'How many', inputType: TextInputType.number),
-              ])),
-            ]),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'WHERE TO BUY'),
-            PlanInputField(controller: whereCtrl, hint: 'Shop / Market / Online'),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'VENDOR'),
-            PlanInputField(controller: vendorCtrl, hint: 'Vendor name / contact'),
-            const SizedBox(height: 8),
-            SaveButton(
-              label: existing == null ? 'Add Gift' : 'Save Changes',
-              color: _funcColor,
-              onTap: () async {
-                final name = nameCtrl.text.trim();
-                if (name.isEmpty) return;
-                final data = FunctionReturnGift(
-                  id: existing?.id ?? '',
-                  functionId: functionId,
-                  giftName: name,
-                  approxPrice: double.tryParse(priceCtrl.text),
-                  whereToBuy: whereCtrl.text.trim().isEmpty ? null : whereCtrl.text.trim(),
-                  vendor: vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
-                  quantity: int.tryParse(qtyCtrl.text) ?? 1,
-                );
-                try {
-                  if (existing == null) {
-                    final row = await svc.addReturnGift(data.toJson());
-                    gifts.add(FunctionReturnGift.fromJson(row));
-                  } else {
-                    await svc.updateReturnGift(existing.id, data.toJson());
-                    final idx = gifts.indexOf(existing);
-                    if (idx >= 0) gifts[idx] = FunctionReturnGift.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
-                  }
-                  onChanged();
-                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e, stack) {
-                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
-                }
-              },
+    showPlanSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (sheetCtx, ss) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 8,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
             ),
-          ],
-        ),
-      );
-    }));
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  existing == null ? 'Add Return Gift' : 'Edit Return Gift',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'GIFT NAME *'),
+                PlanInputField(
+                  controller: nameCtrl,
+                  hint: 'e.g. Silk saree, Sweet box, Steel plate',
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SheetLabel(text: 'APPROX PRICE (${AppPrefs.cs})'),
+                          PlanInputField(
+                            controller: priceCtrl,
+                            hint: '${AppPrefs.cs} per item',
+                            inputType: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SheetLabel(text: 'QUANTITY'),
+                          PlanInputField(
+                            controller: qtyCtrl,
+                            hint: 'How many',
+                            inputType: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'WHERE TO BUY'),
+                PlanInputField(
+                  controller: whereCtrl,
+                  hint: 'Shop / Market / Online',
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'VENDOR'),
+                PlanInputField(
+                  controller: vendorCtrl,
+                  hint: 'Vendor name / contact',
+                ),
+                const SizedBox(height: 8),
+                SaveButton(
+                  label: existing == null ? 'Add Gift' : 'Save Changes',
+                  color: _funcColor,
+                  onTap: () async {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    final data = FunctionReturnGift(
+                      id: existing?.id ?? '',
+                      functionId: functionId,
+                      giftName: name,
+                      approxPrice: double.tryParse(priceCtrl.text),
+                      whereToBuy: whereCtrl.text.trim().isEmpty
+                          ? null
+                          : whereCtrl.text.trim(),
+                      vendor: vendorCtrl.text.trim().isEmpty
+                          ? null
+                          : vendorCtrl.text.trim(),
+                      quantity: int.tryParse(qtyCtrl.text) ?? 1,
+                    );
+                    try {
+                      if (existing == null) {
+                        final row = await svc.addReturnGift(data.toJson());
+                        gifts.add(FunctionReturnGift.fromJson(row));
+                      } else {
+                        await svc.updateReturnGift(existing.id, data.toJson());
+                        final idx = gifts.indexOf(existing);
+                        if (idx >= 0)
+                          gifts[idx] = FunctionReturnGift.fromJson({
+                            ...data.toJson(),
+                            'id': existing.id,
+                            'function_id': functionId,
+                          });
+                      }
+                      onChanged();
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e, stack) {
+                      ErrorLogger.log(
+                        e,
+                        stackTrace: stack,
+                        action: 'my_functions_save_planning_item',
+                      );
+                      if (sheetCtx.mounted)
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              friendlyError(
+                                e,
+                                'Failed to save. Please try again.',
+                              ),
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -1726,73 +2976,160 @@ class _ReturnGiftsTab extends StatelessWidget {
         onPressed: () => _showAddEdit(context),
         backgroundColor: _funcColor,
         icon: const Icon(Icons.card_giftcard_rounded, color: Colors.white),
-        label: const Text('Add Gift', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Add Gift',
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
       body: gifts.isEmpty
-          ? const PlanEmptyState(emoji: '🎁', title: 'No return gifts planned', subtitle: 'Plan what gifts to give back to guests')
+          ? const PlanEmptyState(
+              emoji: '🎁',
+              title: 'No return gifts planned',
+              subtitle: 'Plan what gifts to give back to guests',
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
                     color: _funcColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _funcColor.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: _funcColor.withValues(alpha: 0.2),
+                    ),
                   ),
-                  child: Row(children: [
-                    const Text('🎁', style: TextStyle(fontSize: 22)),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${gifts.length} gift types • $totalQty total items', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                      Text('${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated total', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                    ])),
-                  ]),
-                ),
-                ...gifts.map((g) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: SwipeTile(
-                    onDelete: () async {
-                      await FunctionsService.instance.deleteReturnGift(g.id);
-                      gifts.remove(g);
-                      onChanged();
-                    },
-                    child: GestureDetector(
-                      onTap: () => _showAddEdit(context, existing: g),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
-                        child: Row(children: [
-                          Container(
-                            width: 36, height: 36,
-                            decoration: BoxDecoration(color: _funcColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                            alignment: Alignment.center,
-                            child: const Text('🎁', style: TextStyle(fontSize: 18)),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(g.giftName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+                  child: Row(
+                    children: [
+                      const Text('🎁', style: TextStyle(fontSize: 22)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              [
-                                'Qty: ${g.quantity}',
-                                if (g.whereToBuy != null) g.whereToBuy!,
-                                if (g.vendor != null) g.vendor!,
-                              ].join(' • '),
-                              style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub),
+                              '${gifts.length} gift types • $totalQty total items',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: tc,
+                              ),
                             ),
-                          ])),
-                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            if (g.approxPrice != null)
-                              Text('${AppPrefs.cs}${g.approxPrice!.toStringAsFixed(0)}/item', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                            if (g.totalCost > 0)
-                              Text('${AppPrefs.cs}${g.totalCost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
-                          ]),
-                        ]),
+                            Text(
+                              '${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated total',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: 'Nunito',
+                                color: sub,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ...gifts.map(
+                  (g) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: SwipeTile(
+                      onDelete: () async {
+                        await FunctionsService.instance.deleteReturnGift(g.id);
+                        gifts.remove(g);
+                        onChanged();
+                      },
+                      child: GestureDetector(
+                        onTap: () => _showAddEdit(context, existing: g),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: _funcColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: const Text(
+                                  '🎁',
+                                  style: TextStyle(fontSize: 18),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      g.giftName,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: tc,
+                                      ),
+                                    ),
+                                    Text(
+                                      [
+                                        'Qty: ${g.quantity}',
+                                        if (g.whereToBuy != null) g.whereToBuy!,
+                                        if (g.vendor != null) g.vendor!,
+                                      ].join(' • '),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (g.approxPrice != null)
+                                    Text(
+                                      '${AppPrefs.cs}${g.approxPrice!.toStringAsFixed(0)}/item',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  if (g.totalCost > 0)
+                                    Text(
+                                      '${AppPrefs.cs}${g.totalCost.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: AppColors.income,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                )),
+                ),
               ],
             ),
     );
@@ -1814,7 +3151,13 @@ class _DishesTab extends StatelessWidget {
     required this.onChanged,
   });
 
-  static const _categories = ['Starter', 'Main Course', 'Dessert', 'Beverage', 'Other'];
+  static const _categories = [
+    'Starter',
+    'Main Course',
+    'Dessert',
+    'Beverage',
+    'Other',
+  ];
 
   MealTime? _dishMealTime(FunctionDish d) {
     if (d.mealTime == null) return null;
@@ -1823,10 +3166,14 @@ class _DishesTab extends StatelessWidget {
 
   void _showAddEdit(BuildContext ctx, {FunctionDish? existing}) {
     final nameCtrl = TextEditingController(text: existing?.dishName ?? '');
-    final costCtrl = TextEditingController(text: existing?.approxCost?.toString() ?? '');
+    final costCtrl = TextEditingController(
+      text: existing?.approxCost?.toString() ?? '',
+    );
     final vendorCtrl = TextEditingController(text: existing?.vendor ?? '');
     final notesCtrl = TextEditingController(text: existing?.notes ?? '');
-    final qtyCtrl = TextEditingController(text: existing?.quantity.toString() ?? '1');
+    final qtyCtrl = TextEditingController(
+      text: existing?.quantity.toString() ?? '1',
+    );
     var category = existing?.category ?? _categories.first;
     MealTime? mealTime = existing?.mealTime == null
         ? null
@@ -1836,143 +3183,240 @@ class _DishesTab extends StatelessWidget {
           );
     final svc = FunctionsService.instance;
 
-    showPlanSheet(ctx, child: StatefulBuilder(builder: (sheetCtx, ss) {
-      return Padding(
-        padding: EdgeInsets.only(left: 20, right: 20, top: 8, bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(existing == null ? 'Add Dish' : 'Edit Dish',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontFamily: 'Nunito')),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'DISH NAME *'),
-            PlanInputField(controller: nameCtrl, hint: 'e.g. Paneer Butter Masala'),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'CATEGORY'),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: _categories.map((c) {
-                  final sel = category == c;
-                  return GestureDetector(
-                    onTap: () => ss(() => category = c),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: sel ? _funcColor.withValues(alpha: 0.15) : surfBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: sel ? _funcColor : Colors.transparent),
-                      ),
-                      child: Text(
-                        c,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Nunito',
-                          color: sel ? _funcColor : (isDark ? AppColors.subDark : AppColors.subLight),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+    showPlanSheet(
+      ctx,
+      child: StatefulBuilder(
+        builder: (sheetCtx, ss) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 8,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 36,
             ),
-            const SizedBox(height: 12),
-            const SheetLabel(text: 'MEAL TYPE'),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: MealTime.values.map((mt) {
-                  final sel = mealTime == mt;
-                  return GestureDetector(
-                    onTap: () => ss(() => mealTime = sel ? null : mt),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: sel ? mt.color.withValues(alpha: 0.15) : surfBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: sel ? mt.color : Colors.transparent),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(mt.emoji, style: const TextStyle(fontSize: 13)),
-                        const SizedBox(width: 5),
-                        Text(
-                          mt.label,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Nunito',
-                            color: sel ? mt.color : (isDark ? AppColors.subDark : AppColors.subLight),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  existing == null ? 'Add Dish' : 'Edit Dish',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'DISH NAME *'),
+                PlanInputField(
+                  controller: nameCtrl,
+                  hint: 'e.g. Paneer Butter Masala',
+                ),
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'CATEGORY'),
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: _categories.map((c) {
+                      final sel = category == c;
+                      return GestureDetector(
+                        onTap: () => ss(() => category = c),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? _funcColor.withValues(alpha: 0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: sel ? _funcColor : Colors.transparent,
+                            ),
+                          ),
+                          child: Text(
+                            c,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Nunito',
+                              color: sel
+                                  ? _funcColor
+                                  : (isDark
+                                        ? AppColors.subDark
+                                        : AppColors.subLight),
+                            ),
                           ),
                         ),
-                      ]),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const SheetLabel(text: 'MEAL TYPE'),
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: MealTime.values.map((mt) {
+                      final sel = mealTime == mt;
+                      return GestureDetector(
+                        onTap: () => ss(() => mealTime = sel ? null : mt),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: sel
+                                ? mt.color.withValues(alpha: 0.15)
+                                : surfBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: sel ? mt.color : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                mt.emoji,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                mt.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Nunito',
+                                  color: sel
+                                      ? mt.color
+                                      : (isDark
+                                            ? AppColors.subDark
+                                            : AppColors.subLight),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SheetLabel(text: 'APPROX COST (${AppPrefs.cs})'),
+                          PlanInputField(
+                            controller: costCtrl,
+                            hint: '${AppPrefs.cs} per item',
+                            inputType: TextInputType.number,
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                }).toList(),
-              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SheetLabel(text: 'QUANTITY'),
+                          PlanInputField(
+                            controller: qtyCtrl,
+                            hint: 'How many',
+                            inputType: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'VENDOR / CATERER'),
+                PlanInputField(
+                  controller: vendorCtrl,
+                  hint: 'Caterer name / contact',
+                ),
+                const SizedBox(height: 8),
+                const SheetLabel(text: 'NOTES'),
+                PlanInputField(
+                  controller: notesCtrl,
+                  hint: 'Spice level, allergies, etc.',
+                ),
+                const SizedBox(height: 8),
+                SaveButton(
+                  label: existing == null ? 'Add Dish' : 'Save Changes',
+                  color: _funcColor,
+                  onTap: () async {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    final data = FunctionDish(
+                      id: existing?.id ?? '',
+                      functionId: functionId,
+                      dishName: name,
+                      category: category,
+                      mealTime: mealTime?.name,
+                      approxCost: double.tryParse(costCtrl.text),
+                      vendor: vendorCtrl.text.trim().isEmpty
+                          ? null
+                          : vendorCtrl.text.trim(),
+                      notes: notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim(),
+                      quantity: int.tryParse(qtyCtrl.text) ?? 1,
+                    );
+                    try {
+                      if (existing == null) {
+                        final row = await svc.addDish(data.toJson());
+                        dishes.add(FunctionDish.fromJson(row));
+                      } else {
+                        await svc.updateDish(existing.id, data.toJson());
+                        final idx = dishes.indexOf(existing);
+                        if (idx >= 0)
+                          dishes[idx] = FunctionDish.fromJson({
+                            ...data.toJson(),
+                            'id': existing.id,
+                            'function_id': functionId,
+                          });
+                      }
+                      onChanged();
+                      if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                    } catch (e, stack) {
+                      ErrorLogger.log(
+                        e,
+                        stackTrace: stack,
+                        action: 'my_functions_save_planning_item',
+                      );
+                      if (sheetCtx.mounted)
+                        ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              friendlyError(
+                                e,
+                                'Failed to save. Please try again.',
+                              ),
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                    }
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SheetLabel(text: 'APPROX COST (${AppPrefs.cs})'),
-                PlanInputField(controller: costCtrl, hint: '${AppPrefs.cs} per item', inputType: TextInputType.number),
-              ])),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const SheetLabel(text: 'QUANTITY'),
-                PlanInputField(controller: qtyCtrl, hint: 'How many', inputType: TextInputType.number),
-              ])),
-            ]),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'VENDOR / CATERER'),
-            PlanInputField(controller: vendorCtrl, hint: 'Caterer name / contact'),
-            const SizedBox(height: 8),
-            const SheetLabel(text: 'NOTES'),
-            PlanInputField(controller: notesCtrl, hint: 'Spice level, allergies, etc.'),
-            const SizedBox(height: 8),
-            SaveButton(
-              label: existing == null ? 'Add Dish' : 'Save Changes',
-              color: _funcColor,
-              onTap: () async {
-                final name = nameCtrl.text.trim();
-                if (name.isEmpty) return;
-                final data = FunctionDish(
-                  id: existing?.id ?? '',
-                  functionId: functionId,
-                  dishName: name,
-                  category: category,
-                  mealTime: mealTime?.name,
-                  approxCost: double.tryParse(costCtrl.text),
-                  vendor: vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
-                  notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-                  quantity: int.tryParse(qtyCtrl.text) ?? 1,
-                );
-                try {
-                  if (existing == null) {
-                    final row = await svc.addDish(data.toJson());
-                    dishes.add(FunctionDish.fromJson(row));
-                  } else {
-                    await svc.updateDish(existing.id, data.toJson());
-                    final idx = dishes.indexOf(existing);
-                    if (idx >= 0) dishes[idx] = FunctionDish.fromJson({...data.toJson(), 'id': existing.id, 'function_id': functionId});
-                  }
-                  onChanged();
-                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
-                } catch (e, stack) {
-                  ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_planning_item');
-                  if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
-                }
-              },
-            ),
-          ],
-        ),
-      );
-    }));
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -1988,75 +3432,163 @@ class _DishesTab extends StatelessWidget {
         onPressed: () => _showAddEdit(context),
         backgroundColor: _funcColor,
         icon: const Icon(Icons.restaurant_menu_rounded, color: Colors.white),
-        label: const Text('Add Dish', style: TextStyle(color: Colors.white, fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
+        label: const Text(
+          'Add Dish',
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
       body: dishes.isEmpty
-          ? const PlanEmptyState(emoji: '🍽️', title: 'No dishes planned', subtitle: 'Add the catering menu for this function')
+          ? const PlanEmptyState(
+              emoji: '🍽️',
+              title: 'No dishes planned',
+              subtitle: 'Add the catering menu for this function',
+            )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
                     color: _funcColor.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _funcColor.withValues(alpha: 0.2)),
+                    border: Border.all(
+                      color: _funcColor.withValues(alpha: 0.2),
+                    ),
                   ),
-                  child: Row(children: [
-                    const Text('🍽️', style: TextStyle(fontSize: 22)),
-                    const SizedBox(width: 10),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('${dishes.length} dishes planned', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
-                      if (totalCost > 0)
-                        Text('${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated total', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                    ])),
-                  ]),
-                ),
-                ...dishes.map((d) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: SwipeTile(
-                    onDelete: () async {
-                      await FunctionsService.instance.deleteDish(d.id);
-                      dishes.remove(d);
-                      onChanged();
-                    },
-                    child: GestureDetector(
-                      onTap: () => _showAddEdit(context, existing: d),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: cardBg, borderRadius: BorderRadius.circular(16)),
-                        child: Row(children: [
-                          Container(
-                            width: 36, height: 36,
-                            decoration: BoxDecoration(color: _funcColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                            alignment: Alignment.center,
-                            child: Text(_dishMealTime(d)?.emoji ?? '🍽️', style: const TextStyle(fontSize: 18)),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(d.dishName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: tc)),
+                  child: Row(
+                    children: [
+                      const Text('🍽️', style: TextStyle(fontSize: 22)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              [
-                                if (_dishMealTime(d) != null) _dishMealTime(d)!.label,
-                                if (d.category != null) d.category!,
-                                'Qty: ${d.quantity}',
-                                if (d.vendor != null) d.vendor!,
-                              ].join(' • '),
-                              style: TextStyle(fontSize: 10, fontFamily: 'Nunito', color: sub),
+                              '${dishes.length} dishes planned',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Nunito',
+                                color: tc,
+                              ),
                             ),
-                          ])),
-                          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                            if (d.approxCost != null)
-                              Text('${AppPrefs.cs}${d.approxCost!.toStringAsFixed(0)}/item', style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                            if (d.totalCost > 0)
-                              Text('${AppPrefs.cs}${d.totalCost.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'Nunito', color: AppColors.income)),
-                          ]),
-                        ]),
+                            if (totalCost > 0)
+                              Text(
+                                '${AppPrefs.cs}${totalCost.toStringAsFixed(0)} estimated total',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ...dishes.map(
+                  (d) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: SwipeTile(
+                      onDelete: () async {
+                        await FunctionsService.instance.deleteDish(d.id);
+                        dishes.remove(d);
+                        onChanged();
+                      },
+                      child: GestureDetector(
+                        onTap: () => _showAddEdit(context, existing: d),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: _funcColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  _dishMealTime(d)?.emoji ?? '🍽️',
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      d.dishName,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: tc,
+                                      ),
+                                    ),
+                                    Text(
+                                      [
+                                        if (_dishMealTime(d) != null)
+                                          _dishMealTime(d)!.label,
+                                        if (d.category != null) d.category!,
+                                        'Qty: ${d.quantity}',
+                                        if (d.vendor != null) d.vendor!,
+                                      ].join(' • '),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (d.approxCost != null)
+                                    Text(
+                                      '${AppPrefs.cs}${d.approxCost!.toStringAsFixed(0)}/item',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: 'Nunito',
+                                        color: sub,
+                                      ),
+                                    ),
+                                  if (d.totalCost > 0)
+                                    Text(
+                                      '${AppPrefs.cs}${d.totalCost.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Nunito',
+                                        color: AppColors.income,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                )),
+                ),
               ],
             ),
     );
