@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/services/review_prompt_service.dart';
 import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [TaskService.addTask] when the caller's standing task count cap
@@ -71,6 +72,7 @@ class TaskService {
     }
     final row = await _db.from('tasks').insert({...data, 'created_by': _uid}).select().single();
     _invalidate();
+    ReviewPromptService.instance.recordWin();
     return row;
   }
 

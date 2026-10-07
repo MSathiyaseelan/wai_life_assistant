@@ -1,0 +1,111 @@
+<!doctype html>
+<!--
+  Google Play feature graphic (1024x500). Render to PNG with:
+    chrome --headless --hide-scrollbars --window-size=1024,500 \
+      --virtual-time-budget=5000 --screenshot=feature-graphic-a.png "feature-graphic.html?v=a"
+  ?v=a → AI badge + tagline   ?v=b → adds an AI chat example on the right
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=block" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1024px; height: 500px; overflow: hidden; }
+  body {
+    font-family: 'Nunito', Arial, sans-serif;
+    background: linear-gradient(120deg, #6A5CF6 0%, #5442E0 55%, #4330C4 100%);
+    position: relative;
+    color: #fff;
+  }
+  .orb { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.07); }
+  .orb.one { width: 520px; height: 520px; right: -140px; top: -170px; }
+  .orb.two { width: 300px; height: 300px; left: -110px; bottom: -150px; background: rgba(255,255,255,0.05); }
+
+  .wrap {
+    position: absolute; inset: 0;
+    display: flex; align-items: center;
+    padding: 0 72px;
+    gap: 48px;
+  }
+  .icon {
+    width: 230px; height: 230px; flex: none;
+    border-radius: 52px;
+    background: rgba(255,255,255,0.18);
+    padding: 16px;
+    box-shadow: 0 24px 60px rgba(20, 10, 90, 0.35);
+  }
+  .icon svg { width: 100%; height: 100%; display: block; }
+
+  .text { flex: 1; min-width: 0; }
+  .name-row { display: flex; align-items: center; gap: 18px; }
+  .name { font-size: 78px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
+  .ai {
+    font-size: 30px; font-weight: 900; letter-spacing: 1px;
+    padding: 8px 18px; border-radius: 16px;
+    background: linear-gradient(135deg, #FFD36E, #FF9F5A);
+    color: #3B1F7A;
+    box-shadow: 0 8px 22px rgba(255, 170, 80, 0.35);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .ai .spark { font-size: 26px; }
+  .tagline { margin-top: 18px; font-size: 32px; font-weight: 700; opacity: 0.95; }
+  .sub { margin-top: 10px; font-size: 22px; font-weight: 600; opacity: 0.75; }
+
+  /* Variant B: chat example */
+  .chat { display: none; flex: none; flex-direction: column; gap: 12px; }
+  body.b .chat { display: flex; }
+  body.b .wrap { gap: 32px; padding: 0 52px; }
+  body.b .icon { width: 150px; height: 150px; border-radius: 36px; padding: 10px; }
+  body.b .text { flex: none; }
+  body.b .name { font-size: 54px; }
+  body.b .name-row { gap: 12px; }
+  body.b .ai { font-size: 22px; padding: 5px 12px; border-radius: 12px; }
+  body.b .ai .spark { font-size: 19px; }
+  body.b .tagline { font-size: 24px; margin-top: 14px; }
+  body.b .sub { display: none; }
+  .bubble {
+    font-size: 17px; font-weight: 700; line-height: 1.3; white-space: nowrap;
+    padding: 12px 16px; border-radius: 18px;
+  }
+  .bubble.user { align-self: flex-end; background: #fff; color: #3B2B9A; border-bottom-right-radius: 6px; }
+  .bubble.bot {
+    align-self: flex-start; background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.25); border-bottom-left-radius: 6px;
+  }
+  .bubble.bot b { color: #FFD36E; }
+</style>
+</head>
+<body>
+  <div class="orb one"></div>
+  <div class="orb two"></div>
+  <div class="wrap">
+    <div class="icon">
+      <svg viewBox="0 0 200 200">
+        <rect width="200" height="200" rx="44" fill="#FAFAFC"/>
+        <path d="M42,92 L98,40 Q100,38 102,40 L158,92" fill="none" stroke="#2B3A5C" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="52" y1="86" x2="52" y2="106" stroke="#2B3A5C" stroke-width="13" stroke-linecap="round"/>
+        <line x1="148" y1="86" x2="148" y2="106" stroke="#2B3A5C" stroke-width="13" stroke-linecap="round"/>
+        <text x="100" y="158" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="112" fill="#2B3A5C" text-anchor="middle">R</text>
+      </svg>
+    </div>
+    <div class="text">
+      <div class="name-row">
+        <div class="name">RiyasHome</div>
+        <div class="ai"><span class="spark">✦</span>AI</div>
+      </div>
+      <div class="tagline">Your family's life, organized.</div>
+      <div class="sub">Just say it — your AI assistant does the rest.</div>
+    </div>
+    <div class="chat">
+      <div class="bubble user">"Spent 500 on groceries"</div>
+      <div class="bubble bot">✓ <b>₹500</b> added to Wallet</div>
+      <div class="bubble user">"Remind me at 7 to call Amma"</div>
+      <div class="bubble bot">✓ Reminder set for <b>7:00 PM</b></div>
+    </div>
+  </div>
+  <script>
+    if (new URLSearchParams(location.search).get('v') === 'b') document.body.classList.add('b');
+  </script>
+</body>
+</html>

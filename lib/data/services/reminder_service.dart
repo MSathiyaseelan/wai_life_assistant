@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/services/review_prompt_service.dart';
 import 'package:wai_life_assistant/core/error/user_facing_exception.dart';
 
 /// Thrown by [ReminderService.addReminder] when the caller's standing
@@ -93,6 +94,7 @@ class ReminderService {
         'repeat_end_date': repeatEndDate.toIso8601String().split('T').first,
     }).select().single();
     _invalidate();
+    ReviewPromptService.instance.recordWin();
     return row;
   }
 
