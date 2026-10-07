@@ -133,7 +133,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       vsync: this,
       initialIndex: widget.initialTab,
     );
-    _loadData();
+    _loadData(useCache: true);
     if (widget.openAdd) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -144,7 +144,11 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     }
   }
 
-  Future<void> _loadData() async {
+  /// [useCache] reuses the functions MyHubScreen already fetched — first open
+  /// only. Pull-to-refresh must re-fetch, or adds/deletes made here get
+  /// overwritten by MyHub's stale list.
+  Future<void> _loadData({bool useCache = false}) async {
+    final cached = useCache ? widget.parentFunctions : null;
     // Personal view: functions_my from all wallets; upcoming+attended from personal wallet only.
     if (widget.familyWalletNames.isNotEmpty) {
       final svc = FunctionsService.instance;
@@ -154,8 +158,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       // rows here. This one is a real latency win (these calls are awaited
       // sequentially, not in the Future.wait below).
       List<FunctionModel> loaded;
-      if (widget.parentFunctions != null) {
-        loaded = List<FunctionModel>.from(widget.parentFunctions!);
+      if (cached != null) {
+        loaded = List<FunctionModel>.from(cached);
       } else {
         final allIds = [widget.walletId, ...widget.familyWalletNames.keys];
         final rawMyResults = await Future.wait(
@@ -252,12 +256,12 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       // this wallet — saves one query even though it doesn't shorten wall
       // time here (the calls below run concurrently either way).
       final results = await Future.wait([
-        if (widget.parentFunctions == null) svc.fetchMyFunctions(widget.walletId),
+        if (cached == null) svc.fetchMyFunctions(widget.walletId),
         svc.fetchUpcoming(widget.walletId),
         svc.fetchAttended(widget.walletId),
         svc.fetchAttendedGroups(widget.walletId),
       ]);
-      final offset = widget.parentFunctions == null ? 1 : 0;
+      final offset = cached == null ? 1 : 0;
       if (offset == 1) rawFunctions = results[0];
       rawUpcoming = results[offset];
       rawAttended = results[offset + 1];
@@ -268,8 +272,8 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
     if (!mounted) return;
 
     // Parse each list independently — a failure in one must not block others.
-    final functions = widget.parentFunctions != null
-        ? List<FunctionModel>.from(widget.parentFunctions!)
+    final functions = cached != null
+        ? List<FunctionModel>.from(cached)
         : <FunctionModel>[];
     for (final row in rawFunctions ?? const <Map<String, dynamic>>[]) {
       try {
@@ -303,6 +307,13 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
       }
     }
 
+    // Keep MyHub's list in sync — but only after a successful fetch (a failed
+    // one leaves rawFunctions null and functions empty).
+    if (cached == null && rawFunctions != null) {
+      widget.parentFunctions
+        ?..clear()
+        ..addAll(functions);
+    }
     setState(() {
       _functions
         ..clear()
@@ -693,12 +704,14 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                   onDelete: (fn) async {
                     HapticFeedback.mediumImpact();
                     setState(() => _functions.remove(fn));
+                    widget.parentFunctions?.removeWhere((f) => f.id == fn.id);
                     try {
                       await FunctionsService.instance.deleteMyFunction(fn.id);
                     } catch (e, stack) {
                       ErrorLogger.log(e, stackTrace: stack, action: 'delete_my_function');
                       if (!mounted) return;
                       setState(() => _functions.add(fn));
+                      widget.parentFunctions?.add(fn);
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Failed to delete function')),
@@ -807,10 +820,9 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                       icon: icon,
                     ).toJson(),
                   );
-                  if (mounted)
-                    setState(
-                      () => _functions.insert(0, FunctionModel.fromJson(row)),
-                    );
+                  final added = FunctionModel.fromJson(row);
+                  widget.parentFunctions?.insert(0, added);
+                  if (mounted) setState(() => _functions.insert(0, added));
                 }
                 if (ctx.mounted) Navigator.pop(ctx);
               } catch (e, stack) {
