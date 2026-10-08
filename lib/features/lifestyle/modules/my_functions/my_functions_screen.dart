@@ -451,7 +451,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: const [
                           PlanEmptyState(
-                            emoji: '📅',
+                            emoji: '🗓️',
                             title: 'No upcoming functions',
                             subtitle: 'Plan for functions you\'re attending',
                           ),
