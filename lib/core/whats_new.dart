@@ -97,5 +97,12 @@ class WhatsNew {
       'Alert Me: reminders now show the right family member they\'re assigned to.',
       'Dashboard: tap "Plan a meal" on Today\'s Plate to start planning.',
     ],
+    39: [
+      'Functions: family members added to a participant group now save correctly.',
+      'Functions: a participant can be a person or a city group, e.g. relatives from Madurai.',
+      'Functions: vendors are now saved, so they stay after you leave the screen.',
+      'Functions: pull down to refresh now shows newly added or deleted functions right away.',
+      'PlanIt: deleting an item now asks for confirmation first.',
+    ],
   };
 }
