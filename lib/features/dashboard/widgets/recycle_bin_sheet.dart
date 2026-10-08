@@ -64,6 +64,7 @@ const _kTables = [
   ('function_return_gifts',    'Functions', ['gift_name']),
   ('function_dishes',          'Functions', ['dish_name']),
   ('function_vendors',         'Functions', ['name']),
+  ('function_gifts',           'Functions', ['guest_name', 'item_description']),
   ('attended_function_groups', 'Functions', ['name']),
   ('item_locator_containers',  'Locator',   ['name', 'location']),
   ('item_locator_items',       'Locator',   ['name', 'description']),
@@ -95,6 +96,7 @@ const _kParentJoins = {
   'function_return_gifts':      ('functions_my', 'wallet_id'),
   'function_dishes':            ('functions_my', 'wallet_id'),
   'function_vendors':           ('functions_my', 'wallet_id'),
+  'function_gifts':             ('functions_my', 'wallet_id'),
   'meal_reactions':              ('meal_entries', 'wallet_id'),
 };
 

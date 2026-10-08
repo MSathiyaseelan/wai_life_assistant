@@ -65,6 +65,7 @@ abstract final class DbTable {
   static const String functionEssentials        = 'function_essentials';
   static const String functionDishes            = 'function_dishes';
   static const String functionVendors           = 'function_vendors';
+  static const String functionGifts             = 'function_gifts';
 
   // ── Subscription ───────────────────────────────────────────────────────────
   static const String subscriptionPlans  = 'subscription_plans';

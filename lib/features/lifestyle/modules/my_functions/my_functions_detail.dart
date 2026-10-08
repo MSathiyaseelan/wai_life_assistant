@@ -50,6 +50,63 @@ class _FunctionDetailState extends State<_FunctionDetail>
     if (widget.showPlanningTabs) _loadPlanningData();
     _loadDishes();
     _loadVendors();
+    _loadGifts();
+  }
+
+  Future<void> _loadGifts() async {
+    try {
+      final rows = await FunctionsService.instance.fetchGifts(widget.fn.id);
+      if (!mounted) return;
+      setState(() {
+        widget.fn.gifts
+          ..clear()
+          ..addAll(rows.map(GiftEntry.fromJson));
+      });
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'function_detail_gifts_load');
+    }
+  }
+
+  /// Persists a gift add/edit; returns false (after telling the user) on
+  /// failure so the sheet stays open.
+  Future<bool> _saveGift(BuildContext sheetCtx, GiftEntry draft, {GiftEntry? existing}) async {
+    final fn = widget.fn;
+    final svc = FunctionsService.instance;
+    try {
+      if (existing == null) {
+        final row = await svc.addGift({...draft.toJson(), 'function_id': fn.id});
+        fn.gifts.add(GiftEntry.fromJson(row));
+      } else {
+        await svc.updateGift(existing.id, draft.toJson());
+        final idx = fn.gifts.indexOf(existing);
+        if (idx >= 0) fn.gifts[idx] = GiftEntry.fromJson({...draft.toJson(), 'id': existing.id});
+      }
+      if (mounted) setState(() {});
+      widget.onUpdate();
+      return true;
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_save_gift');
+      if (sheetCtx.mounted) {
+        ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(friendlyError(e, 'Failed to save. Please try again.')), backgroundColor: Colors.red));
+      }
+      return false;
+    }
+  }
+
+  /// Soft-deletes a gift; puts it back if the delete fails.
+  Future<void> _deleteGift(GiftEntry g) async {
+    final fn = widget.fn;
+    final idx = fn.gifts.indexOf(g);
+    setState(() => fn.gifts.remove(g));
+    try {
+      await FunctionsService.instance.deleteGift(g.id);
+      widget.onUpdate();
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_delete_gift');
+      if (!mounted) return;
+      setState(() => fn.gifts.insert(idx.clamp(0, fn.gifts.length), g));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to delete gift')));
+    }
   }
 
   Future<void> _loadVendors() async {
@@ -302,6 +359,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
             addLabel: 'Add Item',
             onAdd: () => _showAddGift(context, isDark, surfBg, fn),
             onEdit: (g) => _showEditGift(context, isDark, surfBg, g),
+            onDelete: _deleteGift,
           ),
 
           // GIFTS
@@ -333,6 +391,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
               g,
               types: _giftItemTypes,
             ),
+            onDelete: _deleteGift,
           ),
 
           // DISHES (catering menu) — always shown, next to Gifts
@@ -906,13 +965,13 @@ class _FunctionDetailState extends State<_FunctionDetail>
               SaveButton(
                 label: 'Add Item',
                 color: _funcColor,
-                onTap: () {
+                onTap: () async {
                   if (nameCtrl.text.trim().isEmpty) return;
                   final num = double.tryParse(amtCtrl.text.trim());
-                  setState(
-                    () => fn.gifts.add(
-                      GiftEntry(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  final ok = await _saveGift(
+                    ctx2,
+                    GiftEntry(
+                        id: '',
                         guestName: nameCtrl.text.trim(),
                         giftType: giftType,
                         guestPlace: placeCtrl.text.trim().isEmpty
@@ -941,10 +1000,8 @@ class _FunctionDetailState extends State<_FunctionDetail>
                             ? null
                             : notesCtrl.text.trim(),
                       ),
-                    ),
                   );
-                  widget.onUpdate();
-                  Navigator.pop(ctx);
+                  if (ok && ctx2.mounted) Navigator.pop(ctx2);
                 },
               ),
             ],
@@ -1083,40 +1140,44 @@ class _FunctionDetailState extends State<_FunctionDetail>
               SaveButton(
                 label: 'Save Changes',
                 color: _funcColor,
-                onTap: () {
+                onTap: () async {
                   if (nameCtrl.text.trim().isEmpty) return;
                   final num = double.tryParse(amtCtrl.text.trim());
-                  setState(() {
-                    gift.guestName = nameCtrl.text.trim();
-                    gift.giftType = giftType;
-                    gift.guestPlace = placeCtrl.text.trim().isEmpty
-                        ? null
-                        : placeCtrl.text.trim();
-                    gift.relation = relationCtrl.text.trim().isEmpty
-                        ? null
-                        : relationCtrl.text.trim();
-                    gift.goldGrams = giftType == GiftType.gold ? num : null;
-                    gift.silverGrams = giftType == GiftType.silver ? num : null;
-                    gift.giftCardValue = giftType == GiftType.giftCard
-                        ? amtCtrl.text.trim().isEmpty
-                              ? null
-                              : amtCtrl.text.trim()
-                        : null;
-                    gift.itemDescription =
-                        (giftType == GiftType.other ||
-                            giftType == GiftType.household ||
-                            giftType == GiftType.clothing ||
-                            giftType == GiftType.giftItem)
-                        ? amtCtrl.text.trim().isEmpty
-                              ? null
-                              : amtCtrl.text.trim()
-                        : null;
-                    gift.notes = notesCtrl.text.trim().isEmpty
-                        ? null
-                        : notesCtrl.text.trim();
-                  });
-                  widget.onUpdate();
-                  Navigator.pop(ctx);
+                  final amt = amtCtrl.text.trim();
+                  final ok = await _saveGift(
+                    ctx2,
+                    GiftEntry(
+                      id: gift.id,
+                      guestName: nameCtrl.text.trim(),
+                      giftType: giftType,
+                      guestPlace: placeCtrl.text.trim().isEmpty
+                          ? null
+                          : placeCtrl.text.trim(),
+                      relation: relationCtrl.text.trim().isEmpty
+                          ? null
+                          : relationCtrl.text.trim(),
+                      phone: gift.phone,
+                      cashAmount: gift.cashAmount,
+                      goldGrams: giftType == GiftType.gold ? num : null,
+                      silverGrams: giftType == GiftType.silver ? num : null,
+                      giftCardValue: giftType == GiftType.giftCard && amt.isNotEmpty
+                          ? amt
+                          : null,
+                      itemDescription:
+                          (giftType == GiftType.other ||
+                                  giftType == GiftType.household ||
+                                  giftType == GiftType.clothing ||
+                                  giftType == GiftType.giftItem) &&
+                              amt.isNotEmpty
+                          ? amt
+                          : null,
+                      notes: notesCtrl.text.trim().isEmpty
+                          ? null
+                          : notesCtrl.text.trim(),
+                    ),
+                    existing: gift,
+                  );
+                  if (ok && ctx2.mounted) Navigator.pop(ctx2);
                 },
               ),
             ],
@@ -1270,6 +1331,7 @@ class _FilteredGiftTab extends StatelessWidget {
   final String addLabel;
   final VoidCallback onAdd;
   final void Function(GiftEntry) onEdit;
+  final void Function(GiftEntry) onDelete;
 
   const _FilteredGiftTab({
     required this.gifts,
@@ -1281,6 +1343,7 @@ class _FilteredGiftTab extends StatelessWidget {
     this.addLabel = 'Add Gift',
     required this.onAdd,
     required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -1366,10 +1429,13 @@ class _FilteredGiftTab extends StatelessWidget {
                   itemCount: gifts.length,
                   itemBuilder: (_, i) => Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: _GiftEntryCard(
-                      gift: gifts[i],
-                      isDark: isDark,
-                      onEdit: () => onEdit(gifts[i]),
+                    child: SwipeTile(
+                      onDelete: () => onDelete(gifts[i]),
+                      child: _GiftEntryCard(
+                        gift: gifts[i],
+                        isDark: isDark,
+                        onEdit: () => onEdit(gifts[i]),
+                      ),
                     ),
                   ),
                 ),

@@ -761,6 +761,40 @@ class GiftEntry {
     this.notes,
   });
 
+  factory GiftEntry.fromJson(Map<String, dynamic> j) => GiftEntry(
+    id: j['id'] as String,
+    guestName: j['guest_name'] as String? ?? '',
+    giftType: GiftType.values.firstWhere(
+      (t) => t.name == j['gift_type'],
+      orElse: () => GiftType.other,
+    ),
+    guestPlace: j['guest_place'] as String?,
+    phone: j['phone'] as String?,
+    relation: j['relation'] as String?,
+    cashAmount: (j['cash_amount'] as num?)?.toDouble(),
+    goldGrams: (j['gold_grams'] as num?)?.toDouble(),
+    silverGrams: (j['silver_grams'] as num?)?.toDouble(),
+    itemDescription: j['item_description'] as String?,
+    giftCardValue: j['gift_card_value'] as String?,
+    notes: j['notes'] as String?,
+  );
+
+  /// Excludes id / function_id — the caller adds function_id on insert.
+  /// Nullable fields are always sent so an edit can clear them.
+  Map<String, dynamic> toJson() => {
+    'guest_name': guestName,
+    'gift_type': giftType.name,
+    'guest_place': guestPlace,
+    'phone': phone,
+    'relation': relation,
+    'cash_amount': cashAmount,
+    'gold_grams': goldGrams,
+    'silver_grams': silverGrams,
+    'item_description': itemDescription,
+    'gift_card_value': giftCardValue,
+    'notes': notes,
+  };
+
   String get summary {
     switch (giftType) {
       case GiftType.gold:

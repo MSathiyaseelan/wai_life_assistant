@@ -491,6 +491,35 @@ class FunctionsService {
     await _db.from('function_vendors').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
   }
 
+  // ── Gifts (gold / silver / items received) ────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> fetchGifts(String functionId) async {
+    final rows = await _db
+        .from('function_gifts')
+        .select()
+        .eq('function_id', functionId)
+        .isFilter('deleted_at', null)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<Map<String, dynamic>> addGift(Map<String, dynamic> data) async {
+    final row = await _db
+        .from('function_gifts')
+        .insert({...data, 'user_id': _uid})
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<void> updateGift(String id, Map<String, dynamic> updates) async {
+    await _db.from('function_gifts').update(updates).eq('id', id);
+  }
+
+  Future<void> deleteGift(String id) async {
+    await _db.from('function_gifts').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+  }
+
   // ── Moi Entries ──────────────────────────────────────────────────────────
 
   Future<List<Map<String, dynamic>>> fetchMoiEntries(String functionId) async {
