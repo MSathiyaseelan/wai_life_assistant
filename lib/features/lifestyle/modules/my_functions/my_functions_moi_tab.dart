@@ -361,12 +361,30 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
                         _showMarkReturned(context, listToShow[i], isDark),
                     onEdit: () =>
                         _showEditMoi(context, isDark, surfBg, listToShow[i]),
-                    onUndo: () => setState(() {
-                      listToShow[i].returned = false;
-                      listToShow[i].returnedAmount = null;
-                      listToShow[i].returnedOn = null;
+                    onUndo: () {
+                      final entry = listToShow[i];
+                      setState(() {
+                        entry.returned = false;
+                        entry.returnedAmount = null;
+                        entry.returnedOn = null;
+                        entry.returnedForFunction = null;
+                      });
                       widget.onUpdate();
-                    }),
+                      // Undo used to change only the screen — the entry
+                      // came back as returned after a refresh.
+                      if (entry.id.contains('-')) {
+                        FunctionsService.instance
+                            .updateMoiEntry(entry.id, {
+                              'returned': false,
+                              'returned_amount': null,
+                              'returned_on': null,
+                              'returned_for_function': null,
+                            })
+                            .catchError(
+                              (e) => debugPrint('[Moi] undo returned error: $e'),
+                            );
+                      }
+                    },
                     onDelete: () {
                       final entry = listToShow[i];
                       setState(() => fn.moi.remove(entry));
