@@ -1057,7 +1057,9 @@ class _ParticipantsTab extends StatelessWidget {
                                             ),
                                           ),
                                           child: Text(
-                                            '${m.name} (${m.relation})',
+                                            m.relation.isEmpty
+                                                ? m.name
+                                                : '${m.name} (${m.relation})',
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontFamily: 'Nunito',
@@ -1107,14 +1109,33 @@ class _ParticipantSheet extends StatefulWidget {
   State<_ParticipantSheet> createState() => _ParticipantSheetState();
 }
 
+/// One family-member row in [_ParticipantSheet].
+class _MemberRow {
+  final TextEditingController name;
+  final TextEditingController relation;
+  final FocusNode focus = FocusNode();
+  final GlobalKey key = GlobalKey();
+
+  _MemberRow({String name = '', String relation = ''})
+    : name = TextEditingController(text: name),
+      relation = TextEditingController(text: relation);
+
+  void dispose() {
+    name.dispose();
+    relation.dispose();
+    focus.dispose();
+  }
+}
+
 class _ParticipantSheetState extends State<_ParticipantSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _placeCtrl;
   late final TextEditingController _relationCtrl;
   late final TextEditingController _phoneCtrl;
-  // One (name, relation) controller pair per family member row.
-  final List<(TextEditingController, TextEditingController)> _members = [];
+  final GlobalKey _nameKey = GlobalKey();
+  final List<_MemberRow> _members = [];
   bool _saving = false;
+  bool _nameMissing = false;
 
   @override
   void initState() {
@@ -1125,11 +1146,13 @@ class _ParticipantSheetState extends State<_ParticipantSheet> {
     _relationCtrl = TextEditingController(text: e?.relation ?? '');
     _phoneCtrl = TextEditingController(text: e?.phone ?? '');
     for (final m in e?.familyMembers ?? const <ParticipantFamilyMember>[]) {
-      _members.add((
-        TextEditingController(text: m.name),
-        TextEditingController(text: m.relation),
-      ));
+      _members.add(_MemberRow(name: m.name, relation: m.relation));
     }
+    _nameCtrl.addListener(() {
+      if (_nameMissing && _nameCtrl.text.trim().isNotEmpty) {
+        setState(() => _nameMissing = false);
+      }
+    });
   }
 
   @override
@@ -1138,33 +1161,93 @@ class _ParticipantSheetState extends State<_ParticipantSheet> {
     _placeCtrl.dispose();
     _relationCtrl.dispose();
     _phoneCtrl.dispose();
-    for (final (n, r) in _members) {
-      n.dispose();
-      r.dispose();
+    for (final m in _members) {
+      m.dispose();
     }
     super.dispose();
   }
 
-  void _addMember() => setState(
-    () => _members.add((TextEditingController(), TextEditingController())),
-  );
-
-  void _removeMember(int i) {
-    final (n, r) = _members.removeAt(i);
-    setState(() {});
-    // Dispose after the frame so the removed TextFields detach first.
+  /// Adds a row, then focuses and scrolls to it — otherwise it can land
+  /// below the keyboard and look like the tap did nothing.
+  void _addMember() {
+    final row = _MemberRow();
+    setState(() => _members.add(row));
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      n.dispose();
-      r.dispose();
+      if (!mounted) return;
+      row.focus.requestFocus();
+      _reveal(row.key);
     });
+  }
+
+  void _removeMember(_MemberRow row) {
+    setState(() => _members.remove(row));
+    // Dispose after the frame so the removed TextFields detach first.
+    WidgetsBinding.instance.addPostFrameCallback((_) => row.dispose());
+  }
+
+  void _reveal(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.3,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   String? _opt(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
 
+  /// A row only counts if something was typed in it. Text typed only into
+  /// Relation is kept as the name rather than dropped — that used to lose
+  /// members silently.
+  ParticipantFamilyMember? _memberOf(_MemberRow m) {
+    final name = m.name.text.trim();
+    final relation = m.relation.text.trim();
+    if (name.isEmpty && relation.isEmpty) return null;
+    return name.isEmpty
+        ? ParticipantFamilyMember(name: relation, relation: '')
+        : ParticipantFamilyMember(name: name, relation: relation);
+  }
+
+  Widget _memberField({
+    required TextEditingController controller,
+    FocusNode? focusNode,
+    required String hint,
+    required TextInputAction action,
+    required Color tc,
+    required Color sub,
+  }) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    decoration: BoxDecoration(
+      color: widget.surfBg,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: TextField(
+      controller: controller,
+      focusNode: focusNode,
+      textCapitalization: TextCapitalization.words,
+      textInputAction: action,
+      style: TextStyle(fontSize: 13, color: tc, fontFamily: 'Nunito'),
+      decoration: InputDecoration.collapsed(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 12, color: sub, fontFamily: 'Nunito'),
+      ),
+    ),
+  );
+
   Future<void> _save() async {
+    if (_saving) return;
+    // Commit any in-progress keyboard composition before reading fields.
+    FocusScope.of(context).unfocus();
     final name = _nameCtrl.text.trim();
-    if (name.isEmpty || _saving) return;
+    if (name.isEmpty) {
+      // Used to return silently, which looked like Save did nothing.
+      setState(() => _nameMissing = true);
+      _reveal(_nameKey);
+      return;
+    }
     final existing = widget.existing;
     final data = FunctionParticipant(
       id: existing?.id ?? '',
@@ -1174,12 +1257,7 @@ class _ParticipantSheetState extends State<_ParticipantSheet> {
       relation: _opt(_relationCtrl),
       phone: _opt(_phoneCtrl),
       familyMembers: [
-        for (final (n, r) in _members)
-          if (n.text.trim().isNotEmpty)
-            ParticipantFamilyMember(
-              name: n.text.trim(),
-              relation: r.text.trim(),
-            ),
+        for (final m in _members) ?_memberOf(m),
       ],
     );
     setState(() => _saving = true);
@@ -1243,9 +1321,23 @@ class _ParticipantSheetState extends State<_ParticipantSheet> {
           const SizedBox(height: 12),
           const SheetLabel(text: 'NAME / CITY *'),
           PlanInputField(
+            key: _nameKey,
             controller: _nameCtrl,
             hint: 'Participant name or city (e.g. Dindigul, Chennai)',
           ),
+          if (_nameMissing)
+            const Padding(
+              padding: EdgeInsets.only(top: 4, left: 4),
+              child: Text(
+                'Enter a name or city to save',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Nunito',
+                  color: AppColors.expense,
+                ),
+              ),
+            ),
           const SizedBox(height: 8),
           const SheetLabel(text: 'RELATION'),
           PlanInputField(
@@ -1263,97 +1355,45 @@ class _ParticipantSheetState extends State<_ParticipantSheet> {
             inputType: TextInputType.phone,
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'FAMILY MEMBERS',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Nunito',
-                  color: sub,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              GestureDetector(
-                onTap: _addMember,
-                child: const Icon(
-                  Icons.add_circle_outline_rounded,
-                  size: 20,
-                  color: AppColors.income,
-                ),
-              ),
-            ],
+          Text(
+            _members.isEmpty ? 'MEMBERS' : 'MEMBERS (${_members.length})',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Nunito',
+              color: sub,
+              letterSpacing: 0.5,
+            ),
           ),
           const SizedBox(height: 6),
-          if (_members.isEmpty)
+          for (final m in _members)
             Padding(
+              key: m.key,
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'No family members added',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'Nunito',
-                  color: sub,
-                ),
-              ),
-            ),
-          for (var i = 0; i < _members.length; i++)
-            Padding(
-              key: ObjectKey(_members[i].$1),
-              padding: const EdgeInsets.only(bottom: 8),
+              // Name and Relation as two separate boxes — stacked inside one
+              // box, taps landed on Relation and the name stayed empty.
               child: Row(
                 children: [
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: widget.surfBg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        children: [
-                          TextField(
-                            controller: _members[i].$1,
-                            textCapitalization: TextCapitalization.words,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: tc,
-                              fontFamily: 'Nunito',
-                            ),
-                            decoration: InputDecoration.collapsed(
-                              hintText: 'Name',
-                              hintStyle: TextStyle(
-                                fontSize: 12,
-                                color: sub,
-                                fontFamily: 'Nunito',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          TextField(
-                            controller: _members[i].$2,
-                            textCapitalization: TextCapitalization.words,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: sub,
-                              fontFamily: 'Nunito',
-                            ),
-                            decoration: InputDecoration.collapsed(
-                              hintText: 'Relation (e.g. Wife, Son)',
-                              hintStyle: TextStyle(
-                                fontSize: 11,
-                                color: sub,
-                                fontFamily: 'Nunito',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    flex: 3,
+                    child: _memberField(
+                      controller: m.name,
+                      focusNode: m.focus,
+                      hint: 'Member name',
+                      action: TextInputAction.next,
+                      tc: tc,
+                      sub: sub,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: _memberField(
+                      controller: m.relation,
+                      hint: 'Relation',
+                      action: TextInputAction.done,
+                      tc: tc,
+                      sub: sub,
                     ),
                   ),
                   IconButton(
@@ -1362,14 +1402,34 @@ class _ParticipantSheetState extends State<_ParticipantSheet> {
                       size: 18,
                       color: AppColors.expense,
                     ),
-                    onPressed: () => _removeMember(i),
+                    onPressed: () => _removeMember(m),
                   ),
                 ],
               ),
             ),
+          // Below the rows, so the new row appears right where the user
+          // tapped instead of off-screen.
+          TextButton.icon(
+            onPressed: _addMember,
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.income,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            ),
+            icon: const Icon(Icons.add_circle_outline_rounded, size: 20),
+            label: Text(
+              _members.isEmpty ? 'Add member' : 'Add another member',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Nunito',
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           SaveButton(
-            label: isNew ? 'Add Participant' : 'Save Changes',
+            label: _saving
+                ? 'Saving…'
+                : (isNew ? 'Add Participant' : 'Save Changes'),
             color: AppColors.income,
             onTap: _save,
           ),
