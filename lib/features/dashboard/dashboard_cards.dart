@@ -1199,12 +1199,15 @@ class _UpcomingFunctionsCard extends StatelessWidget {
   final List<UpcomingFunction> attending;
   final bool isDark;
   final Color cardBg;
-  final VoidCallback? onTap;
+  /// 'Personal' or the family group's name, for the wallet a row belongs to.
+  final String Function(String walletId) walletLabelFor;
+  final void Function(String walletId, bool isMine)? onTap;
   const _UpcomingFunctionsCard({
     required this.myFunctions,
     required this.attending,
     required this.isDark,
     required this.cardBg,
+    required this.walletLabelFor,
     this.onTap,
   });
 
@@ -1237,6 +1240,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
           date: f.functionDate,
           isMine: true,
           moiPending: f.moiPending,
+          walletId: f.walletId,
         ),
       ),
       ...attending.map(
@@ -1247,6 +1251,7 @@ class _UpcomingFunctionsCard extends StatelessWidget {
           date: u.date,
           isMine: false,
           moiPending: 0,
+          walletId: u.walletId,
         ),
       ),
     ];
@@ -1268,11 +1273,13 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                   .inDays
               : null;
           final isLast = all.indexOf(f) == all.length - 1;
+          final walletLabel = walletLabelFor(f.walletId);
 
           return Column(
             children: [
               GestureDetector(
-              onTap: onTap,
+              onTap: onTap == null ? null : () => onTap!(f.walletId, f.isMine),
+              behavior: HitTestBehavior.opaque,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -1356,6 +1363,32 @@ class _UpcomingFunctionsCard extends StatelessWidget {
                                   fontSize: 10,
                                   fontFamily: 'Nunito',
                                   color: sub,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.10,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    walletLabel,
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Nunito',
+                                      color: AppColors.primary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ),
                               if (f.moiPending > 0) ...[

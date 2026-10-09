@@ -89,6 +89,8 @@ class _MyHubScreenState extends State<MyHubScreen> {
       if (!mounted) return;
       if (signal == 'functions') {
         _openFunctions(context);
+      } else if (signal == 'functions:our') {
+        _openFunctions(context, initialTab: 2); // Our Functions
       } else if (FeatureFlags.healthSpaceEnabled && signal.startsWith('health:')) {
         final tabMap = {
           'health:meds': 1,
@@ -129,6 +131,10 @@ class _MyHubScreenState extends State<MyHubScreen> {
     super.didUpdateWidget(old);
     if (old.activeWalletId != widget.activeWalletId) {
       _loadedKey = null;
+      // The cached lists still belong to the previous wallet until the
+      // reload lands — don't hand them to a sub-screen opened right after
+      // the switch (e.g. a dashboard deep link into a family's functions).
+      _hasLoadedOnce = false;
       _loadData();
     }
   }
@@ -778,7 +784,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
     return '${months[d.month - 1]} ${d.day}';
   }
 
-  void _openFunctions(BuildContext context, {bool openAdd = false}) {
+  void _openFunctions(BuildContext context, {bool openAdd = false, int initialTab = 0}) {
     HapticFeedback.selectionClick();
     Navigator.push(
       context,
@@ -793,7 +799,7 @@ class _MyHubScreenState extends State<MyHubScreen> {
           personalWalletId: _personalWalletId,
           members: _members,
           openAdd: openAdd,
-          initialTab: 0,
+          initialTab: initialTab,
         ),
         transitionsBuilder: (ctx, anim, secondaryAnim, child) => FadeTransition(
           opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),

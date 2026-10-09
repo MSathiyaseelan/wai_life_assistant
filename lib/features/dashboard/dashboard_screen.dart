@@ -75,12 +75,16 @@ class DashboardScreen extends StatefulWidget {
   final ThemeMode themeMode;
   final void Function(ThemeMode)? onSetTheme;
   final void Function(int tabIndex)? onTabSwitch;
+  /// Same wallet switch as the other tabs' wallet pills — used when a
+  /// dashboard item opens a tab in the wallet the item belongs to.
+  final void Function(String walletId)? onWalletChange;
   const DashboardScreen({
     super.key,
     this.refreshCount = 0,
     this.themeMode = ThemeMode.system,
     this.onSetTheme,
     this.onTabSwitch,
+    this.onWalletChange,
   });
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -1072,6 +1076,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         wallet.name;
   }
 
+  /// Opens [tabIndex] in the wallet an item belongs to (personal or a family
+  /// group), then fires [signal] to deep-link into the module. The wallet
+  /// switch goes first so the target screen has the new wallet by the time
+  /// its post-frame signal handler pushes the module screen.
+  void _openInWallet(String walletId, int tabIndex, VoidCallback signal) {
+    if (walletId != AppStateScope.read(context).activeWalletId) {
+      widget.onWalletChange?.call(walletId);
+    }
+    signal();
+    widget.onTabSwitch?.call(tabIndex);
+  }
+
   List<_PlanNudge> get _nudges {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -1097,7 +1113,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               color: r.priority.color,
               tag: 'Alert',
               walletLabel: wLabel,
-              onTap: () { DashNavService.planIt.value = 'alerts'; widget.onTabSwitch?.call(4); },
+              onTap: () => _openInWallet(entry.key, 4, () => DashNavService.planIt.value = 'alerts'),
             ),
           );
         }
@@ -1124,7 +1140,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               color: t.priority.color,
               tag: 'Task',
               walletLabel: wLabel,
-              onTap: () { DashNavService.planIt.value = 'tasks'; widget.onTabSwitch?.call(4); },
+              onTap: () => _openInWallet(entry.key, 4, () => DashNavService.planIt.value = 'tasks'),
             ),
           );
         }
@@ -1152,7 +1168,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               color: sd.type.color,
               tag: 'Special Day',
               walletLabel: wLabel,
-              onTap: () { DashNavService.planIt.value = 'special_days'; widget.onTabSwitch?.call(4); },
+              onTap: () => _openInWallet(entry.key, 4, () => DashNavService.planIt.value = 'special_days'),
             ),
           );
         }
@@ -1185,7 +1201,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               color: w.priority.color,
               tag: 'Wish',
               walletLabel: wLabel,
-              onTap: () { DashNavService.planIt.value = 'wishes'; widget.onTabSwitch?.call(4); },
+              onTap: () => _openInWallet(entry.key, 4, () => DashNavService.planIt.value = 'wishes'),
             ),
           );
         }
@@ -1216,7 +1232,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               color: AppColors.primary,
               tag: 'Function',
               walletLabel: wLabel,
-              onTap: () { DashNavService.myHub.value = 'functions'; widget.onTabSwitch?.call(3); },
+              onTap: () => _openInWallet(entry.key, 3, () => DashNavService.myHub.value = 'functions:our'),
             ),
           );
         }
@@ -1245,7 +1261,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             color: const Color(0xFF00BFA5),
             tag: 'Appointment',
             walletLabel: wLabel,
-            onTap: () { DashNavService.myHub.value = 'health:appointments'; widget.onTabSwitch?.call(3); },
+            onTap: () => _openInWallet(entry.key, 3, () => DashNavService.myHub.value = 'health:appointments'),
           ));
         }
       }
@@ -1272,7 +1288,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           color: const Color(0xFF00BFA5),
           tag: 'Medicine',
           walletLabel: wLabel,
-          onTap: () { DashNavService.myHub.value = 'health:meds'; widget.onTabSwitch?.call(3); },
+          onTap: () => _openInWallet(entry.key, 3, () => DashNavService.myHub.value = 'health:meds'),
         ));
       }
     }
@@ -1298,7 +1314,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             color: isOverdue ? Colors.red : daysLeft <= 7 ? Colors.orange : const Color(0xFF00BFA5),
             tag: 'Vaccine',
             walletLabel: wLabel,
-            onTap: () { DashNavService.myHub.value = 'health:vaccines'; widget.onTabSwitch?.call(3); },
+            onTap: () => _openInWallet(entry.key, 3, () => DashNavService.myHub.value = 'health:vaccines'),
           ));
         }
       }
@@ -1628,10 +1644,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           attending: _upcomingAttending,
                           isDark: isDark,
                           cardBg: cardBg,
-                          onTap: () {
-                            DashNavService.myHub.value = 'functions';
-                            widget.onTabSwitch?.call(3);
-                          },
+                          walletLabelFor: _walletLabel,
+                          onTap: (walletId, isMine) => _openInWallet(
+                            walletId,
+                            3,
+                            () => DashNavService.myHub.value =
+                                isMine ? 'functions:our' : 'functions',
+                          ),
                         ),
                         const SizedBox(height: 16),
                       ],

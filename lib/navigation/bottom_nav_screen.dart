@@ -316,6 +316,7 @@ class _AppShellState extends State<AppShell> {
               themeMode: widget.themeMode,
               onSetTheme: widget.onSetTheme,
               onTabSwitch: (idx) => setState(() => _idx = idx),
+              onWalletChange: _onWalletChange,
             ),
             WalletScreen(
               activeWalletId: walletId,

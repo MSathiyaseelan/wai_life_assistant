@@ -114,6 +114,9 @@ class _PlanItScreenState extends State<PlanItScreen> {
     super.didUpdateWidget(old);
     if (old.activeWalletId != widget.activeWalletId) {
       _loadedKey = null; // force re-fetch for new wallet
+      // Cached lists are the previous wallet's until the reload lands —
+      // don't let a module opened right after the switch use them.
+      _hasLoadedOnce = false;
       _loadAllData();
     }
   }
