@@ -12,6 +12,7 @@ import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/data/services/health_service.dart';
 import 'package:wai_life_assistant/data/services/special_day_service.dart';
 import 'package:wai_life_assistant/data/services/wardrobe_service.dart';
+import 'package:wai_life_assistant/data/services/wish_service.dart';
 import 'package:wai_life_assistant/core/config/feature_flags.dart';
 import 'package:wai_life_assistant/features/pantry/flows/pantry_nlp_parser.dart';
 import 'assistant_response.dart';
@@ -263,6 +264,29 @@ class ActionExecutor {
           if (d['expiry_date'] != null)     'expiry_date':     d['expiry_date'],
           if (d['notes'] != null)           'notes':           d['notes'],
         });
+
+      case ActionType.addWish:
+        // DB CHECKs: category and priority must be one of these.
+        const validCategories = {
+          'electronics', 'fashion', 'home', 'travel', 'food', 'experience', 'other',
+        };
+        const validPriorities = {'low', 'medium', 'high', 'urgent'};
+        final category = _str(d, 'category', fallback: 'other');
+        final priority = _str(d, 'priority', fallback: 'medium');
+        final targetPrice = _num(d, 'target_price');
+        final targetDate = _parseDate(d['target_date'] as String?);
+        final note = _str(d, 'note');
+        await WishService.instance.addWish({
+          'wallet_id': walletId,
+          'title':     _str(d, 'title'),
+          'emoji':     _str(d, 'emoji', fallback: '🎁'),
+          'category':  validCategories.contains(category) ? category : 'other',
+          'priority':  validPriorities.contains(priority) ? priority : 'medium',
+          if (targetPrice > 0) 'target_price': targetPrice,
+          if (targetDate != null)
+            'target_date': targetDate.toIso8601String().split('T').first,
+          if (note.isNotEmpty) 'note': note,
+        });
     }
 
     if (kDebugMode) debugPrint('[ActionExecutor] ${action.actionType.name} executed');
@@ -272,7 +296,8 @@ class ActionExecutor {
           e is FunctionLimitExceededException ||
           e is TaskLimitExceededException ||
           e is ReminderLimitExceededException ||
-          e is SpecialDayLimitExceededException;
+          e is SpecialDayLimitExceededException ||
+          e is WishLimitExceededException;
       if (!isLimitError) {
         ErrorLogger.log(e,
             stackTrace: stack,

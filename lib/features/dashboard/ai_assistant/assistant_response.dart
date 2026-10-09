@@ -25,6 +25,7 @@ enum ActionType {
   addVaccination,
   addDoctor,
   addInsurance,
+  addWish,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ class ActionPayload {
         'add_vaccination'        => ActionType.addVaccination,
         'add_doctor'             => ActionType.addDoctor,
         'add_insurance'          => ActionType.addInsurance,
+        'add_wish'               => ActionType.addWish,
         _                        => null,
       };
 
@@ -94,6 +96,7 @@ class ActionPayload {
         ActionType.addVaccination       => '💉',
         ActionType.addDoctor            => '👨‍⚕️',
         ActionType.addInsurance         => '🛡️',
+        ActionType.addWish              => '🎁',
       };
 
   String get label => switch (actionType) {
@@ -115,6 +118,7 @@ class ActionPayload {
         ActionType.addVaccination       => 'Record Vaccination',
         ActionType.addDoctor            => 'Add Doctor',
         ActionType.addInsurance         => 'Add Insurance Policy',
+        ActionType.addWish              => 'Add to Wish List',
       };
 
   /// The `data` key holding this action's date, for transaction actions only
@@ -233,6 +237,12 @@ class ActionPayload {
           if (str('provider').isNotEmpty)     ('Provider',  str('provider')),
           if (num_('coverage_amount').isNotEmpty) ('Coverage', '${AppPrefs.cs}${num_('coverage_amount')}'),
           if (str('expiry_date').isNotEmpty)  ('Expires',   str('expiry_date')),
+        ],
+      ActionType.addWish => [
+          if (str('title').isNotEmpty)         ('Wish',     str('title')),
+          if (num_('target_price').isNotEmpty) ('Budget',   '${AppPrefs.cs}${num_('target_price')}'),
+          if (str('category').isNotEmpty)      ('Category', str('category')),
+          if (str('target_date').isNotEmpty)   ('By',       str('target_date')),
         ],
     };
   }

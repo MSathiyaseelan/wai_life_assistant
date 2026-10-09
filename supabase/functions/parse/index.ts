@@ -161,7 +161,7 @@ async function callGemini(
   imageBase64?: string,
   imageMimeType?: string,
   model = GEMINI_DEFAULT_MODEL
-): Promise<{ text: string; tokens: number; latencyMs: number }> {
+): Promise<{ text: string; tokens: number; latencyMs: number; finishReason: string }> {
 
   const start = Date.now();
   const isImageRequest = !!(imageBase64 && imageMimeType);
@@ -177,7 +177,12 @@ async function callGemini(
   // when combined with image input — use plain text generation and parse manually
   const generationConfig: Record<string, unknown> = {
     temperature: 0.1,
-    maxOutputTokens: 2048,
+    // The Flash models "think" before answering, and thinking tokens count
+    // against maxOutputTokens. At 2048 a dashboard question the model had to
+    // deliberate over ("planning to buy an A/C for 40k") hit the limit and
+    // returned truncated JSON. 8192 leaves room for thinking plus the answer;
+    // it's a ceiling, not a target — normal replies cost the same as before.
+    maxOutputTokens: 8192,
   };
   if (!isImageRequest) {
     generationConfig["responseMimeType"] = "application/json";
@@ -231,15 +236,17 @@ async function callGemini(
   }
 
   const data = await response.json();
+  const finishReason: string = data.candidates?.[0]?.finishReason ?? "UNKNOWN";
 
   if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-    throw new Error("Gemini returned empty response");
+    throw new Error(`Gemini returned empty response (finishReason=${finishReason})`);
   }
 
   return {
     text: data.candidates[0].content.parts[0].text,
     tokens: data.usageMetadata?.totalTokenCount || 0,
     latencyMs: Date.now() - start,
+    finishReason,
   };
 }
 
@@ -261,7 +268,7 @@ async function callGeminiWithRetry(
   imageMimeType?: string,
   model = GEMINI_DEFAULT_MODEL,
   maxRetries = 2
-): Promise<{ text: string; tokens: number; latencyMs: number }> {
+): Promise<{ text: string; tokens: number; latencyMs: number; finishReason: string }> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -465,7 +472,7 @@ serve(async (req: Request) => {
   // own error text for 503/UNAVAILABLE explicitly says "usually temporary",
   // and a single 25s network timeout is often just a one-off blip rather
   // than a real dead end).
-  let geminiResult: { text: string; tokens: number; latencyMs: number };
+  let geminiResult: { text: string; tokens: number; latencyMs: number; finishReason: string };
   try {
     geminiResult = await callGeminiWithRetry(
       finalPrompt,
@@ -499,9 +506,12 @@ serve(async (req: Request) => {
       parsed = JSON.parse(jsonMatch[0]);
     }
   } catch {
+    // finishReason (MAX_TOKENS = truncated) plus the tail of the raw text
+    // make the next "unexpected response" diagnosable from ai_parse_logs.
     await logParse(supabase, userId, body, promptRow.id,
                    null, geminiResult.tokens, geminiResult.latencyMs,
-                   "JSON parse failed");
+                   `JSON parse failed (finishReason=${geminiResult.finishReason}): ` +
+                   geminiResult.text.slice(-300));
     return errorResponse("AI returned invalid JSON", 422);
   }
 

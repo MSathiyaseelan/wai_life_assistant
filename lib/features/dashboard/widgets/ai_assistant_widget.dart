@@ -330,7 +330,10 @@ class _AIAssistantWidgetState extends State<AIAssistantWidget>
         text: question,
         context: {
           'question': question,
-          'household_context': contextBlock,
+          // client_actions tells the prompt which newer action types this
+          // build can execute — older builds don't send it, so the prompt
+          // won't hand them an action they'd silently drop (see migration 210).
+          'household_context': '$contextBlock\nclient_actions: add_wish',
           'family_members': familyMembers,
         },
       );
