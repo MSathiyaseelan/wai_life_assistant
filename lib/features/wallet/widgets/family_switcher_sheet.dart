@@ -1201,6 +1201,10 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
     // Collect non-fatal photo upload errors to surface after save
     final photoErrors = <String>[];
     var invitedCount = 0;
+    // Members added with a phone that matched no account — saved as
+    // name-only members with no invite, which is easy to miss (e.g. a
+    // mistyped number), so the admin is told.
+    final unmatchedPhones = <String>[];
 
     Future<String> tryUpload({
       required String localPath,
@@ -1310,6 +1314,8 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           if (addResult['invited'] == true) {
             invitedCount++;
             _notifyInvitee(widget.existing!.id, addResult);
+          } else if ((added.phone ?? '').trim().isNotEmpty) {
+            unmatchedPhones.add(added.name);
           }
         }
 
@@ -1318,6 +1324,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           if (!mounted) return;
           _showPhotoErrors(photoErrors);
           _showInvitesSentMessage(invitedCount);
+          _showUnmatchedPhonesMessage(unmatchedPhones);
           Navigator.pop(context);
         }
       } else {
@@ -1361,6 +1368,8 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           if (addResult['invited'] == true) {
             invitedCount++;
             _notifyInvitee(familyId, addResult);
+          } else if ((m.phone ?? '').trim().isNotEmpty) {
+            unmatchedPhones.add(m.name);
           }
         }
 
@@ -1369,6 +1378,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
           if (!mounted) return;
           _showPhotoErrors(photoErrors);
           _showInvitesSentMessage(invitedCount);
+          _showUnmatchedPhonesMessage(unmatchedPhones);
           // onSelect expects a wallet ID, not a family ID
           Navigator.pop(context, result['wallet_id'] as String?);
         }
@@ -1445,6 +1455,23 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
         backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  void _showUnmatchedPhonesMessage(List<String> names) {
+    if (names.isEmpty || !mounted) return;
+    final who = names.length == 1 ? names.first : '${names.length} members';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'No account found for $who\'s phone number, so no invite was sent — '
+          'added by name only. Check the number, or share an invite code if '
+          'they don\'t use the app yet.',
+        ),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 8),
       ),
     );
   }
@@ -2171,7 +2198,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                       isDark ? AppColors.subDark : AppColors.subLight,
                     ),
                     Row(
-                      children: MemberRole.values
+                      children: MemberRole.assignable
                           .map(
                             (r) => Expanded(
                               child: GestureDetector(
@@ -2179,7 +2206,7 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 140),
                                   margin: EdgeInsets.only(
-                                    right: r != MemberRole.viewer ? 8 : 0,
+                                    right: r != MemberRole.assignable.last ? 8 : 0,
                                   ),
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,

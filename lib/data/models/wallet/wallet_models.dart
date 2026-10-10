@@ -261,6 +261,12 @@ enum MemberRole {
 
   final String emoji, label;
   const MemberRole(this.emoji, this.label);
+
+  /// Roles offered when adding a member or changing a role. Viewer is
+  /// left out: nothing enforced it as read-only (app or RLS), so it behaved
+  /// exactly like Member. Migration 212 converts existing viewers and coerces
+  /// new ones to member. Kept in the enum so old rows still parse.
+  static const assignable = [admin, member];
 }
 
 class FamilyMember {

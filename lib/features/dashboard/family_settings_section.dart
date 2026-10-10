@@ -1598,7 +1598,7 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
       builder: (dialogCtx) => _sheetShell(dialogCtx, [
         _sheetHeader('Change Role - ${member.name}'),
         const SizedBox(height: 14),
-        ...MemberRole.values.map((role) {
+        ...MemberRole.assignable.map((role) {
           final selected = role == member.role;
           return InkWell(
             borderRadius: BorderRadius.circular(14),
