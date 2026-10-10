@@ -91,6 +91,23 @@ class _NotificationSheetState extends State<NotificationSheet> {
     setState(() => _items.removeWhere((n) => n.id == id));
   }
 
+  // Swipe-to-dismiss — removed from the list right away, put back if the
+  // delete fails.
+  Future<void> _dismissItem(AppNotification n) async {
+    final index = _items.indexWhere((x) => x.id == n.id);
+    _removeItem(n.id);
+    try {
+      await NotificationService.instance.dismiss(n.id);
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'dismiss_notification');
+      if (!mounted) return;
+      setState(() => _items.insert(index.clamp(0, _items.length), n));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't remove that notification. Please try again.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
@@ -204,14 +221,29 @@ class _NotificationSheetState extends State<NotificationSheet> {
                               onDeclined: () => _removeItem(n.id),
                             );
                           }
-                          if (n.isBudgetAlert) {
-                            return _BudgetAlertTile(
-                              n: n, surf: surf, tc: tc, sub: sub,
-                            );
-                          }
-                          return _NotifTile(
-                            n: n, isDark: isDark, surf: surf, tc: tc, sub: sub,
-                            onOpenSplitGroup: widget.onOpenSplitGroup,
+                          // Invites aren't swipeable — they need an explicit
+                          // Accept / Decline, which removes them itself.
+                          return Dismissible(
+                            key: ValueKey(n.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              color: AppColors.expense,
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 24),
+                              child: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onDismissed: (_) => _dismissItem(n),
+                            child: n.isBudgetAlert
+                                ? _BudgetAlertTile(
+                                    n: n, surf: surf, tc: tc, sub: sub,
+                                  )
+                                : _NotifTile(
+                                    n: n, isDark: isDark, surf: surf, tc: tc, sub: sub,
+                                    onOpenSplitGroup: widget.onOpenSplitGroup,
+                                  ),
                           );
                         },
                       ),
