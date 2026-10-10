@@ -104,5 +104,13 @@ class WhatsNew {
       'Functions: pull down to refresh now shows newly added or deleted functions right away.',
       'PlanIt: deleting an item now asks for confirmation first.',
     ],
+    40: [
+      'AI assistant: say "planning to buy a new A/C for 40k" and it\'s added to your Wish List.',
+      'AI assistant: if a request is missing details, it now asks instead of showing an error.',
+      'Dashboard: Needs Attention and Upcoming Functions open in the right Personal or family group, with a label showing which.',
+      'Functions: Gold/Silver and gift items received are now saved.',
+      'Functions: "Undo returned" on a moi entry now stays undone.',
+      'Functions: members in a participant group have separate Name and Relation boxes.',
+    ],
   };
 }
