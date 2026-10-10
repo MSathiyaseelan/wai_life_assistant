@@ -76,7 +76,12 @@ const TEMPLATES: Record<string, Template> = {
 
   // Family
   "family.invite_received": (d) => ({ title: `👨‍👩‍👧 Family Invite`, body: `${d.inviter_name} invited you to join "${d.family_name}"`, route: "dashboard" }),
+  "family.member_left":     (d) => ({ title: `👋 ${d.member_name} left the family`, body: `${d.member_name} is no longer in "${d.family_name}"`, route: "dashboard" }),
 };
+
+// Sent by the member who just left, after their family_members row is
+// soft-deleted — the only event a removed/left member may still send.
+const SENDABLE_AFTER_LEAVING = new Set(["family.member_left"]);
 
 // Maps an event_type to the recipient's own profiles column that must also
 // be true (alongside notif_master) for them to receive it. Event types with
@@ -354,12 +359,18 @@ serve(async (req) => {
   const triggered_by = caller.id;
 
   if (family_id) {
-    const { data: callerMembership, error: callerMembershipErr } = await supabase
+    // Removed / left members (deleted_at set) don't count — except for
+    // the "I left" notice itself, sent right after leaving.
+    let membershipQuery = supabase
       .from("family_members")
       .select("id")
       .eq("family_id", family_id)
-      .eq("user_id", triggered_by)
-      .maybeSingle();
+      .eq("user_id", triggered_by);
+    if (!SENDABLE_AFTER_LEAVING.has(event_type)) {
+      membershipQuery = membershipQuery.is("deleted_at", null);
+    }
+    const { data: callerMembership, error: callerMembershipErr } =
+      await membershipQuery.maybeSingle();
     if (callerMembershipErr) {
       console.error("[notify] caller membership check failed:", callerMembershipErr);
       return new Response(JSON.stringify({ error: "Membership check failed" }), {

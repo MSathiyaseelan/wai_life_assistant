@@ -81,6 +81,10 @@ class AppNotification {
   /// True when this notification is for being added to a split group.
   bool get isSplitAddedYou => txType == 'split_added_you';
 
+  /// True when a member left the family (213) — actorName is who left,
+  /// txTitle the family's name.
+  bool get isMemberLeft => txType == 'member_left';
+
   /// True for any split-group notification that should deep-link to the
   /// group when tapped.
   bool get isSplitLink =>

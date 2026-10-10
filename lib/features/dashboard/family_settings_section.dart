@@ -1751,7 +1751,11 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                     .id,
               );
               try {
-                await ProfileService.instance.leaveFamily(myMember.id);
+                await ProfileService.instance.leaveFamily(
+                  myMember.id,
+                  family: family,
+                  memberName: myMember.name,
+                );
                 if (mounted) await widget.appState.reload();
               } catch (e, stack) {
                 ErrorLogger.log(e, stackTrace: stack, action: 'leave_family');
@@ -1892,6 +1896,8 @@ class _FamilySettingsSectionState extends State<FamilySettingsSection> {
                   await ProfileService.instance.transferAdminAndLeave(
                     newAdminMemberId: m.id,
                     myMemberId: myMember.id,
+                    family: family,
+                    memberName: myMember.name,
                   );
                   if (mounted) await widget.appState.reload();
                 } catch (e, stack) {

@@ -657,6 +657,7 @@ class _NotifTile extends StatelessWidget {
       case 'split_reminder': return AppColors.expense;
       case 'split_extension': return const Color(0xFF9C27B0);
       case 'split_added_you': return AppColors.split;
+      case 'member_left': return AppColors.subLight;
       default:         return AppColors.primary;
     }
   }
@@ -723,7 +724,7 @@ class _NotifTile extends StatelessWidget {
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (!n.isSplitAddedYou)
+                    if (!n.isSplitAddedYou && !n.isMemberLeft)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
@@ -748,6 +749,8 @@ class _NotifTile extends StatelessWidget {
                       ? '⏰ Extension requested · ${n.txCategory}'
                       : n.isSplitAddedYou
                       ? '🤝 Added to split group · ${n.txCategory}'
+                      : n.isMemberLeft
+                      ? '👋 Left the family · ${n.txTitle ?? ''}'
                       : 'Added ${n.txType} · $label',
                   style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
                   maxLines: 1, overflow: TextOverflow.ellipsis,

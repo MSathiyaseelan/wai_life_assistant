@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
+import 'package:wai_life_assistant/core/services/family_notification_trigger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/wallet/wallet_models.dart';
 import '../models/subscription/subscription_models.dart';
@@ -392,8 +393,9 @@ class ProfileService {
   /// message 'last_admin_cannot_leave' if the caller is the sole admin and
   /// other members remain — the UI must handle this case by showing the
   /// transfer-admin flow.
-  Future<void> leaveFamily(String memberId) async {
+  Future<void> leaveFamily(String memberId, {required FamilyModel family, required String memberName}) async {
     await _db.rpc(AppRpc.leaveFamilyMember, params: {'p_member_id': memberId});
+    _notifyMemberLeft(family, memberName);
   }
 
   /// Atomically promote [newAdminMemberId] to admin, demote the caller, then
@@ -402,11 +404,24 @@ class ProfileService {
   Future<void> transferAdminAndLeave({
     required String newAdminMemberId,
     required String myMemberId,
+    required FamilyModel family,
+    required String memberName,
   }) async {
     await _db.rpc(AppRpc.transferAdminAndLeave, params: {
       'p_new_admin_member_id': newAdminMemberId,
       'p_my_member_id':        myMemberId,
     });
+    _notifyMemberLeft(family, memberName);
+  }
+
+  /// Push to the remaining members once the leave has gone through. The
+  /// in-app notification is written server-side (213), alongside the leave.
+  void _notifyMemberLeft(FamilyModel family, String memberName) {
+    FamilyNotificationTrigger.notify(
+      eventType: 'family.member_left',
+      familyId: family.id,
+      eventData: {'member_name': memberName, 'family_name': family.name},
+    );
   }
 
   Future<void> restore(String table, String id) async {

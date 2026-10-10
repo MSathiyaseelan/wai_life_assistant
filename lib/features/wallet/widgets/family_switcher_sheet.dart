@@ -1748,7 +1748,11 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                             .id,
                       );
                       try {
-                        await ProfileService.instance.leaveFamily(myMember.id);
+                        await ProfileService.instance.leaveFamily(
+                          myMember.id,
+                          family: widget.existing!,
+                          memberName: myMember.name,
+                        );
                         if (mounted) {
                           await widget.appState.reload();
                           if (mounted) Navigator.pop(context);
@@ -1844,6 +1848,8 @@ class _FamilyFormSheetState extends State<_FamilyFormSheet> {
                         await ProfileService.instance.transferAdminAndLeave(
                           newAdminMemberId: m.id,
                           myMemberId: myMember.id,
+                          family: widget.existing!,
+                          memberName: myMember.name,
                         );
                         if (mounted) {
                           await widget.appState.reload();
