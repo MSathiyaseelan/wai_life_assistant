@@ -862,6 +862,9 @@ class WalletService {
     DateTime? extensionDate,
     String? extensionReason,
     String? extensionResponseMsg,
+    // Nulls fields are otherwise left untouched — set to wipe the payer's
+    // previous reply (a new extension request, a disputed proof).
+    bool clearExtensionResponse = false,
     // Fallback when shareId is not yet populated (use tx+participant)
     String? transactionId,
     String? participantId,
@@ -873,7 +876,8 @@ class WalletService {
       if (proofDate != null)              'proof_date': proofDate.toIso8601String(),
       if (extensionDate != null)          'extension_date': extensionDate.toIso8601String(),
       if (extensionReason != null)        'extension_reason': extensionReason,
-      if (extensionResponseMsg != null)   'extension_response_msg': extensionResponseMsg,
+      if (extensionResponseMsg != null)   'extension_response_msg': extensionResponseMsg
+      else if (clearExtensionResponse)    'extension_response_msg': null,
     };
     List<dynamic> rows;
     if (shareId.isNotEmpty) {

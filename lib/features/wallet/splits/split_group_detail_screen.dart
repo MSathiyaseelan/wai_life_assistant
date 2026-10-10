@@ -354,7 +354,12 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final totalAmt = pending.fold(0.0, (s, e) => s + e.share.amount);
+    // What I actually pay is the net per person — my shares in their
+    // expenses less theirs in mine — not the gross sum of [pending].
+    final mySettlements = _cachedSettlementPlan
+        .where((e) => e.fromId == _myId)
+        .toList();
+    final totalAmt = mySettlements.fold(0.0, (s, e) => s + e.amount);
 
     showModalBottomSheet(
       context: context,
@@ -363,8 +368,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
       builder: (_) => _ProofSheet(
         groupId: _group.id,
         totalAmount: totalAmt,
-        pendingLabels: pending
-            .map((e) => '${e.tx.title}  ${AppPrefs.cs}${e.share.amount.toStringAsFixed(0)}')
+        pendingLabels: mySettlements
+            .map((e) => '${_participantName(e.toId)}  ${AppPrefs.cs}${e.amount.toStringAsFixed(0)}')
             .toList(),
         isDark: isDark,
         surfBg: surfBg,
@@ -373,9 +378,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         onSubmit: (note, imagePath) async {
           final proofDate = DateTime.now();
           var anyFailed = false;
-          // Group by payer so submitting proof across several transactions
-          // owed to the same person sends one notification, not several.
-          final amountByPayer = <String, double>{};
+          final failedPayers = <String>{};
           for (final e in pending) {
             e.share.status = SettleStatus.proofSubmitted;
             e.share.proofNote = note.isNotEmpty ? note : null;
@@ -391,9 +394,8 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
             );
             if (!ok) {
               anyFailed = true;
-              continue;
+              failedPayers.add(e.tx.addedById);
             }
-            amountByPayer[e.tx.addedById] = (amountByPayer[e.tx.addedById] ?? 0) + e.share.amount;
           }
           _addAndPersistMessage(
             text:
@@ -401,9 +403,11 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 '${note.isNotEmpty ? ': $note' : ''}',
             type: MsgType.settled,
           );
-          for (final entry in amountByPayer.entries) {
-            final payer = _group.participantById(entry.key);
-            if (payer != null) _notifyProofSubmitted(payer, entry.value);
+          // One notification per person, for the net amount paid to them.
+          for (final entry in mySettlements) {
+            if (failedPayers.contains(entry.toId)) continue;
+            final payer = _group.participantById(entry.toId);
+            if (payer != null) _notifyProofSubmitted(payer, entry.amount);
           }
           _update();
           if (anyFailed) _showSaveFailedSnack();
@@ -422,13 +426,13 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final totalAmt = pending.fold(0.0, (s, e) => s + e.share.amount);
 
     // Use the group's net settlement plan filtered to entries where I am the payer.
     // This correctly nets out mutual debts across all transactions.
     final mySettlements = _cachedSettlementPlan
         .where((e) => e.fromId == _myId)
         .toList();
+    final totalAmt = mySettlements.fold(0.0, (s, e) => s + e.amount);
 
     bool showReasonError = false;
     showModalBottomSheet(
@@ -618,12 +622,15 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                           e.share.status = SettleStatus.extensionRequested;
                           e.share.extensionDate = pickedDate;
                           e.share.extensionReason = reason;
+                          // A fresh request — drop the reply to the last one.
+                          e.share.extensionResponseMsg = null;
                           final ok = await _persistShareStatus(
                             share: e.share,
                             txId: e.tx.id,
                             status: 'extension_requested',
                             extensionDate: pickedDate,
                             extensionReason: reason,
+                            clearExtensionResponse: true,
                           );
                           if (!ok) anyFailed = true;
                         }
@@ -672,6 +679,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     DateTime? extensionDate,
     String? extensionReason,
     String? extensionResponseMsg,
+    bool clearExtensionResponse = false,
     String? proofNote,
     String? proofImagePath,
     DateTime? proofDate,
@@ -686,6 +694,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
         extensionDate: extensionDate,
         extensionReason: extensionReason,
         extensionResponseMsg: extensionResponseMsg,
+        clearExtensionResponse: clearExtensionResponse,
         proofNote: proofNote,
         proofImagePath: proofImagePath,
         proofDate: proofDate,
@@ -702,6 +711,385 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Couldn't save that change. Pull to refresh and try again.")),
+    );
+  }
+
+  // ── Settle up between two people ───────────────────────────────────────────
+  /// Marks the net amount [fromId] owes [toId] as paid by closing every open
+  /// share between them in both directions — [fromId]'s shares in [toId]'s
+  /// expenses, and [toId]'s shares in [fromId]'s, which the net already
+  /// offset. Settling only one side (e.g. just the ₹1000 bus share when ₹825
+  /// was paid net of a ₹175 breakfast) left the offset showing up afterwards
+  /// as a fresh debt the other way.
+  Future<void> _settlePair(String fromId, String toId) async {
+    final owedFwd = _group.openSharesOwed(fromId, toId);
+    final owedBack = _group.openSharesOwed(toId, fromId);
+    final net = owedFwd.fold(0.0, (s, e) => s + e.share.amount) -
+        owedBack.fold(0.0, (s, e) => s + e.share.amount);
+    var anyFailed = false;
+    for (final e in [...owedFwd, ...owedBack]) {
+      e.share.status = SettleStatus.settled;
+      final ok = await _persistShareStatus(
+        share: e.share,
+        txId: e.tx.id,
+        status: 'settled',
+      );
+      if (!ok) anyFailed = true;
+    }
+    if (!mounted) return;
+    final fromName = fromId == _myId ? 'you' : _participantName(fromId);
+    final toName = toId == _myId ? 'you' : _participantName(toId);
+    _addAndPersistMessage(
+      text: 'Marked ${AppPrefs.cs}${net.abs().toStringAsFixed(0)} from $fromName '
+          'to $toName as settled ✓',
+      type: MsgType.settled,
+    );
+    _update();
+    if (anyFailed) _showSaveFailedSnack();
+  }
+
+  /// Rejects the payment proof [debtorId] sent me — every share it covered
+  /// goes back to pending.
+  Future<void> _disputeProof(String debtorId) async {
+    var anyFailed = false;
+    for (final e in _group.openSharesOwed(debtorId, _myId)) {
+      if (e.share.status != SettleStatus.proofSubmitted) continue;
+      e.share.status = SettleStatus.pending;
+      e.share.proofNote = null;
+      // Otherwise an earlier "extension granted" reply on a now-pending
+      // share would read as a declined extension (extensionDeclined).
+      e.share.extensionResponseMsg = null;
+      final ok = await _persistShareStatus(
+        share: e.share,
+        txId: e.tx.id,
+        status: 'pending',
+        clearExtensionResponse: true,
+      );
+      if (!ok) anyFailed = true;
+    }
+    if (!mounted) return;
+    _addAndPersistMessage(
+      text: '❌ Disputed the payment proof from ${_participantName(debtorId)}',
+      type: MsgType.settled,
+    );
+    _update();
+    if (anyFailed) _showSaveFailedSnack();
+  }
+
+  /// Grants or declines the extension [debtorId] asked me for — one answer
+  /// for the net amount, applied to every share the request covered.
+  void _showPairExtensionResponseSheet(String debtorId, double amount, {required bool agree}) {
+    final requested = _group
+        .openSharesOwed(debtorId, _myId)
+        .where((e) => e.share.status == SettleStatus.extensionRequested)
+        .toList();
+    if (requested.isEmpty) return;
+    final ref = requested.first.share;
+    final personName = _participantName(debtorId);
+    final ctrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final color = agree ? const Color(0xFF00BCD4) : AppColors.expense;
+    final dateStr = ref.extensionDate != null ? _ShareRow._fmtDate(ref.extensionDate!) : 'agreed date';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.cardLight,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+          // Scrollable so a short screen with the keyboard up doesn't clip it.
+          child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(children: [
+                Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(agree ? '🤝' : '❌', style: const TextStyle(fontSize: 20)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(agree ? 'Grant Extension' : 'Decline Extension',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                            fontFamily: 'Nunito', color: tc)),
+                    Text(
+                      agree
+                          ? '${AppPrefs.cs}${amount.toStringAsFixed(0)} from $personName till $dateStr'
+                          : 'Decline $personName\'s request for ${AppPrefs.cs}${amount.toStringAsFixed(0)}',
+                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
+                    ),
+                  ]),
+                ),
+              ]),
+              const SizedBox(height: 16),
+              if (ref.extensionDate != null || ref.extensionReason != null)
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9C27B0).withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (ref.extensionDate != null)
+                        Text('Requested till: $dateStr',
+                            style: const TextStyle(fontSize: 12, fontFamily: 'Nunito',
+                                fontWeight: FontWeight.w700, color: Color(0xFF9C27B0))),
+                      if (ref.extensionReason != null) ...[
+                        const SizedBox(height: 2),
+                        Text(ref.extensionReason!,
+                            style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                      ],
+                    ],
+                  ),
+                ),
+              TextField(
+                controller: ctrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: agree
+                      ? 'Add a note e.g. Sure, please pay by then!'
+                      : 'Add a reason e.g. Need it urgently',
+                  hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
+                  filled: true,
+                  fillColor: surfBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.all(14),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () async {
+                      final msg = ctrl.text.trim();
+                      // A decline always stores a reply, even an empty one —
+                      // that's what marks the pending share as declined
+                      // (SplitShare.extensionDeclined) so it stays visible.
+                      // The request's date and reason are kept for context.
+                      final responseMsg = agree ? (msg.isEmpty ? null : msg) : msg;
+                      Navigator.pop(ctx);
+                      var anyFailed = false;
+                      for (final e in requested) {
+                        final s = e.share;
+                        s.status = agree ? SettleStatus.extensionGranted : SettleStatus.pending;
+                        s.extensionResponseMsg = responseMsg;
+                        final ok = await _persistShareStatus(
+                          share: s,
+                          txId: e.tx.id,
+                          status: agree ? 'extension_granted' : 'pending',
+                          extensionDate: s.extensionDate,
+                          extensionReason: s.extensionReason,
+                          extensionResponseMsg: responseMsg,
+                        );
+                        if (!ok) anyFailed = true;
+                      }
+                      if (!mounted) return;
+                      _addAndPersistMessage(
+                        text: agree
+                            ? '🤝 Extension granted for $personName till $dateStr'
+                                '${msg.isNotEmpty ? ': $msg' : ''}'
+                            : '❌ Extension declined for $personName'
+                                '${msg.isNotEmpty ? ': $msg' : ''}',
+                        type: agree ? MsgType.extensionGranted : MsgType.settled,
+                      );
+                      _update();
+                      if (anyFailed) _showSaveFailedSnack();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: Text(
+                      agree ? 'Grant Extension' : 'Decline',
+                      style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmSettlePair(String fromId, String toId, double amount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final fromName = fromId == _myId ? 'You' : _participantName(fromId);
+    final toName = toId == _myId ? 'you' : _participantName(toId);
+    final owedFwd = _group.openSharesOwed(fromId, toId);
+    final owedBack = _group.openSharesOwed(toId, fromId);
+
+    Widget line(({SplitGroupTx tx, SplitShare share}) e, {required bool less}) =>
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(children: [
+            Expanded(
+              child: Text(e.tx.title,
+                  style: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub)),
+            ),
+            Text(
+              '${less ? '− ' : ''}${AppPrefs.cs}${e.share.amount.toStringAsFixed(0)}',
+              style: TextStyle(
+                fontFamily: 'DM Mono',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: less ? AppColors.income : tc,
+              ),
+            ),
+          ]),
+        );
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text('Mark as settled?',
+                style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 17, color: tc)),
+            const SizedBox(height: 6),
+            Text(
+              '$fromName paid $toName ${AppPrefs.cs}${amount.toStringAsFixed(0)}. '
+              'This settles every expense between them:',
+              style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: surfBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(children: [
+                for (final e in owedFwd) line(e, less: false),
+                for (final e in owedBack) line(e, less: true),
+                Divider(height: 12, color: sub.withValues(alpha: 0.2)),
+                Row(children: [
+                  Expanded(
+                    child: Text('Net paid',
+                        style: TextStyle(fontFamily: 'Nunito', fontSize: 12, fontWeight: FontWeight.w800, color: tc)),
+                  ),
+                  Text('${AppPrefs.cs}${amount.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                        fontFamily: 'DM Mono',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.split,
+                      )),
+                ]),
+              ]),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tc,
+                      backgroundColor: surfBg,
+                      side: BorderSide.none,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('Cancel',
+                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _settlePair(fromId, toId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.income,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Text('Settled',
+                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1954,15 +2342,18 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
           // extension requested/granted (asking for more time shouldn't block
           // paying). An extension can be requested while pending or once a
           // previous request was granted, but not while one awaits a reply.
+          // Only shares owed to people I owe on net — someone who owes me
+          // more than I owe them is settled from their side, not mine.
           final myUnpaid = p.isMe
-              ? _group.transactions
-                  .expand((tx) => tx.shares.map((s) => (tx: tx, share: s)))
+              ? [
+                  for (final e in _cachedSettlementPlan)
+                    if (e.fromId == p.id) ..._group.openSharesOwed(p.id, e.toId),
+                ]
                   .where(
                     (e) =>
-                        e.share.participantId == p.id &&
-                        (e.share.status == SettleStatus.pending ||
-                            e.share.status == SettleStatus.extensionRequested ||
-                            e.share.status == SettleStatus.extensionGranted),
+                        e.share.status == SettleStatus.pending ||
+                        e.share.status == SettleStatus.extensionRequested ||
+                        e.share.status == SettleStatus.extensionGranted,
                   )
                   .toList()
               : <({SplitGroupTx tx, SplitShare share})>[];
@@ -1974,19 +2365,15 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               )
               .toList();
 
-          // This participant's shares with an extension requested/granted or
-          // proof awaiting confirmation — shown on their card, under Submit
-          // Proof / Extension, so Overview reflects where each share stands.
-          final inProgress = _group.transactions
-              .expand((tx) => tx.shares.map((s) => (tx: tx, share: s)))
-              .where(
-                (e) =>
-                    e.share.participantId == p.id &&
-                    (e.share.status == SettleStatus.extensionRequested ||
-                        e.share.status == SettleStatus.extensionGranted ||
-                        e.share.status == SettleStatus.proofSubmitted),
-              )
-              .toList();
+          // Where this participant's payment to each person they owe stands
+          // (proof sent / extension asked or granted) — one entry per person
+          // for the net amount, not one per expense.
+          final inProgress = [
+            for (final e in _cachedSettlementPlan)
+              if (e.fromId == p.id)
+                if (_group.pairProgress(p.id, e.toId) case final pr?)
+                  (toId: e.toId, amount: e.amount, status: pr.status, share: pr.share),
+          ];
 
           return GestureDetector(
             onTap: () {
@@ -2129,7 +2516,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 ),
 
                 // ── Action buttons for ME when I owe and have pending shares ──
-                if (p.isMe && !isEven && !isOwed && myUnpaid.isNotEmpty) ...[
+                if (p.isMe && myUnpaid.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -2206,21 +2593,29 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 for (final e in inProgress) ...[
                   const SizedBox(height: 8),
                   Text(
-                    '${e.share.status == SettleStatus.proofSubmitted ? '💳' : '⏰'} '
-                    '${e.tx.title} · ${AppPrefs.cs}${e.share.amount.toStringAsFixed(0)} · '
-                    '${switch (e.share.status) {
+                    '${switch (e.status) {
+                      SettleStatus.proofSubmitted => '💳',
+                      SettleStatus.pending => '❌',
+                      _ => '⏰',
+                    }} '
+                    'To ${e.toId == _myId ? 'you' : _participantName(e.toId)} · '
+                    '${AppPrefs.cs}${e.amount.toStringAsFixed(0)} · '
+                    '${switch (e.status) {
                       SettleStatus.proofSubmitted => 'Proof submitted — awaiting confirmation',
                       SettleStatus.extensionGranted => 'Extension granted',
+                      SettleStatus.pending => 'Extension declined',
                       _ => 'Extension requested',
                     }}',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       fontFamily: 'Nunito',
-                      color: e.share.status.color,
+                      color: e.status == SettleStatus.pending
+                          ? AppColors.expense
+                          : e.status.color,
                     ),
                   ),
-                  if (e.share.status == SettleStatus.proofSubmitted) ...[
+                  if (e.status == SettleStatus.proofSubmitted) ...[
                     _ProofInfo(share: e.share),
                     // Proof replaces the extension status, but the share's
                     // past requests stay in split_share_extension_history.
@@ -2245,7 +2640,35 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                         ),
                       ),
                   ] else
-                    _ExtensionInfo(share: e.share, color: e.share.status.color),
+                    _ExtensionInfo(
+                      share: e.share,
+                      color: e.status == SettleStatus.pending
+                          ? AppColors.expense
+                          : e.status.color,
+                    ),
+                  // I'm the one being paid — respond once for the net amount.
+                  if (e.toId == _myId &&
+                      (e.status == SettleStatus.proofSubmitted ||
+                          e.status == SettleStatus.extensionRequested)) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: e.status == SettleStatus.proofSubmitted
+                          ? [
+                              _ActionBtn('✅ Mark Received', AppColors.income,
+                                  () => _confirmSettlePair(p.id, _myId, e.amount)),
+                              _ActionBtn('❌ Dispute', AppColors.expense,
+                                  () => _disputeProof(p.id)),
+                            ]
+                          : [
+                              _ActionBtn('✅ Agree', const Color(0xFF00BCD4),
+                                  () => _showPairExtensionResponseSheet(p.id, e.amount, agree: true)),
+                              _ActionBtn('❌ Disagree', AppColors.expense,
+                                  () => _showPairExtensionResponseSheet(p.id, e.amount, agree: false)),
+                            ],
+                    ),
+                  ],
                 ],
               ],
             ),
@@ -2311,6 +2734,10 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
               final toName = to?.isMe == true
                   ? 'You'
                   : (to?.name.split(' ')[0] ?? s.toId);
+              // The person being paid confirms they got it (also covers
+              // members without the app, who can't submit proof); an admin
+              // can settle any pair.
+              final canSettle = to?.isMe == true || _isAdmin;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(
@@ -2324,7 +2751,10 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                     color: AppColors.split.withValues(alpha: 0.15),
                   ),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                Row(
                   children: [
                     Text(
                       from?.emoji ?? '🧑',
@@ -2392,6 +2822,16 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                         ),
                       ),
                     ),
+                  ],
+                ),
+                    if (canSettle) ...[
+                      const SizedBox(height: 8),
+                      _ActionBtn(
+                        to?.isMe == true ? '✅ Mark Received' : '✅ Mark Settled (Admin)',
+                        AppColors.income,
+                        () => _confirmSettlePair(s.fromId, s.toId, s.amount),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -2511,10 +2951,6 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                 sentBy: _participantName(_myId),
               ).catchError((e) => ErrorLogger.warning(e, action: 'record_reminder_sent'));
             });
-          },
-          onExtensionRequested: (share, tx) {
-            final payer = _group.participantById(tx.addedById);
-            if (payer != null) _notifyExtensionRequested(payer, share.amount);
           },
         );
       },
@@ -2698,7 +3134,6 @@ class _ExpenseTile extends StatefulWidget {
   final VoidCallback onShareUpdated;
   final void Function(String) onAddChatMsg;
   final void Function(SplitShare, SplitGroupTx) onSendReminder;
-  final void Function(SplitShare, SplitGroupTx) onExtensionRequested;
 
   /// Null when the current user is neither this expense's payer nor the
   /// group's admin — hides the corresponding action instead of just
@@ -2719,7 +3154,6 @@ class _ExpenseTile extends StatefulWidget {
     required this.onShareUpdated,
     required this.onAddChatMsg,
     required this.onSendReminder,
-    required this.onExtensionRequested,
     this.onEdit,
     this.onDelete,
   });
@@ -3090,8 +3524,6 @@ class _ExpenseTileState extends State<_ExpenseTile> {
                 },
                 onAddChatMsg: widget.onAddChatMsg,
                 onSendReminder: () => widget.onSendReminder(share, widget.tx),
-                onExtensionRequested: () =>
-                    widget.onExtensionRequested(share, widget.tx),
               ),
             ),
             const SizedBox(height: 8),
@@ -3115,7 +3547,6 @@ class _ShareRow extends StatelessWidget {
   final VoidCallback onUpdate;
   final void Function(String) onAddChatMsg;
   final VoidCallback? onSendReminder;
-  final VoidCallback? onExtensionRequested;
 
   const _ShareRow({
     required this.share,
@@ -3134,7 +3565,6 @@ class _ShareRow extends StatelessWidget {
     required this.onAddChatMsg,
     required this.isAdmin,
     this.onSendReminder,
-    this.onExtensionRequested,
   });
 
   bool get _iAmPayer => addedById == myId; // I paid the bill
@@ -3267,33 +3697,23 @@ class _ShareRow extends StatelessWidget {
   Widget _buildActions(BuildContext context, SettleStatus st) {
     final actions = <Widget>[];
 
-    // I AM the payer — someone submitted proof or wants extension
-    if (_iAmPayer && !_isMyShare) {
-      if (st == SettleStatus.proofSubmitted) {
-        actions.addAll([
-          _ActionBtn('✅ Mark Received', AppColors.income, () async {
-            share.status = SettleStatus.settled;
-            await _persistShare(context, 'settled');
-            onAddChatMsg('Marked ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} from $personName as settled ✓');
-            onUpdate();
-          }),
-          _ActionBtn('❌ Dispute', AppColors.expense, () async {
-            share.status = SettleStatus.pending;
-            share.proofNote = null;
-            await _persistShare(context, 'pending');
-            onUpdate();
-          }),
-        ]);
-      } else if (st == SettleStatus.extensionRequested) {
-        actions.addAll([
-          _ActionBtn('✅ Agree', const Color(0xFF00BCD4), () {
-            _showExtensionResponseSheet(context, agree: true);
-          }),
-          _ActionBtn('❌ Disagree', AppColors.expense, () {
-            _showExtensionResponseSheet(context, agree: false);
-          }),
-        ]);
-      }
+    // Proof and extension requests cover the net owed between two people
+    // across all their expenses, so they're answered once, from that
+    // person's card in Overview — not per expense.
+    if (_iAmPayer && !_isMyShare &&
+        (st == SettleStatus.proofSubmitted || st == SettleStatus.extensionRequested)) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          'Respond from $personName\'s card in Overview',
+          style: TextStyle(
+            fontSize: 10,
+            fontFamily: 'Nunito',
+            fontWeight: FontWeight.w700,
+            color: sub,
+          ),
+        ),
+      );
     }
 
     // Reminder button (payer can send to pending shares)
@@ -3301,17 +3721,6 @@ class _ShareRow extends StatelessWidget {
     if (_iAmPayer && !_isMyShare && st == SettleStatus.pending && sendReminder != null) {
       actions.add(
         _ActionBtn('🔔 Send Reminder', AppColors.lend, sendReminder),
-      );
-    }
-
-    // I AM the debtor — I can request an extension on my pending share, or
-    // again once a previous request was granted (not while one awaits reply)
-    if (_isMyShare && !_iAmPayer &&
-        (st == SettleStatus.pending || st == SettleStatus.extensionGranted)) {
-      actions.add(
-        _ActionBtn('⏰ Request Extension', const Color(0xFF9C27B0), () {
-          _showDebtorExtensionSheet(context);
-        }),
       );
     }
 
@@ -3365,352 +3774,6 @@ class _ShareRow extends StatelessWidget {
       }
       return false;
     }
-  }
-
-  void _showDebtorExtensionSheet(BuildContext context) {
-    final ctrl = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
-    DateTime pickedDate = DateTime.now().add(const Duration(days: 5));
-    bool showReasonError = false;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                Row(children: [
-                  Container(
-                    width: 42, height: 42,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF9C27B0).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text('📅', style: TextStyle(fontSize: 20)),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Request Extension',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
-                            fontFamily: 'Nunito', color: tc)),
-                    Text(
-                      'For ${AppPrefs.cs}${share.amount.toStringAsFixed(0)} · ${tx.title}',
-                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
-                    ),
-                  ]),
-                ]),
-                const SizedBox(height: 16),
-                // Date picker
-                GestureDetector(
-                  onTap: () async {
-                    final d = await showDatePicker(
-                      context: ctx,
-                      initialDate: pickedDate,
-                      firstDate: DateTime.now().add(const Duration(days: 1)),
-                      lastDate: DateTime.now().add(const Duration(days: 90)),
-                    );
-                    if (d != null) setSt(() => pickedDate = d);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF9C27B0).withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.3)),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF9C27B0)),
-                      const SizedBox(width: 8),
-                      Text('Pay by: ${_fmtShareDate(pickedDate)}',
-                          style: const TextStyle(fontFamily: 'Nunito',
-                              fontWeight: FontWeight.w700, color: Color(0xFF9C27B0))),
-                      const Spacer(),
-                      const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF9C27B0)),
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: ctrl,
-                  maxLines: 2,
-                  onChanged: (_) {
-                    if (showReasonError) setSt(() => showReasonError = false);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Reason e.g. salary credit on 5th',
-                    hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
-                    filled: true,
-                    fillColor: showReasonError
-                        ? AppColors.expense.withValues(alpha: 0.06)
-                        : surfBg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: showReasonError
-                          ? BorderSide(color: AppColors.expense.withValues(alpha: 0.6))
-                          : BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: showReasonError
-                          ? BorderSide(color: AppColors.expense.withValues(alpha: 0.6))
-                          : BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.all(14),
-                  ),
-                ),
-                if (showReasonError) ...[
-                  const SizedBox(height: 4),
-                  Text('Please enter a reason for the extension',
-                      style: TextStyle(fontSize: 11, fontFamily: 'Nunito',
-                          color: AppColors.expense)),
-                ],
-                const SizedBox(height: 20),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () async {
-                        if (ctrl.text.trim().isEmpty) {
-                          setSt(() => showReasonError = true);
-                          return;
-                        }
-                        final reason = ctrl.text.trim();
-                        share.status = SettleStatus.extensionRequested;
-                        share.extensionDate = pickedDate;
-                        share.extensionReason = reason;
-                        await _persistShare(context, 'extension_requested');
-                        onAddChatMsg(
-                          '⏰ Requested extension till ${_fmtShareDate(pickedDate)}: $reason',
-                        );
-                        onExtensionRequested?.call();
-                        if (!context.mounted) return;
-                        Navigator.pop(context);
-                        onUpdate();
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF9C27B0),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: const Text('Request',
-                          style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800)),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _fmtShareDate(DateTime d) {
-    const m = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return '${d.day} ${m[d.month]} ${d.year}';
-  }
-
-  void _showExtensionResponseSheet(BuildContext context, {required bool agree}) {
-    final ctrl = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tc = isDark ? AppColors.textDark : AppColors.textLight;
-    final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
-    final color = agree ? const Color(0xFF00BCD4) : AppColors.expense;
-    final dateStr = share.extensionDate != null ? _fmtDate(share.extensionDate!) : 'agreed date';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.cardDark : AppColors.cardLight,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              // Header
-              Row(children: [
-                Container(
-                  width: 42, height: 42,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(agree ? '🤝' : '❌', style: const TextStyle(fontSize: 20)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(agree ? 'Grant Extension' : 'Decline Extension',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
-                            fontFamily: 'Nunito', color: tc)),
-                    Text(
-                      agree
-                          ? 'Extension for $personName till $dateStr'
-                          : 'Decline $personName\'s extension request',
-                      style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
-                    ),
-                  ]),
-                ),
-              ]),
-              const SizedBox(height: 16),
-
-              // Extension details (shown to payer for context)
-              if (share.extensionDate != null || share.extensionReason != null)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF9C27B0).withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF9C27B0).withValues(alpha: 0.2)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (share.extensionDate != null)
-                        Text('Requested till: $dateStr',
-                            style: const TextStyle(fontSize: 12, fontFamily: 'Nunito',
-                                fontWeight: FontWeight.w700, color: Color(0xFF9C27B0))),
-                      if (share.extensionReason != null) ...[
-                        const SizedBox(height: 2),
-                        Text(share.extensionReason!,
-                            style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
-                      ],
-                    ],
-                  ),
-                ),
-
-              // Message field
-              TextField(
-                controller: ctrl,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: agree
-                      ? 'Add a note e.g. Sure, please pay by then!'
-                      : 'Add a reason e.g. Need it urgently',
-                  hintStyle: TextStyle(fontFamily: 'Nunito', fontSize: 12, color: sub),
-                  filled: true,
-                  fillColor: surfBg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.all(14),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Cancel', style: TextStyle(fontFamily: 'Nunito')),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () async {
-                      final msg = ctrl.text.trim();
-                      if (agree) {
-                        share.status = SettleStatus.extensionGranted;
-                        share.extensionResponseMsg = msg.isEmpty ? null : msg;
-                        await _persistShare(context, 'extension_granted', responseMsg: msg.isEmpty ? null : msg);
-                        onAddChatMsg(
-                          '🤝 Extension granted for $personName till $dateStr'
-                          '${msg.isNotEmpty ? ': $msg' : ''}',
-                        );
-                      } else {
-                        share.status = SettleStatus.pending;
-                        share.extensionDate = null;
-                        share.extensionReason = null;
-                        share.extensionResponseMsg = msg.isEmpty ? null : msg;
-                        await _persistShare(context, 'pending', responseMsg: msg.isEmpty ? null : msg);
-                        onAddChatMsg(
-                          '❌ Extension declined for $personName'
-                          '${msg.isNotEmpty ? ': $msg' : ''}',
-                        );
-                      }
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                      onUpdate();
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: color,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: Text(
-                      agree ? 'Grant Extension' : 'Decline',
-                      style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   static String _fmtDate(DateTime d) {
@@ -3915,7 +3978,8 @@ class _ExtensionInfo extends StatelessWidget {
           children: [
             if (share.extensionDate != null) ...[
               Text(
-                'Extension till: ${_ShareRow._fmtDate(share.extensionDate!)}',
+                '${st == SettleStatus.extensionGranted ? 'Extension till' : 'Requested till'}: '
+                '${_ShareRow._fmtDate(share.extensionDate!)}',
                 style: TextStyle(
                   fontSize: 11,
                   fontFamily: 'Nunito',

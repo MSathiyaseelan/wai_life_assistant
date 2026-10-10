@@ -698,7 +698,7 @@ void main() {
     // Tx1: A pays 400, shares A=100, B=150, C=150 → A=+300, B=-150, C=-150
     // Tx2: D pays 100, shares B=100              → D=+100, B=-250
     // Final: A=+300, D=+100, B=-250, C=-150  (sum=0)
-    // Greedy: B→A 250 (A credit left 50), C→A 50 (A done), C→D 100
+    // Pairwise: B→A 150, C→A 150, B→D 100
     final g = makeGroup(
       participants: [participant('A'), participant('B'), participant('C'), participant('D')],
       transactions: [
@@ -709,8 +709,13 @@ void main() {
       ],
     );
 
-    test('produces 3 transfers for 4-person split (minimum)', () {
+    test('produces 3 transfers for 4-person split', () {
       expect(g.settlementPlan.length, 3);
+    });
+
+    test('each transfer is between people who share expenses', () {
+      final pairs = g.settlementPlan.map((t) => '${t.fromId}→${t.toId}').toSet();
+      expect(pairs, {'B→A', 'C→A', 'B→D'});
     });
 
     test('no transfer amount is zero or negative', () {
@@ -722,6 +727,117 @@ void main() {
     test('total transferred equals total debt (B=250, C=150)', () {
       final totalTransferred = g.settlementPlan.fold(0.0, (s, t) => s + t.amount);
       expect(totalTransferred, closeTo(400, 0.01));
+    });
+  });
+
+  group('SplitGroup.settlementPlan — mutual debts between two people', () {
+    // A paid bus 2000 (B owes 1000); B paid breakfast 350 (A owes 175).
+    // Payer's own share is settled, as the Add Expense sheet saves it.
+    final g = makeGroup(
+      participants: [participant('A'), participant('B')],
+      transactions: [
+        tx(id: 'bus', groupId: 'g', addedById: 'A', totalAmount: 2000,
+            shares: [share('A', 1000, status: SettleStatus.settled), share('B', 1000)]),
+        tx(id: 'bf', groupId: 'g', addedById: 'B', totalAmount: 350,
+            shares: [share('A', 175), share('B', 175, status: SettleStatus.settled)]),
+      ],
+    );
+
+    test('nets both expenses into one transfer B→A 825', () {
+      final plan = g.settlementPlan;
+      expect(plan.length, 1);
+      expect(plan[0].fromId, 'B');
+      expect(plan[0].toId, 'A');
+      expect(plan[0].amount, closeTo(825, 0.01));
+      expect(g.netBalances['A'], closeTo(825, 0.01));
+    });
+
+    test('openSharesOwed finds the shares on each side', () {
+      expect(g.openSharesOwed('B', 'A').map((e) => e.tx.id), ['bus']);
+      expect(g.openSharesOwed('A', 'B').map((e) => e.tx.id), ['bf']);
+    });
+
+    test('settling both sides leaves nothing owed either way', () {
+      for (final e in [...g.openSharesOwed('B', 'A'), ...g.openSharesOwed('A', 'B')]) {
+        e.share.status = SettleStatus.settled;
+      }
+      expect(g.settlementPlan, isEmpty);
+      expect(g.netBalances['A'], closeTo(0, 0.01));
+      expect(g.netBalances['B'], closeTo(0, 0.01));
+    });
+  });
+
+  group('SplitGroup.pairProgress', () {
+    SplitGroup build() => makeGroup(
+          participants: [participant('A'), participant('B')],
+          transactions: [
+            tx(id: 'bus', groupId: 'g', addedById: 'A', totalAmount: 2000,
+                shares: [share('A', 1000, status: SettleStatus.settled), share('B', 1000)]),
+            tx(id: 'food', groupId: 'g', addedById: 'A', totalAmount: 400,
+                shares: [share('A', 200, status: SettleStatus.settled), share('B', 200)]),
+          ],
+        );
+    List<SplitShare> owed(SplitGroup g) =>
+        g.openSharesOwed('B', 'A').map((e) => e.share).toList();
+
+    test('nothing in progress while plainly pending', () {
+      expect(build().pairProgress('B', 'A'), isNull);
+    });
+
+    test('extension requested', () {
+      final g = build();
+      for (final s in owed(g)) {
+        s.status = SettleStatus.extensionRequested;
+        s.extensionDate = DateTime(2026, 11, 1);
+        s.extensionReason = 'salary on 1st';
+      }
+      expect(g.pairProgress('B', 'A')?.status, SettleStatus.extensionRequested);
+    });
+
+    test('granted keeps the request details and reply', () {
+      final g = build();
+      for (final s in owed(g)) {
+        s.status = SettleStatus.extensionGranted;
+        s.extensionDate = DateTime(2026, 11, 1);
+        s.extensionReason = 'salary on 1st';
+        s.extensionResponseMsg = 'Sure';
+      }
+      final pr = g.pairProgress('B', 'A')!;
+      expect(pr.status, SettleStatus.extensionGranted);
+      expect(pr.share.extensionReason, 'salary on 1st');
+      expect(pr.share.extensionResponseMsg, 'Sure');
+    });
+
+    test('declined stays visible with its reply, even an empty one', () {
+      for (final reply in ['Need it now', '']) {
+        final g = build();
+        for (final s in owed(g)) {
+          s.status = SettleStatus.pending;
+          s.extensionDate = DateTime(2026, 11, 1);
+          s.extensionResponseMsg = reply;
+        }
+        final pr = g.pairProgress('B', 'A')!;
+        expect(pr.status, SettleStatus.pending);
+        expect(pr.share.extensionDeclined, isTrue);
+        expect(pr.share.extensionResponseMsg, reply);
+      }
+    });
+
+    test('proof sent outranks an extension', () {
+      final g = build();
+      final s = owed(g);
+      s[0].status = SettleStatus.extensionGranted;
+      s[1].status = SettleStatus.proofSubmitted;
+      expect(g.pairProgress('B', 'A')?.status, SettleStatus.proofSubmitted);
+    });
+
+    test('settled shares are ignored', () {
+      final g = build();
+      for (final s in owed(g)) {
+        s.status = SettleStatus.settled;
+        s.extensionResponseMsg = 'old reply';
+      }
+      expect(g.pairProgress('B', 'A'), isNull);
     });
   });
 

@@ -157,6 +157,12 @@ class SplitShare {
     this.lastReminderAt,
     this.lastReminderBy,
   });
+
+  /// Back to pending after the payer declined an extension request — the
+  /// decline is the only path that leaves a reply on a pending share (a new
+  /// request and a disputed proof both clear it).
+  bool get extensionDeclined =>
+      status == SettleStatus.pending && extensionResponseMsg != null;
 }
 
 // ── A transaction added inside a split group ──────────────────────────────────
@@ -332,37 +338,76 @@ class SplitGroup {
     }
   }
 
-  // Minimum transactions to settle all debts.
-  // Returns list of (fromId, toId, amount) — "fromId owes toId this amount".
+  /// Unsettled shares [debtorId] owes [creditorId] — [debtorId]'s shares in
+  /// the expenses [creditorId] paid.
+  List<({SplitGroupTx tx, SplitShare share})> openSharesOwed(
+    String debtorId,
+    String creditorId,
+  ) => [
+    for (final tx in transactions)
+      if (tx.addedById == creditorId && debtorId != creditorId)
+        for (final s in tx.shares)
+          if (s.participantId == debtorId && s.status != SettleStatus.settled)
+            (tx: tx, share: s),
+  ];
+
+  /// Where [debtorId]'s payment to [creditorId] stands, across all the shares
+  /// between them: proof sent, else extension asked, else granted, else
+  /// declined (status pending — see [SplitShare.extensionDeclined]). [share]
+  /// carries the proof / extension details, which are written to every share
+  /// at once. Null when nothing is in progress.
+  ({SettleStatus status, SplitShare share})? pairProgress(
+    String debtorId,
+    String creditorId,
+  ) {
+    final shares = openSharesOwed(debtorId, creditorId).map((e) => e.share);
+    for (final st in const [
+      SettleStatus.proofSubmitted,
+      SettleStatus.extensionRequested,
+      SettleStatus.extensionGranted,
+    ]) {
+      for (final s in shares) {
+        if (s.status == st) return (status: st, share: s);
+      }
+    }
+    for (final s in shares) {
+      if (s.extensionDeclined) return (status: SettleStatus.pending, share: s);
+    }
+    return null;
+  }
+
+  // One net transfer per pair of people — what one owes the other across
+  // all expenses, less what the other owes back. Returns (fromId, toId,
+  // amount) — "fromId owes toId this amount".
+  // Pairwise rather than a global minimum-transfers plan so every entry maps
+  // onto real shares between just those two people, and settling it can
+  // close all of them in both directions (see openSharesOwed). A global plan
+  // could route "C pays A" with no C↔A shares to close.
   List<({String fromId, String toId, double amount})> get settlementPlan {
-    final balances = Map<String, double>.from(netBalances);
-
-    final debtorIds = balances.keys
-        .where((k) => (balances[k] ?? 0) < -0.01)
-        .toList()
-      ..sort((a, b) => (balances[a] ?? 0).compareTo(balances[b] ?? 0));
-    final creditorIds = balances.keys
-        .where((k) => (balances[k] ?? 0) > 0.01)
-        .toList()
-      ..sort((a, b) => (balances[b] ?? 0).compareTo(balances[a] ?? 0));
-
-    final debtAmt = {for (final id in debtorIds) id: -(balances[id] ?? 0)};
-    final creditAmt = {for (final id in creditorIds) id: balances[id] ?? 0};
+    final owed = <String, Map<String, double>>{}; // debtor → creditor → amount
+    for (final tx in transactions) {
+      for (final s in tx.shares) {
+        if (s.status == SettleStatus.settled) continue;
+        if (s.participantId == tx.addedById) continue;
+        final m = owed.putIfAbsent(s.participantId, () => {});
+        m[tx.addedById] = (m[tx.addedById] ?? 0) + s.amount;
+      }
+    }
 
     final result = <({String fromId, String toId, double amount})>[];
-    int i = 0, j = 0;
-    while (i < debtorIds.length && j < creditorIds.length) {
-      final from = debtorIds[i];
-      final to = creditorIds[j];
-      final pay = debtAmt[from]! < creditAmt[to]!
-          ? debtAmt[from]!
-          : creditAmt[to]!;
-      if (pay > 0.01) result.add((fromId: from, toId: to, amount: pay));
-      debtAmt[from] = debtAmt[from]! - pay;
-      creditAmt[to] = creditAmt[to]! - pay;
-      if ((debtAmt[from] ?? 0) < 0.01) i++;
-      if ((creditAmt[to] ?? 0) < 0.01) j++;
+    final seen = <String>{};
+    for (final a in owed.keys) {
+      for (final b in owed[a]!.keys) {
+        if (!seen.add(a.compareTo(b) < 0 ? '$a|$b' : '$b|$a')) continue;
+        final net = owed[a]![b]! - (owed[b]?[a] ?? 0);
+        if (net > 0.01) {
+          result.add((fromId: a, toId: b, amount: net));
+        } else if (net < -0.01) {
+          result.add((fromId: b, toId: a, amount: -net));
+        }
+      }
     }
+    result.sort((x, y) => y.amount.compareTo(x.amount));
     return result;
   }
 }
