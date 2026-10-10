@@ -1114,10 +1114,24 @@ class _PantryScreenState extends State<PantryScreen>
 
   /// Allergies (from the active wallet's Family Food Guide) that [m]'s
   /// name, ingredients or linked recipes appear to contain.
-  List<AllergyHit> _allergyHitsFor(MealEntry m) => findAllergyHits(
+  List<AllergyHit> _allergyHitsFor(MealEntry m) =>
+      _prefHitsFor(m, (p) => p.allergies);
+
+  /// Entries of a Family Food Guide list (allergies, likes, dislikes) that
+  /// [m]'s name, ingredients or linked recipes appear to contain.
+  List<AllergyHit> _prefHitsFor(
+    MealEntry m,
+    List<String> Function(MemberFoodPrefs p) list,
+  ) => findPrefHits(
         mealAllergyTexts(m, _recipes),
         _foodPrefs.where((p) => p.walletId == m.walletId).toList(),
+        list,
       );
+
+  String? _describePrefHits(MealEntry m, List<String> Function(MemberFoodPrefs p) list) {
+    final hits = _prefHitsFor(m, list);
+    return hits.isEmpty ? null : describeAllergyHits(hits);
+  }
 
   /// Warns right after a meal is saved if it may contain a member's allergy.
   /// Replaces any "Meal logged!" snackbar — the warning matters more.
@@ -2385,10 +2399,9 @@ class _PantryScreenState extends State<PantryScreen>
             onMealAdded: _addMeal,
             onMealUpdated: _updateMeal,
             onMealTapped: _showMealDetail,
-            allergyWarningFor: (m) {
-              final hits = _allergyHitsFor(m);
-              return hits.isEmpty ? null : describeAllergyHits(hits);
-            },
+            allergyWarningFor: (m) => _describePrefHits(m, (p) => p.allergies),
+            dislikesFor: (m) => _describePrefHits(m, (p) => p.dislikes),
+            likesFor: (m) => _describePrefHits(m, (p) => p.likes),
             clipboardMeals: _clipboardMeals,
             clipboardLabel: _clipboardLabel,
             clipboardIsWeek: _clipboardIsWeek,

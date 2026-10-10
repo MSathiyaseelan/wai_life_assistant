@@ -29,6 +29,10 @@ class MealMapSection extends StatefulWidget {
   /// Family-allergy warning text for a meal (e.g. "Peanuts (Amma)"), or
   /// null when it contains none — shown as a ⚠️ line on the meal chip.
   final String? Function(MealEntry meal)? allergyWarningFor;
+  /// Same, from the Food Guide's dislikes / likes ("Brinjal (Appa)") —
+  /// shown as softer 😑 / ❤️ lines under the allergy warning.
+  final String? Function(MealEntry meal)? dislikesFor;
+  final String? Function(MealEntry meal)? likesFor;
 
   // Copy / paste
   final List<MealEntry>? clipboardMeals;
@@ -52,6 +56,8 @@ class MealMapSection extends StatefulWidget {
     required this.onMealTapped,
     this.onMealUpdated,
     this.allergyWarningFor,
+    this.dislikesFor,
+    this.likesFor,
     this.clipboardMeals,
     this.clipboardLabel = '',
     this.clipboardIsWeek = false,
@@ -297,6 +303,8 @@ class _MealMapSectionState extends State<MealMapSection> {
                 },
                 onMealTapped: widget.onMealTapped,
                 allergyWarningFor: widget.allergyWarningFor,
+                dislikesFor: widget.dislikesFor,
+                likesFor: widget.likesFor,
                 onCopyDay: widget.onCopyDay,
                 onPasteToDay: widget.onPasteToDay,
                 onCopyMeal: widget.onCopyMeal,
@@ -325,6 +333,8 @@ class _DayColumn extends StatelessWidget {
   final void Function(DateTime) onAddMeal;
   final void Function(MealEntry) onMealTapped;
   final String? Function(MealEntry)? allergyWarningFor;
+  final String? Function(MealEntry)? dislikesFor;
+  final String? Function(MealEntry)? likesFor;
   final void Function(DateTime)? onCopyDay;
   final void Function(DateTime)? onPasteToDay;
   final void Function(MealEntry)? onCopyMeal;
@@ -344,6 +354,8 @@ class _DayColumn extends StatelessWidget {
     this.clipboardLabel = '',
     this.width = 130,
     this.allergyWarningFor,
+    this.dislikesFor,
+    this.likesFor,
     this.onCopyDay,
     this.onPasteToDay,
     this.onCopyMeal,
@@ -471,6 +483,8 @@ class _DayColumn extends StatelessWidget {
                       meal: m,
                       isDark: isDark,
                       allergyWarning: allergyWarningFor?.call(m),
+                      dislikes: dislikesFor?.call(m),
+                      likes: likesFor?.call(m),
                       onTap: () => onMealTapped(m),
                       onLongPress: onCopyMeal != null
                           ? () => onCopyMeal!(m)
@@ -636,6 +650,8 @@ class _MealChip extends StatelessWidget {
   final MealEntry meal;
   final bool isDark;
   final String? allergyWarning;
+  final String? dislikes;
+  final String? likes;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -644,8 +660,28 @@ class _MealChip extends StatelessWidget {
     required this.isDark,
     required this.onTap,
     this.allergyWarning,
+    this.dislikes,
+    this.likes,
     this.onLongPress,
   });
+
+  Widget _prefLine(String text, String tooltip, Color color) => Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Tooltip(
+          message: tooltip,
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Nunito',
+              color: color,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -709,6 +745,12 @@ class _MealChip extends StatelessWidget {
                 ),
               ),
             ],
+            // Not a safety issue like allergies — just softer FYI lines.
+            if (dislikes != null)
+              _prefLine('😑 $dislikes', 'Disliked: $dislikes',
+                  isDark ? AppColors.subDark : AppColors.subLight),
+            if (likes != null)
+              _prefLine('❤️ $likes', 'Liked: $likes', AppColors.income),
             if (meal.reactions.isNotEmpty) ...[
               const SizedBox(height: 4),
               _ReactionBadgeRow(reactions: meal.reactions),

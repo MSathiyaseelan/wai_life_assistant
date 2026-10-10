@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/pantry/pantry_models.dart';
+import 'package:wai_life_assistant/features/pantry/utils/allergy_check.dart';
 
 class FamilyFoodPrefsCard extends StatelessWidget {
   final List<PantryMember> members;
@@ -353,8 +354,16 @@ class _MemberPrefsSheetState extends State<_MemberPrefsSheet> {
     );
 
     if (result != null && result.isNotEmpty) {
+      // "Mutton, chicken and egg" → three items, so each one is matched
+      // against meals on its own. Skips any already in the list.
+      final existing = list.map((e) => e.toLowerCase()).toSet();
+      final items = splitPrefItems(result)
+          .map((t) => t[0].toUpperCase() + t.substring(1))
+          .where((t) => existing.add(t.toLowerCase()))
+          .toList();
+      if (items.isEmpty) return;
       setState(() {
-        list.add(result);
+        list.addAll(items);
         _hasChanges = true;
       });
     }
