@@ -1012,6 +1012,15 @@ class FunctionModel {
   List<FunctionVendor> vendors;
   List<FunctionChatMessage> chat;
   List<String> memberIds;
+
+  /// Server-side counts (function_entry_counts RPC) for list cards, where
+  /// [gifts]/[moi] aren't fetched. Set back to null once the full lists are
+  /// loaded so the lists become the source of truth.
+  int? giftCountHint;
+  int? moiCountHint;
+  int get giftCount => giftCountHint ?? gifts.length;
+  int get moiCount => moiCountHint ?? moi.length;
+
   FunctionModel({
     required this.id,
     required this.walletId,

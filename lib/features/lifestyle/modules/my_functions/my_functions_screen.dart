@@ -245,6 +245,7 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
           ..addAll(attended);
         _loading = false;
       });
+      _loadEntryCounts(loaded);
       return;
     }
 
@@ -331,6 +332,32 @@ class _MyFunctionsScreenState extends State<MyFunctionsScreen>
         ..addAll(attended);
       _loading = false;
     });
+    _loadEntryCounts(functions);
+  }
+
+  /// Fills the 🎁 / 💰 counts on the function cards — gifts and moi entries
+  /// are otherwise only fetched when a function's detail screen opens, so the
+  /// counts disappeared on every refresh. Opening the detail screen clears
+  /// the hints again so its freshly loaded lists take over.
+  Future<void> _loadEntryCounts(List<FunctionModel> fns) async {
+    if (fns.isEmpty) return;
+    try {
+      final counts = await FunctionsService.instance
+          .fetchEntryCounts(fns.map((f) => f.id).toList());
+      if (!mounted) return;
+      setState(() {
+        for (final f in fns) {
+          final c = counts[f.id];
+          if (c == null) continue;
+          f.giftCountHint = c.gifts;
+          f.moiCountHint = c.moi;
+        }
+      });
+    } catch (e, stack) {
+      // Missing RPC (migration 214 not applied yet) or network — cards just
+      // fall back to whatever lists are loaded.
+      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_entry_counts');
+    }
   }
 
   @override

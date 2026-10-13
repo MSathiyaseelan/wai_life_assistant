@@ -107,6 +107,22 @@ class FunctionsService {
     return List<Map<String, dynamic>>.from(rows);
   }
 
+  /// Gift / moi counts per function for the list cards, keyed by function id
+  /// (function_entry_counts RPC, migration 214).
+  Future<Map<String, ({int gifts, int moi})>> fetchEntryCounts(
+      List<String> functionIds) async {
+    if (functionIds.isEmpty) return {};
+    final rows = await _db.rpc('function_entry_counts',
+        params: {'p_function_ids': functionIds}) as List<dynamic>;
+    return {
+      for (final r in rows.cast<Map<String, dynamic>>())
+        r['function_id'] as String: (
+          gifts: (r['gift_count'] as num?)?.toInt() ?? 0,
+          moi: (r['moi_count'] as num?)?.toInt() ?? 0,
+        ),
+    };
+  }
+
   Future<Map<String, dynamic>> addMyFunction(Map<String, dynamic> data) async {
     await _enforceCountLimit(
       table: 'functions_my',

@@ -73,6 +73,7 @@ class _FunctionDetailState extends State<_FunctionDetail>
         widget.fn.gifts
           ..clear()
           ..addAll(rows.map(GiftEntry.fromJson));
+        widget.fn.giftCountHint = null;
       });
     } catch (e, stack) {
       ErrorLogger.log(e, stackTrace: stack, action: 'function_detail_gifts_load');

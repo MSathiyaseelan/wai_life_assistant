@@ -33,6 +33,7 @@ Future<void> _loadMoiInto(FunctionModel fn) async {
   fn.moi
     ..clear()
     ..addAll([...draftEntries, ...dbEntries]);
+  fn.moiCountHint = null;
 }
 
 class _MoiTab extends StatefulWidget {

@@ -507,10 +507,10 @@ class _FunctionCard extends StatelessWidget {
                               color: _countdownColor(isDark),
                             ),
                           ),
-                        if (fn.gifts.isNotEmpty) ...[
+                        if (fn.giftCount > 0) ...[
                           const SizedBox(height: 4),
                           Text(
-                            '🎁 ${fn.gifts.length}',
+                            '🎁 ${fn.giftCount}',
                             style: TextStyle(
                               fontSize: 10,
                               fontFamily: 'Nunito',
@@ -518,10 +518,10 @@ class _FunctionCard extends StatelessWidget {
                             ),
                           ),
                         ],
-                        if (fn.moi.isNotEmpty) ...[
+                        if (fn.moiCount > 0) ...[
                           const SizedBox(height: 2),
                           Text(
-                            '💰 ${fn.moi.length}',
+                            '💰 ${fn.moiCount}',
                             style: TextStyle(
                               fontSize: 10,
                               fontFamily: 'Nunito',
