@@ -51,6 +51,18 @@ class _FunctionDetailState extends State<_FunctionDetail>
     _loadDishes();
     _loadVendors();
     _loadGifts();
+    _loadMoi();
+  }
+
+  /// Info tab's Cash total sums fn.moi, which otherwise only loads once the
+  /// Cash tab is opened.
+  Future<void> _loadMoi() async {
+    try {
+      await _loadMoiInto(widget.fn);
+      if (mounted) setState(() {});
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'function_detail_moi_load');
+    }
   }
 
   Future<void> _loadGifts() async {

@@ -6,6 +6,35 @@ part of 'my_functions_screen.dart';
 
 const _moiColor = Color(0xFFFF9800);
 
+String _moiDraftKey(String fnId) => 'moi_draft_$fnId';
+
+Future<List<MoiEntry>> _loadMoiDrafts(String fnId) async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = prefs.getString(_moiDraftKey(fnId));
+  if (raw == null) return [];
+  final list = jsonDecode(raw) as List<dynamic>;
+  return list
+      .map((e) => MoiEntry.fromDraftJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+/// Loads local drafts + saved moi entries into [fn.moi]. Shared by the Moi
+/// tab and the function detail screen (whose Info tab totals need them
+/// before the Cash tab has ever been opened).
+Future<void> _loadMoiInto(FunctionModel fn) async {
+  final results = await Future.wait([
+    FunctionsService.instance.fetchMoiEntries(fn.id),
+    _loadMoiDrafts(fn.id),
+  ]);
+  final dbEntries = (results[0] as List)
+      .map((r) => MoiEntry.fromJson(r as Map<String, dynamic>))
+      .toList();
+  final draftEntries = results[1] as List<MoiEntry>;
+  fn.moi
+    ..clear()
+    ..addAll([...draftEntries, ...dbEntries]);
+}
+
 class _MoiTab extends StatefulWidget {
   final FunctionModel fn;
   final bool isDark;
@@ -27,17 +56,9 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
   bool _savingDrafts = false;
 
   // ── Draft persistence helpers ─────────────────────────────────────────────
-  static String _draftKey(String fnId) => 'moi_draft_$fnId';
+  static String _draftKey(String fnId) => _moiDraftKey(fnId);
 
-  Future<List<MoiEntry>> _loadDraftEntries() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_draftKey(widget.fn.id));
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => MoiEntry.fromDraftJson(e as Map<String, dynamic>))
-        .toList();
-  }
+  Future<List<MoiEntry>> _loadDraftEntries() => _loadMoiDrafts(widget.fn.id);
 
   Future<void> _persistDrafts(List<MoiEntry> drafts) async {
     final prefs = await SharedPreferences.getInstance();
@@ -104,18 +125,10 @@ class _MoiTabState extends State<_MoiTab> with SingleTickerProviderStateMixin {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final results = await Future.wait([
-        FunctionsService.instance.fetchMoiEntries(widget.fn.id),
-        _loadDraftEntries(),
-      ]);
+      await _loadMoiInto(widget.fn);
       if (!mounted) return;
-      final dbEntries    = (results[0] as List).map((r) => MoiEntry.fromJson(r as Map<String, dynamic>)).toList();
-      final draftEntries = results[1] as List<MoiEntry>;
-      setState(() {
-        widget.fn.moi
-          ..clear()
-          ..addAll([...draftEntries, ...dbEntries]);
-      });
+      setState(() {});
+      widget.onUpdate();
     } catch (e, stack) { ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_load_error');
       debugPrint('[MoiTab] load error: $e');
     } finally {
