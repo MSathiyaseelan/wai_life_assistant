@@ -16,6 +16,7 @@ import 'package:wai_life_assistant/core/services/ai_parser.dart';
 import 'package:wai_life_assistant/data/services/functions_service.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
 import 'package:wai_life_assistant/core/error/friendly_error.dart';
+import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/shared/utils/ai_limit_snackbar.dart';
 import 'package:wai_life_assistant/shared/utils/overlay_toast.dart';
 import '../../widgets/life_widgets.dart';

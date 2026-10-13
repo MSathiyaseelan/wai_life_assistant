@@ -1933,10 +1933,8 @@ class _MoiCard extends StatelessWidget {
     return Dismissible(
       key: ValueKey(entry.id),
       direction: DismissDirection.endToStart,
-      confirmDismiss: (_) async {
-        onDelete();
-        return false; // we handle deletion in onDelete
-      },
+      confirmDismiss: (_) => confirmDelete(context),
+      onDismissed: (_) => onDelete(),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
