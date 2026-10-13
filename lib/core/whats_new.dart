@@ -112,5 +112,11 @@ class WhatsNew {
       'Functions: "Undo returned" on a moi entry now stays undone.',
       'Functions: members in a participant group have separate Name and Relation boxes.',
     ],
+    41: [
+      'Functions: easier bulk Moi entry — download the template and upload or paste it back.',
+      'Functions: Cash totals and gift counts now show correctly.',
+      'Functions: deleting a Moi entry now asks for confirmation.',
+      'Wallet: fixed the Create Group sheet hiding behind the keyboard.',
+    ],
   };
 }
