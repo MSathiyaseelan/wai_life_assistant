@@ -3951,9 +3951,12 @@ class _WalletScreenState extends State<WalletScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
+      // Read viewInsets from the sheet's own context — the screen's Scaffold
+      // (resizeToAvoidBottomInset) zeroes them for `context`, so the sheet
+      // would sit behind the keyboard.
+      builder: (sheetCtx) => Padding(
         padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
         child: Container(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
           decoration: BoxDecoration(
