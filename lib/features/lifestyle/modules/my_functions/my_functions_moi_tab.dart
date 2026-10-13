@@ -1871,6 +1871,9 @@ class _CsvImportDialog extends StatefulWidget {
 class _CsvImportDialogState extends State<_CsvImportDialog> {
   final _pasteCtrl = TextEditingController();
   int _preview = 0;
+  int _skipped = 0;
+  bool _picking = false;
+  String? _fileName;
 
   @override
   void dispose() {
@@ -1878,33 +1881,98 @@ class _CsvImportDialogState extends State<_CsvImportDialog> {
     super.dispose();
   }
 
-  List<_BulkMoiRow> _parse() {
-    final lines = _pasteCtrl.text.trim().split('\n')
-        .where((l) => l.trim().isNotEmpty).toList();
-    final hasHeader = lines.isNotEmpty &&
-        lines.first.toLowerCase().contains('name');
-    final dataLines = hasHeader ? lines.skip(1).toList() : lines;
+  /// Splits one line on [delim], honouring "quoted, values" and "" escapes.
+  static List<String> _splitLine(String line, String delim) {
+    final cols = <String>[];
+    final buf = StringBuffer();
+    var inQuotes = false;
+    for (var i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == '"') {
+        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
+          buf.write('"');
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch == delim && !inQuotes) {
+        cols.add(buf.toString().trim());
+        buf.clear();
+      } else {
+        buf.write(ch);
+      }
+    }
+    cols.add(buf.toString().trim());
+    return cols;
+  }
+
+  /// Parses comma-, tab- (pasted from Excel / Sheets) or semicolon-separated
+  /// text. Columns: Name, Family, Place, Amount, Type. Returns the valid rows
+  /// and how many data lines were skipped.
+  (List<_BulkMoiRow>, int) _parse() {
+    final text = _pasteCtrl.text.replaceAll('﻿', '').replaceAll('\r', '');
+    final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (lines.isEmpty) return (<_BulkMoiRow>[], 0);
+
+    final first = lines.first;
+    final delim = first.contains('\t')
+        ? '\t'
+        : (';'.allMatches(first).length > ','.allMatches(first).length ? ';' : ',');
+    final hasHeader = first.toLowerCase().contains('name');
+    final dataLines = hasHeader ? lines.skip(1) : lines;
 
     final result = <_BulkMoiRow>[];
+    var skipped = 0;
     for (final line in dataLines) {
-      final cols = line.split(',');
-      if (cols.length < 4) continue;
-      final name   = cols[0].trim();
-      final family = cols.length > 1 ? cols[1].trim() : '';
-      final place  = cols.length > 2 ? cols[2].trim() : '';
-      final amt    = double.tryParse(cols[3].trim());
-      final type   = cols.length > 4 ? cols[4].trim() : '';
-      if (name.isEmpty || place.isEmpty || amt == null || amt <= 0) continue;
+      final cols = _splitLine(line, delim);
+      String col(int i) => i < cols.length ? cols[i] : '';
+      final name   = col(0);
+      final family = col(1);
+      final place  = col(2);
+      // Tolerate "₹1,000" / "1 000" style amounts.
+      final amt    = double.tryParse(col(3).replaceAll(RegExp(r'[^0-9.]'), ''));
+      final type   = col(4).toLowerCase();
+      if (name.isEmpty || place.isEmpty || amt == null || amt <= 0) {
+        skipped++;
+        continue;
+      }
       final row = _BulkMoiRow();
       row.nameCtrl.text   = name;
       row.familyCtrl.text = family;
       row.placeCtrl.text  = place;
       row.amountCtrl.text = amt.toStringAsFixed(
           amt.truncateToDouble() == amt ? 0 : 2);
-      row.kind = type == 'returnMoi' ? MoiKind.returnMoi : MoiKind.newMoi;
+      row.kind = type.contains('return') ? MoiKind.returnMoi : MoiKind.newMoi;
       result.add(row);
     }
-    return result;
+    return (result, skipped);
+  }
+
+  void _refreshPreview() {
+    final (rows, skipped) = _parse();
+    setState(() {
+      _preview = rows.length;
+      _skipped = skipped;
+    });
+  }
+
+  Future<void> _pickFile() async {
+    setState(() => _picking = true);
+    try {
+      final file = await FilePicker.pickFile();
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      _pasteCtrl.text = utf8.decode(bytes, allowMalformed: true);
+      _fileName = file.name;
+      _refreshPreview();
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_csv_pick_error');
+      if (mounted) {
+        showOverlayToast(context, 'Could not read that file', backgroundColor: Colors.red);
+      }
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
   }
 
   void _close() {
@@ -1914,7 +1982,7 @@ class _CsvImportDialogState extends State<_CsvImportDialog> {
 
   void _import() {
     FocusScope.of(context).unfocus();
-    Navigator.pop(context, _parse());
+    Navigator.pop(context, _parse().$1);
   }
 
   @override
@@ -1926,6 +1994,7 @@ class _CsvImportDialogState extends State<_CsvImportDialog> {
     final surfBg  = isDark ? AppColors.surfDark  : const Color(0xFFEDEEF5);
 
     return AlertDialog(
+      scrollable: true,
       backgroundColor: bg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text('Import CSV',
@@ -1938,10 +2007,37 @@ class _CsvImportDialogState extends State<_CsvImportDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Copy your CSV content and paste below.\nExpected columns: Name, Family, Place, Amount, Type',
+              'Choose your filled template, or paste rows below (from a CSV, Excel or Google Sheets).\nColumns: Name, Family, Place, Amount, Type',
               style: TextStyle(fontSize: 12, fontFamily: 'Nunito', color: sub),
             ),
             const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _picking ? null : _pickFile,
+                icon: _picking
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: _moiColor))
+                    : const Icon(Icons.folder_open_rounded, size: 18),
+                label: Text(_fileName ?? 'Choose CSV file',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, fontFamily: 'Nunito',
+                        fontWeight: FontWeight.w800)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _moiColor,
+                  side: BorderSide(color: _moiColor.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text('or paste',
+                  style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _pasteCtrl,
               maxLines: 8,
@@ -1958,22 +2054,20 @@ class _CsvImportDialogState extends State<_CsvImportDialog> {
                 ),
                 contentPadding: const EdgeInsets.all(12),
               ),
-              onChanged: (v) {
-                final lines = v.trim().split('\n')
-                    .where((l) => l.trim().isNotEmpty).toList();
-                final hasHeader = lines.isNotEmpty &&
-                    lines.first.toLowerCase().contains('name');
-                final dataLines =
-                    hasHeader ? lines.skip(1).toList() : lines;
-                setState(() => _preview = dataLines
-                    .where((l) => l.split(',').length >= 4).length);
-              },
+              onChanged: (_) => _refreshPreview(),
             ),
             if (_preview > 0) ...[
               const SizedBox(height: 8),
               Text('$_preview valid rows detected',
                 style: const TextStyle(fontSize: 12, fontFamily: 'Nunito',
                     fontWeight: FontWeight.w700, color: _moiColor)),
+            ],
+            if (_skipped > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '$_skipped row${_skipped == 1 ? '' : 's'} skipped — Name, Place and Amount are required',
+                style: const TextStyle(fontSize: 11, fontFamily: 'Nunito',
+                    color: Colors.redAccent)),
             ],
           ],
         ),
