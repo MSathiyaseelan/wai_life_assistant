@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:shared_preferences/shared_preferences.dart';

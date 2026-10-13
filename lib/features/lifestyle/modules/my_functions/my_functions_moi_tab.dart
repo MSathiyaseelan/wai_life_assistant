@@ -1141,11 +1141,109 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
 
   // ── CSV template download ─────────────────────────────────────────────────
 
+  static const _templateCsv = 'Name,Family,Place,Amount,Type\n'
+      'Ravi Kumar,Kumar Family,Chennai,500,newMoi\n'
+      'Meena Devi,,Coimbatore,1000,newMoi\n';
+
+  Future<void> _showTemplateOptions() async {
+    final isDark = widget.isDark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+
+    Widget option(BuildContext ctx, IconData icon, String title,
+            String subtitle, VoidCallback onTap) =>
+        Material(
+          color: surfBg,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () {
+              Navigator.pop(ctx);
+              onTap();
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(children: [
+                Icon(icon, color: _moiColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+                              fontFamily: 'Nunito', color: tc)),
+                      Text(subtitle,
+                          style: TextStyle(fontSize: 11, fontFamily: 'Nunito', color: sub)),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        );
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Text('CSV Template',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito', color: tc)),
+            const SizedBox(height: 14),
+            option(ctx, Icons.download_rounded, 'Download',
+                'Save moi_template.csv to your phone', _saveTemplate),
+            const SizedBox(height: 10),
+            option(ctx, Icons.share_rounded, 'Share',
+                'Send it via WhatsApp, email, Drive…', _downloadTemplate),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Opens the system "Save as" dialog (Downloads by default on Android).
+  Future<void> _saveTemplate() async {
+    try {
+      final uri = await FilePicker.saveFile(
+        fileName: 'moi_template.csv',
+        bytes: Uint8List.fromList(utf8.encode(_templateCsv)),
+        mimeType: 'text/csv',
+      );
+      if (uri != null && mounted) {
+        showOverlayToast(context, 'Template saved');
+      }
+    } catch (e, stack) {
+      ErrorLogger.log(e, stackTrace: stack, action: 'my_functions_template_save_error');
+      if (mounted) {
+        showOverlayToast(context, 'Could not save the template', backgroundColor: Colors.red);
+      }
+    }
+  }
+
   Future<void> _downloadTemplate() async {
-    const headers = 'Name,Family,Place,Amount,Type\n';
-    const sample  = 'Ravi Kumar,Kumar Family,Chennai,500,newMoi\n'
-                    'Meena Devi,,Coimbatore,1000,newMoi\n';
-    final csv = headers + sample;
+    const csv = _templateCsv;
     try {
       final dir  = await getTemporaryDirectory();
       final file = File('${dir.path}/moi_template.csv');
@@ -1327,7 +1425,7 @@ class _AddMoiSheetState extends State<_AddMoiSheet>
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _downloadTemplate,
+                  onPressed: _showTemplateOptions,
                   icon: const Icon(Icons.download_rounded, size: 16),
                   label: const Text('Template',
                       style: TextStyle(fontSize: 12, fontFamily: 'Nunito',
