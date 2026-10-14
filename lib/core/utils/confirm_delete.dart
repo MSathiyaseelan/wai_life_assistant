@@ -5,7 +5,12 @@ import 'package:wai_life_assistant/core/theme/app_theme.dart';
 /// Use as the `confirmDismiss` callback on every [Dismissible].
 ///
 /// Returns `true` → proceed with delete, `false` → snap back.
-Future<bool> confirmDelete(BuildContext context) async {
+Future<bool> confirmDelete(
+  BuildContext context, {
+  String title = 'Delete?',
+  String message = 'This item will be permanently deleted.',
+  String confirmLabel = 'Delete',
+}) async {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
   final surfBg = isDark ? AppColors.surfDark : const Color(0xFFEDEEF5);
@@ -54,7 +59,7 @@ Future<bool> confirmDelete(BuildContext context) async {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Delete?',
+                    title,
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
@@ -67,7 +72,7 @@ Future<bool> confirmDelete(BuildContext context) async {
             ),
             const SizedBox(height: 12),
             Text(
-              'This item will be permanently deleted.',
+              message,
               style: TextStyle(fontFamily: 'Nunito', fontSize: 13, color: sub),
             ),
             const SizedBox(height: 22),
@@ -97,8 +102,8 @@ Future<bool> confirmDelete(BuildContext context) async {
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
-                    child: const Text('Delete',
-                        style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
+                    child: Text(confirmLabel,
+                        style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w800, fontSize: 14)),
                   ),
                 ),
               ],
