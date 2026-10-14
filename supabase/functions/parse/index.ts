@@ -30,6 +30,8 @@ interface ParseRequest {
     user_name?: string;
     family_members?: string;
     household_context?: string;
+    // item locator: the user's existing containers, "Name (location), ..."
+    containers?: string;
   };
 }
 
@@ -106,6 +108,7 @@ function injectContext(prompt: string, ctx: ParseRequest["context"] & { text?: s
     "{{user_name}}":          ctx?.user_name || "",
     "{{family_members}}":     ctx?.family_members || "not specified",
     "{{household_context}}":  ctx?.household_context || ctx?.text || "",
+    "{{containers}}":         ctx?.containers || "none yet",
   };
 
   let result = prompt;

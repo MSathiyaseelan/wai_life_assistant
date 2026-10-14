@@ -1054,6 +1054,42 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     return null;
   }
 
+  /// Finds the user's existing container that best matches the AI's
+  /// [hints] (tried in order: exact name, then whole-word containment),
+  /// falling back to a container in [room]. Null → nothing matches.
+  StorageContainer? _matchContainer(List<String> hints, String room) {
+    String norm(String v) =>
+        v.toLowerCase().replaceAll('_', ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    bool containsWord(String haystack, String needle) =>
+        needle.length >= 4 &&
+        RegExp(r'\b' + RegExp.escape(needle) + r'\b').hasMatch(haystack);
+    final normHints = hints.map(norm).where((h) => h.isNotEmpty).toList();
+    final roomN = norm(room);
+
+    for (final h in normHints) {
+      for (final c in _myContainers) {
+        if (norm(c.name) == h) return c;
+      }
+    }
+    for (final h in normHints) {
+      final hits = _myContainers.where((c) {
+        final n = norm(c.name);
+        return containsWord(n, h) || containsWord(h, n);
+      }).toList();
+      if (hits.isEmpty) continue;
+      // Several similar names ("Box 1", "Box 2") — prefer the one in the
+      // mentioned room.
+      return hits.firstWhere(
+        (c) => roomN.isNotEmpty && norm(c.location ?? '').contains(roomN),
+        orElse: () => hits.first,
+      );
+    }
+    if (roomN.isEmpty) return null;
+    return _myContainers
+        .where((c) => norm(c.location ?? '').contains(roomN))
+        .firstOrNull;
+  }
+
   Map<String, dynamic>? _nlpParseItem(String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return null;
@@ -1163,11 +1199,14 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
     var aiParsing = false;
     String? aiError;
     String? aiContainerNote;
+    // Set when the AI found several items in one sentence ("screw driver
+    // and power bank") — each is stored as its own item on save.
+    var multiNames = <String>[];
 
     Future<void> parseAI(void Function(void Function()) ss) async {
       final text = aiCtrl.text.trim();
       if (text.isEmpty) return;
-      ss(() { aiParsing = true; aiError = null; aiContainerNote = null; });
+      ss(() { aiParsing = true; aiError = null; aiContainerNote = null; multiNames = []; });
       try {
         Map<String, dynamic>? parsed;
         // Tracks whether the smart parser itself failed (service hiccup,
@@ -1207,27 +1246,31 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
           return;
         }
         nameCtrl.text = (parsed['item_name'] as String? ?? '').trim();
+        final names = (parsed['item_names'] as List<dynamic>? ?? [])
+            .whereType<String>()
+            .map((n) => n.trim())
+            .where((n) => n.isNotEmpty)
+            .toList();
+        if (names.length == 1) nameCtrl.text = names.first;
+        multiNames = names.length > 1 ? names : [];
         if ((parsed['category'] as String?) != null) catCtrl.text = parsed['category'] as String;
         if ((parsed['note'] as String?) != null) notesCtrl.text = parsed['note'] as String;
-        final containerHint = (parsed['container'] as String? ?? '').trim();
-        final roomHint = ((parsed['room'] ?? parsed['location']) as String? ?? '').trim();
+        String s(String key) => (parsed![key] as String? ?? '').trim();
+        // The AI's `container` is usually a generic type ("box") while the
+        // user's real container name ("Bedroom box") ends up in `location`
+        // or split across room + container — so try every phrasing.
+        final labelHint = s('container_label');
+        final containerHint = labelHint.isNotEmpty ? labelHint : s('container');
+        final roomHint = s('room').isNotEmpty ? s('room') : s('location');
         String newCid = selCid;
         if (containerHint.isNotEmpty) {
-          final emptyContainer = StorageContainer(id: '', walletId: '', type: StorageType.other, name: '');
-          bool nameMatches(String a, String b) {
-            const minLen = 4;
-            if (a.length < minLen || b.length < minLen) return a == b;
-            return RegExp(r'\b' + RegExp.escape(a) + r'\b').hasMatch(b) ||
-                RegExp(r'\b' + RegExp.escape(b) + r'\b').hasMatch(a);
-          }
-          final match = _myContainers.firstWhere(
-            (c) => nameMatches(c.name.toLowerCase(), containerHint.toLowerCase()),
-            orElse: () => _myContainers.firstWhere(
-              (c) => roomHint.isNotEmpty && (c.location?.toLowerCase().contains(roomHint.toLowerCase()) ?? false),
-              orElse: () => emptyContainer,
-            ),
-          );
-          if (match.id.isNotEmpty) {
+          final match = _matchContainer([
+            labelHint,
+            s('location'),
+            '${s('room').replaceAll('_', ' ')} ${s('container')}',
+            s('container'),
+          ], roomHint);
+          if (match != null) {
             newCid = match.id;
           } else {
             final newC = StorageContainer(
@@ -1432,19 +1475,43 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Item name + emoji
-              Row(
-                children: [
-                  SizedBox(
-                    width: 64,
-                    child: LifeInput(controller: emojiCtrl, hint: '📦'),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: LifeInput(controller: nameCtrl, hint: 'Item name *'),
-                  ),
-                ],
-              ),
+              // Item name + emoji — or, when the AI found several items, one
+              // removable chip per item (the details below apply to all).
+              if (multiNames.length > 1) ...[
+                LifeLabel(text: '${multiNames.length} ITEMS'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final n in multiNames)
+                      InputChip(
+                        label: Text(n, style: const TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w700, fontSize: 12)),
+                        backgroundColor: surfBg,
+                        side: BorderSide.none,
+                        onDeleted: () => ss(() {
+                          multiNames = [...multiNames]..remove(n);
+                          // Down to one → back to the normal editable name.
+                          if (multiNames.length == 1) {
+                            nameCtrl.text = multiNames.first;
+                            multiNames = [];
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ] else
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 64,
+                      child: LifeInput(controller: emojiCtrl, hint: '📦'),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: LifeInput(controller: nameCtrl, hint: 'Item name *'),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 8),
 
               // Category chips
@@ -1649,10 +1716,17 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
               ),
 
               LifeSaveButton(
-                label: editing == null ? 'Store Item' : 'Save Changes',
+                label: editing != null
+                    ? 'Save Changes'
+                    : multiNames.length > 1
+                    ? 'Store ${multiNames.length} Items'
+                    : 'Store Item',
                 color: _locatorColor,
                 onTap: () {
-                  if (nameCtrl.text.trim().isEmpty || selCid.isEmpty) return;
+                  final names = multiNames.length > 1
+                      ? multiNames
+                      : [nameCtrl.text.trim()];
+                  if (names.first.isEmpty || selCid.isEmpty) return;
                   Navigator.pop(ctx);
                   if (editing != null) {
                     setState(() {
@@ -1675,43 +1749,69 @@ class _ItemLocatorScreenState extends State<ItemLocatorScreen> {
                       }
                     }();
                   } else {
-                    final data = StoredItem(
+                    // A single emoji only makes sense for a single item.
+                    final emoji = names.length == 1 && emojiCtrl.text.trim().isNotEmpty
+                        ? emojiCtrl.text.trim()
+                        : null;
+                    StoredItem build(String name) => StoredItem(
                       id: '',
                       walletId: widget.walletId,
                       containerId: selCid,
-                      name: nameCtrl.text.trim(),
+                      name: name,
                       description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
                       notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
                       category: catCtrl.text.isEmpty ? null : catCtrl.text,
-                      emoji: emojiCtrl.text.trim().isEmpty ? null : emojiCtrl.text.trim(),
+                      emoji: emoji,
                       storedBy: selMember,
                       isFragile: isFragile,
                       isImportant: isImportant,
                     );
+                    final containerName = _containers
+                        .where((c) => c.id == selCid)
+                        .firstOrNull
+                        ?.name;
                     () async {
-                      try {
-                        final row = await ItemLocatorService.instance.addItem(data.toJson());
-                        if (mounted) {
-                          final item = StoredItem.fromJson(row);
-                          if (onSaved != null) {
-                            onSaved(item);
-                          } else {
-                            setState(() => _items.insert(0, item));
+                      var saved = 0;
+                      // Sequential, so a plan-limit hit stops cleanly and
+                      // the count of what did get stored is accurate.
+                      for (final name in names) {
+                        try {
+                          final row = await ItemLocatorService.instance.addItem(build(name).toJson());
+                          saved++;
+                          if (mounted) {
+                            final item = StoredItem.fromJson(row);
+                            if (onSaved != null) {
+                              onSaved(item);
+                            } else {
+                              setState(() => _items.insert(0, item));
+                            }
                           }
+                        } catch (e, stack) {
+                          debugPrint('[ItemLocator] addItem error: $e');
+                          final isLimitError = e is ItemLocatorLimitExceededException;
+                          if (!isLimitError) {
+                            ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_item');
+                          }
+                          if (mounted) {
+                            final prefix = names.length > 1
+                                ? 'Stored $saved of ${names.length} items. '
+                                : '';
+                            showOverlayToast(
+                              context,
+                              prefix + (isLimitError ? e.toString() : 'Failed to add item. Please try again.'),
+                              backgroundColor: Colors.red,
+                            );
+                          }
+                          return;
                         }
-                      } catch (e, stack) {
-                        debugPrint('[ItemLocator] addItem error: $e');
-                        final isLimitError = e is ItemLocatorLimitExceededException;
-                        if (!isLimitError) {
-                          ErrorLogger.log(e, stackTrace: stack, action: 'item_locator_add_item');
-                        }
-                        if (mounted) {
-                          showOverlayToast(
-                            context,
-                            isLimitError ? e.toString() : 'Failed to add item. Please try again.',
-                            backgroundColor: Colors.red,
-                          );
-                        }
+                      }
+                      if (names.length > 1 && mounted) {
+                        showOverlayToast(
+                          context,
+                          containerName != null
+                              ? '${names.length} items stored in $containerName'
+                              : '${names.length} items stored',
+                        );
                       }
                     }();
                   }
@@ -2852,39 +2952,20 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
   Future<void> _confirmDelete(BuildContext ctx) async {
     if (_confirmingDelete) return;
     _confirmingDelete = true;
-    bool? confirmed;
+    bool confirmed;
     try {
-      confirmed = await showDialog<bool>(
-        context: ctx,
-        builder: (dialogCtx) => AlertDialog(
-          title: const Text(
-            'Remove Container?',
-            style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'Nunito'),
-          ),
-          content: Text(
+      confirmed = await confirmDelete(
+        ctx,
+        title: 'Remove Container?',
+        message:
             'This will also remove all ${_localItems.length} item(s) stored in '
             '"${widget.container.name}". This cannot be undone.',
-            style: const TextStyle(fontFamily: 'Nunito'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, true),
-              child: const Text(
-                'Remove All',
-                style: TextStyle(color: AppColors.expense),
-              ),
-            ),
-          ],
-        ),
+        confirmLabel: 'Remove All',
       );
     } finally {
       _confirmingDelete = false;
     }
-    if (confirmed == true) {
+    if (confirmed) {
       widget.onDeleteContainer();
     }
   }
