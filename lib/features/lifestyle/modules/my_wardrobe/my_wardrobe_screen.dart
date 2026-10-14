@@ -592,6 +592,8 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                                   Navigator.pop(context);
                                                   _showEditItem(context, item);
                                                 },
+                                                onAddToWishlist: () =>
+                                                    _addToWishlist(item),
                                               ),
                                             ),
                                           )
@@ -624,6 +626,8 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                             Navigator.pop(context);
                                             _showEditItem(context, item);
                                           },
+                                          onAddToWishlist: () =>
+                                              _addToWishlist(item),
                                         ),
                                       ),
                                     ),
@@ -846,6 +850,47 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
           const SnackBar(content: Text('Failed to delete. Please try again.')),
         );
       }
+    }
+  }
+
+  // ── Add wardrobe item to wishlist ────────────────────────────────────────────
+  // Saves a wishlist *copy* (e.g. to buy another / a replacement) so the
+  // original stays in the Wardrobe tab. The copy reuses the same photo URL.
+  Future<void> _addToWishlist(ClothingItem item) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final copy = ClothingItem(
+      id: '',
+      memberId: item.memberId,
+      walletId: item.walletId,
+      name: item.name,
+      category: item.category,
+      gender: item.gender,
+      brand: item.brand,
+      size: item.size,
+      color: item.color,
+      photoPath: item.photoPath,
+      notes: item.notes,
+      wishlist: true,
+    );
+    try {
+      final row = await WardrobeService.instance.addItem(copy.toJson());
+      final saved = ClothingItem.fromJson(row);
+      if (mounted) setState(() => _clothes.insert(0, saved));
+      messenger.showSnackBar(
+        SnackBar(content: Text('"${item.name}" added to Wishlist')),
+      );
+    } catch (e) {
+      final isLimitError = e is WardrobeLimitExceededException;
+      if (!isLimitError) {
+        ErrorLogger.warning(e, action: 'wardrobe_add_to_wishlist');
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            isLimitError ? e.toString() : 'Failed to add to Wishlist',
+          ),
+        ),
+      );
     }
   }
 
@@ -1946,6 +1991,7 @@ class _ClothingDetail extends StatefulWidget {
   final VoidCallback onUpdate;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
+  final VoidCallback onAddToWishlist;
   const _ClothingDetail({
     required this.item,
     required this.isDark,
@@ -1953,6 +1999,7 @@ class _ClothingDetail extends StatefulWidget {
     required this.onUpdate,
     required this.onDelete,
     required this.onEdit,
+    required this.onAddToWishlist,
   });
   @override
   State<_ClothingDetail> createState() => _ClothingDetailState();
@@ -1971,6 +2018,16 @@ class _ClothingDetailState extends State<_ClothingDetail> {
       if (c.id == item.id) return false;
       return item.matchWith.contains(c.id) || c.matchWith.contains(item.id);
     }).toList();
+
+    // A wishlist copy made via "Add to Wishlist" keeps the same name, so
+    // match on that to stop the same item being added twice.
+    final inWishlist = widget.allItems.any(
+      (c) =>
+          c.wishlist &&
+          c.walletId == item.walletId &&
+          c.memberId == item.memberId &&
+          c.name.trim().toLowerCase() == item.name.trim().toLowerCase(),
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
@@ -2031,6 +2088,27 @@ class _ClothingDetailState extends State<_ClothingDetail> {
                     ),
                   ),
                 ),
+              IconButton(
+                icon: Icon(
+                  inWishlist
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: _wardrobeColor,
+                ),
+                tooltip: inWishlist ? 'Already in Wishlist' : 'Add to Wishlist',
+                onPressed: () {
+                  if (inWishlist) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Already in your Wishlist')),
+                    );
+                    return;
+                  }
+                  // Close first so the confirmation snackbar isn't hidden
+                  // behind the sheet.
+                  Navigator.pop(context);
+                  widget.onAddToWishlist();
+                },
+              ),
               IconButton(
                 icon: Icon(Icons.edit_rounded, color: _wardrobeColor),
                 tooltip: 'Edit',
@@ -2398,7 +2476,11 @@ class _ClothingDetailState extends State<_ClothingDetail> {
         setState(() => widget.item.photoPath = url);
         widget.onUpdate();
       }
-      await svc.deletePhoto(oldUrl); // clean up old file
+      // Clean up the old file — unless a wishlist copy still uses it.
+      final stillUsed = widget.allItems.any(
+        (c) => c.id != widget.item.id && c.photoPath == oldUrl,
+      );
+      if (!stillUsed) await svc.deletePhoto(oldUrl);
     } catch (e) {
       ErrorLogger.warning(e, action: 'wardrobe_update_photo');
     }
