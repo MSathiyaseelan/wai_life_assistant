@@ -25,9 +25,14 @@ List<WardrobeCategory> _visibleCategoriesFor(
   String? gender,
   List<WardrobeCategory> all,
 ) {
-  if (gender != 'male' && gender != 'female') return all;
-  final excluded = gender == 'male' ? 'female' : 'male';
-  return all.where((c) => c.gender != excluded).toList();
+  final excluded = gender == 'male'
+      ? 'female'
+      : gender == 'female'
+      ? 'male'
+      : null;
+  // Alphabetical by label so a category is easy to find in chip lists.
+  return all.where((c) => c.gender != excluded).toList()
+    ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
 }
 
 // ── Photo picker (camera or gallery) ─────────────────────────────────────────
@@ -437,14 +442,16 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
           ],
         ),
       ),
-      floatingActionButton: _tab.index == 0 || _tab.index == 2
+      // Wishlist has no add button — the Wardrobe tab is the single source
+      // of items; wishlist entries are added from an item's detail sheet.
+      floatingActionButton: _tab.index == 0
           ? FloatingActionButton.extended(
               onPressed: () => _showAddItem(context, isDark, surfBg),
               backgroundColor: _wardrobeColor,
               icon: const Icon(Icons.add_rounded, color: Colors.white),
-              label: Text(
-                _tab.index == 2 ? 'Add to Wishlist' : 'Add Item',
-                style: const TextStyle(
+              label: const Text(
+                'Add Item',
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'Nunito',
@@ -761,7 +768,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                     emoji: '💛',
                                     title: 'Wishlist is empty',
                                     subtitle:
-                                        'Snap a dress you love and save it here',
+                                        'Open an item in Wardrobe and tap ♡ to add it here',
                                   ),
                                 ],
                               )
@@ -901,7 +908,7 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
       walletId: widget.walletId,
       memberId: _selectedMember,
       memberGender: _genderOf(_selectedMember),
-      isWishlist: _tab.index == 2,
+      isWishlist: false,
       onItemAdded: (saved) {
         if (mounted) setState(() => _clothes.insert(0, saved));
       },
