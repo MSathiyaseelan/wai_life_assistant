@@ -2071,14 +2071,15 @@ class _EssentialsTab extends StatelessWidget {
     required this.onChanged,
   });
 
+  // A–Z, with the "Other" catch-all last.
   static const _categories = [
     'Attire',
+    'Decor',
+    'Food',
     'Jewellery',
     'Makeup & Hair',
-    'Decor',
-    'Pooja Items',
     'Photography',
-    'Food',
+    'Pooja Items',
     'Other',
   ];
 

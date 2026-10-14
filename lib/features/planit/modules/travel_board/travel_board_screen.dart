@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:flutter/services.dart';
@@ -1479,7 +1480,7 @@ class _TasksTabState extends State<_TasksTab> {
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            children: [null, ...TaskCategory.values].map((cat) {
+            children: [null, ...sortCategories(TaskCategory.values, (c) => c.label)].map((cat) {
               final sel = _filterCat == cat;
               final lbl = cat == null ? 'All' : cat.label;
               final ico = cat == null ? '📋' : cat.emoji;
@@ -3764,7 +3765,7 @@ class _TripTaskSheetState extends State<_TripTaskSheet> {
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: TaskCategory.values
+                  children: sortCategories(TaskCategory.values, (c) => c.label)
                       .map(
                         (cat) => GestureDetector(
                           onTap: () => setState(() => _cat = cat),

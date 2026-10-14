@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
@@ -643,7 +644,7 @@ class _CategoryFilter extends StatelessWidget {
             color: AppColors.primary,
             onTap: () => onSelect(null),
           ),
-          ...WishCategory.values.map(
+          ...sortCategories(WishCategory.values, (c) => c.label).map(
             (c) => Padding(
               padding: const EdgeInsets.only(left: 8),
               child: _Pill(
@@ -2064,7 +2065,7 @@ class _ManualForm extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: WishCategory.values
+          children: sortCategories(WishCategory.values, (c) => c.label)
               .map(
                 (c) => GestureDetector(
                   onTap: () => onCategoryChanged(c),

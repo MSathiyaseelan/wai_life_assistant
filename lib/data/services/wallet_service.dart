@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wai_life_assistant/core/constants/api_endpoints.dart';
 import 'package:wai_life_assistant/core/services/app_prefs.dart';
 import 'package:wai_life_assistant/core/services/review_prompt_service.dart';
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:wai_life_assistant/data/models/wallet/split_group_models.dart';
 import 'package:wai_life_assistant/data/models/wallet/wallet_models.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -79,10 +80,11 @@ class WalletService {
     for (final c in [...defaults, ...custom]) {
       if (seen.add(_normalize(c))) out.add(c);
     }
-    return out;
+    return sortCategoryNames(out);
   }
 
-  /// Returns the full category list (defaults + user-saved) for the given tx type string.
+  /// Returns the full category list (defaults + user-saved) for the given tx
+  /// type string, A–Z with "Other" last.
   /// [txType] is 'expense', 'income', or 'transfer' (covers lend/borrow/request).
   /// Case/emoji-insensitively deduplicated — if legacy data has both "Food"
   /// and "food", only the first-seen form is shown here.

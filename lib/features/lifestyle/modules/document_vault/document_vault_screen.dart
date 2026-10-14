@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
@@ -186,7 +187,7 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
                     color: color,
                     onTap: () => setState(() => _filter = null),
                   ),
-                  ...DocCategory.values.map(
+                  ...sortCategories(DocCategory.values, (c) => c.label).map(
                     (c) => _MemberChip(
                       label: c.label,
                       emoji: c.emoji,
@@ -274,7 +275,7 @@ class _DocumentVaultScreenState extends State<DocumentVaultScreen> {
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: DocCategory.values
+                  children: sortCategories(DocCategory.values, (c) => c.label)
                       .map(
                         (c) => GestureDetector(
                           onTap: () => ss(() => cat = c),

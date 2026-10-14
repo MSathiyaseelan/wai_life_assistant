@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -3327,7 +3328,7 @@ class _ManualTab extends StatelessWidget {
           // Category chips
           Wrap(
             spacing: 6, runSpacing: 6,
-            children: GroceryCategory.values.map((c) {
+            children: sortCategories(GroceryCategory.values, (c) => c.label).map((c) {
               final sel = c == cat;
               return GestureDetector(
                 onTap: () => onCatChanged(c),

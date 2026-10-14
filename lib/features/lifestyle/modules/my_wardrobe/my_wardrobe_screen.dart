@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -31,8 +32,10 @@ List<WardrobeCategory> _visibleCategoriesFor(
       ? 'male'
       : null;
   // Alphabetical by label so a category is easy to find in chip lists.
-  return all.where((c) => c.gender != excluded).toList()
-    ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+  return sortCategories(
+    all.where((c) => c.gender != excluded),
+    (c) => c.label,
+  );
 }
 
 // ── Photo picker (camera or gallery) ─────────────────────────────────────────

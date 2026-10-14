@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -111,7 +112,7 @@ class _ShoppingBasketSectionState extends State<ShoppingBasketSection>
         ? _walletItems.where((i) => i.inStock)
         : _walletItems.where((i) => i.toBuy);
     final present = base.map((i) => i.category).toSet();
-    return GroceryCategory.values.where(present.contains).toList();
+    return sortCategories(GroceryCategory.values, (c) => c.label).where(present.contains).toList();
   }
 
   @override
@@ -728,7 +729,7 @@ class _EditItemSheetState extends State<_EditItemSheet> {
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
-                children: GroceryCategory.values.map((cat) {
+                children: sortCategories(GroceryCategory.values, (c) => c.label).map((cat) {
                   final sel = cat == _selectedCat;
                   return GestureDetector(
                     onTap: () => setState(() => _selectedCat = cat),

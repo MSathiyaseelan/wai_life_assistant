@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_theme.dart';
 import 'package:wai_life_assistant/data/models/lifestyle/lifestyle_models.dart';
@@ -92,7 +93,7 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
                     color: color,
                     onTap: () => setState(() => _filter = null),
                   ),
-                  ...DeviceCategory.values.map(
+                  ...sortCategories(DeviceCategory.values, (c) => c.label).map(
                     (c) => _FilterChip(
                       label: c.label,
                       emoji: c.emoji,
@@ -196,7 +197,7 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: DeviceCategory.values
+                  children: sortCategories(DeviceCategory.values, (c) => c.label)
                       .map(
                         (c) => GestureDetector(
                           onTap: () => ss(() => cat = c),
@@ -393,7 +394,7 @@ class _MyDevicesScreenState extends State<MyDevicesScreen> {
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: DeviceCategory.values
+                  children: sortCategories(DeviceCategory.values, (c) => c.label)
                       .map(
                         (c) => GestureDetector(
                           onTap: () => ss(() => cat = c),

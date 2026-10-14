@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/material.dart' hide RepeatMode;
 import 'package:wai_life_assistant/core/utils/confirm_delete.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
@@ -503,7 +504,7 @@ class _CategoryFilter extends StatelessWidget {
             color: AppColors.borrow,
             onTap: () => onSelect(null),
           ),
-          ...BillCategory.values.map(
+          ...sortCategories(BillCategory.values, (c) => c.label).map(
             (c) => Padding(
               padding: const EdgeInsets.only(left: 8),
               child: _Pill(
@@ -1736,7 +1737,7 @@ class _ManualForm extends StatelessWidget {
           height: 40,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            children: BillCategory.values
+            children: sortCategories(BillCategory.values, (c) => c.label)
                 .map(
                   (c) => GestureDetector(
                     onTap: () => onCatChanged(c),

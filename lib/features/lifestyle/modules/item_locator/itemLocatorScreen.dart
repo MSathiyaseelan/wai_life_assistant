@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_theme.dart';
@@ -2454,8 +2455,9 @@ class _ContainerDetailState extends State<_ContainerDetailScreen> {
     // unique categories in this container
     final cats = [
       'All',
-      ..._localItems.map((i) => i.category ?? 'Other').toSet().toList()
-        ..sort(),
+      ...sortCategoryNames(
+        _localItems.map((i) => i.category ?? 'Other').toSet(),
+      ),
     ];
 
     final filtered = _filter == 'All'

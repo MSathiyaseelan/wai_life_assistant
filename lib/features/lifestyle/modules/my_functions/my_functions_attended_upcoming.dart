@@ -519,11 +519,12 @@ class _UpcomingCard extends StatelessWidget {
 
 // ── Upcoming detail ───────────────────────────────────────────────────────────
 
+// A–Z, with the "Others" catch-all last.
 const _upcomingGiftCategories = [
   ('💵', 'Cash'),
+  ('🎁', 'Gift Item'),
   ('🥇', 'Gold'),
   ('🥈', 'Silver'),
-  ('🎁', 'Gift Item'),
   ('✨', 'Others'),
 ];
 

@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wai_life_assistant/core/services/ai_parser.dart';
@@ -646,7 +647,7 @@ class _PantryIntentConfirmSheetState extends State<PantryIntentConfirmSheet> {
         Wrap(
           spacing: 7,
           runSpacing: 7,
-          children: GroceryCategory.values.map((cat) {
+          children: sortCategories(GroceryCategory.values, (c) => c.label).map((cat) {
             final sel = cat == _groceryCat;
             return GestureDetector(
               onTap: () => setState(() => _groceryCat = cat),

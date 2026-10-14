@@ -1545,7 +1545,7 @@ void _showVendorSheet(
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  children: VendorCategory.values.map((c) {
+                  children: sortCategories(VendorCategory.values, (c) => c.label).map((c) {
                     final sel = category == c;
                     return GestureDetector(
                       onTap: () => ss(() => category = c),
