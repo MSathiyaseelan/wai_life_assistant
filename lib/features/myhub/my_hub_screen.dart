@@ -324,9 +324,9 @@ class _MyHubScreenState extends State<MyHubScreen> {
         ? [
             if (_healthMedications > 0) '💊  $_healthMedications active ${_healthMedications == 1 ? 'medication' : 'medications'}',
             if (_nextAppointmentDate != null)
-              '📅  ${_nextAppointmentDoctor?.isNotEmpty == true ? _nextAppointmentDoctor! : 'Appointment'} · ${_fmtDate(_nextAppointmentDate!)}'
+              '🗓️  ${_nextAppointmentDoctor?.isNotEmpty == true ? _nextAppointmentDoctor! : 'Appointment'} · ${_fmtDate(_nextAppointmentDate!)}'
             else if (_healthAppointments > 0)
-              '📅  $_healthAppointments upcoming ${_healthAppointments == 1 ? 'appointment' : 'appointments'}',
+              '🗓️  $_healthAppointments upcoming ${_healthAppointments == 1 ? 'appointment' : 'appointments'}',
           ]
         : <String>[];
 

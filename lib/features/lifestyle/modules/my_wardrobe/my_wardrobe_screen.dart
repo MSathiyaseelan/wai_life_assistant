@@ -3034,7 +3034,7 @@ class _OutfitLogTab extends StatelessWidget {
         Row(
           children: [
             Text(
-              '📅 Today',
+              '🗓️ Today',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w900,

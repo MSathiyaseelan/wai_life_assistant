@@ -170,7 +170,7 @@ class _DashboardAiBarState extends State<DashboardAiBar>
   String _tabEmoji(String tag) => switch (tag) {
         'wallet' => AppPrefs.cs,
         'pantry' => '🥗',
-        'planit' => '📅',
+        'planit' => '🗓️',
         _ => '→',
       };
 

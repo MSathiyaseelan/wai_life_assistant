@@ -24,7 +24,7 @@ class _DateTimePrefsSheetState extends State<DateTimePrefsSheet> {
   Widget build(BuildContext context) {
     return PrefsSheetBase(
       isDark: widget.isDark,
-      title: '📅  Date & Time',
+      title: '🗓️  Date & Time',
       loading: _loading,
       child: ListenableBuilder(
         listenable: _p,

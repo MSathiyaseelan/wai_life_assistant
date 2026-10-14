@@ -88,7 +88,7 @@ class ActionPayload {
         ActionType.addFunctionUpcoming  => '🎉',
         ActionType.addFunctionMy        => '🎊',
         ActionType.addMeal              => '🍽️',
-        ActionType.addSpecialDay        => '📅',
+        ActionType.addSpecialDay        => '🗓️',
         ActionType.addWardrobeItem      => '👗',
         ActionType.addMedication        => '💊',
         ActionType.addAppointment       => '🏥',
@@ -302,7 +302,7 @@ class DeepLink {
         1 => AppPrefs.cs,
         2 => '🥗',
         3 => '🏥',
-        4 => '📅',
+        4 => '🗓️',
         _ => '→',
       };
 }

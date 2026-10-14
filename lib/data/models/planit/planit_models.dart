@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 
+/// Emoji to display for a stored row. Older rows saved 📅, which most
+/// platforms draw as a "July 17" calendar page — show the dateless 🗓️.
+String _displayEmoji(String? stored, String fallback) {
+  if (stored == null) return fallback;
+  return stored == '📅' ? '🗓️' : stored;
+}
+
 // ── Shared enums ──────────────────────────────────────────────────────────────
 
 enum Priority { low, medium, high, urgent }
@@ -143,7 +150,7 @@ extension SpecialDayTypeExt on SpecialDayType {
       case SpecialDayType.holiday:
         return '🌟';
       case SpecialDayType.custom:
-        return '📅';
+        return '🗓️';
     }
   }
 
@@ -488,7 +495,7 @@ class ReminderModel {
       id: row['id'] as String,
       walletId: row['wallet_id'] as String,
       title: row['title'] as String,
-      emoji: row['emoji'] as String? ?? '🔔',
+      emoji: _displayEmoji(row['emoji'] as String?, '🔔'),
       dueDate: DateTime.parse(row['due_date'] as String),
       dueTime: TimeOfDay(
         hour: int.tryParse(timeParts[0]) ?? 9,
@@ -629,7 +636,7 @@ class TaskModel {
       id: row['id'] as String,
       walletId: row['wallet_id'] as String,
       title: row['title'] as String,
-      emoji: row['emoji'] as String? ?? '✅',
+      emoji: _displayEmoji(row['emoji'] as String?, '✅'),
       description: row['description'] as String?,
       status: sm[row['status']] ?? TaskStatus.todo,
       priority: pm[row['priority']] ?? Priority.medium,
@@ -770,7 +777,7 @@ class SpecialDayModel {
       id: row['id'] as String,
       walletId: row['wallet_id'] as String,
       title: row['title'] as String,
-      emoji: row['emoji'] as String? ?? '📅',
+      emoji: _displayEmoji(row['emoji'] as String?, '🗓️'),
       type: tm[row['type']] ?? SpecialDayType.custom,
       date: DateTime.parse(row['date'] as String),
       yearlyRecur: row['yearly_recur'] as bool? ?? true,

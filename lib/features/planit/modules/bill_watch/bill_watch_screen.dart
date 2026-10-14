@@ -2334,7 +2334,7 @@ class _AiPreviewCard extends StatelessWidget {
                   color: AppColors.income,
                 ),
               _Chip(
-                label: '📅 ${fmtDateShort(preview.dueDate)}',
+                label: '🗓️ ${fmtDateShort(preview.dueDate)}',
                 color: AppColors.primary,
               ),
               if (preview.repeat != RepeatMode.none)

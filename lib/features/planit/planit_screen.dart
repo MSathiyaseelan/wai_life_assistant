@@ -291,7 +291,7 @@ class _PlanItScreenState extends State<PlanItScreen> {
       scrolledUnderElevation: 0,
       title: Row(
         children: [
-          const Text('📅', style: TextStyle(fontSize: 22)),
+          const Text('🗓️', style: TextStyle(fontSize: 22)),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,

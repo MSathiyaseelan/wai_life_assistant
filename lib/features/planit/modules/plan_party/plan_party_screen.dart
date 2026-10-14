@@ -175,7 +175,7 @@ class _PartyCard extends StatelessWidget {
                         ),
                         if (party.eventDate != null)
                           Text(
-                            '📅 ${fmtDate(party.eventDate!)}',
+                            '🗓️ ${fmtDate(party.eventDate!)}',
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,

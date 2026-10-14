@@ -90,7 +90,7 @@ class _HealthSpaceScreenState extends State<HealthSpaceScreen> with SingleTicker
   List<Vaccination> _vaccinations = [];
   List<InsurancePolicy> _insurance = [];
 
-  static const _tabs = ['👤', '💊', '🩺', '📋', '📅', '🔬', '💉', '🏥', '🚨'];
+  static const _tabs = ['👤', '💊', '🩺', '📋', '🗓️', '🔬', '💉', '🏥', '🚨'];
   static const _tabLabels = ['Profile', 'Meds', 'Doctors', 'Docs', 'Appts', 'Vitals', 'Vaccines', 'Insurance', 'Emergency'];
 
   @override
@@ -2195,7 +2195,7 @@ class _AppointmentsTab extends StatelessWidget {
           ? ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: const [
-                LifeEmptyState(emoji: '📅', title: 'No appointments', subtitle: 'Track upcoming and past doctor visits'),
+                LifeEmptyState(emoji: '🗓️', title: 'No appointments', subtitle: 'Track upcoming and past doctor visits'),
               ],
             )
           : ListView(physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [

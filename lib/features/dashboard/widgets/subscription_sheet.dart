@@ -202,7 +202,7 @@ class _SubscriptionSheetState extends State<SubscriptionSheet> {
        personal: lim(p.wardrobeItemsMax),
        plus: pl != null ? lim(pl.wardrobeItemsMax) : '—',
        pro:  pr != null ? lim(pr.wardrobeItemsMax) : '—'),
-      (name: 'Outfit log history',   emoji: '📅',
+      (name: 'Outfit log history',   emoji: '🗓️',
        personal: mo(p.wardrobeOutfitLogMonths),
        plus: pl != null ? mo(pl.wardrobeOutfitLogMonths) : '—',
        pro:  pr != null ? mo(pr.wardrobeOutfitLogMonths) : '—'),

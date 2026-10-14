@@ -445,7 +445,7 @@ class DateStep extends StatefulWidget {
   const DateStep({super.key, required this.color, required this.onSelect});
 
   static const _quickOptions = [
-    ('📅', 'Today'),
+    ('🗓️', 'Today'),
     ('⏮️', 'Yesterday'),
     ('📆', '2 days ago'),
   ];
@@ -1199,7 +1199,7 @@ class DueDateStep extends StatelessWidget {
   const DueDateStep({super.key, required this.color, required this.onSelect});
 
   static const _options = [
-    ('📅', 'In 1 week'),
+    ('🗓️', 'In 1 week'),
     ('🗓️', 'In 1 month'),
     ('⏳', 'No due date'),
   ];

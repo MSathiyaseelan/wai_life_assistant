@@ -236,7 +236,7 @@ class _TravelBoardScreenState extends State<TravelBoardScreen>
 
     final stats = [
       (
-        emoji: '📅',
+        emoji: '🗓️',
         value: '$upcoming',
         label: 'Upcoming',
         color: const Color(0xFF4A9EFF),
@@ -573,7 +573,7 @@ class _TripCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       if (trip.startDate != null) ...[
                         _InfoChip(
-                          icon: '📅',
+                          icon: '🗓️',
                           label: _fmtDateRange(trip.startDate, trip.endDate),
                           color: sub,
                         ),
@@ -936,7 +936,7 @@ class _TripDetailSheetState extends State<_TripDetailSheet>
               children: [
                 if (t.startDate != null) ...[
                   _DetailChip(
-                    icon: '📅',
+                    icon: '🗓️',
                     label: _fmtDateRange(t.startDate, t.endDate),
                     color: color,
                   ),
@@ -3569,7 +3569,7 @@ class _TripPreviewCard extends StatelessWidget {
               if (preview.startDate != null) ...[
                 const SizedBox(width: 10),
                 Text(
-                  '📅 ${fmtDateShort(preview.startDate!)}${preview.endDate != null ? ' – ${fmtDateShort(preview.endDate!)}' : ''}',
+                  '🗓️ ${fmtDateShort(preview.startDate!)}${preview.endDate != null ? ' – ${fmtDateShort(preview.endDate!)}' : ''}',
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Nunito',

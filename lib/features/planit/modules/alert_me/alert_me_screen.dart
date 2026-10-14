@@ -1299,7 +1299,7 @@ class _AddReminderSheetState extends State<_AddReminderSheet>
   static const _emojis = [
     '🔔',
     '⏰',
-    '📅',
+    '🗓️',
     '💊',
     '🏥',
     '💉',
@@ -2773,7 +2773,7 @@ class _NlpParser {
         lower.contains('study')) {
       emoji = '📚';
     } else if (lower.contains('meeting') || lower.contains('appointment')) {
-      emoji = '📅';
+      emoji = '🗓️';
     } else if (lower.contains('call') || lower.contains('phone')) {
       emoji = '📞';
     } else if (lower.contains('dentist') || lower.contains('dental')) {

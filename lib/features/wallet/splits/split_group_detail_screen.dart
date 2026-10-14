@@ -474,7 +474,7 @@ class _SplitGroupDetailScreenState extends State<SplitGroupDetailScreen>
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
-                    child: const Text('📅', style: TextStyle(fontSize: 20)),
+                    child: const Text('🗓️', style: TextStyle(fontSize: 20)),
                   ),
                   const SizedBox(width: 12),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

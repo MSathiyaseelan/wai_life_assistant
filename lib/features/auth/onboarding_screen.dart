@@ -38,7 +38,7 @@ const _slides = [
         'never run out of what you need.',
   ),
   _OnboardingSlide(
-    emoji: '📅',
+    emoji: '🗓️',
     title: 'PlanIt',
     subtitle:
         'Tasks, reminders, special days, and notes in one place — with smart '

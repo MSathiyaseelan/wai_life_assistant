@@ -435,7 +435,7 @@ class _ConversationFlowState extends State<ConversationFlow> {
       case FlowStep.date:
         return DateStep(
           color: color,
-          onSelect: (label, date) => _answer(step, '📅 $label', () {
+          onSelect: (label, date) => _answer(step, '🗓️ $label', () {
             if (date != null) {
               _data.pickedDate = date;
               _data.date = label;
@@ -504,7 +504,7 @@ class _ConversationFlowState extends State<ConversationFlow> {
       case FlowStep.dueDate:
         return DueDateStep(
           color: color,
-          onSelect: (v) => _answer(step, '📅 $v', () {
+          onSelect: (v) => _answer(step, '🗓️ $v', () {
             _data.dueDate = v;
           }),
         );

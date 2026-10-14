@@ -3996,7 +3996,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           sRow(emoji: AppPrefs.cs, bg: const Color(0xFFE0F0FF), title: 'Currency',
                             subtitle: 'Display currency', value: AppPrefs.instance.currentCurrency.code,
                             onTap: _prefsTap(ctx, isDark, 'Currency')),
-                          sRow(emoji: '📅', bg: const Color(0xFFE0F8EC), title: 'Date & Time',
+                          sRow(emoji: '🗓️', bg: const Color(0xFFE0F8EC), title: 'Date & Time',
                             subtitle: 'Date format & week start',
                             value: AppPrefs.dateFormats
                                 .firstWhere((f) => f.key == AppPrefs.instance.dateFormat,

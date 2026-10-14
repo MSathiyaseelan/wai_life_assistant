@@ -174,7 +174,7 @@ class _NotificationPrefsSheetState extends State<NotificationPrefsSheet> {
                           const SizedBox(height: 12),
                           _section('Functions', [
                             _toggle(
-                              '📅',
+                              '🗓️',
                               'Upcoming function reminders',
                               'Remind you before events and functions',
                               _prefs.functionsUpcoming,

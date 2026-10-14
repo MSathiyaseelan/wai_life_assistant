@@ -231,7 +231,7 @@ extension FlowStepExt on FlowStep {
         }
       case FlowStep.dueDate:
         return flow == FlowType.request
-            ? '📅 Set a tentative return date? (optional)'
+            ? '🗓️ Set a tentative return date? (optional)'
             : 'Set a due date?';
       case FlowStep.title:
         switch (flow) {

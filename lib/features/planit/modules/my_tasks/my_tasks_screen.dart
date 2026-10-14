@@ -2568,7 +2568,7 @@ class _TaskNlpParser {
     } else if (lower.contains('design') || lower.contains('ui'))
       emoji = '🎨';
     else if (lower.contains('meeting') || lower.contains('call'))
-      emoji = '📅';
+      emoji = '🗓️';
     else if (lower.contains('research') || lower.contains('study'))
       emoji = '📚';
     else if (lower.contains('deploy') || lower.contains('launch'))

@@ -808,8 +808,10 @@ class _DayList extends StatelessWidget {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
+          // 🗓️, not 📅 — the 📅 emoji renders as a "July 17" page on
+          // most platforms, which reads like a real date here.
           PlanEmptyState(
-            emoji: '📅',
+            emoji: '🗓️',
             title: 'Nothing here',
             subtitle: 'Add your special days',
           ),
@@ -937,7 +939,7 @@ class _DayCard extends StatelessWidget {
                 child: Row(
                   children: [
                     // Date badge — shows actual month/day to avoid the
-                    // platform 📅 emoji always rendering as "July 17".
+                    // platform 🗓️ emoji always rendering as "July 17".
                     Container(
                       width: 46,
                       height: 46,
@@ -1460,7 +1462,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
       '🕊️',
     ],
     SpecialDayType.holiday: ['🌟', '🏖️', '🌴', '☀️', '🏕️', '✈️', '⛺', '🎒'],
-    SpecialDayType.custom: ['📅', '⭐', '🔖', '💫', '🌈', '🎯', '💡', '🗓️'],
+    SpecialDayType.custom: ['🗓️', '⭐', '🔖', '💫', '🌈', '🎯', '💡', '🎀'],
   };
 
   @override
@@ -1572,7 +1574,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
         // Header
         Row(
           children: [
-            const Text('📅', style: TextStyle(fontSize: 22)),
+            const Text('🗓️', style: TextStyle(fontSize: 22)),
             const SizedBox(width: 10),
             Text(
               widget.existing != null ? 'Edit Day' : 'New Special Day',
@@ -1716,7 +1718,7 @@ class _AddDaySheetState extends State<_AddDaySheet>
             reminderOptions: _reminderOptions,
             onTypeChanged: (t) => setState(() {
               _type = t;
-              _emoji = (_typeEmojis[t] ?? ['📅']).first;
+              _emoji = (_typeEmojis[t] ?? ['🗓️']).first;
             }),
             onEmojiChanged: (e) => setState(() => _emoji = e),
             onDateChanged: (d) => setState(() => _date = d),
@@ -2065,7 +2067,7 @@ class _ManualForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final tc = isDark ? AppColors.textDark : AppColors.textLight;
     final sub = isDark ? AppColors.subDark : AppColors.subLight;
-    final emojis = typeEmojis[type] ?? ['📅'];
+    final emojis = typeEmojis[type] ?? ['🗓️'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2587,7 +2589,7 @@ class _AiPreviewCard extends StatelessWidget {
               if (preview.date != null)
                 _Chip(
                   label:
-                      '📅 ${_monthName(preview.date!.month)} ${preview.date!.day}',
+                      '🗓️ ${_monthName(preview.date!.month)} ${preview.date!.day}',
                   color: AppColors.primary,
                 ),
               if (preview.remindDays > 0)
@@ -2737,7 +2739,7 @@ _ParsedDay _parsedDayFromAI(Map<String, dynamic> data) {
   } catch (_) {}
   return _ParsedDay(
     title: data['title'] as String? ?? '',
-    emoji: data['emoji'] as String? ?? '📅',
+    emoji: data['emoji'] as String? ?? '🗓️',
     type: tm[data['type']] ?? SpecialDayType.custom,
     date: date,
     note: data['note'] as String?,
@@ -2802,7 +2804,7 @@ class _DayNlpParser {
         emoji = '🌟';
         break;
       default:
-        emoji = '📅';
+        emoji = '🗓️';
     }
     if (lower.contains('diwali')) {
       emoji = '🪔';
