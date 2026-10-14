@@ -635,14 +635,14 @@ class _ReminderList extends StatelessWidget {
       reminder: r,
       isDark: isDark,
       familyLabel: familyLabel,
-      onDone: familyLabel == null && onDone != null ? () => onDone!(r) : null,
-      onSnooze: (familyLabel == null && onSnooze != null && isOverdue)
-          ? () => onSnooze!(r)
-          : null,
+      // Family-wallet reminders seen from Personal stay read-only for edit
+      // and delete, but the quick status actions (Done / Snooze /
+      // Reactivate) still work — otherwise an overdue family reminder
+      // could never be cleared from here.
+      onDone: onDone != null ? () => onDone!(r) : null,
+      onSnooze: (onSnooze != null && isOverdue) ? () => onSnooze!(r) : null,
       onTap: familyLabel == null && onTap != null ? () => onTap!(r) : null,
-      onReactivate: familyLabel == null && onReactivate != null
-          ? () => onReactivate!(r)
-          : null,
+      onReactivate: onReactivate != null ? () => onReactivate!(r) : null,
     );
     Widget child = familyLabel != null
         ? card
@@ -843,16 +843,18 @@ class _ReminderCard extends StatelessWidget {
                       if (onDone != null || onSnooze != null || onReactivate != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
-                          child: Row(
+                          // Wrap, not Row — on narrow screens / large font
+                          // sizes a Row clipped the trailing Done button.
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
                             children: [
-                              if (onSnooze != null) ...[
+                              if (onSnooze != null)
                                 _ActionBtn(
                                   label: '💤 Snooze 10 min',
                                   color: AppColors.lend,
                                   onTap: onSnooze!,
                                 ),
-                                const SizedBox(width: 8),
-                              ],
                               if (onDone != null)
                                 _ActionBtn(
                                   label: '✓ Done',

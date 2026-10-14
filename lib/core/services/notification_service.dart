@@ -21,9 +21,19 @@ import 'package:wai_life_assistant/data/models/planit/planit_models.dart';
 /// Vibration: wait → buzz 600ms → pause 300ms × 3
 final _kAlarmVibration = Int64List.fromList([0, 600, 300, 600, 300, 600]);
 
+// Android's FLAG_INSISTENT: loop the sound/vibration until the notification
+// is dismissed (Stop/Snooze) instead of playing it once — clock-app style.
+final _kInsistentFlag = Int32List.fromList([4]);
+
+// Channel audio settings are immutable once created, so moving the sound to
+// the alarm audio stream needs a new channel id. The old 'wai_alarms'
+// channel is left in place for notifications scheduled before the update;
+// rescheduleAll() moves them to this one the next time Alert Me loads.
+const _kAlarmChannelId = 'wai_alarms_v2';
+
 AndroidNotificationDetails _alarmAndroidDetails({required String body, String? payload}) =>
     AndroidNotificationDetails(
-      'wai_alarms',
+      _kAlarmChannelId,
       'RiyasHome Alarms',
       channelDescription: 'Alarm-style alerts from RiyasHome Life Assistance',
       importance: Importance.max,
@@ -36,6 +46,10 @@ AndroidNotificationDetails _alarmAndroidDetails({required String body, String? p
       vibrationPattern: _kAlarmVibration,
       fullScreenIntent: true,
       category: AndroidNotificationCategory.alarm,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      additionalFlags: _kInsistentFlag,
+      // Like a phone alarm, stop ringing after a while if nobody responds.
+      timeoutAfter: const Duration(minutes: 2).inMilliseconds,
       visibility: NotificationVisibility.public,
       autoCancel: false,
       actions: const [
@@ -254,7 +268,7 @@ class NotificationService {
         >();
     await androidImpl?.createNotificationChannel(
       AndroidNotificationChannel(
-        'wai_alarms',
+        _kAlarmChannelId,
         'RiyasHome Alarms',
         description: 'Alarm-style alerts from RiyasHome Life Assistance',
         importance: Importance.max,
@@ -264,6 +278,7 @@ class NotificationService {
         enableVibration: true,
         vibrationPattern: _kAlarmVibration,
         playSound: true,
+        audioAttributesUsage: AudioAttributesUsage.alarm,
       ),
     );
     await androidImpl?.createNotificationChannel(
