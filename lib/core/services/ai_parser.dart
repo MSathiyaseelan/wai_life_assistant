@@ -314,9 +314,16 @@ class AIParseResult {
   });
 
   factory AIParseResult.fromJson(Map<String, dynamic> json) {
+    // The model sometimes answers with a bare array (e.g. three meals from
+    // one sentence). Wrap it as {"items": [...]} — the multi-entry shape
+    // callers already check for — rather than failing the cast and
+    // silently dropping a correct answer.
+    final rawData = json['data'];
     return AIParseResult(
       success: json['success'] ?? false,
-      data: json['data'],
+      data: rawData is List
+          ? {'items': rawData}
+          : rawData as Map<String, dynamic>?,
       confidence: (json['confidence'] as num?)?.toDouble(),
       needsReview: json['needs_review'] ?? false,
       error: json['error'],

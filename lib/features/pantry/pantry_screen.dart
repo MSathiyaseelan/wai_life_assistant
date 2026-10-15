@@ -761,6 +761,24 @@ class _PantryScreenState extends State<PantryScreen>
         // Multi-item response: { "items": [...] }
         final rawItems = data['items'];
         if (rawItems is List && rawItems.isNotEmpty) {
+          // Several meals from one sentence ("breakfast is X, lunch is Y…")
+          // come back as a list too — tell them apart from basket items.
+          final maps = rawItems.whereType<Map<String, dynamic>>().toList();
+          final isMeals = maps.isNotEmpty &&
+              maps.every((m) =>
+                  m['meal_name'] != null ||
+                  m['meal_type'] != null ||
+                  m['meal_time'] != null);
+          if (isMeals) {
+            final meals =
+                maps.map((m) => _mapAiResult(m, result.parseLogId)).toList();
+            if (meals.length == 1) {
+              _handleParsedIntent(meals.first, text);
+            } else {
+              _showMultiMealConfirm(meals);
+            }
+            return;
+          }
           _showMultiBasketConfirm(_mapBasketItems(rawItems));
           return;
         }
@@ -883,6 +901,41 @@ class _PantryScreenState extends State<PantryScreen>
           aiRawData: d,
         );
     }
+  }
+
+  void _showMultiMealConfirm(List<PantryIntent> meals) {
+    if (_sectionTab.index != 0) _sectionTab.animateTo(0);
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final entries = [
+      for (final (i, m) in meals.indexed)
+        if ((m.mealName ?? '').trim().isNotEmpty)
+          MealEntry(
+            id: '${stamp}_$i',
+            name: m.mealName!.trim(),
+            mealTime: m.mealTime ?? MealTime.lunch,
+            date: m.mealDate ?? DateTime.now(),
+            walletId: widget.activeWalletId,
+            emoji: '🍽️',
+          ),
+    ];
+    if (entries.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MultiMealConfirmSheet(
+        meals: entries,
+        onConfirm: (selected) {
+          for (final m in selected) {
+            _addMeal(m);
+          }
+          _showSavedSnack(
+            '${selected.length} meal${selected.length == 1 ? '' : 's'} logged! 🗺️',
+            AppColors.income,
+          );
+        },
+      ),
+    );
   }
 
   void _showMultiBasketConfirm(List<GroceryItem> items) {
@@ -4892,3 +4945,217 @@ class _MultiBasketConfirmSheetState extends State<_MultiBasketConfirmSheet> {
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MULTI-MEAL CONFIRM — several meals parsed from one sentence
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MultiMealConfirmSheet extends StatefulWidget {
+  final List<MealEntry> meals;
+  final void Function(List<MealEntry> selected) onConfirm;
+
+  const _MultiMealConfirmSheet({
+    required this.meals,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_MultiMealConfirmSheet> createState() => _MultiMealConfirmSheetState();
+}
+
+class _MultiMealConfirmSheetState extends State<_MultiMealConfirmSheet> {
+  late final List<bool> _checked;
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _checked = List.filled(widget.meals.length, true);
+  }
+
+  int get _selectedCount => _checked.where((v) => v).length;
+
+  String _dayLabel(DateTime d) {
+    final now = DateTime.now();
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = day.difference(DateTime(now.year, now.month, now.day)).inDays;
+    return switch (diff) {
+      0 => 'Today',
+      -1 => 'Yesterday',
+      1 => 'Tomorrow',
+      _ => '${d.day} ${_months[d.month - 1]}',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final surfBg = isDark ? AppColors.surfDark : AppColors.bgLight;
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    const accent = AppColors.income;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              const Text('🗺️', style: TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Log ${widget.meals.length} meals',
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.45,
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: widget.meals.length,
+              itemBuilder: (_, i) {
+                final m = widget.meals[i];
+                final sel = _checked[i];
+                return GestureDetector(
+                  onTap: () => setState(() => _checked[i] = !_checked[i]),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: sel ? accent.withValues(alpha: 0.08) : surfBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: sel
+                            ? accent.withValues(alpha: 0.4)
+                            : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(m.mealTime.emoji,
+                            style: const TextStyle(fontSize: 20)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                displayCase(m.name),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Nunito',
+                                  color: sel ? tc : sub,
+                                ),
+                              ),
+                              Text(
+                                '${m.mealTime.label}  ·  ${_dayLabel(m.date)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontFamily: 'Nunito',
+                                  color: sub,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: sel ? accent : Colors.transparent,
+                            border: Border.all(
+                              color: sel ? accent : sub,
+                              width: 2,
+                            ),
+                          ),
+                          child: sel
+                              ? const Icon(Icons.check_rounded,
+                                  size: 14, color: Colors.white)
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _selectedCount == 0
+                  ? null
+                  : () {
+                      final selected = [
+                        for (var i = 0; i < widget.meals.length; i++)
+                          if (_checked[i]) widget.meals[i],
+                      ];
+                      Navigator.pop(context);
+                      widget.onConfirm(selected);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: accent.withValues(alpha: 0.3),
+                elevation: 3,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(
+                _selectedCount == 0
+                    ? 'Select meals'
+                    : 'Log $_selectedCount meal${_selectedCount == 1 ? '' : 's'} →',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  fontFamily: 'Nunito',
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
