@@ -768,6 +768,19 @@ class _PantryScreenState extends State<PantryScreen>
         final data = result.data!;
         // Multi-item response: { "items": [...] }
         final rawItems = data['items'];
+        // "bought X, Y and Z" — one verb for the whole list. The AI can
+        // drop it after the first item, so apply it to every basket entry.
+        final stock = PantryNlpParser.stockIntent(text);
+        if (stock != null) {
+          for (final m in [
+            data,
+            if (rawItems is List) ...rawItems.whereType<Map<String, dynamic>>(),
+          ]) {
+            if (m.containsKey('action')) {
+              m['action'] = stock ? 'add_stock' : 'add_tobuy';
+            }
+          }
+        }
         if (rawItems is List && rawItems.isNotEmpty) {
           // Several meals from one sentence ("breakfast is X, lunch is Y…")
           // come back as a list too — tell them apart from basket items.

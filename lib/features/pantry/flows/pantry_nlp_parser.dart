@@ -65,6 +65,26 @@ class PantryIntent {
 }
 
 class PantryNlpParser {
+  static final _stockVerbs = RegExp(
+    r'\b(bought|brought|purchased|got|received|restocked|picked up|have|in stock)\b',
+  );
+  static final _toBuyVerbs = RegExp(
+    r'\b(need|needs|needed|buy|to buy|want|get|order|running low|out of|finished|over)\b',
+  );
+
+  /// Whether the sentence as a whole says the items were already bought
+  /// (true → In Stock) or still need buying (false → To Buy). Null when it
+  /// says neither or both ("bought milk, need eggs") — then each item's own
+  /// AI action stands. A verb said once ("bought brinjal, onion and sugar")
+  /// covers every item, which the AI doesn't always carry across a list.
+  static bool? stockIntent(String text) {
+    final t = text.toLowerCase();
+    final stock = _stockVerbs.hasMatch(t);
+    final toBuy = _toBuyVerbs.hasMatch(t);
+    if (stock == toBuy) return null;
+    return stock;
+  }
+
   // ── Intent trigger words ────────────────────────────────────────────────────
   static const _mealTriggers = [
     'had',
