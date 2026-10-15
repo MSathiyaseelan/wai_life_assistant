@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/data/models/pantry/grocery_emoji.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -64,7 +65,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
     buf.writeln('─' * 30);
     for (var i = 0; i < selected.length; i++) {
       final g = selected[i];
-      buf.writeln('${i + 1}. ${g.category.emoji} ${displayCase(g.name)} — ${_fmtQty(g)}');
+      buf.writeln('${i + 1}. ${g.displayEmoji} ${displayCase(g.name)} — ${_fmtQty(g)}');
     }
     buf.writeln('─' * 30);
     buf.write('📦 ${selected.length} item${selected.length == 1 ? '' : 's'}');
@@ -290,7 +291,7 @@ class _CreateListSheetState extends State<CreateListSheet> {
                     ),
                     child: Row(
                       children: [
-                        Text(item.category.emoji,
+                        Text(item.displayEmoji,
                             style: const TextStyle(fontSize: 20)),
                         const SizedBox(width: 10),
                         Expanded(

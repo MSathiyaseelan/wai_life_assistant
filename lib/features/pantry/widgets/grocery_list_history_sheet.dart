@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/data/models/pantry/grocery_emoji.dart';
 import 'package:flutter/material.dart';
 import 'package:wai_life_assistant/core/theme/app_theme.dart';
 import 'package:wai_life_assistant/core/services/error_logger.dart';
@@ -465,7 +466,7 @@ class _ItemRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text(item.category.emoji, style: const TextStyle(fontSize: 18)),
+            Text(item.displayEmoji, style: const TextStyle(fontSize: 18)),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

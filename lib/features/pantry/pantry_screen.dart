@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/data/models/pantry/grocery_emoji.dart';
 import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -4369,7 +4370,7 @@ class _ExpiryBanner extends StatelessWidget {
               child: Row(
                 children: [
                   Text(
-                    item.category.emoji,
+                    item.displayEmoji,
                     style: const TextStyle(fontSize: 16),
                   ),
                   const SizedBox(width: 8),
@@ -4849,7 +4850,7 @@ class _MultiBasketConfirmSheetState extends State<_MultiBasketConfirmSheet> {
                     ),
                     child: Row(
                       children: [
-                        Text(item.category.emoji,
+                        Text(item.displayEmoji,
                             style: const TextStyle(fontSize: 20)),
                         const SizedBox(width: 10),
                         Expanded(

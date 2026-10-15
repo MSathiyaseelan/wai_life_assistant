@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/data/models/pantry/grocery_emoji.dart';
 import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'dart:io';
 
@@ -322,7 +323,7 @@ class _GroceryList extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (ctx, i) {
         final item = items[i];
-        final c = item.category.emoji;
+        final c = item.displayEmoji;
         final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
 
         // Check expiry warning
@@ -644,7 +645,7 @@ class _EditItemSheetState extends State<_EditItemSheet> {
               Row(
                 children: [
                   Text(
-                    widget.item.category.emoji,
+                    widget.item.displayEmoji,
                     style: const TextStyle(fontSize: 22),
                   ),
                   const SizedBox(width: 10),
@@ -1699,8 +1700,8 @@ class _ScannedItemTile extends StatelessWidget {
                 size: 22,
               ),
               const SizedBox(width: 10),
-              // Category emoji
-              Text(item.category.emoji, style: const TextStyle(fontSize: 18)),
+              // Item emoji (falls back to category)
+              Text(groceryEmojiFor(canonicalIngredientName(item.name), item.category), style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
               // Editable name
               Expanded(
