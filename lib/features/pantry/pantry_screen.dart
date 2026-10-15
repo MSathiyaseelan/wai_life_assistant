@@ -1,3 +1,4 @@
+import 'package:wai_life_assistant/main.dart';
 import 'package:wai_life_assistant/data/models/pantry/grocery_emoji.dart';
 import 'package:wai_life_assistant/core/utils/category_sort.dart';
 import 'dart:async';
@@ -142,6 +143,9 @@ class _PantryScreenState extends State<PantryScreen>
   /// that family's perm_edit/perm_delete setting unless the user is an
   /// admin (mirrors the same check added for Wallet transactions).
   (bool canEdit, bool canDelete) _pantryPerms(String walletId) {
+    // Screen torn down under an open sheet — no context to read families
+    // from. Allow; RLS still enforces the real permission server-side.
+    if (!mounted) return (true, true);
     for (final family in AppStateScope.of(context).families) {
       if (family.walletId == walletId) {
         return (family.canEdit, family.canDelete);
@@ -186,7 +190,10 @@ class _PantryScreenState extends State<PantryScreen>
   /// call sites should `if (_denyIfNoPerm(...)) return;` before mutating.
   bool _denyIfNoPerm(bool allowed, String action) {
     if (allowed) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
+    (mounted
+            ? ScaffoldMessenger.maybeOf(context)
+            : LifeAssistanceApp.scaffoldMessengerKey.currentState)
+        ?.showSnackBar(
       SnackBar(content: Text('Only admins can $action in this family.')),
     );
     return true;
@@ -1019,8 +1026,25 @@ class _PantryScreenState extends State<PantryScreen>
     Future.delayed(const Duration(seconds: 4), () => _offlineSnackShown = false);
   }
 
+  /// setState that tolerates this screen having been torn down while a
+  /// confirm sheet was still open (error_logs, build 41: tapping "Add N
+  /// items to Basket" then crashed on setState/context → white screen).
+  /// The change is still applied; only the rebuild is skipped.
+  void _safeSetState(VoidCallback fn) {
+    if (mounted) {
+      setState(fn);
+    } else {
+      fn();
+    }
+  }
+
   void _showSavedSnack(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    // App-wide messenger when this screen is gone, so the confirmation
+    // still shows instead of crashing on a dead context.
+    final messenger = mounted
+        ? ScaffoldMessenger.maybeOf(context)
+        : LifeAssistanceApp.scaffoldMessengerKey.currentState;
+    messenger?.showSnackBar(
       SnackBar(
         content: Text(
           msg,
@@ -1218,7 +1242,7 @@ class _PantryScreenState extends State<PantryScreen>
       _showSavedSnack('Account still loading. Please try again in a moment.', AppColors.subLight);
       return;
     }
-    setState(() => _meals.add(m)); // optimistic
+    _safeSetState(() => _meals.add(m)); // optimistic
     try {
       final row = await PantryService.instance.addMealEntry(
         walletId: m.walletId,
@@ -1274,7 +1298,7 @@ class _PantryScreenState extends State<PantryScreen>
     if (_denyIfNoPerm(_canEditMeal(original), 'edit meals')) return;
     // The edit sheet builds a fresh entry — keep who created it.
     final updated = edited.copyWith(createdBy: original.createdBy);
-    setState(() {
+    _safeSetState(() {
       final idx = _meals.indexWhere((e) => e.id == updated.id);
       if (idx >= 0) _meals[idx] = updated;
     });
@@ -1699,7 +1723,7 @@ class _PantryScreenState extends State<PantryScreen>
   // ── Recipe handlers ────────────────────────────────────────────────────────
 
   Future<void> _addRecipe(RecipeModel r) async {
-    final walletId = _currentWallet.id;
+    final walletId = mounted ? _currentWallet.id : widget.activeWalletId;
     if (_isPlaceholder(walletId)) {
       _showSavedSnack('Account still loading. Please try again in a moment.', AppColors.subLight);
       return;
@@ -1732,7 +1756,7 @@ class _PantryScreenState extends State<PantryScreen>
       // If the limit check itself fails, don't block saving a recipe over it.
       debugPrint('[Pantry] saved_recipe limit check failed: $e');
     }
-    setState(() => _recipes.add(r)); // optimistic
+    _safeSetState(() => _recipes.add(r)); // optimistic
     try {
       final row = await PantryService.instance.addRecipe(
         walletId: walletId,
@@ -2057,7 +2081,7 @@ class _PantryScreenState extends State<PantryScreen>
       return;
     }
 
-    setState(() => _groceries.add(i)); // optimistic
+    _safeSetState(() => _groceries.add(i)); // optimistic
     try {
       final row = await PantryService.instance.addGroceryItem(
         walletId: widget.activeWalletId,
@@ -2149,7 +2173,7 @@ class _PantryScreenState extends State<PantryScreen>
 
   Future<bool> _updateGrocery(GroceryItem i, Map<String, dynamic> updates) async {
     // Apply optimistically
-    setState(() {
+    _safeSetState(() {
       if (updates.containsKey('name')) {
         i.name = updates['name'] as String;
         i.normalizedName = updates['normalized_name'] as String?;
