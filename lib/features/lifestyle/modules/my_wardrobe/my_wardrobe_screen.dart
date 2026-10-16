@@ -280,14 +280,16 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
     }
   }
 
-  Future<void> _loadData() async {
+  /// [refresh] refetches items even when [MyWardrobeScreen.initialItems]
+  /// was supplied — those only seed the first load.
+  Future<void> _loadData({bool refresh = false}) async {
     if (_isPlaceholder(widget.walletId)) {
       if (mounted) setState(() => _loading = false);
       return;
     }
     try {
       final svc = WardrobeService.instance;
-      final skipItems = widget.initialItems != null;
+      final skipItems = !refresh && widget.initialItems != null;
       final categoriesFuture = svc.fetchCategories();
       final results = await Future.wait([
         if (!skipItems) svc.fetchItems(widget.walletId),
@@ -467,8 +469,12 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
               child: CircularProgressIndicator(color: _wardrobeColor),
             )
           : RefreshIndicator(
-              onRefresh: _loadData,
+              onRefresh: () => _loadData(refresh: true),
               color: _wardrobeColor,
+              // The tab lists sit inside TabBarView (itself a scrollable),
+              // so their notifications arrive at depth > 0 and the default
+              // depth-0 predicate never fires — accept any vertical scroll.
+              notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
               child: Column(
                 children: [
                   // Member selector — only meaningful with more than one
@@ -791,13 +797,33 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
                                     isDark: isDark,
                                     onMoveToWardrobe: () async {
                                       final item = _wishlist[i];
+                                      // A wishlist entry made via "Add to
+                                      // Wishlist" is a copy whose original
+                                      // is still in the wardrobe — moving
+                                      // it back would show the item twice,
+                                      // so drop the copy instead.
+                                      final original = _wardrobeOriginalOf(
+                                        item,
+                                      );
                                       try {
-                                        await WardrobeService.instance
-                                            .updateItem(item.id, {
-                                              'wishlist': false,
-                                            });
-                                        if (mounted) {
-                                          setState(() => item.wishlist = false);
+                                        if (original != null) {
+                                          await WardrobeService.instance
+                                              .deleteItem(item.id);
+                                          if (mounted) {
+                                            setState(
+                                              () => _clothes.remove(item),
+                                            );
+                                          }
+                                        } else {
+                                          await WardrobeService.instance
+                                              .updateItem(item.id, {
+                                                'wishlist': false,
+                                              });
+                                          if (mounted) {
+                                            setState(
+                                              () => item.wishlist = false,
+                                            );
+                                          }
                                         }
                                       } catch (e) {
                                         if (mounted) {
@@ -861,6 +887,22 @@ class _MyWardrobeScreenState extends State<MyWardrobeScreen>
         );
       }
     }
+  }
+
+  /// The wardrobe item [wish] was copied from by [_addToWishlist], if it's
+  /// still there — matched on the fields the copy carries over unchanged.
+  ClothingItem? _wardrobeOriginalOf(ClothingItem wish) {
+    final name = wish.name.trim().toLowerCase();
+    for (final c in _wardrobeItems) {
+      if (c.id != wish.id &&
+          c.memberId == wish.memberId &&
+          c.category == wish.category &&
+          c.photoPath == wish.photoPath &&
+          c.name.trim().toLowerCase() == name) {
+        return c;
+      }
+    }
+    return null;
   }
 
   // ── Add wardrobe item to wishlist ────────────────────────────────────────────
@@ -4141,30 +4183,107 @@ class _WishlistCard extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context) {
-    showDialog(
+  Future<void> _confirmDelete(BuildContext context) async {
+    final tc = isDark ? AppColors.textDark : AppColors.textLight;
+    final sub = isDark ? AppColors.subDark : AppColors.subLight;
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Remove from Wishlist?'),
-        content: Text('This will remove "${item.name}" from your wishlist.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogCtx);
-              onDelete();
-            },
-            child: const Text(
-              'Remove',
-              style: TextStyle(color: Colors.redAccent),
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => Material(
+        color: isDark ? AppColors.cardDark : AppColors.cardLight,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Remove from Wishlist?',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Nunito',
+                    color: tc,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This will remove "${item.name}" from your wishlist.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'Nunito',
+                    color: sub,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetCtx, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: sub,
+                          side: BorderSide(color: sub.withValues(alpha: 0.4)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(sheetCtx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          'Remove',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
+    if (confirmed == true) onDelete();
   }
 }
 
